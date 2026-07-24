@@ -36,6 +36,9 @@ def render_artifacts(
         "screenshot": str(final_svg),
         "screen_text": str(final_txt),
     }
+    exit_code_path = run_dir / "session.exitcode"
+    if exit_code_path.exists():
+        artifacts["exit_code_file"] = str(exit_code_path)
     step_dir = _render_step_screens(run_dir, steps or [], cols, rows)
     if step_dir is not None:
         artifacts["step_screenshots"] = str(step_dir)

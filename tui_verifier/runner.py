@@ -1,15 +1,12 @@
 from __future__ import annotations
 
 import json
-import os
-import subprocess
 import time
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
 from .agent_driven import AgentDrivenRunner, AgentRunner, CodexCliAgentRunner
-from .cast import CastRecorder
 from .evidence import new_run_dir, render_artifacts, write_result_files
 from .models import (
     AssertionResult,
@@ -120,28 +117,18 @@ class VerificationRunner:
         recipe: Recipe,
         run_dir: Path,
     ) -> tuple[list[StepResult], str, int | None, str]:
-        env = os.environ.copy()
-        if env.get("TERM") in (None, "", "dumb"):
-            env["TERM"] = "xterm-256color"
-        env.update(recipe.command.env)
         cast_path = run_dir / "session.cast"
-        with CastRecorder(cast_path, recipe.cols, recipe.rows, recipe.command.argv) as recorder:
-            try:
-                completed = subprocess.run(
-                    recipe.command.argv,
-                    cwd=recipe.command.cwd,
-                    env=env,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.STDOUT,
-                    text=True,
-                    timeout=recipe.timeout_seconds,
-                )
-                raw_output = completed.stdout
-                exit_code: int | None = completed.returncode
-            except subprocess.TimeoutExpired as error:
-                raw_output = _timeout_output(error)
-                exit_code = None
-            recorder.output(raw_output)
+        with TerminalSession(
+            recipe.command.argv,
+            cast_path,
+            recipe.command.cwd,
+            recipe.command.env,
+            recipe.cols,
+            recipe.rows,
+        ) as session:
+            session.wait_for_exit(recipe.timeout_seconds)
+            raw_output = session.raw_output
+            exit_code = session.exit_code
         screen, _, _ = replay_cast(cast_path)
         steps = self._evaluate_output_steps(recipe, screen, raw_output)
         return steps, raw_output, exit_code, screen
@@ -270,13 +257,3 @@ def _with_renderer_argv(recipe: Recipe, renderer_argv: list[str]) -> Recipe:
         return recipe
     command = replace(recipe.command, argv=[*recipe.command.argv, *renderer_argv])
     return replace(recipe, command=command)
-
-
-def _timeout_output(error: subprocess.TimeoutExpired) -> str:
-    stdout = error.stdout or ""
-    stderr = error.stderr or ""
-    if isinstance(stdout, bytes):
-        stdout = stdout.decode(errors="replace")
-    if isinstance(stderr, bytes):
-        stderr = stderr.decode(errors="replace")
-    return f"{stdout}{stderr}\n[TUI Verifier timed out]"

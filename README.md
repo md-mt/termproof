@@ -1,10 +1,10 @@
 # TUI Verifier
 
 TUI Verifier is an evidence-first verification harness for terminal and TUI
-applications. It launches a target command in a PTY, drives it with recipe
-steps, records an asciinema v2 cast, derives a terminal screenshot from the
-cast, optionally renders a 60-fps MP4 video with `agg` plus `ffmpeg`, and
-writes a compact report.
+applications. It launches a target command through `asciinema rec --command`,
+drives it with recipe steps when requested, derives terminal screenshots from
+the recorded cast, optionally renders a 60-fps MP4 video with `agg` plus
+`ffmpeg`, and writes a compact report.
 
 The initial showcase recipes target the Pi coding agent because Pi is a real
 terminal coding assistant with a stable local CLI surface.
@@ -34,12 +34,12 @@ Each run writes artifacts under `.tui-verifier/runs/<run-id>/`:
 Tracked Pi sample artifacts are included under `examples/artifacts/`.
 
 `examples/pi_codex_operator.recipe.json` demonstrates agent-driven execution
-with `codex exec` as the operator. The operator returns JSON assertions and a
-transcript; the verifier still owns evidence generation from the transcript:
-asciinema cast, screenshots, MP4 video, result JSON, and reports. In local Meta
-launcher environments where `codex exec` exits before running because
-`sandbox-exec` cannot apply its profile, the failed operator launch is captured
-as normal verification evidence.
+with `codex exec` as the operator. The verifier records that operator process
+with `asciinema rec`, stores the prompt/transcript/outcome, then publishes the
+cast, screenshots, MP4 video, result JSON, and reports. In local Meta launcher
+environments where `codex exec` exits before running because `sandbox-exec`
+cannot apply its profile, the failed operator launch is captured as normal
+verification evidence.
 
 ## Stack Design
 
@@ -111,14 +111,26 @@ policy differs by machine. The actual exit code is still recorded in
 
 For agent-driven recipes, set `"execution": "agent-driven"` and add an
 `operator` block such as `{"command": ["codex", "exec"], "prompt_mode":
-"stdin"}`. The prompt includes the recipe checks, target command, terminal
-dimensions, and expected JSON response schema.
+"stdin", "record_terminal": true}`. The prompt includes the recipe checks,
+target command, terminal dimensions, and expected JSON response schema.
 
 ## Why Asciinema First
 
-The cast is the source of truth. Screenshots and videos are generated from the
-same terminal recording that the verifier used for assertions, so reviewers can
-inspect what happened instead of trusting a private terminal session.
+The cast is the source of truth. The normal pipeline is:
+
+```bash
+asciinema rec --overwrite --stdin --quiet --cols "$COLS" --rows "$ROWS" \
+  --command "$TARGET_COMMAND" session.cast
+cat session.exitcode
+agg --quiet --fps-cap 60 session.cast session.agg.gif
+ffmpeg -y -loglevel error -i session.agg.gif \
+  -vf 'fps=60,scale=trunc(iw/2)*2:trunc(ih/2)*2' \
+  -pix_fmt yuv420p -movflags +faststart session.mp4
+```
+
+Screenshots and videos are generated from the same terminal recording that the
+verifier used for assertions, so reviewers can inspect what happened instead of
+trusting a private terminal session.
 
 This mirrors the product-validation direction from the MetaCode TUI validation
 docs: drive the real terminal surface, assert product outcomes, and publish

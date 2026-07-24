@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import os
+import shlex
+import shutil
 import time
 from pathlib import Path
 
 import pexpect
 import pyte
 
-from .cast import CastRecorder
 from .screen import screen_text
 
 
@@ -35,6 +36,7 @@ class TerminalSession:
     ) -> None:
         self.argv = argv
         self.cast_path = cast_path
+        self.exit_code_path = cast_path.with_suffix(".exitcode")
         self.cwd = cwd
         self.cols = cols
         self.rows = rows
@@ -46,15 +48,23 @@ class TerminalSession:
         if merged_env.get("TERM") in (None, "", "dumb"):
             merged_env["TERM"] = "xterm-256color"
         merged_env.update(env)
-        self.recorder = CastRecorder(cast_path, cols, rows, argv)
         self.child: pexpect.spawn | None = None
         self._env = merged_env
 
     def __enter__(self) -> "TerminalSession":
-        self.recorder.__enter__()
+        self.cast_path.parent.mkdir(parents=True, exist_ok=True)
+        self.cast_path.unlink(missing_ok=True)
+        self.exit_code_path.unlink(missing_ok=True)
+        command = asciinema_rec_command(
+            self.argv,
+            self.cast_path,
+            self.exit_code_path,
+            self.cols,
+            self.rows,
+        )
         self.child = pexpect.spawn(
-            self.argv[0],
-            self.argv[1:],
+            command[0],
+            command[1:],
             cwd=self.cwd,
             env=self._env,
             dimensions=(self.rows, self.cols),
@@ -65,7 +75,6 @@ class TerminalSession:
 
     def __exit__(self, *args: object) -> None:
         self.close()
-        self.recorder.__exit__(*args)
 
     @property
     def screen(self) -> str:
@@ -73,7 +82,6 @@ class TerminalSession:
 
     def send_text(self, text: str) -> None:
         self._require_child().send(text)
-        self.recorder.input(text)
 
     def send_line(self, text: str) -> None:
         self.send_text(text + "\r")
@@ -82,11 +90,15 @@ class TerminalSession:
         normalized = key.lower()
         if normalized.startswith("ctrl-"):
             self._require_child().sendcontrol(normalized.removeprefix("ctrl-"))
-            self.recorder.input(f"<{normalized}>")
             return
         sequence = KEYS[normalized]
         self._require_child().send(sequence)
-        self.recorder.input(sequence)
+
+    def send_eof(self) -> None:
+        self._require_child().sendeof()
+
+    def set_echo(self, enabled: bool) -> None:
+        self._require_child().setecho(enabled)
 
     def wait_for_text(self, text: str, timeout_seconds: float) -> bool:
         deadline = time.monotonic() + timeout_seconds
@@ -142,7 +154,6 @@ class TerminalSession:
                 return
             self.raw_output += chunk
             self._stream.feed(chunk)
-            self.recorder.output(chunk)
             timeout = 0
 
     def is_alive(self) -> bool:
@@ -165,7 +176,10 @@ class TerminalSession:
             return self.exit_code
         if not child.closed:
             child.close()
-        if child.exitstatus is not None:
+        recorded_exit_code = self._read_recorded_exit_code()
+        if recorded_exit_code is not None:
+            self.exit_code = recorded_exit_code
+        elif child.exitstatus is not None:
             self.exit_code = int(child.exitstatus)
         elif child.signalstatus is not None:
             self.exit_code = 128 + int(child.signalstatus)
@@ -175,3 +189,46 @@ class TerminalSession:
         if self.child is None:
             raise RuntimeError("session has not started")
         return self.child
+
+    def _read_recorded_exit_code(self) -> int | None:
+        if not self.exit_code_path.exists():
+            return None
+        value = self.exit_code_path.read_text(encoding="utf-8").strip()
+        return int(value) if value else None
+
+
+def asciinema_rec_command(
+    argv: list[str],
+    cast_path: Path,
+    exit_code_path: Path,
+    cols: int,
+    rows: int,
+) -> list[str]:
+    asciinema = shutil.which("asciinema")
+    if not asciinema:
+        raise RuntimeError("asciinema CLI is required to record terminal sessions")
+    return [
+        asciinema,
+        "rec",
+        "--overwrite",
+        "--stdin",
+        "--quiet",
+        "--cols",
+        str(cols),
+        "--rows",
+        str(rows),
+        "--command",
+        recorded_command(argv, exit_code_path),
+        str(cast_path),
+    ]
+
+
+def recorded_command(argv: list[str], exit_code_path: Path) -> str:
+    target = shlex.join(argv)
+    exit_file = shlex.quote(str(exit_code_path.resolve()))
+    return (
+        f"{target}; "
+        "__tui_verifier_status=$?; "
+        f"printf '%s' \"$__tui_verifier_status\" > {exit_file}; "
+        'exit "$__tui_verifier_status"'
+    )

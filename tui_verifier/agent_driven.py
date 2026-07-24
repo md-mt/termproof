@@ -11,6 +11,7 @@ from typing import Any, Protocol
 from .cast import CastRecorder
 from .models import AssertionResult, Recipe, StepResult
 from .screen import replay_cast
+from .session import TerminalSession
 
 
 @dataclass(frozen=True)
@@ -34,6 +35,7 @@ class CodexCliAgentRunner:
     prompt_mode: str = "stdin"
     cwd: str | None = None
     env: dict[str, str] = field(default_factory=dict)
+    record_terminal: bool = True
 
     @classmethod
     def from_recipe(cls, recipe: Recipe) -> "CodexCliAgentRunner":
@@ -43,9 +45,46 @@ class CodexCliAgentRunner:
         prompt_mode = str(config.get("prompt_mode", "stdin"))
         cwd = config.get("cwd")
         env = dict(config.get("env", {}))
-        return cls(command, timeout_seconds, prompt_mode, cwd, env)
+        record_terminal = bool(config.get("record_terminal", True))
+        return cls(command, timeout_seconds, prompt_mode, cwd, env, record_terminal)
 
     def run(self, recipe: Recipe, prompt: str, run_dir: Path) -> AgentOutcome:
+        if self.record_terminal:
+            return self._run_recorded(recipe, prompt, run_dir)
+        return self._run_subprocess(prompt)
+
+    def _run_recorded(self, recipe: Recipe, prompt: str, run_dir: Path) -> AgentOutcome:
+        command = list(self.command)
+        if self.prompt_mode == "arg":
+            command.append(prompt)
+        elif self.prompt_mode == "stdin":
+            prompt_path = (run_dir / "agent_prompt.md").resolve()
+            command = ["sh", "-lc", f"{shlex.join(command)} < {shlex.quote(str(prompt_path))}"]
+        with TerminalSession(
+            command,
+            run_dir / "session.cast",
+            self.cwd,
+            self.env,
+            recipe.cols,
+            recipe.rows,
+        ) as session:
+            session.wait_for_exit(self.timeout_seconds)
+            raw_output = session.raw_output
+            exit_code = session.exit_code
+        assertions, transcript, metadata = parse_agent_output(raw_output)
+        return AgentOutcome(
+            assertions=assertions,
+            transcript=transcript,
+            raw_output=raw_output,
+            exit_code=exit_code,
+            metadata={
+                **metadata,
+                "command": command,
+                "recorded_cast": str(run_dir / "session.cast"),
+            },
+        )
+
+    def _run_subprocess(self, prompt: str) -> AgentOutcome:
         env = os.environ.copy()
         env.update(self.env)
         command = list(self.command)
@@ -105,7 +144,7 @@ class AgentDrivenRunner:
         (run_dir / "agent_prompt.md").write_text(prompt, encoding="utf-8")
         outcome = self.agent_runner.run(recipe, prompt, run_dir)
         _write_agent_files(run_dir, outcome)
-        screen = _record_agent_cast(recipe, run_dir, outcome)
+        screen = _screen_from_agent_cast(recipe, run_dir, outcome)
         steps = [
             StepResult(
                 name="codex-operator",
@@ -204,8 +243,11 @@ def _write_agent_files(run_dir: Path, outcome: AgentOutcome) -> None:
     )
 
 
-def _record_agent_cast(recipe: Recipe, run_dir: Path, outcome: AgentOutcome) -> str:
+def _screen_from_agent_cast(recipe: Recipe, run_dir: Path, outcome: AgentOutcome) -> str:
     cast_path = run_dir / "session.cast"
+    if cast_path.exists():
+        screen, _, _ = replay_cast(cast_path)
+        return screen
     with CastRecorder(cast_path, recipe.cols, recipe.rows, ["codex-operator", recipe.name]) as recorder:
         recorder.output(outcome.transcript)
     screen, _, _ = replay_cast(cast_path)
@@ -213,14 +255,11 @@ def _record_agent_cast(recipe: Recipe, run_dir: Path, outcome: AgentOutcome) -> 
 
 
 def _load_json(output: str) -> dict[str, Any] | None:
-    candidates = [output.strip()]
+    values: list[dict[str, Any]] = []
+    candidates = [output.strip(), *[line.strip() for line in reversed(output.splitlines())]]
     if "```" in output:
         chunks = output.split("```")
-        candidates.extend(chunk.removeprefix("json").strip() for chunk in chunks)
-    start = output.find("{")
-    end = output.rfind("}")
-    if start >= 0 and end > start:
-        candidates.append(output[start : end + 1])
+        candidates.extend(chunk.removeprefix("json").strip() for chunk in reversed(chunks))
     for candidate in candidates:
         if not candidate:
             continue
@@ -229,8 +268,19 @@ def _load_json(output: str) -> dict[str, Any] | None:
         except json.JSONDecodeError:
             continue
         if isinstance(value, dict):
+            values.append(value)
+    decoder = json.JSONDecoder()
+    for start in reversed([index for index, char in enumerate(output) if char == "{"]):
+        try:
+            value, _ = decoder.raw_decode(output[start:])
+        except json.JSONDecodeError:
+            continue
+        if isinstance(value, dict):
+            values.append(value)
+    for value in values:
+        if "assertions" in value or "transcript" in value:
             return value
-    return None
+    return values[0] if values else None
 
 
 def _timeout_output(error: subprocess.TimeoutExpired) -> str:

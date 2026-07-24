@@ -14,7 +14,8 @@
     "type": "codex",
     "command": ["codex", "exec"],
     "timeout_seconds": 180,
-    "prompt_mode": "stdin"
+    "prompt_mode": "stdin",
+    "record_terminal": true
   },
   "renderers": {
     "default": []
