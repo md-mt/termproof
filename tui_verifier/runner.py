@@ -217,13 +217,13 @@ class VerificationRunner:
         value = assertion.get("value")
         name = assertion.get("name", kind)
         if kind == "output_contains":
-            return _contains(name, raw_output, value, True)
+            return _contains(name, raw_output, value, True, assertion.get("detail"))
         if kind == "output_not_contains":
-            return _contains(name, raw_output, value, False)
+            return _contains(name, raw_output, value, False, assertion.get("detail"))
         if kind == "screen_contains":
-            return _contains(name, screen, value, True)
+            return _contains(name, screen, value, True, assertion.get("detail"))
         if kind == "screen_not_contains":
-            return _contains(name, screen, value, False)
+            return _contains(name, screen, value, False, assertion.get("detail"))
         if kind == "exit_code":
             passed = exit_code == value
             return AssertionResult(name, passed, f"expected {value}, got {exit_code}")
@@ -237,11 +237,18 @@ class VerificationRunner:
         raise ValueError(f"unknown assertion type: {kind}")
 
 
-def _contains(name: str, haystack: str, needle: str, should_contain: bool) -> AssertionResult:
+def _contains(
+    name: str,
+    haystack: str,
+    needle: str,
+    should_contain: bool,
+    custom_detail: str | None = None,
+) -> AssertionResult:
     found = needle in haystack
     passed = found if should_contain else not found
     expectation = "contains" if should_contain else "does not contain"
-    return AssertionResult(name, passed, f"{expectation} {needle!r}")
+    detail = custom_detail or f"{expectation} {needle!r}"
+    return AssertionResult(name, passed, detail)
 
 
 def _recipe_path(recipe: Recipe, path: str) -> Path:

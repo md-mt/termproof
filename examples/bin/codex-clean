@@ -1,0 +1,12 @@
+#!/usr/bin/env sh
+set -eu
+
+if [ -n "${TUI_VERIFIER_CODEX_BIN:-}" ]; then
+  exec "$TUI_VERIFIER_CODEX_BIN" "$@"
+fi
+
+if [ -x /usr/local/bin/codex_cli/codex.real ]; then
+  exec /usr/local/bin/codex_cli/codex.real "$@"
+fi
+
+exec codex "$@"

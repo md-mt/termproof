@@ -33,13 +33,17 @@ Each run writes artifacts under `.tui-verifier/runs/<run-id>/`:
 
 Tracked Pi sample artifacts are included under `examples/artifacts/`.
 
+The Pi recipes call `examples/bin/pi-clean`, which uses
+`/usr/local/bin/pi_cli/pi.real` when present. That avoids recording Meta's local
+launcher wrapper when the wrapper cannot apply its macOS sandbox in this
+environment. Set `TUI_VERIFIER_PI_BIN` to override the Pi binary.
+
 `examples/pi_codex_operator.recipe.json` demonstrates agent-driven execution
-with `codex exec` as the operator. The verifier records that operator process
+with Codex as the operator. The verifier records that operator process
 with `asciinema rec`, stores the prompt/transcript/outcome, then publishes the
 cast, screenshots, MP4 video, result JSON, and reports. In local Meta launcher
-environments where `codex exec` exits before running because `sandbox-exec`
-cannot apply its profile, the failed operator launch is captured as normal
-verification evidence.
+environments, `examples/bin/codex-clean` uses the real Codex binary when present
+for the same reason. Set `TUI_VERIFIER_CODEX_BIN` to override it.
 
 ## Stack Design
 

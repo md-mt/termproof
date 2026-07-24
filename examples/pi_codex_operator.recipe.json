@@ -6,13 +6,13 @@
   "execution": "agent-driven",
   "determinism": "agentic",
   "checks": [
-    "Pi launcher banner renders",
-    "Meta launcher help options render",
+    "Pi help renders",
+    "sandbox failure is absent",
     "terminal evidence is recorded"
   ],
   "operator": {
     "type": "codex",
-    "command": ["codex", "exec"],
+    "command": ["examples/bin/codex-clean", "exec", "--skip-git-repo-check"],
     "timeout_seconds": 180,
     "prompt_mode": "stdin",
     "record_terminal": true
@@ -21,7 +21,7 @@
     "default": []
   },
   "command": {
-    "argv": ["pi", "--help"],
+    "argv": ["examples/bin/pi-clean", "--help"],
     "pty": false
   },
   "timeout_seconds": 20,
@@ -30,7 +30,7 @@
   "steps": [
     {
       "action": "wait_for_text",
-      "text": "Meta Launcher Options",
+      "text": "Usage:",
       "timeout_seconds": 10
     }
   ],

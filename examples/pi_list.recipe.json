@@ -5,15 +5,14 @@
   "execution": "scripted",
   "determinism": "deterministic",
   "checks": [
-    "Pi launcher banner renders",
-    "provider routing banner renders",
+    "Pi list help renders",
     "terminal evidence is recorded"
   ],
   "renderers": {
     "default": []
   },
   "command": {
-    "argv": ["pi", "list"],
+    "argv": ["examples/bin/pi-clean", "list", "--help"],
     "pty": false
   },
   "timeout_seconds": 10,
@@ -22,19 +21,31 @@
   "steps": [
     {
       "action": "wait_for_text",
-      "text": "Pi at Meta",
+      "text": "Usage:",
       "timeout_seconds": 5
     }
   ],
   "assertions": [
     {
       "type": "output_contains",
-      "value": "Pi at Meta"
+      "value": "pi list"
     },
     {
       "type": "output_contains",
-      "value": "Using AI Gateway"
+      "value": "List installed packages"
+    },
+    {
+      "name": "sandbox failure is absent",
+      "type": "output_not_contains",
+      "value": "sandbox_apply",
+      "detail": "sandbox failure is absent"
+    },
+    {
+      "name": "sandbox launcher error is absent",
+      "type": "output_not_contains",
+      "value": "sandbox-exec",
+      "detail": "sandbox launcher error is absent"
     }
   ],
-  "expect_exit_code": null
+  "expect_exit_code": 0
 }

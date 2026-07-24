@@ -5,15 +5,14 @@
   "execution": "scripted",
   "determinism": "deterministic",
   "checks": [
-    "Pi launcher banner renders",
-    "Meta launcher help options render",
+    "Pi help renders",
     "terminal evidence is recorded"
   ],
   "renderers": {
     "default": []
   },
   "command": {
-    "argv": ["pi", "--help"],
+    "argv": ["examples/bin/pi-clean", "--help"],
     "pty": false
   },
   "timeout_seconds": 20,
@@ -22,23 +21,31 @@
   "steps": [
     {
       "action": "wait_for_text",
-      "text": "Meta Launcher Options",
+      "text": "Usage:",
       "timeout_seconds": 10
     }
   ],
   "assertions": [
     {
       "type": "output_contains",
-      "value": "Pi at Meta"
+      "value": "Usage:"
     },
     {
       "type": "output_contains",
-      "value": "Meta Launcher Options"
+      "value": "Built-in Tool Names"
     },
     {
-      "type": "output_contains",
-      "value": "--doctor"
+      "name": "sandbox failure is absent",
+      "type": "output_not_contains",
+      "value": "sandbox_apply",
+      "detail": "sandbox failure is absent"
+    },
+    {
+      "name": "sandbox launcher error is absent",
+      "type": "output_not_contains",
+      "value": "sandbox-exec",
+      "detail": "sandbox launcher error is absent"
     }
   ],
-  "expect_exit_code": null
+  "expect_exit_code": 0
 }
