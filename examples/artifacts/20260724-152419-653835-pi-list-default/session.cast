@@ -1,4 +1,0 @@
-{"version": 2, "width": 100, "height": 12, "timestamp": 1784931859, "env": {"SHELL": "/bin/zsh", "TERM": "xterm-256color"}}
-[0.477105, "o", "Pi at Meta (https://www.npmjs.com/package/@earendil-works/pi-coding-agent)\r\n"]
-[0.534382, "o", "Using AI Gateway (Anthropic upstream)\r\n"]
-[0.572188, "o", "sandbox-exec: sandbox_apply: Operation not permitted\r\n"]

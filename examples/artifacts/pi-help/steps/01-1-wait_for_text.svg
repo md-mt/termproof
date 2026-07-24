@@ -1,23 +1,44 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1026" height="876" viewBox="0 0 1026 876">
 <rect width="100%" height="100%" fill="#101418"/>
 <style>text{font:14px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;fill:#e6edf3;white-space:pre}</style>
-<text x="18" y="38"></text>
-<text x="18" y="58">Meta Launcher Options:</text>
-<text x="18" y="78">  --internet                          Enable internet access (macOS only)</text>
-<text x="18" y="98">  --dangerously-enable-internet-mode  Enable internet access without sandboxing (macOS/Linux only)</text>
-<text x="18" y="118">  --secure-internet-mode              Enable secure internet access without user data (macOS/Linux only)</text>
-<text x="18" y="138">  --dangerously-disable-osx-sandbox   Disable the macOS sandbox</text>
-<text x="18" y="158">  --add-mcp-tools                     Launch the MCP tools TUI</text>
-<text x="18" y="178">  --with-proxy                        Override the Plugboard proxy URL</text>
-<text x="18" y="198">  --doctor                            Run diagnostics and auto-fixes (migrated to agent-doctor)</text>
-<text x="18" y="218">  --rage                              Collect troubleshooting data (migrated to agent-doctor)</text>
-<text x="18" y="238">  --meta-agent-role                   Role for the agent (macOS and Linux only)</text>
-<text x="18" y="258">  --startup-context-mode              Activate these context modes on fresh session start, overriding the `[ru</text>
-<text x="18" y="278">les.startup_mode]` config and any last-used modes. Comma-separated list of mode names. Subagents ignore this f</text>
-<text x="18" y="298">lag; only the main agent&#x27;s SessionStart applies it</text>
-<text x="18" y="318">  --meta-force-enable-features        Force-enable MetaCode feature names. Comma-separated or repeatable</text>
-<text x="18" y="338"></text>
-<text x="18" y="358">Pi at Meta (https://www.npmjs.com/package/@earendil-works/pi-coding-agent)</text>
-<text x="18" y="378">Using AI Gateway (Anthropic upstream)</text>
-<text x="18" y="398">sandbox-exec: sandbox_apply: Operation not permitted</text>
+<text x="18" y="38">  CEREBRAS_API_KEY                 - Cerebras API key</text>
+<text x="18" y="58">  XAI_API_KEY                      - xAI Grok API key</text>
+<text x="18" y="78">  FIREWORKS_API_KEY                - Fireworks API key</text>
+<text x="18" y="98">  TOGETHER_API_KEY                 - Together AI API key</text>
+<text x="18" y="118">  OPENROUTER_API_KEY               - OpenRouter API key</text>
+<text x="18" y="138">  AI_GATEWAY_API_KEY               - Vercel AI Gateway API key</text>
+<text x="18" y="158">  ZAI_API_KEY                      - ZAI Coding Plan API key (Global)</text>
+<text x="18" y="178">  ZAI_CODING_CN_API_KEY            - ZAI Coding Plan API key (China)</text>
+<text x="18" y="198">  MISTRAL_API_KEY                  - Mistral API key</text>
+<text x="18" y="218">  MINIMAX_API_KEY                  - MiniMax API key</text>
+<text x="18" y="238">  MOONSHOT_API_KEY                 - Moonshot AI API key</text>
+<text x="18" y="258">  OPENCODE_API_KEY                 - OpenCode Zen/OpenCode Go API key</text>
+<text x="18" y="278">  KIMI_API_KEY                     - Kimi For Coding API key</text>
+<text x="18" y="298">  CLOUDFLARE_API_KEY               - Cloudflare API token (Workers AI and AI Gateway)</text>
+<text x="18" y="318">  CLOUDFLARE_ACCOUNT_ID            - Cloudflare account id (required for both)</text>
+<text x="18" y="338">  CLOUDFLARE_GATEWAY_ID            - Cloudflare AI Gateway slug (required for AI Gateway)</text>
+<text x="18" y="358">  XIAOMI_API_KEY                   - Xiaomi MiMo API key (api.xiaomimimo.com billing)</text>
+<text x="18" y="378">  XIAOMI_TOKEN_PLAN_CN_API_KEY     - Xiaomi MiMo Token Plan API key (China region)</text>
+<text x="18" y="398">  XIAOMI_TOKEN_PLAN_AMS_API_KEY    - Xiaomi MiMo Token Plan API key (Amsterdam region)</text>
+<text x="18" y="418">  XIAOMI_TOKEN_PLAN_SGP_API_KEY    - Xiaomi MiMo Token Plan API key (Singapore region)</text>
+<text x="18" y="438">  AWS_PROFILE                      - AWS profile for Amazon Bedrock</text>
+<text x="18" y="458">  AWS_ACCESS_KEY_ID                - AWS access key for Amazon Bedrock</text>
+<text x="18" y="478">  AWS_SECRET_ACCESS_KEY            - AWS secret key for Amazon Bedrock</text>
+<text x="18" y="498">  AWS_BEARER_TOKEN_BEDROCK         - Bedrock API key (bearer token)</text>
+<text x="18" y="518">  AWS_REGION                       - AWS region for Amazon Bedrock (e.g., us-east-1)</text>
+<text x="18" y="538">  PI_CODING_AGENT_DIR              - Config directory (default: ~/.pi/agent)</text>
+<text x="18" y="558">  PI_CODING_AGENT_SESSION_DIR      - Session storage directory (overridden by --session-dir)</text>
+<text x="18" y="578">  PI_PACKAGE_DIR                   - Override package directory (for Nix/Guix store paths)</text>
+<text x="18" y="598">  PI_OFFLINE                       - Disable startup network operations when set to 1/true/yes</text>
+<text x="18" y="618">  PI_TELEMETRY                     - Override install telemetry when set to 1/true/yes or 0/false/no</text>
+<text x="18" y="638">  PI_SHARE_VIEWER_URL              - Base URL for /share command (default: https://pi.dev/session/)</text>
+<text x="18" y="658"></text>
+<text x="18" y="678">Built-in Tool Names:</text>
+<text x="18" y="698">  read   - Read file contents</text>
+<text x="18" y="718">  bash   - Execute bash commands</text>
+<text x="18" y="738">  edit   - Edit files with find/replace</text>
+<text x="18" y="758">  write  - Write files (creates/overwrites)</text>
+<text x="18" y="778">  grep   - Search file contents (read-only, off by default)</text>
+<text x="18" y="798">  find   - Find files by glob pattern (read-only, off by default)</text>
+<text x="18" y="818">  ls     - List directory contents (read-only, off by default)</text>
 </svg>

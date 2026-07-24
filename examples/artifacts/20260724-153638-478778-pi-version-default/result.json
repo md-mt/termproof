@@ -33,11 +33,11 @@
     }
   ],
   "artifacts": {
-    "cast": "examples/artifacts/pi-version/session.cast",
-    "screenshot": "examples/artifacts/pi-version/final.svg",
-    "screen_text": "examples/artifacts/pi-version/final.txt",
-    "exit_code_file": "examples/artifacts/pi-version/session.exitcode",
-    "step_screenshots": "examples/artifacts/pi-version/steps",
-    "video": "examples/artifacts/pi-version/session.mp4"
+    "cast": "examples/artifacts/20260724-153638-478778-pi-version-default/session.cast",
+    "screenshot": "examples/artifacts/20260724-153638-478778-pi-version-default/final.svg",
+    "screen_text": "examples/artifacts/20260724-153638-478778-pi-version-default/final.txt",
+    "exit_code_file": "examples/artifacts/20260724-153638-478778-pi-version-default/session.exitcode",
+    "step_screenshots": "examples/artifacts/20260724-153638-478778-pi-version-default/steps",
+    "video": "examples/artifacts/20260724-153638-478778-pi-version-default/session.mp4"
   }
 }

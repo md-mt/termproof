@@ -1,3 +1,8 @@
-Pi at Meta (https://www.npmjs.com/package/@earendil-works/pi-coding-agent)
-Using AI Gateway (Anthropic upstream)
-sandbox-exec: sandbox_apply: Operation not permitted
+Usage:
+  pi list [--approve|--no-approve]
+
+List installed packages from user and project settings.
+
+Options:
+  -a, --approve      Trust project-local files for this command
+  -na, --no-approve  Ignore project-local files for this command

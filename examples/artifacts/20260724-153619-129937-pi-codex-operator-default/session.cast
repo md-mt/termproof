@@ -1,0 +1,2 @@
+{"version": 2, "width": 110, "height": 42, "timestamp": 1784932579, "env": {"SHELL": "/bin/zsh", "TERM": "xterm-256color"}}
+[0.047374, "o", "Error: Model provider `responses` not found\r\n"]

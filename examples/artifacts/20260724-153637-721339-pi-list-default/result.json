@@ -43,11 +43,11 @@
     }
   ],
   "artifacts": {
-    "cast": "examples/artifacts/pi-list/session.cast",
-    "screenshot": "examples/artifacts/pi-list/final.svg",
-    "screen_text": "examples/artifacts/pi-list/final.txt",
-    "exit_code_file": "examples/artifacts/pi-list/session.exitcode",
-    "step_screenshots": "examples/artifacts/pi-list/steps",
-    "video": "examples/artifacts/pi-list/session.mp4"
+    "cast": "examples/artifacts/20260724-153637-721339-pi-list-default/session.cast",
+    "screenshot": "examples/artifacts/20260724-153637-721339-pi-list-default/final.svg",
+    "screen_text": "examples/artifacts/20260724-153637-721339-pi-list-default/final.txt",
+    "exit_code_file": "examples/artifacts/20260724-153637-721339-pi-list-default/session.exitcode",
+    "step_screenshots": "examples/artifacts/20260724-153637-721339-pi-list-default/steps",
+    "video": "examples/artifacts/20260724-153637-721339-pi-list-default/session.mp4"
   }
 }

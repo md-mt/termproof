@@ -1,5 +1,0 @@
-{"version": 2, "width": 110, "height": 42, "timestamp": 1784931830, "env": {"SHELL": "/bin/zsh", "TERM": "xterm-256color"}}
-[0.495882, "o", "Codex CLI at Meta (https://fburl.com/codex.cli.users)\r\n"]
-[0.552756, "o", "Using AI Gateway (Azure Codex upstream)\r\n"]
-[0.746883, "o", "\r\n🥑 Start using Avocado/MetaCode today and contribute to Muse Spark 🥑\r\nHelp us improve Avocado by using it for your daily workflows for the next 3-4 weeks. Learn more: https://fburl.com/workplace/5v9ba122\r\n\r\n"]
-[0.802341, "o", "sandbox-exec: sandbox_apply: Operation not permitted\r\n"]

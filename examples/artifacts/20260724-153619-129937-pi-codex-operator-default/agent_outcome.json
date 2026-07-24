@@ -1,0 +1,14 @@
+{
+  "assertions": {},
+  "transcript": "Error: Model provider `responses` not found\r\n",
+  "exit_code": 1,
+  "metadata": {
+    "command": [
+      "sh",
+      "-lc",
+      "examples/bin/codex-clean exec --skip-git-repo-check < /Users/mengwei/tui-verifier/examples/artifacts/20260724-153619-129937-pi-codex-operator-default/agent_prompt.md"
+    ],
+    "recorded_cast": "examples/artifacts/20260724-153619-129937-pi-codex-operator-default/session.cast"
+  },
+  "raw_output": "Error: Model provider `responses` not found\r\n"
+}

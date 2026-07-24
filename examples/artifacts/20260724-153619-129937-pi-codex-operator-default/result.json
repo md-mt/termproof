@@ -1,0 +1,46 @@
+{
+  "recipe_name": "pi-codex-operator",
+  "passed": false,
+  "exit_code": 1,
+  "duration_seconds": 0.7087152499589138,
+  "priority": "P1",
+  "execution": "agent-driven",
+  "renderer": "default",
+  "score": 0.0,
+  "steps": [
+    {
+      "name": "codex-operator",
+      "passed": false,
+      "detail": "operator exit code 1",
+      "screen": "Error: Model provider `responses` not found"
+    }
+  ],
+  "assertions": [
+    {
+      "name": "Pi help renders",
+      "passed": false,
+      "detail": "agent did not report pass"
+    },
+    {
+      "name": "sandbox failure is absent",
+      "passed": false,
+      "detail": "agent did not report pass"
+    },
+    {
+      "name": "terminal evidence is recorded",
+      "passed": false,
+      "detail": "agent did not report pass"
+    }
+  ],
+  "artifacts": {
+    "cast": "examples/artifacts/20260724-153619-129937-pi-codex-operator-default/session.cast",
+    "screenshot": "examples/artifacts/20260724-153619-129937-pi-codex-operator-default/final.svg",
+    "screen_text": "examples/artifacts/20260724-153619-129937-pi-codex-operator-default/final.txt",
+    "exit_code_file": "examples/artifacts/20260724-153619-129937-pi-codex-operator-default/session.exitcode",
+    "step_screenshots": "examples/artifacts/20260724-153619-129937-pi-codex-operator-default/steps",
+    "agent_prompt": "examples/artifacts/20260724-153619-129937-pi-codex-operator-default/agent_prompt.md",
+    "agent_transcript": "examples/artifacts/20260724-153619-129937-pi-codex-operator-default/agent_transcript.md",
+    "agent_outcome": "examples/artifacts/20260724-153619-129937-pi-codex-operator-default/agent_outcome.json",
+    "video": "examples/artifacts/20260724-153619-129937-pi-codex-operator-default/session.mp4"
+  }
+}

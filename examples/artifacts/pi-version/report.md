@@ -5,8 +5,8 @@
 - Priority: `P0`
 - Execution: `scripted`
 - Score: `1.00`
-- Exit code: `71`
-- Duration: `2.28s`
+- Exit code: `0`
+- Duration: `0.78s`
 
 ## Artifacts
 
@@ -19,9 +19,10 @@
 
 ## Assertions
 
-- PASS `output_contains` - contains 'Pi at Meta'
-- PASS `output_contains` - contains 'Using AI Gateway'
+- PASS `sandbox failure is absent` - sandbox failure is absent
+- PASS `sandbox launcher error is absent` - sandbox launcher error is absent
+- PASS `exit_code` - expected 0, got 0
 
 ## Steps
 
-- PASS `1:wait_for_text` - found 'Pi at Meta'
+- PASS `1:wait_for_text` - found '.'
