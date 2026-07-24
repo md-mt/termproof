@@ -1,8 +1,8 @@
 {
-  "recipe_name": "pi-version",
+  "recipe_name": "pi-list",
   "passed": true,
   "exit_code": 71,
-  "duration_seconds": 2.283476624987088,
+  "duration_seconds": 2.206101249961648,
   "priority": "P0",
   "execution": "scripted",
   "renderer": "default",
@@ -28,11 +28,11 @@
     }
   ],
   "artifacts": {
-    "cast": "examples/artifacts/pi-version/session.cast",
-    "screenshot": "examples/artifacts/pi-version/final.svg",
-    "screen_text": "examples/artifacts/pi-version/final.txt",
-    "exit_code_file": "examples/artifacts/pi-version/session.exitcode",
-    "step_screenshots": "examples/artifacts/pi-version/steps",
-    "video": "examples/artifacts/pi-version/session.mp4"
+    "cast": "examples/artifacts/20260724-152419-653835-pi-list-default/session.cast",
+    "screenshot": "examples/artifacts/20260724-152419-653835-pi-list-default/final.svg",
+    "screen_text": "examples/artifacts/20260724-152419-653835-pi-list-default/final.txt",
+    "exit_code_file": "examples/artifacts/20260724-152419-653835-pi-list-default/session.exitcode",
+    "step_screenshots": "examples/artifacts/20260724-152419-653835-pi-list-default/steps",
+    "video": "examples/artifacts/20260724-152419-653835-pi-list-default/session.mp4"
   }
 }

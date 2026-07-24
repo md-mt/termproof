@@ -6,13 +6,15 @@
 - Execution: `scripted`
 - Score: `1.00`
 - Exit code: `71`
-- Duration: `1.93s`
+- Duration: `2.28s`
 
 ## Artifacts
 
 - cast: `examples/artifacts/pi-version/session.cast`
 - screenshot: `examples/artifacts/pi-version/final.svg`
 - screen_text: `examples/artifacts/pi-version/final.txt`
+- exit_code_file: `examples/artifacts/pi-version/session.exitcode`
+- step_screenshots: `examples/artifacts/pi-version/steps`
 - video: `examples/artifacts/pi-version/session.mp4`
 
 ## Assertions

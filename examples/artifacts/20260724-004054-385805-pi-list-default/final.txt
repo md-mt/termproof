@@ -1,4 +1,0 @@
-Pi at Meta (https://www.npmjs.com/package/@earendil-works/pi-coding-agent)
-                                                                          Using AI Gateway (Anthropi
-c upstream)
-           sandbox-exec: sandbox_apply: Operation not permitted

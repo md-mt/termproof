@@ -6,14 +6,14 @@
 - Command: `pi --help`
 - Binary: `/usr/local/bin/pi`
 - Version: `Pi at Meta (https://www.npmjs.com/package/@earendil-works/pi-coding-agent) / Using AI Gateway (Anthropic upstream) / sandbox-exec: sandbox_apply: Operation not permitted`
-- Git commit: `4d696ee013d37d06084e2e26b09ac09bbb1710bf`
+- Git commit: `731f9898d933e8210877c90687a6d8dabda42ff6`
 - Verified: `yes`
 
 | Recipe | Renderer | Priority | Execution | Result | Score | Evidence |
 | --- | --- | --- | --- | --- | --- | --- |
-| `pi-help` | `default` | `P0` | `scripted` | PASS | 1.00 | [screenshot](examples/artifacts/20260724-004051-177323-pi-help-default/final.svg) / [video](examples/artifacts/20260724-004051-177323-pi-help-default/session.mp4) / [cast](examples/artifacts/20260724-004051-177323-pi-help-default/session.cast) / [screen_text](examples/artifacts/20260724-004051-177323-pi-help-default/final.txt) / [step_screenshots](examples/artifacts/20260724-004051-177323-pi-help-default/steps) |
-| `pi-list` | `default` | `P0` | `scripted` | PASS | 1.00 | [screenshot](examples/artifacts/20260724-004054-385805-pi-list-default/final.svg) / [video](examples/artifacts/20260724-004054-385805-pi-list-default/session.mp4) / [cast](examples/artifacts/20260724-004054-385805-pi-list-default/session.cast) / [screen_text](examples/artifacts/20260724-004054-385805-pi-list-default/final.txt) / [step_screenshots](examples/artifacts/20260724-004054-385805-pi-list-default/steps) |
-| `pi-version` | `default` | `P0` | `scripted` | PASS | 1.00 | [screenshot](examples/artifacts/20260724-004056-344321-pi-version-default/final.svg) / [video](examples/artifacts/20260724-004056-344321-pi-version-default/session.mp4) / [cast](examples/artifacts/20260724-004056-344321-pi-version-default/session.cast) / [screen_text](examples/artifacts/20260724-004056-344321-pi-version-default/final.txt) / [step_screenshots](examples/artifacts/20260724-004056-344321-pi-version-default/steps) |
+| `pi-help` | `default` | `P0` | `scripted` | PASS | 1.00 | [screenshot](examples/artifacts/20260724-152417-148189-pi-help-default/final.svg) / [video](examples/artifacts/20260724-152417-148189-pi-help-default/session.mp4) / [cast](examples/artifacts/20260724-152417-148189-pi-help-default/session.cast) / [screen_text](examples/artifacts/20260724-152417-148189-pi-help-default/final.txt) / [step_screenshots](examples/artifacts/20260724-152417-148189-pi-help-default/steps) |
+| `pi-list` | `default` | `P0` | `scripted` | PASS | 1.00 | [screenshot](examples/artifacts/20260724-152419-653835-pi-list-default/final.svg) / [video](examples/artifacts/20260724-152419-653835-pi-list-default/session.mp4) / [cast](examples/artifacts/20260724-152419-653835-pi-list-default/session.cast) / [screen_text](examples/artifacts/20260724-152419-653835-pi-list-default/final.txt) / [step_screenshots](examples/artifacts/20260724-152419-653835-pi-list-default/steps) |
+| `pi-version` | `default` | `P0` | `scripted` | PASS | 1.00 | [screenshot](examples/artifacts/20260724-152421-860501-pi-version-default/final.svg) / [video](examples/artifacts/20260724-152421-860501-pi-version-default/session.mp4) / [cast](examples/artifacts/20260724-152421-860501-pi-version-default/session.cast) / [screen_text](examples/artifacts/20260724-152421-860501-pi-version-default/final.txt) / [step_screenshots](examples/artifacts/20260724-152421-860501-pi-version-default/steps) |
 
 <details><summary>PASS pi-help [default]</summary>
 

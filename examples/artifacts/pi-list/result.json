@@ -2,7 +2,7 @@
   "recipe_name": "pi-list",
   "passed": true,
   "exit_code": 71,
-  "duration_seconds": 1.8748784170020372,
+  "duration_seconds": 2.206101249961648,
   "priority": "P0",
   "execution": "scripted",
   "renderer": "default",
@@ -12,7 +12,7 @@
       "name": "1:wait_for_text",
       "passed": true,
       "detail": "found 'Pi at Meta'",
-      "screen": "Pi at Meta (https://www.npmjs.com/package/@earendil-works/pi-coding-agent)\n                                                                          Using AI Gateway (Anthropi\nc upstream)\n           sandbox-exec: sandbox_apply: Operation not permitted"
+      "screen": "Pi at Meta (https://www.npmjs.com/package/@earendil-works/pi-coding-agent)\nUsing AI Gateway (Anthropic upstream)\nsandbox-exec: sandbox_apply: Operation not permitted"
     }
   ],
   "assertions": [
@@ -31,6 +31,8 @@
     "cast": "examples/artifacts/pi-list/session.cast",
     "screenshot": "examples/artifacts/pi-list/final.svg",
     "screen_text": "examples/artifacts/pi-list/final.txt",
+    "exit_code_file": "examples/artifacts/pi-list/session.exitcode",
+    "step_screenshots": "examples/artifacts/pi-list/steps",
     "video": "examples/artifacts/pi-list/session.mp4"
   }
 }

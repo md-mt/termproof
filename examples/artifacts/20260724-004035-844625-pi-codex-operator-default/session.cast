@@ -1,2 +1,0 @@
-{"version": 2, "width": 110, "height": 42, "timestamp": 1784878837, "command": "codex-operator pi-codex-operator", "env": {"SHELL": "/bin/zsh", "TERM": "dumb"}}
-[0.000711, "o", "Codex CLI at Meta (https://fburl.com/codex.cli.users)\nUsing AI Gateway (Azure Codex upstream)\n\n\ud83e\udd51 Start using Avocado/MetaCode today and contribute to Muse Spark \ud83e\udd51\nHelp us improve Avocado by using it for your daily workflows for the next 3-4 weeks. Learn more: https://fburl.com/workplace/5v9ba122\n\nsandbox-exec: sandbox_apply: Operation not permitted\n"]
