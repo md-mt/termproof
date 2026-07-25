@@ -8,6 +8,8 @@ on:
 
 permissions:
   contents: read
+  issues: write
+  pull-requests: write
 
 jobs:
   verify:
@@ -64,6 +66,21 @@ jobs:
             examples/pi_workflow_model_context.recipe.json \
             --video --video-fps 60 --out .tui-verifier/ci
 
+      - name: Publish TUI verification summary
+        if: always()
+        run: |
+          {
+            echo "## TUI Verifier CI Report"
+            echo
+            echo "Evidence artifact: \`tui-verifier-ci-evidence\`"
+            echo
+            if [ -f .tui-verifier/ci/latest-report.md ]; then
+              cat .tui-verifier/ci/latest-report.md
+            else
+              echo "No TUI verifier report was generated."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Upload verification evidence
         uses: actions/upload-artifact@v4
         if: always()
@@ -71,6 +88,66 @@ jobs:
           name: tui-verifier-ci-evidence
           path: .tui-verifier/ci
           if-no-files-found: ignore
+
+      - name: Comment TUI verification report on PR
+        uses: actions/github-script@v7
+        if: always() && github.event_name == 'pull_request'
+        continue-on-error: true
+        with:
+          script: |
+            const fs = require('fs');
+            const marker = '<!-- tui-verifier-ci-report -->';
+            const reportPath = '.tui-verifier/ci/latest-report.md';
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            let report = fs.existsSync(reportPath)
+              ? fs.readFileSync(reportPath, 'utf8')
+              : 'No TUI verifier report was generated.';
+            const maxReportChars = 55000;
+            if (report.length > maxReportChars) {
+              report = `${report.slice(0, maxReportChars)}\n\n_Report truncated. Download the ` +
+                '`tui-verifier-ci-evidence` artifact from the run for the full report._';
+            }
+            const body = [
+              marker,
+              '## TUI Verifier CI Report',
+              '',
+              `Run: [${context.workflow} #${context.runNumber}](${runUrl})`,
+              '',
+              'Evidence artifact: `tui-verifier-ci-evidence` in the workflow run artifacts.',
+              'Report links point to files inside that artifact.',
+              '',
+              '<details open><summary>latest-report.md</summary>',
+              '',
+              report,
+              '',
+              '</details>',
+            ].join('\n');
+            const { owner, repo } = context.repo;
+            const issue_number = context.payload.pull_request.number;
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner,
+              repo,
+              issue_number,
+              per_page: 100,
+            });
+            const existing = comments.find(
+              (comment) => comment.user.type === 'Bot' && comment.body.includes(marker)
+            );
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner,
+                repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number,
+                body,
+              });
+            }
 
       - name: Upload package artifacts
         uses: actions/upload-artifact@v4

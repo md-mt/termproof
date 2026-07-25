@@ -193,8 +193,8 @@ This repository includes Actions for the regular verification lifecycle:
 
 | Workflow | Trigger | What runs |
 | --- | --- | --- |
-| `CI` | every pull request and every commit pushed to `main` | unit tests, package build, generic TUI E2E verification, deterministic Pi agent UI verification, evidence upload |
-| `Release` | `v*.*.*` tags and manual dispatch | unit tests, package build, installed-wheel smoke test, generic TUI E2E verification, deterministic Pi agent UI verification, release evidence archive |
+| `CI` | every pull request and every commit pushed to `main` | unit tests, package build, generic TUI E2E verification, deterministic Pi agent UI verification, run summary, PR comment, evidence upload |
+| `Release` | `v*.*.*` tags and manual dispatch | unit tests, package build, installed-wheel smoke test, generic TUI E2E verification, deterministic Pi agent UI verification, run summary, release notes, release evidence archive |
 
 The CI command is intentionally the same shape a downstream project should use:
 
@@ -229,6 +229,17 @@ For your own project, replace the `examples/...` paths with your recipe pack:
 Public CI runs deterministic Pi-style workflows instead of provider-backed live
 Pi sessions. That keeps every PR, `main` commit, and release reproducible on a
 fresh GitHub runner while still validating multi-turn coding-agent UI patterns.
+
+Every PR receives a sticky `TUI Verifier CI Report` comment. The comment links
+to the workflow run, embeds `.tui-verifier/ci/latest-report.md`, and points
+reviewers to the `tui-verifier-ci-evidence` artifact containing screenshots,
+casts, videos, JSON results, and per-recipe reports. The same report is written
+to the GitHub run summary for PR and `main` runs.
+
+Release runs write `.tui-verifier/release/latest-report.md` into the GitHub run
+summary and into the GitHub Release body. The release also attaches
+`tui-verifier-release-evidence.tgz`, which contains the generated screenshots,
+videos, casts, and reports.
 
 ## Pi Coding Agent Showcase
 

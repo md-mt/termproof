@@ -73,6 +73,23 @@ jobs:
             --video --video-fps 60 --out .tui-verifier/release
           tar -czf tui-verifier-release-evidence.tgz -C .tui-verifier release
 
+      - name: Write release verification notes
+        if: always()
+        run: |
+          {
+            echo "## TUI Verifier Release Evidence"
+            echo
+            echo "Evidence archive: \`tui-verifier-release-evidence.tgz\`"
+            echo "Report links point to files inside that archive."
+            echo
+            if [ -f .tui-verifier/release/latest-report.md ]; then
+              cat .tui-verifier/release/latest-report.md
+            else
+              echo "No TUI verifier report was generated."
+            fi
+          } > release-notes.md
+          cat release-notes.md >> "$GITHUB_STEP_SUMMARY"
+
       - name: Upload release evidence
         uses: actions/upload-artifact@v4
         if: always()
@@ -91,6 +108,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
+          body_path: release-notes.md
           files: |
             dist/*
             tui-verifier-release-evidence.tgz

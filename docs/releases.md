@@ -30,9 +30,14 @@ uv run tui-verify run examples/generic examples/multi_turn_conversation.recipe.j
 1. Update `pyproject.toml`.
 2. Push a tag such as `v0.1.1`.
 3. GitHub Actions runs unit tests, builds the wheel and sdist, executes the
-   portable TUI end-to-end suite, uploads evidence, and creates a GitHub
-   release.
+   portable TUI end-to-end suite, writes the verifier report to the run summary
+   and release body, uploads evidence, and creates a GitHub release.
 4. PyPI publishing uses GitHub trusted publishing from the release workflow.
+
+The GitHub Release includes `tui-verifier-release-evidence.tgz`. That archive
+contains `.tui-verifier/release/latest-report.md`, per-recipe `report.md`,
+`result.json`, `session.cast`, `final.svg`, `final.txt`, step screenshots, and
+`session.mp4` videos.
 
 The release workflow intentionally uses portable recipes for public CI. The Pi
 coding-agent recipes remain the showcase and can be run in environments where
