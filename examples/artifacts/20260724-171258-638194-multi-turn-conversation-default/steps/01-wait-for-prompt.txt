@@ -1,0 +1,4 @@
+Pi-style terminal conversation demo
+Goal: verify a multi-turn workflow and publish terminal evidence.
+
+you>

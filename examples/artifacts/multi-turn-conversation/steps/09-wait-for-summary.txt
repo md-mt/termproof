@@ -1,0 +1,27 @@
+Goal: verify a multi-turn workflow and publish terminal evidence.
+
+you> Inspect the repository and identify the verifier pipeline.
+user> Inspect the repository and identify the verifier pipeline.
+assistant> Inspecting the repository shape.
+assistant> Found recipe files under examples/.
+assistant> Found evidence renderer in tui_verifier/evidence.py.
+assistant> Found asciinema wrapper in tui_verifier/session.py.
+assistant> Repository inspection complete.
+
+you> Run the verifier pipeline and describe each artifact.
+user> Run the verifier pipeline and describe each artifact.
+assistant> Running the verification pipeline.
+assistant> Recording terminal session with asciinema rec.
+assistant> Replaying the cast into final.txt and final.svg.
+assistant> Rendering MP4 with agg plus ffmpeg.
+assistant> Writing result.json and report.md.
+assistant> Pipeline completed.
+
+you> Summarize the evidence package.
+user> Summarize the evidence package.
+assistant> Evidence package:
+assistant> - session.cast is the source of truth.
+assistant> - final.svg is the review screenshot.
+assistant> - session.mp4 is the playable video.
+assistant> - report.md links every artifact.
+assistant> Multi-turn verification passed.

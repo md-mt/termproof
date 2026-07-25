@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="936" height="596" viewBox="0 0 936 596">
+<rect width="100%" height="100%" fill="#101418"/>
+<style>text{font:14px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;fill:#e6edf3;white-space:pre}</style>
+<text x="18" y="38">Goal: verify a multi-turn workflow and publish terminal evidence.</text>
+<text x="18" y="58"></text>
+<text x="18" y="78">you&gt; Inspect the repository and identify the verifier pipeline.</text>
+<text x="18" y="98">user&gt; Inspect the repository and identify the verifier pipeline.</text>
+<text x="18" y="118">assistant&gt; Inspecting the repository shape.</text>
+<text x="18" y="138">assistant&gt; Found recipe files under examples/.</text>
+<text x="18" y="158">assistant&gt; Found evidence renderer in tui_verifier/evidence.py.</text>
+<text x="18" y="178">assistant&gt; Found asciinema wrapper in tui_verifier/session.py.</text>
+<text x="18" y="198">assistant&gt; Repository inspection complete.</text>
+<text x="18" y="218"></text>
+<text x="18" y="238">you&gt; Run the verifier pipeline and describe each artifact.</text>
+<text x="18" y="258">user&gt; Run the verifier pipeline and describe each artifact.</text>
+<text x="18" y="278">assistant&gt; Running the verification pipeline.</text>
+<text x="18" y="298">assistant&gt; Recording terminal session with asciinema rec.</text>
+<text x="18" y="318">assistant&gt; Replaying the cast into final.txt and final.svg.</text>
+<text x="18" y="338">assistant&gt; Rendering MP4 with agg plus ffmpeg.</text>
+<text x="18" y="358">assistant&gt; Writing result.json and report.md.</text>
+<text x="18" y="378">assistant&gt; Pipeline completed.</text>
+<text x="18" y="398"></text>
+<text x="18" y="418">you&gt; Summarize the evidence package.</text>
+<text x="18" y="438">user&gt; Summarize the evidence package.</text>
+<text x="18" y="458">assistant&gt; Evidence package:</text>
+<text x="18" y="478">assistant&gt; - session.cast is the source of truth.</text>
+<text x="18" y="498">assistant&gt; - final.svg is the review screenshot.</text>
+<text x="18" y="518">assistant&gt; - session.mp4 is the playable video.</text>
+<text x="18" y="538">assistant&gt; - report.md links every artifact.</text>
+<text x="18" y="558">assistant&gt; Multi-turn verification passed.</text>
+</svg>

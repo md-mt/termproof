@@ -1,0 +1,119 @@
+{
+  "recipe_name": "multi-turn-conversation",
+  "passed": true,
+  "exit_code": 0,
+  "duration_seconds": 17.252653834002558,
+  "priority": "P1",
+  "execution": "scripted",
+  "renderer": "default",
+  "score": 1.0,
+  "steps": [
+    {
+      "name": "wait for prompt",
+      "passed": true,
+      "detail": "found 'you>'",
+      "screen": "Pi-style terminal conversation demo\nGoal: verify a multi-turn workflow and publish terminal evidence.\n\nyou>"
+    },
+    {
+      "name": "inspect repository",
+      "passed": true,
+      "detail": "sent line",
+      "screen": "Pi-style terminal conversation demo\nGoal: verify a multi-turn workflow and publish terminal evidence.\n\nyou>"
+    },
+    {
+      "name": "wait for inspection",
+      "passed": true,
+      "detail": "found 'Repository inspection complete.'",
+      "screen": "Pi-style terminal conversation demo\nGoal: verify a multi-turn workflow and publish terminal evidence.\n\nyou> Inspect the repository and identify the verifier pipeline.\nuser> Inspect the repository and identify the verifier pipeline.\nassistant> Inspecting the repository shape.\nassistant> Found recipe files under examples/.\nassistant> Found evidence renderer in tui_verifier/evidence.py.\nassistant> Found asciinema wrapper in tui_verifier/session.py.\nassistant> Repository inspection complete."
+    },
+    {
+      "name": "pause after inspection",
+      "passed": true,
+      "detail": "slept",
+      "screen": "Pi-style terminal conversation demo\nGoal: verify a multi-turn workflow and publish terminal evidence.\n\nyou> Inspect the repository and identify the verifier pipeline.\nuser> Inspect the repository and identify the verifier pipeline.\nassistant> Inspecting the repository shape.\nassistant> Found recipe files under examples/.\nassistant> Found evidence renderer in tui_verifier/evidence.py.\nassistant> Found asciinema wrapper in tui_verifier/session.py.\nassistant> Repository inspection complete.\n\nyou>"
+    },
+    {
+      "name": "run pipeline",
+      "passed": true,
+      "detail": "sent line",
+      "screen": "Pi-style terminal conversation demo\nGoal: verify a multi-turn workflow and publish terminal evidence.\n\nyou> Inspect the repository and identify the verifier pipeline.\nuser> Inspect the repository and identify the verifier pipeline.\nassistant> Inspecting the repository shape.\nassistant> Found recipe files under examples/.\nassistant> Found evidence renderer in tui_verifier/evidence.py.\nassistant> Found asciinema wrapper in tui_verifier/session.py.\nassistant> Repository inspection complete.\n\nyou>"
+    },
+    {
+      "name": "wait for pipeline",
+      "passed": true,
+      "detail": "found 'Pipeline completed.'",
+      "screen": "Pi-style terminal conversation demo\nGoal: verify a multi-turn workflow and publish terminal evidence.\n\nyou> Inspect the repository and identify the verifier pipeline.\nuser> Inspect the repository and identify the verifier pipeline.\nassistant> Inspecting the repository shape.\nassistant> Found recipe files under examples/.\nassistant> Found evidence renderer in tui_verifier/evidence.py.\nassistant> Found asciinema wrapper in tui_verifier/session.py.\nassistant> Repository inspection complete.\n\nyou> Run the verifier pipeline and describe each artifact.\nuser> Run the verifier pipeline and describe each artifact.\nassistant> Running the verification pipeline.\nassistant> Recording terminal session with asciinema rec.\nassistant> Replaying the cast into final.txt and final.svg.\nassistant> Rendering MP4 with agg plus ffmpeg.\nassistant> Writing result.json and report.md.\nassistant> Pipeline completed."
+    },
+    {
+      "name": "pause after render",
+      "passed": true,
+      "detail": "slept",
+      "screen": "Pi-style terminal conversation demo\nGoal: verify a multi-turn workflow and publish terminal evidence.\n\nyou> Inspect the repository and identify the verifier pipeline.\nuser> Inspect the repository and identify the verifier pipeline.\nassistant> Inspecting the repository shape.\nassistant> Found recipe files under examples/.\nassistant> Found evidence renderer in tui_verifier/evidence.py.\nassistant> Found asciinema wrapper in tui_verifier/session.py.\nassistant> Repository inspection complete.\n\nyou> Run the verifier pipeline and describe each artifact.\nuser> Run the verifier pipeline and describe each artifact.\nassistant> Running the verification pipeline.\nassistant> Recording terminal session with asciinema rec.\nassistant> Replaying the cast into final.txt and final.svg.\nassistant> Rendering MP4 with agg plus ffmpeg.\nassistant> Writing result.json and report.md.\nassistant> Pipeline completed.\n\nyou>"
+    },
+    {
+      "name": "summarize evidence",
+      "passed": true,
+      "detail": "sent line",
+      "screen": "Pi-style terminal conversation demo\nGoal: verify a multi-turn workflow and publish terminal evidence.\n\nyou> Inspect the repository and identify the verifier pipeline.\nuser> Inspect the repository and identify the verifier pipeline.\nassistant> Inspecting the repository shape.\nassistant> Found recipe files under examples/.\nassistant> Found evidence renderer in tui_verifier/evidence.py.\nassistant> Found asciinema wrapper in tui_verifier/session.py.\nassistant> Repository inspection complete.\n\nyou> Run the verifier pipeline and describe each artifact.\nuser> Run the verifier pipeline and describe each artifact.\nassistant> Running the verification pipeline.\nassistant> Recording terminal session with asciinema rec.\nassistant> Replaying the cast into final.txt and final.svg.\nassistant> Rendering MP4 with agg plus ffmpeg.\nassistant> Writing result.json and report.md.\nassistant> Pipeline completed.\n\nyou>"
+    },
+    {
+      "name": "wait for summary",
+      "passed": true,
+      "detail": "found 'Multi-turn verification passed.'",
+      "screen": "Goal: verify a multi-turn workflow and publish terminal evidence.\n\nyou> Inspect the repository and identify the verifier pipeline.\nuser> Inspect the repository and identify the verifier pipeline.\nassistant> Inspecting the repository shape.\nassistant> Found recipe files under examples/.\nassistant> Found evidence renderer in tui_verifier/evidence.py.\nassistant> Found asciinema wrapper in tui_verifier/session.py.\nassistant> Repository inspection complete.\n\nyou> Run the verifier pipeline and describe each artifact.\nuser> Run the verifier pipeline and describe each artifact.\nassistant> Running the verification pipeline.\nassistant> Recording terminal session with asciinema rec.\nassistant> Replaying the cast into final.txt and final.svg.\nassistant> Rendering MP4 with agg plus ffmpeg.\nassistant> Writing result.json and report.md.\nassistant> Pipeline completed.\n\nyou> Summarize the evidence package.\nuser> Summarize the evidence package.\nassistant> Evidence package:\nassistant> - session.cast is the source of truth.\nassistant> - final.svg is the review screenshot.\nassistant> - session.mp4 is the playable video.\nassistant> - report.md links every artifact.\nassistant> Multi-turn verification passed."
+    },
+    {
+      "name": "pause before exit",
+      "passed": true,
+      "detail": "slept",
+      "screen": "\nyou> Inspect the repository and identify the verifier pipeline.\nuser> Inspect the repository and identify the verifier pipeline.\nassistant> Inspecting the repository shape.\nassistant> Found recipe files under examples/.\nassistant> Found evidence renderer in tui_verifier/evidence.py.\nassistant> Found asciinema wrapper in tui_verifier/session.py.\nassistant> Repository inspection complete.\n\nyou> Run the verifier pipeline and describe each artifact.\nuser> Run the verifier pipeline and describe each artifact.\nassistant> Running the verification pipeline.\nassistant> Recording terminal session with asciinema rec.\nassistant> Replaying the cast into final.txt and final.svg.\nassistant> Rendering MP4 with agg plus ffmpeg.\nassistant> Writing result.json and report.md.\nassistant> Pipeline completed.\n\nyou> Summarize the evidence package.\nuser> Summarize the evidence package.\nassistant> Evidence package:\nassistant> - session.cast is the source of truth.\nassistant> - final.svg is the review screenshot.\nassistant> - session.mp4 is the playable video.\nassistant> - report.md links every artifact.\nassistant> Multi-turn verification passed.\n\nyou>"
+    },
+    {
+      "name": "close session",
+      "passed": true,
+      "detail": "sent line",
+      "screen": "\nyou> Inspect the repository and identify the verifier pipeline.\nuser> Inspect the repository and identify the verifier pipeline.\nassistant> Inspecting the repository shape.\nassistant> Found recipe files under examples/.\nassistant> Found evidence renderer in tui_verifier/evidence.py.\nassistant> Found asciinema wrapper in tui_verifier/session.py.\nassistant> Repository inspection complete.\n\nyou> Run the verifier pipeline and describe each artifact.\nuser> Run the verifier pipeline and describe each artifact.\nassistant> Running the verification pipeline.\nassistant> Recording terminal session with asciinema rec.\nassistant> Replaying the cast into final.txt and final.svg.\nassistant> Rendering MP4 with agg plus ffmpeg.\nassistant> Writing result.json and report.md.\nassistant> Pipeline completed.\n\nyou> Summarize the evidence package.\nuser> Summarize the evidence package.\nassistant> Evidence package:\nassistant> - session.cast is the source of truth.\nassistant> - final.svg is the review screenshot.\nassistant> - session.mp4 is the playable video.\nassistant> - report.md links every artifact.\nassistant> Multi-turn verification passed.\n\nyou>"
+    },
+    {
+      "name": "wait for completion",
+      "passed": true,
+      "detail": "found 'SESSION COMPLETE'",
+      "screen": "assistant> Inspecting the repository shape.\nassistant> Found recipe files under examples/.\nassistant> Found evidence renderer in tui_verifier/evidence.py.\nassistant> Found asciinema wrapper in tui_verifier/session.py.\nassistant> Repository inspection complete.\n\nyou> Run the verifier pipeline and describe each artifact.\nuser> Run the verifier pipeline and describe each artifact.\nassistant> Running the verification pipeline.\nassistant> Recording terminal session with asciinema rec.\nassistant> Replaying the cast into final.txt and final.svg.\nassistant> Rendering MP4 with agg plus ffmpeg.\nassistant> Writing result.json and report.md.\nassistant> Pipeline completed.\n\nyou> Summarize the evidence package.\nuser> Summarize the evidence package.\nassistant> Evidence package:\nassistant> - session.cast is the source of truth.\nassistant> - final.svg is the review screenshot.\nassistant> - session.mp4 is the playable video.\nassistant> - report.md links every artifact.\nassistant> Multi-turn verification passed.\n\nyou> exit\nassistant> Closing the verification session.\nSESSION COMPLETE"
+    }
+  ],
+  "assertions": [
+    {
+      "name": "output_contains",
+      "passed": true,
+      "detail": "contains 'Repository inspection complete.'"
+    },
+    {
+      "name": "output_contains",
+      "passed": true,
+      "detail": "contains 'Rendering MP4 with agg plus ffmpeg.'"
+    },
+    {
+      "name": "output_contains",
+      "passed": true,
+      "detail": "contains 'Multi-turn verification passed.'"
+    },
+    {
+      "name": "output_contains",
+      "passed": true,
+      "detail": "contains 'SESSION COMPLETE'"
+    },
+    {
+      "name": "exit_code",
+      "passed": true,
+      "detail": "expected 0, got 0"
+    }
+  ],
+  "artifacts": {
+    "cast": "examples/artifacts/multi-turn-conversation/session.cast",
+    "screenshot": "examples/artifacts/multi-turn-conversation/final.svg",
+    "screen_text": "examples/artifacts/multi-turn-conversation/final.txt",
+    "exit_code_file": "examples/artifacts/multi-turn-conversation/session.exitcode",
+    "step_screenshots": "examples/artifacts/multi-turn-conversation/steps",
+    "video": "examples/artifacts/multi-turn-conversation/session.mp4"
+  }
+}
