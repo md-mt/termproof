@@ -2,9 +2,14 @@
 
 ## Principle
 
-> The cast is the source of truth. All other artifacts derive from `session.cast` (asciinema v2).
+> Every run records a real terminal session as an asciinema cast (`session.cast`). Several artifacts derive from it; some do not.
 
-Every verification run writes to a timestamped directory: `.tui-verifier/runs/<timestamp>-<safe-recipe>-<renderer>/`.
+- Final text/SVG/video are cast replays (PTY and process both create a cast via `TerminalSession`; non-recorded agent mode synthesizes a cast via `CastRecorder` from transcript).
+- PTY step evidence in `steps/` renders stored `StepResult.screen` snapshots, not cast replay.
+- `result.json`/`report.md` include independently evaluated assertions, exit status, file-system checks, and agent outcome — not just cast-derived data.
+- Agent metadata files (`agent_prompt.md`, `agent_transcript.md`, `agent_outcome.json`) do not derive from the cast — they are written by `_write_agent_files()`.
+
+The earlier claim "the cast is the source of truth, all other artifacts derive from it" was overbroad; this version reflects actual derivations.
 
 ## Run Directory Creation
 
@@ -18,7 +23,7 @@ def new_run_dir(base_dir, recipe_name, renderer="default"):
     return base_dir / f"{timestamp}-{safe_name}-{safe_renderer}"
 ```
 
-Base dir defaults to `.tui-verifier/runs` (config `defaults.out_dir`). The caller mkdirs it.
+Base dir is hardcoded in CLI at `cli.py:21` as `.tui-verifier/runs` and in runner at `runner.py:154-163` as `Path(".tui-verifier/runs")` — not read from `VerifierConfig.defaults.out_dir` (see `configuration.md`). The caller mkdirs it.
 
 ## Session Recording
 
@@ -60,7 +65,7 @@ Wraps target to capture exit code reliably to sidecar file (since asciinema itse
 
 ### Agent Mode Recording
 
-When `record_terminal=True`, `CodexCliAgentRunner._run_recorded()` also uses `TerminalSession` to wrap operator command.
+When `record_terminal=True`, `CodexCliAgentRunner._run_recorded()` also uses `TerminalSession` to wrap operator command via `builtin_session.PexpectAsciinemaBackend` → `TerminalSession`.
 
 When cast does not exist (non-recorded agent path), `AgentDrivenRunner` fallback:
 
@@ -74,6 +79,8 @@ with CastRecorder(cast_path, recipe.cols, recipe.rows, ["codex-operator", recipe
 - Header line: JSON object `{version:2, width, height, timestamp:int(time.time()), command:" ".join(command), env:{SHELL, TERM}}`.
 - Events: `[round(monotonic-start,6), kind, data]` where kind `"o"` output, `"i"` input.
 
+This fallback applies whenever `run_dir/session.cast` does not exist after agent execution — including custom `AgentRunner` outcomes — not only a built-in non-recorded path or cast missing from `TerminalSession`. See `extension-points.md`.
+
 ## Artifact Rendering
 
 `evidence.render_artifacts(run_dir, render_video, video_fps, steps?, cols?, rows?, screen_renderer?, video_backend?) -> dict[str,str]`
@@ -86,18 +93,19 @@ with CastRecorder(cast_path, recipe.cols, recipe.rows, ["codex-operator", recipe
 
 2. Writes `final.txt` = `final_text + "\n"`.
 
-3. Renders final SVG:
-   - If `screen_renderer is not None`: `screen_renderer.render(final_text, final_svg, cols, rows)`
+3. Renders final SVG — fixed `.svg` contract (see `configuration.md`):
+   - If `screen_renderer is not None`: `screen_renderer.render(final_text, final_svg, cols, rows)` where `final_svg = run_dir / "final.svg"`
    - Else: `screen.render_svg(final_text, final_svg, cols, rows)` (standalone function with same layout: line_height 20, char_width 9, padding 18, width max(320, cols*9+36), height max(160, rows*20+36)).
+   - Custom renderers receive `.svg` paths; PNG-via-PIL is invalid unless pipeline is forked.
 
-4. Artifacts dict initialized: `{"cast": str(cast_path), "screenshot": str(final_svg), "screen_text": str(final_txt)}`.
+4. Artifacts dict initialized: `{"cast": str(cast_path), "screenshot": str(final_svg), "screen_text": str(final_txt)}`. Note `screenshot` is always the `final.svg` path even if a custom renderer writes different content to that file.
 
 5. If `session.exitcode` exists, adds `"exit_code_file": str(path)`.
 
 6. ` _render_step_screens(run_dir, steps, cols, rows, screen_renderer)`:
    - If no steps: returns None.
    - Creates `run_dir / "steps"` dir.
-   - For each StepResult: safe-name sanitized, writes `{index:02d}-{safe}.txt` = `screen+"\n"` and `{index}.svg` via screen_renderer or `render_svg()`.
+   - For each StepResult: safe-name sanitized, writes `{index:02d}-{safe}.txt` = `screen+"\n"` and `{index:02d}-{safe}.svg` (not `{index}.svg`) via screen_renderer or `render_svg()` — filename is `path_base.with_suffix(".svg")` where `path_base = step_dir / f"{index:02d}-{safe}"`.
    - Returns step_dir Path; caller adds `"step_screenshots": str(step_dir)`.
 
 7. For agent files: if `run_dir / name` exists for `agent_prompt.md`, `agent_transcript.md`, `agent_outcome.json`, adds stripped stem to artifacts (`agent_prompt`, `agent_transcript`, `agent_outcome` keys).
@@ -107,6 +115,8 @@ with CastRecorder(cast_path, recipe.cols, recipe.rows, ["codex-operator", recipe
    - If `video_backend is not None`: `video_backend.render(cast_path, mp4_path, video_fps)`
    - Else: `render_mp4(cast_path, mp4_path, video_fps)`
    - Adds `"video": str(mp4_path)`.
+
+   The `shutil.which("agg")` guard is independent of session backend — custom session backend cannot avoid it.
 
 ### Video Rendering
 
@@ -139,7 +149,7 @@ def find_ffmpeg():
 ```
 
 - Requires `agg` on PATH for video path; silently skipped if `agg` missing (guard in `render_artifacts` via `shutil.which("agg")`).
-- Intermediate `.agg.gif` always cleaned up.
+- Intermediate `.agg.gif` always cleaned up in `finally` — it is **not** a post-run artifact (the prior doc listed `session.agg.gif` as part of artifact tree, but `evidence.py:87-121` deletes it).
 - Target MP4 uses even-width scaling `trunc(iw/2)*2`, yuv420p, faststart for web.
 
 `AggFfmpegBackend.render()` (`builtin_video.py`) simply delegates to `evidence.render_mp4()`.
@@ -187,28 +197,29 @@ Aggregated report written by CLI:
 
 ## Full Artifact Tree
 
-For a single recipe run with --video:
+For a single recipe run with --video (when `agg` present):
 
 ```
 .tui-verifier/runs/20260725-120000-123456-my-recipe-default/
-├── session.cast                 # asciinema v2 — source of truth
+├── session.cast                 # asciinema v2
 ├── session.exitcode             # sidecar exit code file (if recorded)
 ├── final.txt                    # replayed final screen text
 ├── final.svg                    # final screenshot via SvgRenderer
 ├── session.mp4                  # rendered via agg+ffmpeg (if --video + agg present)
-├── session.agg.gif              # transient intermediate (deleted after mp4)
 ├── result.json                  # RunResult.to_dict()
 ├── report.md                    # per-run evidence.render_report()
 ├── agent_prompt.md              # if agent-driven
 ├── agent_transcript.md          # if agent-driven
 ├── agent_outcome.json           # if agent-driven
-└── steps/                       # if steps present
+└── steps/                       # if steps present (PTY snapshots, not cast replay)
     ├── 01-wait-for-prompt.txt
     ├── 01-wait-for-prompt.svg
     ├── 02-open-dashboard.txt
     ├── 02-open-dashboard.svg
     └── ...
 ```
+
+`session.agg.gif` is **not** a post-run artifact — it is deleted in `finally` at `evidence.py:87-121`. Step screenshots are named `{index:02d}-{safe}.svg`, not `{index}.svg`.
 
 For multi-recipe run, `out_dir/latest-report.md` aggregates all results.
 
@@ -221,4 +232,4 @@ For multi-recipe run, `out_dir/latest-report.md` aggregates all results.
 
 - v2 format: first line JSON header, subsequent lines `[float_timestamp, "o"|"i", data]` JSON arrays.
 - `replay_cast()` only feeds `"o"` (output) events — input events are ignored for screen replay (they originate from tester, not TUI).
-- Same cast file is used by `screen_text()` for final rendering and by `agg` for video.
+- Same cast file is used by `screen_text()` for final rendering and by `agg` for video when present.

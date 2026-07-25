@@ -4,7 +4,7 @@
 
 ### Unit Tests
 
-Repository uses stdlib `unittest`, not pytest (though pytest cache exists from runs).
+Repository uses stdlib `unittest`.
 
 Run:
 
@@ -13,18 +13,18 @@ uv run python -m unittest discover -s tests
 # or python -m unittest discover -s tests
 ```
 
-Test files (`tests/`):
+Test suite: 31 tests across 8 files:
 
-- `test_config.py` — cascading config merge: builtin → user → project YAML deep merge.
-- `test_runner.py` — runner orchestration, mode resolution, step/assertion wiring.
-- `test_screen.py` — cast replay, screen rendering.
-- `test_agent_driven.py` — agent prompt building, parse_agent_output JSON extraction cascade.
-- `test_stack_design.py` — recipe discovery (`load_recipes`, `find_recipe_files`, `select_recipes`), renderer selection (`selected_renderers`), `BuildInfo.from_command`, `ReportGenerator.generate_markdown`, `BeforeAfterResult` delta computation.
-- `test_cli.py` — `init` command creates recipe file, `CliTest.test_init_command_creates_recipe`.
-- `test_scaffold.py` — recipe pack scaffolding.
-- `test_examples.py` — validates example recipe JSON shape.
+- `test_agent_driven.py` (3) — agent prompt building, `parse_agent_output` JSON extraction cascade, `AgentDrivenRunner` operator artifact recording.
+- `test_cli.py` (1) — `init` command creates recipe file (`CliTest.test_init_command_creates_recipe`); scaffolds files on disk.
+- `test_config.py` (9) — cascading config merge: builtin → user → project YAML deep merge (`ConfigTest` 5 tests) plus `RegistryTest` (4 tests: register/get, unknown raises, sorted names, overwrite) covering the generic registry from `test_config.py`.
+- `test_examples.py` (1) — validates example recipe JSON shape loads.
+- `test_runner.py` (9) — runner orchestration: PTY mode `test_run_records_cast_and_asserts_output` spawns real processes via session backend (checks and requires `asciinema` CLI at `session.py:54-73,200-223`); process mode `test_run_process_mode_records_cast` also spawns real Python child processes; `test_runner_accepts_config`, `test_runner_defaults_to_builtin_config`, `test_runner_has_session_backend`, `test_session_backend_creates_session`, `test_runner_has_video_backend_registry`, `test_video_backend_roundtrip`, `test_runner_run_uses_video_backend` — the latter three cover video backend registry and artifact/backend plumbing.
+- `test_scaffold.py` (1) — recipe pack scaffolding creates files on disk.
+- `test_screen.py` (2) — cast replay, screen rendering.
+- `test_stack_design.py` (5) — recipe discovery (`load_recipes`, `find_recipe_files`, `select_recipes`), renderer selection (`selected_renderers`), `BuildInfo.from_command`, `ReportGenerator.generate_markdown`, `BeforeAfterResult` delta computation.
 
-All tests construct `Recipe` via `Recipe(...)` or `recipe_from_mapping()` directly — no need for asciinema or real TUIs. Registry and runner can be instantiated with `VerifierConfig.builtin()`.
+Some tests (`test_runner.py:14-39,41-64,82-97`) invoke `VerificationRunner`/the session backend, which checks for and spawns the external `asciinema` CLI (`session.py:54-73,200-223`) and runs real Python child processes. `test_cli.py` and `test_scaffold.py` scaffold files rather than only constructing `Recipe` directly.
 
 ### Package Build
 
@@ -34,7 +34,7 @@ Declared in `pyproject.toml`:
 - Wheel includes: `tui_verifier` package
 - Sdist includes: `tui_verifier`, `tests`, `examples`, `docs`, `README.md`, `LICENSE`, `pyproject.toml`, excludes `examples/artifacts`
 - Console script: `tui-verify = tui_verifier.cli:main`
-- Dependencies: `asciinema>=2.4.0`, `imageio-ffmpeg>=0.6.0`, `pexpect>=4.9.0`, `pyte>=0.8.2`, `pyyaml>=6.0`
+- Dependencies: `asciinema>=2.4.0`, `imageio-ffmpeg>=0.6.0`, `pexpect>=4.9.0`, `pyte>=0.8.2`, `pyyaml>=6.0` — `>=` denotes a lower bound with no upper bound.
 - Requires Python >=3.11
 
 Build via:
@@ -77,7 +77,7 @@ Pi-specific recipes (`pi_help`, `pi_version`, `pi_list`) call `examples/bin/pi-c
 
 File: `.github/workflows/ci.yml`
 
-Triggers: `pull_request` (any), `push` to `main`.
+Triggers: `pull_request` (any), `push` to `main` only (`ci.yml:3-7`).
 
 Permissions: `contents: read`, `issues: write`, `pull-requests: write`.
 
@@ -129,7 +129,7 @@ Same markdown also appears in GitHub Run Summary for PR and main commits.
 
 File: `.github/workflows/release.yml`
 
-Triggers: `push` tags `v*.*.*`, manual `workflow_dispatch`.
+Triggers: `push` tags `v*.*.*`, manual `workflow_dispatch` (`release.yml:3-7`).
 
 Permissions: `contents: write` (create release), `id-token: write` (trusted publishing).
 
@@ -177,6 +177,8 @@ Append same to `GITHUB_STEP_SUMMARY`.
 - Create GitHub Release — `softprops/action-gh-release@v2`, `if: startsWith(github.ref, 'refs/tags/v')`, `body_path: release-notes.md`, `files: dist/*` + `tui-verifier-release-evidence.tgz`.
 - Publish to PyPI — `pypa/gh-action-pypi-publish@release/v1`, `if: startsWith(github.ref, 'refs/tags/v')` — uses OIDC trusted publishing (no token, relies on `environment: pypi` + `id-token: write`).
 
+Tag pushes trigger the Release workflow, not CI. `ci.yml` triggers only PRs and pushes to `main`; `release.yml` is the tag-triggered workflow. A tag push produces a Release run (plus GitHub Release body/archive when tag conditions hold), not a CI run, unless the tagged commit was also pushed to `main` via a separate branch push.
+
 ## Versioning Contract
 
 From `docs/releases.md`:
@@ -189,8 +191,8 @@ From `docs/releases.md`:
 Example release prep:
 
 1. Update `pyproject.toml` version.
-2. Push tag `v0.1.1`.
-3. CI runs automatically; Release workflow runs on tag, verifies, creates GitHub release with evidence archive, publishes wheel+sdist to PyPI via trusted publishing.
+2. Push tag `v0.1.1` (triggers Release workflow, not CI).
+3. Release workflow verifies, creates GitHub Release with evidence archive, publishes wheel+sdist to PyPI via trusted publishing. CI only runs on PRs and merges to `main`, not on tag push alone.
 
 ## What CI Intentionally Does NOT Run
 

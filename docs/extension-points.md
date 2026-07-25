@@ -1,6 +1,8 @@
 # Extension Points, Registries, and Protocols
 
-Every behavior in tui-verifier is a pluggable registry entry. Registries are built once per `VerificationRunner` instance from `VerifierConfig`. No decorators, no entry-points file scanning — just `module:ClassName` strings resolved via `importlib.import_module`.
+Every behavior in tui-verifier is pluggable. At startup `VerificationRunner` builds **7 `Registry` objects** plus a **separately resolved single session backend** from `VerifierConfig`. No decorators, no entry-points file scanning — just `module:ClassName` strings resolved via `importlib.import_module`. In prose: 8 extension families (7 registries + session backend).
+
+> Source: `runner.py:145-152` builds 7 registries (`step`, `assertion`, `reporter`, `screen_renderer`, `execution_mode`, `agent_runner`, `video_backend`); `runner.py:110-112,152` resolves session backend as a singleton via `_resolve_session_backend()`.
 
 ## Registry Mechanism
 
@@ -85,18 +87,80 @@ BUILTIN_DEFAULTS = {
 }
 ```
 
-These 8 keys define the extension surface:
+Extension surface — 7 registries plus session backend:
 
-| Key | Registry Built | CLI Controls |
-| --- | --- | --- |
-| `steps` | StepAction | recipe `steps[].action` |
-| `assertions` | Assertion evaluator | recipe `assertions[].type` |
-| `agent_runners` | AgentRunner | `recipe.operator` / `--operator-command` |
-| `execution_modes` | ExecutionMode | `recipe.execution` + `command.pty` → mode name |
-| `reporters` | Reporter | `--reporter` |
-| `screen_renderers` | ScreenRenderer | `--screen-renderer` |
-| `video_backends` | VideoBackend | `--video-backend` |
-| `session_backend` | SessionBackend (single, not map) | config only |
+| Key | Kind | Built | CLI Controls |
+| --- | --- | --- | --- |
+| `steps` | Registry | StepAction | recipe `steps[].action` |
+| `assertions` | Registry | Assertion evaluator | recipe `assertions[].type` |
+| `agent_runners` | Registry (see limitation below) | AgentRunner | programmatic `VerificationRunner(agent_runner=...)` only |
+| `execution_modes` | Registry (fixed 3 names) | ExecutionMode | `recipe.execution` + `command.pty` → one of 3 fixed keys |
+| `reporters` | Registry | Reporter | `--reporter` |
+| `screen_renderers` | Registry | ScreenRenderer | `--screen-renderer` |
+| `video_backends` | Registry | VideoBackend | `--video-backend` |
+| `session_backend` | Single (not a Registry) | SessionBackend | config only (`session_backend` string) |
+
+Note `defaults` is modeled but currently unused by CLI/runner — see `configuration.md`.
+
+## Runtime Wiring — Mode-Specific Limitations (Important)
+
+The tables above suggest uniform pluggability. The actual runtime wiring is mode-specific:
+
+### Step registry
+
+- **PTY mode** (`command.pty=true`, `runner.py:230-273`) — `step_registry.get(action_name)` is called per step inside `_run_pty()`.
+- **Process mode** (`command.pty=false`, `runner.py:275-295`) — does **not** dispatch through the step registry. `_evaluate_output_steps()` hardcodes: `wait_for_text` (checks `text in screen or raw_output`), `sleep` (always pass), everything else fails with `"{action!r} requires command.pty=true"`.
+- **Agent mode** (`execution=agent-driven`, `agent_driven.py:143-157`) — does **not** execute recipe `steps` at all. `AgentDrivenRunner.run()` creates a single synthetic `codex-operator` StepResult.
+
+### Assertion registry
+
+- **Scripted PTY and process modes** — used via `_evaluate_assertions()` / `_evaluate_assertion()` at `runner.py:297-325` and `builtin_modes.py:23-66`. Each `assertion.type` is resolved through `assertion_registry`.
+- **Agent mode** — does **not** use the assertion registry. `_agent_assertions()` at `agent_driven.py:212-225` evaluates `recipe.checks` (or default check) against `AgentOutcome.assertions` returned by the agent.
+
+### Agent runner registry
+
+- `runner.py:94-99` builds `_build_agent_runner_registry()` from `config.agent_runners`, and `runner.py:150` stores it as `agent_runner_registry`.
+- It is **never read** during execution. `VerificationRunner._run_agent_driven()` at `runner.py:204-213` uses either the explicitly injected `self.agent_runner` or `CodexCliAgentRunner.from_recipe(recipe)` — it does not consult `agent_runner_registry`.
+- Custom `AgentRunner` via config alone does not execute; programmatic `VerificationRunner(agent_runner=...)` is the working path.
+
+### Execution registry — Only 3 Fixed Names
+
+`_resolve_execution_mode_name()` at `runner.py:128-134`:
+
+```python
+def _resolve_execution_mode_name(recipe):
+    if recipe.execution == "agent-driven":
+        return "agent_driven"
+    if recipe.command.pty:
+        return "scripted_pty"
+    return "scripted_process"
+```
+
+And `runner.py:169-170` then does `execution_mode_registry.get(mode_name)`. Only those 3 keys exist in the builtin config. Supplying a new execution_modes key (e.g., `my_mode`) is parsed but never returned by the resolver — you must override one of the 3 fixed keys (e.g., replace `scripted_pty` mapping) or change `runner.py` to route new names.
+
+### Video backend — Gated on `agg`
+
+`evidence.py:55-60`:
+
+```python
+if render_video and shutil.which("agg"):
+    mp4_path = run_dir / "session.mp4"
+    if video_backend is not None:
+        video_backend.render(cast_path, mp4_path, video_fps)
+    else:
+        render_mp4(cast_path, mp4_path, video_fps)
+```
+
+A custom video backend only runs when `--video` is set **and** `agg` binary is on PATH. Custom session backend cannot avoid that guard — the check lives in `render_artifacts()` before any backend call and is independent of session backend.
+
+### Session backend — Bypassed by Non-recorded Agent Mode
+
+`CodexCliAgentRunner._run_recorded()` at `agent_driven.py:51-70` uses `TerminalSession` (via the configured session backend's `create_session` path), but `_run_subprocess()` at `agent_driven.py:88-131` (used when `record_terminal=False`) calls `subprocess.run()` directly, bypassing the session backend entirely. Only error handling in `_run_subprocess` covers `TimeoutExpired` and `FileNotFoundError`; recorded mode handles errors via pexpect.
+
+### Wait / Idle vs Exit Scope
+
+- In `_run_pty()` at `runner.py:235-238`: `wait_for_exit` vs `wait_for_idle` branch applies **only** in PTY mode. If `expect_exit_code` is not None, wait_for_exit; else `wait_for_idle(0.5, min(3, timeout))`.
+- In `_run_process()` at `runner.py:241-260`: always `wait_for_exit`; there is no idle branch.
 
 ## Protocols (Exact Signatures)
 
@@ -118,6 +182,8 @@ Built-ins:
 - `Press` — `step["key"]` → `session.press()`; supports `ctrl-` prefix and KEYS dict (`enter→\r`, `escape→\x1b`, `tab→\t`, `backspace→\x7f`, `up→\x1b[A`, `down→\x1b[B`, `right→\x1b[C`, `left→\x1b[D`).
 - `Sleep` — `step.get("seconds",1)` → `time.sleep()` + `read_available(0)`.
 
+Note: these dispatch through the registry only in PTY mode — see "Step registry" above.
+
 ### AssertionType (`builtin_assertions.py`)
 
 ```python
@@ -134,6 +200,8 @@ Built-ins:
 - `file_exists` — `Path(...).exists()`, path resolved via `_recipe_path(recipe, path)` (absolute passthrough, relative against `command.cwd or "."`).
 - `file_contains` — reads file, checks `assertion["value"]` in contents; path key is `assertion["path"]`.
 
+Used only by scripted modes (PTY + process), not agent mode — see above.
+
 ### ExecutionMode (`builtin_modes.py`)
 
 ```python
@@ -147,8 +215,7 @@ class ExecutionMode(Protocol):
 - `ScriptedProcessMode` (`scripted_process`) — calls `runner._run_process()` + `_evaluate_assertions()`.
 - `AgentDrivenMode` (`agent_driven`) — calls `runner._run_agent_driven()`.
 
-Mode name is resolved by `_resolve_execution_mode_name(recipe)`:
-`agent-driven` → `agent_driven`; `command.pty=True` → `scripted_pty`; else → `scripted_process`.
+Mode name is resolved by `_resolve_execution_mode_name(recipe)` returning only those 3 fixed keys — see execution registry limitation above.
 
 ### AgentRunner (`agent_driven.py`)
 
@@ -165,7 +232,7 @@ class AgentOutcome:
     metadata: dict[str, Any] = field(default_factory=dict)
 ```
 
-`CodexCliAgentRunner` — fields: `command=["codex","exec"]`, `timeout_seconds=180`, `prompt_mode="stdin"` (`"stdin"` or `"arg"`), `cwd?`, `env={}`, `record_terminal=True`. `from_recipe()` reads `recipe.operator` dict. Recorded mode wraps via `TerminalSession`; non-recorded mode via `subprocess.run`. Handles timeout and FileNotFoundError.
+`CodexCliAgentRunner` — fields: `command=["codex","exec"]`, `timeout_seconds=180`, `prompt_mode="stdin"` (`"stdin"` or `"arg"`), `cwd?`, `env={}`, `record_terminal=True`. `from_recipe()` reads `recipe.operator` dict. Recorded mode wraps via `TerminalSession`; non-recorded mode via `subprocess.run`. Timeout returns `timed_out=True` metadata; `FileNotFoundError` → exit 127.
 
 `AgentDrivenRunner` is the adapter between execution mode and AgentRunner — builds prompt, runs agent, writes files, derives screen/assertions.
 
@@ -178,6 +245,8 @@ class ScreenRenderer(Protocol):
 ```
 
 `SvgRenderer` — minimal SVG: background `#101418`, mono text `#e6edf3`, `line_height=20`, `char_width=9`, `padding=18`, `width=max(320, cols*9+36)`, `height=max(160, rows*20+36)`.
+
+> Contract: `evidence.py:34-43,76-83` always supplies `.svg` paths (`final.svg`, `steps/{index:02d}-{safe}.svg`). A renderer writing PNG bytes to an `.svg` path will produce invalid output but artifact metadata still reports `.svg`. Document the fixed `.svg` contract or change source — PNG-style renderer examples are invalid via current pipeline.
 
 ### Reporter (`builtin_reporters.py`)
 
@@ -199,7 +268,7 @@ class VideoBackend(Protocol):
     def render(self, cast_path: Path, output_path: Path, fps: int) -> None: ...
 ```
 
-`AggFfmpegBackend` — delegates to `evidence.render_mp4()`.
+`AggFfmpegBackend` — delegates to `evidence.render_mp4()`. Only invoked when `render_video and shutil.which("agg")` — see gate above.
 
 ### SessionBackend (`builtin_session.py`)
 
@@ -210,9 +279,11 @@ class SessionBackend(Protocol):
                        cols: int, rows: int) -> TerminalSession: ...
 ```
 
+Under the hood, a compatible backend must also be a context manager because `runner.py:222-229,247-254` uses `with ...create_session(...) as session:`. Otherwise `_run_pty` / `_run_process` raise. Recorded agent mode at `agent_driven.py:56-85` also enters `TerminalSession`, while non-recorded mode at `agent_driven.py:87-131` bypasses the backend.
+
 `PexpectAsciinemaBackend` — `return TerminalSession(argv, cast_path, cwd, env, cols, rows)`.
 
-## How to Extend
+## How to Extend (Honest)
 
 In `.tui-verifier/config.yaml` (project) or `~/.config/tui-verifier/config.yaml` (user):
 
@@ -222,11 +293,11 @@ steps:
 assertions:
   my_check: "my_package.assertions:MyCheck"
 screen_renderers:
-  png: "my_package.renderers:PngRenderer"
+  svg_styled: "my_package.renderers:StyledSvgRenderer"
 session_backend: "my_package.session:MySessionBackend"
 ```
 
-The value must be `"dotted.module.path:ClassName"`. The runner imports it at startup and will raise `ValueError` if `":"` is missing, or `AttributeError`/`ModuleNotFoundError` if import fails. Registry `get()` raises `KeyError` with sorted available names listing when name unknown.
+The value must be `"dotted.module.path:ClassName"`. The runner imports it at startup and will raise `ValueError` if `":"` is missing, or `AttributeError`/`ModuleNotFoundError` if import fails. Registry `get()` raises `KeyError` with sorted available names listing when name unknown. Runner wraps unknown step/assertion names as `ValueError("unknown step action")` / `ValueError("unknown assertion type")`.
 
 ## Recipe-Level Extensibility
 
@@ -234,4 +305,4 @@ The value must be `"dotted.module.path:ClassName"`. The runner imports it at sta
 - `CommandSpec` — `argv`, `cwd`, `env` (dict merged over os.environ with TERM default), `pty` bool.
 - `operator` dict in recipe — arbitrary mapping read by `CodexCliAgentRunner.from_recipe()` (`command`, `timeout_seconds`, `prompt_mode`, `cwd`, `env`, `record_terminal`).
 - `checks` list — human-readable check names for agent-driven mode; used by `build_agent_prompt()` and `_agent_assertions()`.
-- `expect_exit_code` — if not None, runner calls `wait_for_exit()`; else `wait_for_idle(0.5, min(3, timeout))`. Both PTY and process modes honor it.
+- `expect_exit_code` — if not None, PTY mode calls `wait_for_exit()`; else `wait_for_idle(0.5, min(3, timeout))`. Process mode always `wait_for_exit` regardless of `expect_exit_code`.

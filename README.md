@@ -18,7 +18,7 @@ Full design set:
 
 - [Overview](docs/overview.md) — principle, layout, public API, mental model
 - [Architecture](docs/architecture.md) — component boundaries and dependencies
-- [Extension Points](docs/extension-points.md) — 8 registries and protocol signatures
+- [Extension Points](docs/extension-points.md) — 7 registries plus a configurable session backend (8 extension families) and protocol signatures
 - [Execution Flow](docs/execution-flow.md) — end-to-end data/control flow
 - [Configuration](docs/configuration.md) — cascading builtin → user → project model
 - [Evidence Pipeline](docs/evidence-pipeline.md) — cast → SVG/TXT/MP4/result.json
@@ -254,10 +254,10 @@ reviewers to the `tui-verifier-ci-evidence` artifact containing screenshots,
 casts, videos, JSON results, and per-recipe reports. The same report is written
 to the GitHub run summary for PR and `main` runs.
 
-Release runs write `.tui-verifier/release/latest-report.md` into the GitHub run
-summary and into the GitHub Release body. The release also attaches
+Release runs (tagged `v*.*.*` pushes) write `.tui-verifier/release/latest-report.md` into the GitHub run
+summary and into the GitHub Release body when that tag trigger fires. The tagged release also attaches
 `tui-verifier-release-evidence.tgz`, which contains the generated screenshots,
-videos, casts, and reports.
+videos, casts, and reports. Manual dispatch runs the Release workflow but only attaches a GitHub Release body/archive when the ref is a tag (see `release.yml:107-118` tag gating).
 
 ## Pi Coding Agent Showcase
 
@@ -322,6 +322,6 @@ ffmpeg -y -loglevel error -i session.agg.gif \
   -pix_fmt yuv420p -movflags +faststart session.mp4
 ```
 
-Screenshots, videos, assertions, and reports all come from the same terminal
-recording. Reviewers can inspect what happened instead of trusting a private
-terminal session.
+Screenshots, videos, assertions (scripted modes), agent outcomes (agent mode), and reports all come from recorded sessions.
+Per-step `steps/` screenshots render stored screen snapshots in PTY mode. Reviewers can inspect what happened instead of trusting a private
+terminal session. Video rendering additionally requires `agg` on PATH and `--video` flag (`evidence.py:55-60`).

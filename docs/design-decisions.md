@@ -1,70 +1,67 @@
 # Design Decisions and Trade-offs
 
-All claims grounded in current code.
+All claims below reference observable current code and explicit source locations.
 
-## 1. Evidence-first, cast as source of truth
+## 1. Evidence-first, cast as source of truth (with nuances)
 
-**Decision:** Every run records asciinema v2 cast via `asciinema rec` wrapper; all other evidence (final SVG/TXT, per-step screenshots, optional MP4) is derived by replaying the cast.
+**Decision:** Every verification run records asciinema v2 cast via `asciinema rec` wrapper; several evidence outputs are derived from that cast.
 
 - `session.py:asciinema_rec_command()` shells out to `asciinema rec --overwrite --stdin --quiet --cols/--rows --command <recorded_command> <cast_path>`.
 - `recorded_command()` wraps target argv via `shlex.join` + writes exit code to sidecar file `<cast>.exitcode`.
 - `screen.py:replay_cast()` feeds output events into `pyte.Screen`.
-- `evidence.py:render_artifacts()` calls `replay_cast()` for final text + per-step screens.
+- `evidence.py:render_artifacts()` at `31-61` calls `replay_cast()` for final text, renders final SVG/TXT via SVG renderer or fallback; at `65-83` renders per-step screens from stored `StepResult.screen` snapshots (not from cast replay); at `31-61,65-83,133-167`, `runner.py:171-201,297-325`, `builtin_assertions.py:127-184`, `agent_driven.py:138-157,228-253` show that `result.json`/`report.md` include independently evaluated assertions, exit status, file-system checks, and agent outcome; agent metadata files (`agent_prompt.md`, etc.) do not derive from the cast.
+- Non-recorded agent mode at `agent_driven.py:138-157` synthesizes a cast from transcript via `CastRecorder` rather than recording a real terminal.
 
-**Why:** Reviewers can inspect actual terminal output (cast JSON is trivial to cat or `asciinema cat`) rather than trust logs from inside tested process. Cast replays deterministically.
+So final.txt/final.svg/video are cast replays, but PTY step files render stored `StepResult.screen` snapshots; result/report include independent evaluations and file checks; agent metadata does not derive from the cast; non-recorded agent mode synthesizes a cast from transcript.
 
 **Trade-off:** Requires external `asciinema` binary on PATH (`shutil.which("asciinema")` checked, `RuntimeError` if missing). Non-pty process mode still uses asciinema via `TerminalSession` — even non-interactive commands are cast-recorded. Overhead: cast file includes terminal escape sequences; replay via pyte approximates final screen (pyte not a full VT emulator, but sufficient for evidence).
 
 ## 2. pexpect + asciinema composition (vs asciinema only or custom PTY)
 
-**Decision:** `TerminalSession` spawns `asciinema rec ...` as subprocess via `pexpect.spawn()`, not directly PTY-forking target nor using asciinema lib.
+**Behavior:** `TerminalSession` spawns `asciinema rec ...` as subprocess via `pexpect.spawn()`, not directly PTY-forking target nor using asciinema lib.
 
 - Pexpect gives controllable PTY with `read_nonblocking`, `send`, `sendcontrol`, `isalive`, `close`.
 - asciinema records the session as side effect (its `--command` arg runs the wrapped target).
 - Exit code capture via sidecar file (`printf '%s' "$?" > exitcode`) works around pexpect exitstatus unreliability when asciinema intermediate process exits.
 
-**Trade-off:** Two-layer PTY: pexpect PTY → asciinema → target. Means signal propagation and TERM handling have an extra process. Exit code file helps but adds filesystem I/O. Alternative of pure asciinema lib would lack pexpect's expect/send affordances.
+**Trade-off:** Two-layer PTY: pexpect PTY → asciinema → target. Signal propagation and TERM handling have an extra process. Exit code file adds filesystem I/O. Alternative of pure asciinema lib would lack pexpect's expect/send affordances.
 
 ## 3. pyte for screen model (vs direct VT parser)
 
-**Decision:** Both runtime session and cast replay use `pyte.Screen` + `pyte.Stream`.
+**Behavior:** Both runtime session and cast replay use `pyte.Screen` + `pyte.Stream`.
 
 - Runtime: `TerminalSession._screen` is pyte.Screen, fed via `_stream.feed(chunk)` in `read_available()`.
 - Replay: `screen.py:replay_cast()` creates new pyte.Screen, feeds output events.
-
-**Why:** pyte is lightweight, pure Python, std API, in dependencies (`pyte>=0.8.2`).
 
 **Trade-off:** pyte does not implement full xterm escapes; complex TUIs with alternate screen, mouse, or SGR beyond basic may render imperfectly. Same limitation exists both live and replay, so evidence self-consistent but maybe not pixel-identical to real terminal. Full fidelity would require richer VT emulator or headless terminal (bigger dep).
 
 ## 4. Generic `Registry[T]` with `module:ClassName` strings (vs entry_points)
 
-**Decision:** 7 registries built from `BUILTIN_DEFAULTS` dict of strings; resolved at startup via `importlib.import_module`.
+**Behavior:** 7 registries built from `BUILTIN_DEFAULTS` dict of strings plus a separately resolved session backend; resolved at startup via `importlib.import_module`. `runner.py:124` calls `importlib.import_module(module_name)`, which executes plugin module top-level code, so import-time side effects are possible. This contradicts any claim of "no import-time side effects."
 
 - No decorator registration, no pkg_resources scanning.
 - Zero-arg factories (`lambda c=cls: c()`).
 - Parameters read at call time from `step`/`assertion` dicts.
 
-**Why:** Simple, debuggable, no import-time side effects; config file alone can wire custom implementations.
-
-**Trade-off:** Stringly typed; typos surface only at import time (`ModuleNotFoundError`, `AttributeError`) not edit-time. Zero-arg constraint prevents constructor injection — must use per-call dicts. Alternative decorator-based registration would auto-discover but require import side-effect.
+**Trade-off:** Stringly typed; typos surface only at import time (`ModuleNotFoundError`, `AttributeError`) not edit-time. Zero-arg constraint prevents constructor injection — must use per-call dicts. Plugin modules are executed on import, so top-level code runs and can have side effects.
 
 ## 5. Cascading config: builtin → user → project deep merge
 
-**Decision:** `config.py:load_config()` merges `BUILTIN_DEFAULTS` with optional YAML files at `~/.config/tui-verifier/config.yaml` and `.tui-verifier/config.yaml`. `_deep_merge` recurses dicts, replaces leaves.
+**Behavior:** `config.py:load_config()` merges `BUILTIN_DEFAULTS` with optional YAML files at `~/.config/tui-verifier/config.yaml` and `.tui-verifier/config.yaml`. `_deep_merge` recurses dicts, replaces leaves.
 
-**Why:** Mirrors familiar tool config cascade (think git, npm). Lets plugin authoring happen via YAML without code changes; user can override per-project.
+**Trade-off:** Config YAML values are strings interpreted as import qualnames, not validated — invalid qualname surfaces later. Deep merge semantics for dicts: you can e.g., partially override `defaults.timeout_seconds` while preserving sibling keys because `_deep_merge` recurses. However for `steps` dict, you cannot remove a builtin step via config alone — you can only add or replace individual entries.
 
-**Trade-off:** Config YAML values are strings interpreted as import qualnames, not validated — invalid qualname surfaces later. Deep merge semantics for dicts is fine for most cases, but leaf replacement means you cannot e.g., partially override only `defaults.timeout_seconds` without preserving sibling keys? Actually you can — because `_deep_merge` recurses, so `defaults: {timeout_seconds: 60}` merges preserving other defaults keys. That's correct. However for `steps` dict, you cannot remove a builtin step via config alone — you can only add or replace individual entries. To remove you'd need to set value to something invalid or edit code.
+`defaults` is modeled but currently unused by CLI/runner — see `configuration.md`. CLI `--config` has a known bug where its argument is treated as project path rather than YAML file — see same doc.
 
-`--config` flag in CLI help says "path to a tui-verifier config YAML file" but implementation treats it as project_path base (`Path / .tui-verifier / config.yaml`). This is a minor doc-vs-code gap; documented accurately elsewhere.
+## 6. Three execution modes resolved from `execution + pty` — Fixed 3 Names Only
 
-## 6. Three execution modes resolved from `execution + pty`
-
-**Decision:** `_resolve_execution_mode_name(recipe)`:
+**Behavior:** `_resolve_execution_mode_name(recipe)` at `runner.py:128-134`:
 
 - `execution=="agent-driven"` → `agent_driven`
 - `command.pty==True` → `scripted_pty`
 - else → `scripted_process`
+
+Only 3 fixed registry keys are ever returned. Adding a new execution mode name to the YAML config parses but is never routed to — you must override one of the 3 builtin keys or patch resolver.
 
 Mode objects implement `execute(runner, recipe, run_dir)`.
 
@@ -72,39 +69,37 @@ Mode objects implement `execute(runner, recipe, run_dir)`.
 - `ScriptedProcessMode` delegates to `runner._run_process()` — waits for exit, then `_evaluate_output_steps()` post-hoc (only `wait_for_text` and `sleep` mean anything; other actions fail with "requires pty=true").
 - `AgentDrivenMode` delegates to `runner._run_agent_driven()`.
 
-**Trade-off:** `_run_process` reuses step syntax but semantics differ — e.g., `send_line` in process mode always fails, not ignored. This lets a recipe declare expectations uniformly but may surprise: a recipe that works in PTY mode (with send_line steps) will fail if switched to `pty:false` unless steps rewritten to only wait_for_text/sleep. The design intentionally keeps same evaluator structure while documenting difference.
+**Trade-off:** `_run_process` reuses step syntax but semantics differ — e.g., `send_line` in process mode always fails, not ignored. Process mode hardcodes its meaning; PTY dispatch uses step registry; agent mode does not dispatch recipe steps at all. Video backend is separately gated on `agg` binary presence regardless of session backend (see `extension-points.md`).
 
 ## 7. Step loop short-circuits on first failure
 
 In `_run_pty`, after each `StepResult`, if `passed==False`, loop `break`s. Remaining steps not executed. Score still computed from assertions; result `passed = all(steps.passed) and all(assertions.passed)` so single failed step fails overall.
 
-**Why:** Fail-fast prevents cascading errors; evidence shows screen at failure point.
+**Trade-off:** Fail-fast prevents cascading errors; evidence shows screen at failure point. No full diagnostic run-through — you only see first failure.
 
-**Trade-off:** No full diagnostic run-through — you only see first failure. To see later steps you must fix earlier ones.
+## 8. Assertion list auto-augmented with expect_exit_code (scripted modes only)
 
-## 8. Assertion list auto-augmented with expect_exit_code
+`_evaluate_assertions()` copies `recipe.assertions` and appends `{"type":"exit_code","value":expect_exit_code}` if `expect_exit_code is not None`. This applies to scripted PTY and process modes only (`builtin_modes.py:23-66`). Agent mode never calls `_evaluate_assertions()` — `AgentDrivenMode` uses `_agent_assertions()` at `agent_driven.py:212-225`, which evaluates `recipe.checks` and agent-returned keys; `recipe.assertions` and `expect_exit_code` do not determine its assertions; synthetic operator step requires `exit_code==0` for its step pass, but assertions are agent-derived.
 
-`_evaluate_assertions()` copies `recipe.assertions` and appends `{"type":"exit_code","value":expect_exit_code}` if `expect_exit_code is not None`. So setting `expect_exit_code` in recipe adds implicit assertion — doesn't require explicit assertion.
-
-**Trade-off:** Double reporting if recipe also contains explicit `exit_code` assertion — you'd get two exit_code checks (custom one plus implicit). Score includes both.
+**Trade-off for scripted modes:** Double reporting if recipe also contains explicit `exit_code` assertion — you'd get two exit_code checks (custom one plus implicit). Score includes both.
 
 ## 9. Score = passed/total assertions
 
-`score_from_assertions()` returns 1.0 if no assertions OR all passed, else `passed/total`. `RunResult.score` is float 0..1. Sorting by score in reports would be meaningful.
+`score_from_assertions()` returns 1.0 if no assertions OR all passed, else `passed/total`. `RunResult.score` is float 0..1.
 
 **Trade-off:** Steps not weighted in score — only assertions count. A run could have failing steps but (if assertions pass) still pass? No — `RunResult.passed` is `all(steps.passed) and all(assertions.passed)`, so steps can fail run even if score 1.0 from assertions. Score reflects assertion pass rate only.
 
-## 10. Evidence rendering pluggable but defaults to standalone functions
+## 10. Evidence rendering and renderer selection (observed duplication)
 
-Historical layering:
+**Observed:**
 
 - `screen.py` has standalone `render_svg()` function.
 - `builtin_renderers.SvgRenderer` replicates SVG logic.
 - `evidence.render_artifacts()` accepts `screen_renderer` optional; if None falls back to `screen.render_svg()`.
 - Same for video: `evidence.render_mp4()` standalone; `AggFfmpegBackend.render()` delegates to it; `render_artifacts()` guards `shutil.which("agg")` before calling backend.
-- `builtin_reporters.MarkdownReporter` duplicates logic also present in `report.ReportGenerator`.
+- `builtin_reporters.MarkdownReporter` contains generation logic; `report.py` defines `ReportGenerator` that independently defines its own generation logic with similar output shape; package `__init__.py:3-19` re-exports `ReportGenerator`.
 
-**Trade-off:** Duplication (DRY violation) from phased refactor (Phases 1-4 wired registries). But ensures backward compat: code path without config (None passed) still works because standalone functions exist as fallback.
+**Trade-off:** Duplication from phased refactor (Phases 1-4 wired registries). But ensures fallback: code path without config (None passed) still works because standalone functions exist. Note `MarkdownReporter` does not delegate to a shared implementation; `report.py` is not merely a legacy re-export — it independently defines its logic.
 
 ## 11. BuildInfo provenance via `which`, `--version`, `git rev-parse`
 
@@ -116,7 +111,7 @@ Historical layering:
 
 `verify_provenance()`: installed mode requires binary_path, source requires git_commit.
 
-**Trade-off:** Very small — probes external commands. Could fail if binary is wrapper script that doesn't support `--version`. No cryptographic provenance (no Sigstore). But matches "evidence-first" principle: report includes mode, command, binary, version, commit, timestamp for audit.
+**Trade-off:** Probes external commands. Could fail if binary is wrapper script that doesn't support `--version`. No cryptographic provenance (no Sigstore). But report includes mode, command, binary, version, commit, timestamp for audit.
 
 ## 12. Before/After delta for behavioral comparison
 
@@ -128,17 +123,17 @@ Used by reporter if `BeforeAfterResult` supplied, though CLI currently does not 
 
 ## 13. Recipe fields: checks vs assertions vs steps
 
-- `steps` — imperative driving actions for scripted modes.
-- `assertions` — declarative evaluations after run (substr, file, exit_code).
+- `steps` — imperative driving actions for scripted modes (PTY: via registry; process: hardcoded wait_for_text/sleep; agent: not dispatched).
+- `assertions` — declarative evaluations after run (substr, file, exit_code) for scripted modes only; agent checks do not use assertion registry.
 - `checks` — human-readable check names for agent-driven mode; `build_agent_prompt()` lists them; `_agent_assertions()` uses them to evaluate agent's reported dict.
 
-**Why:** Scripted mode is deterministic action list; agent-driven mode is non-deterministic LLM that reports pass/fail per check — two different assertion styles. Keeping both in Recipe allows same recipe file to be used in both execution modes? Not fully — agent-driven recipes require `operator` config. But check names provide shared vocabulary.
+Keeping both in Recipe allows same file to declare data for both execution styles, but at runtime they are mutually exclusive paths (see execution-flow doc).
 
 ## 14. Renderer argv extension for multi-frontend testing
 
-`renderers` field `dict[str, list[str]]` where key is renderer name, value extra argv. `selected_renderers()` expands `--renderer all` into multiple RunResults with same recipe but different renderer name and argv. `_with_renderer_argv()` uses `dataclasses.replace` to append extra argv.
+`renderers` field `dict[str, list[str]]` where key is renderer name, value extra argv. `selected_renderers()` expands `--renderer all` into multiple RunResults. `_with_renderer_argv()` uses `dataclasses.replace` to append extra argv.
 
-**Trade-off:** Renderer concept overloads for TUI frontend variants (opentui/ink/...) but naming "renderer" predates extension to frontend abstraction. Could cause confusion with screen renderer / video backend registries which are also called "renderer". Documented distinction: recipe.renderers = frontend variants; screen_renderers registry = SVG → file converter; video_backends = agg+ffmpeg.
+**Trade-off:** Renderer concept overloads for TUI frontend variants (opentui/ink/...) but naming "renderer" overlaps with screen renderer / video backend registries which are also called "renderer". Documented distinction: recipe.renderers = frontend variants; screen_renderers registry = SVG → file converter; video_backends = agg+ffmpeg.
 
 ## 15. Scaffold via `init` command
 
@@ -151,20 +146,25 @@ Used by reporter if `BeforeAfterResult` supplied, though CLI currently does not 
 
 ## 16. Packaging choice: hatchling + uv
 
-`pyproject.toml`: build-backend hatchling, dependencies listed minimal, console script `tui-verify`. Dependencies upper-bounded by `>=`, not pinned, allowing use in varied environments. `uv.lock` present for reproducible local dev but wheel not pin-transitive.
+`pyproject.toml`: build-backend hatchling, dependencies listed as `name>=version` lower bounds with no upper bounds (e.g., `asciinema>=2.4.0`), not pinned, allowing use in varied environments. `uv.lock` present for reproducible local dev but wheel not pin-transitive.
 
 CI uses `uv run ...` for convenience but package does not require uv at runtime.
 
-## 17. Test strategy: unit tests with constructed recipes
+## 17. Test strategy: some tests spawn real processes and require asciinema
 
-Tests don't require asciinema, agg, ffmpeg, or real TUI processes — they construct `Recipe` dataclass directly, call `load_recipes`, `selected_renderers`, `BuildInfo.from_command([sys.executable, ...])`, `ReportGenerator.generate_markdown`, etc.
+Tests are listed at `testing-ci-release.md` as 31 tests / 8 files. Several tests (`test_runner.py:14-39,41-64,82-97`) invoke `VerificationRunner`/session backend which checks and spawns the external `asciinema` CLI (`session.py:54-73,200-223`) and runs real Python child processes. `test_cli.py` and `test_scaffold.py` scaffold files on disk rather than constructing only `Recipe` via dataclass.
 
 E2E tests live as example recipes (`examples/generic`, deterministic Pi-style fixtures). CI runs both unit tests and E2E verification — unit fast, E2E validates whole stack including asciinema recording.
 
-## Open Limitations Noted
+## 18. Open Limitations (Verified)
 
-- `agent_runner_registry` is built but not wired to execution mode — only `CodexCliAgentRunner` used unless caller injects custom runner programmatically.
-- Custom execution mode names beyond 3 not routable via recipe `execution` field without resolver extension (see plugin-authoring doc).
-- `screen_backend`? Actually session_backend is single value, not multi — cannot run multiple session backends in same run.
-- Video guard `shutil.which("agg")` in `render_artifacts` means custom video backends won't run if agg missing, even if backend doesn't need agg.
-- `--config` help vs implementation minor divergence noted earlier.
+- `agent_runner_registry` is built at `runner.py:94-99,150` but not wired to execution mode — only `CodexCliAgentRunner` used unless caller injects custom runner programmatically via `VerificationRunner(agent_runner=...)`.
+- Custom execution mode names beyond 3 not routable via recipe `execution` field without resolver extension at `runner.py:128-134,169-170`.
+- `session_backend` is single value, not multi — cannot run multiple session backends in same run.
+- Video guard `shutil.which("agg")` in `render_artifacts()` at `evidence.py:55-60` means custom video backends won't run if agg missing, even if backend doesn't need agg. Custom session backend cannot avoid this guard.
+- `--config` help at `cli.py:29-30` says "path to a tui-verifier config YAML file" but `_resolve_config` at `cli.py:116-123` treats arg as project path and appends `.tui-verifier/config.yaml`; supplied YAML file is not loaded; default user config at `config.py:99-105` still loads when `--config` given — see `configuration.md` known bug.
+- Screen renderer receives fixed `.svg` paths (`final.svg`, `steps/{index:02d}-{safe}.svg`) at `evidence.py:34-43,76-83` — PNG-via-PIL pattern passing `output_path` expecting extension-based format inference is invalid.
+- Process mode `_run_process` hardcodes step support to `wait_for_text` and `sleep`; other steps fail requiring PTY — see `runner.py:275-295`.
+- Agent-driven non-recorded mode `_run_subprocess` at `agent_driven.py:88-131` bypasses session backend; only timeout/FileNotFoundError are handled there, while recorded mode at `56-85` uses `TerminalSession`.
+- Compatibility: `create_session` must return a context manager because runner uses `with ...create_session(...)` at `runner.py:222-229,247-254`.
+- `config.defaults` is modeled but currently unused — CLI hardcodes `--out`/`--video-fps` at `cli.py:21-24`, runner at `runner.py:154-163`, recipe at `models.py:31-34,82-108`.

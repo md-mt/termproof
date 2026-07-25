@@ -10,15 +10,15 @@ Welcome to TUI Verifier engineering documentation.
 
 ## Design Documentation
 
-- [Overview](overview.md) — core principle (cast is source of truth), package layout, public API, mental model
+- [Overview](overview.md) — core principle (recorded sessions; final/proof derivations), package layout, public API, mental model
 - [Architecture](architecture.md) — component map, module-by-module boundaries, dependency flow
-- [Extension Points](extension-points.md) — registries, protocols, exact signatures, how to wire custom implementations
-- [Execution Flow](execution-flow.md) — CLI entry, run loop, execution modes (PTY / process / agent-driven), assertion evaluation, renderer selection, data flow
-- [Configuration](configuration.md) — cascade model (builtin → user → project), BUILTIN_DEFAULTS, VerifierConfig, merge semantics, error cases
-- [Evidence Pipeline](evidence-pipeline.md) — run dir creation, session recording (TerminalSession + CastRecorder), replay (pyte), artifact rendering (SVG / MP4 via agg+ffmpeg), result files, CI artifacts
-- [Testing, CI, Release](testing-ci-release.md) — unit tests, packaging, E2E verification, GitHub Actions workflows (ci.yml, release.yml), versioning contract, downstream CI usage
-- [Plugin Authoring](plugin-authoring.md) — concrete minimal examples for custom steps, assertions, screen renderers, reporters, session backends, video backends, execution modes, agent runners; recipe-level patterns and pitfalls
-- [Design Decisions](design-decisions.md) — 17 grounded decisions with why and trade-off, plus open limitations
+- [Extension Points](extension-points.md) — 7 registries plus a configurable session backend (8 extension families), protocols, exact signatures, how to wire custom implementations, mode-specific limitations
+- [Execution Flow](execution-flow.md) — CLI entry, run loop, execution modes (PTY / process / agent-driven) with mode-specific wiring, assertion evaluation (scripted only), renderer selection, data flow
+- [Configuration](configuration.md) — cascade model (builtin → user → project), BUILTIN_DEFAULTS, VerifierConfig, merge semantics, known --config bug, unused defaults, error cases
+- [Evidence Pipeline](evidence-pipeline.md) — run dir creation, session recording (TerminalSession + CastRecorder), replay (pyte), artifact rendering (fixed .svg contract, agg gate), result files, CI artifacts
+- [Testing, CI, Release](testing-ci-release.md) — 31 tests/8 files including registry and agent artifact/backend coverage, asciinema/real process requirements, packaging, E2E verification, GitHub Actions workflows (CI triggers PR/main; Release triggers tag/manual), versioning contract, downstream CI usage
+- [Plugin Authoring](plugin-authoring.md) — accurate minimal examples (SVG-compatible, fixed execution key behavior, programmatic VerificationRunner(agent_runner=...) path, context manager requirement, agg gate), recipe-level patterns and pitfalls
+- [Design Decisions](design-decisions.md) — decisions grounded in current code with source refs, lower-bound dependency semantics, plus open limitations
 
 ## Reading Order
 

@@ -14,7 +14,7 @@ BUILTIN_DEFAULTS (hardcoded dict)
 VerifierConfig (frozen dataclass with typed fields)
 ```
 
-Overlay wins at leaf level; dicts merge recursively, non-dicts replace wholesale. This matches the behavior of many editor/tool configs.
+Overlay wins at leaf level; dicts merge recursively, non-dicts replace wholesale.
 
 ## BUILTIN_DEFAULTS — Canonical Source
 
@@ -44,7 +44,15 @@ Every registry key maps to a string of form `"dotted.module:ClassName"`. These a
 
 `session_backend` is a single string (not a dict) — only one backend at a time.
 
-`defaults` contains global defaults used by CLI/runner if recipe does not override.
+### `defaults` Is Currently Modeled but Unused
+
+`VerifierConfig.defaults` is parsed and stored, but **current CLI, runner, and recipe defaults remain hardcoded and do not read it**:
+
+- CLI hardcodes `--out` default `.tui-verifier/runs` and `--video-fps` default `60` at `cli.py:21-24`.
+- `VerificationRunner.run()` hardcodes its `out_dir` default `Path(".tui-verifier/runs")` and `video_fps` default `60` at `runner.py:154-163`.
+- Recipe fields `timeout_seconds`, `cols`, `rows` hardcode their own defaults at `models.py:31-34`.
+
+The `defaults` dict is reserved for future wiring; changing it in a config YAML today does not change CLI/runner fallbacks.
 
 ## VerifierConfig Dataclass
 
@@ -74,9 +82,9 @@ class VerifierConfig:
         return _from_mapping(BUILTIN_DEFAULTS)
 ```
 
-- All fields are immutable (frozen dataclass).
+- Frozen dataclass prevents attribute rebinding (e.g., `config.steps = ...` raises), but the inner dict values remain mutable — `config.steps["extra"] = ...` would mutate the dict. Treat them as read-only by convention.
 - `builtin()` constructs from `BUILTIN_DEFAULTS` via `_from_mapping()`.
-- `_from_mapping()` coerces: steps/assertions/etc via `dict()`, session_backend via `str()`, GlobalDefaults coerced with `float()`, `int()`, `str()` as appropriate.
+- `_from_mapping()` coerces: steps/assertions/etc via `dict()`, `session_backend` via `str()`, `GlobalDefaults` coerced with `float()`, `int()`, `str()` as appropriate.
 
 ## Cascade Implementation
 
@@ -97,7 +105,7 @@ def load_config(project_path=None, user_path=None) -> VerifierConfig:
     return _from_mapping(merged)
 ```
 
-- `user_path` and `project_path` can be overridden by caller (used by CLI `--config`).
+- `user_path` and `project_path` can be overridden by caller.
 - Each layer file existence is checked via `Path.exists()` — missing file silently skipped.
 - `_load_yaml(path)` requires `pyyaml`; raises `RuntimeError("pyyaml is required...")` if yaml is None (ImportError fallback).
 - `_deep_merge(base, overlay)`:
@@ -116,106 +124,79 @@ def _deep_merge(base, overlay):
 - Recursive dict merge, leaf values replaced.
 - Example: if user config provides `steps: {my_step: ...}`, the existing 6 builtins are preserved and `my_step` is added. If user config provides `session_backend: "custom:Class"`, it replaces the builtin entirely (non-dict leaf).
 
-## CLI --config Override
+## CLI `--config` — Known Bug
 
-`cli._resolve_config(args)`:
+CLI help advertises `cli.py:29-30`:
 
-```python
-def _resolve_config(args):
-    if args.config:
-        user_path = None
-        project_path = args.config.resolve()
-        return load_config(project_path=project_path, user_path=user_path)
-    return load_config()
+```
+--config PATH  path to a tui-verifier config YAML file
 ```
 
-When `--config` is passed:
-- `user_path=None` disables user-layer loading? No — code sets `user_path=None` but `load_config` still falls back to default path if user_path is None? Let's check: actual implementation:
-
-In `load_config`, `user_path or Path.home()/.../config.yaml`, so passing `None` still triggers default user path lookup unless explicitly overriding behavior. In `_resolve_config`, it sets `user_path=None` and `project_path=resolved --config`. That means:
-- User file: `Path.home() / ".config" / "tui-verifier" / "config.yaml"` still checked (since None falls back)
-- Project file: `args.config.resolve()` is checked as project config path? Wait code: `project_path or Path.cwd() / ".tui-verifier" / "config.yaml"`. If project_path is a file path, not a directory, then `project_path / ".tui-verifier" / "config.yaml"` would be wrong.
-
-Looking more carefully at `_resolve_config`:
-Actually CLI code currently does:
+Current `_resolve_config` at `cli.py:116-123` does:
 
 ```python
 if args.config:
-    from .config import load_config as _load
-    user_path: Path | None = None
-    project_path: Path | None = args.config.resolve()
-    return _load(project_path=project_path, user_path=user_path)
+    project_path = args.config.resolve()
+    return load_config(project_path=project_path, user_path=None)
 ```
 
-But `_load` signature is `load_config(project_path, user_path)`. Inside, `project_file = (project_path or Path.cwd()) / ".tui-verifier" / "config.yaml"`. So passing a file as project_path will append suffix — this looks like a minor discrepancy. In practice, how it works: `_load_yaml(project_path)` is not called; instead `(project_path) / ".tui-verifier" / ...` is used. If project_path is a file path, that path won't exist, so _load_yaml won't happen for that location. However `user_path=None` still triggers default user file.
+And `load_config` then computes `project_file = (project_path) / ".tui-verifier" / "config.yaml"` and checks its existence. It does **not** load the file supplied directly. Additionally, `user_path=None` falls back to the default `~/.config/tui-verifier/config.yaml` at `config.py:99-105`, so the default user config still loads even when `--config` is given.
 
-Wait re-reading actual code path in cli.py line:
+Net effect:
 
-The cli resolves config via `_resolve_config`, and looking at earlier output of cli.py: there is a helper that loads precisely given path? Let's check actual implementation of _resolve_config again:
-
-From cli.py read earlier:
-```python
-def _resolve_config(args: argparse.Namespace) -> VerifierConfig:
-    if args.config:
-        from .config import load_config as _load
-        user_path: Path | None = None
-        project_path: Path | None = args.config.resolve()
-        return _load(project_path=project_path, user_path=user_path)
-    return load_config()
-```
-
-But inside `load_config`, `project_path` is used as base for `project_file = (project_path or Path.cwd()) / ".tui-verifier" / "config.yaml"` — not as direct file. So `--config` pointing to a file path would be reinterpreted as dir. This is potentially a bug, but documented behavior should reflect actual code: when `--config PATH` is given, that PATH is used as project_path override for cascade (i.e., checked as `PATH / .tui-verifier / config.yaml`). However the intention described in CLI help "path to a tui-verifier config YAML file" suggests it should load directly. Check again — in load_config, there's no direct loading of project_path as file; it always appends `/.tui-verifier/config.yaml`. So `--config` semantics: provide project root, not file.
-
-For factual accuracy: the help says "path to a tui-verifier config YAML file" but implementation uses it as project base. We should note this subtlety in docs and not over-claim.
+- Passing a YAML file path to `--config` is a bug: the file is not loaded; the code looks for `<given-path>/.tui-verifier/config.yaml` instead.
+- Passing a project directory works despite the help text (because `dir/.tui-verifier/config.yaml` is the expected layout).
+- The default user-layer file at `~/.config/tui-verifier/config.yaml` still participates even with `--config`.
 
 ## Writing Custom Config
 
 Example `.tui-verifier/config.yaml`:
 
 ```yaml
-# Add a custom step type
+# Add a custom step type (qualname, not nested dict)
 steps:
-  my_wait:
-    # Actually the value must be "module:Class" string, not dict
-    # Correct form:
-  my_wait: "my_pkg.steps:MyWaitStep"
+  my_wait_step: "my_pkg.steps:MyWaitStep"
 
 # Add a custom assertion
 assertions:
   http_200: "my_pkg.assert:Http200Assertion"
 
-# Add a screen renderer
+# Add a screen renderer (but note fixed .svg contract in evidence.py —
+# custom renderers receive .svg output paths; see evidence-pipeline.md)
 screen_renderers:
-  png: "my_pkg.renderers:PngRenderer"
+  svg_styled: "my_pkg.renderers:StyledSvgRenderer"
 
 # Replace session backend entirely
 session_backend: "my_pkg.session:MySessionBackend"
-
-# Override defaults
-defaults:
-  timeout_seconds: 60.0
-  cols: 120
-  rows: 40
-  video_fps: 30
-  out_dir: ".tui-verifier/custom-runs"
 ```
 
-User-level `~/.config/tui-verifier/config.yaml` has same schema.
+User-level `~/.config/tui-verifier/config.yaml` has same schema. Note `defaults` and registry overrides via YAML are modeled but runtime defaults for CLI/runner currently remain hardcoded — see "defaults is currently unused" above.
 
 ### Config Merging Examples
 
 - **Additive**: builtins contain 6 steps; project config adds `my_step` → result 7 steps.
 - **Replace leaf**: builtins have `session_backend: "tui_verifier.builtin_session:PexpectAsciinemaBackend"`; project config `session_backend: "custom:Backend"` → leaf replaced, new value used.
-- **Override nested dict**: builtins `defaults.timeout_seconds=30.0`; project config `defaults: {timeout_seconds: 60.0}` → `_deep_merge` recurses into defaults dict, overlay leaf wins, resulting 60.0 while preserving other defaults keys.
+- **Override nested dict**: builtins `defaults.timeout_seconds=30.0`; project config `defaults: {timeout_seconds: 60.0}` → `_deep_merge` recurses into defaults dict, overlay leaf wins, resulting 60.0 while preserving other defaults keys. Note this override is stored but not consumed by current runner/CLI defaults.
 
 ## Relationship to Recipe Fields
 
-Recipe JSON fields like `timeout_seconds`, `cols`, `rows` directly specify per-recipe values. Config `defaults` provides fallback if runner/cli wants defaults, but recipe values take direct precedence. The runner uses `recipe.timeout_seconds`, `recipe.cols`, `recipe.rows` from the recipe itself; config defaults are used for CLI global defaults (e.g., out_dir, video_fps) when recipe does not specify.
+Recipe JSON fields like `timeout_seconds`, `cols`, `rows` directly specify per-recipe values. Those recipe-level defaults are hardcoded at `models.py:31-34,82-108`, not read from `VerifierConfig.defaults`. Recipe values take direct precedence over any hardcoded CLI/runner fallback, but config `defaults` does not currently participate as an intermediate fallback.
+
+## Evidence Pipeline Fixed `.svg` Contract
+
+`evidence.py:34-43,76-83` always supplies `.svg` paths to the screen renderer:
+
+```python
+final_svg = run_dir / "final.svg"
+screen_renderer.render(final_text, final_svg, cols, rows)  # or render_svg as fallback
+```
+
+And `steps/` rendering uses `{index:02d}-{safe}.svg`. Artifact metadata also records the `.svg` path. A renderer that calls `PIL.Image.save(output_path)` will receive an `.svg` path, not `.png`, so the advertised generic PNG flow is invalid — custom renderers must write valid content for the given `.svg` path or the pipeline must be changed. See `evidence-pipeline.md`.
 
 ## Error Cases
 
 - `yaml` not installed + config file exists → `RuntimeError("pyyaml is required to load config files; install pyyaml>=6.0")`.
 - Config YAML parses but value is not dict → `_load_yaml` returns `{}`.
-- Qualname without `:` → `ValueError("expected 'module.path:ClassName', got ...")`.
+- Qualname without `:` → `ValueError("expected 'module.path:ClassName', got ...")` from `_import_class`.
 - Module/class not found → `ModuleNotFoundError` / `AttributeError` from import.
-- Unknown registry name at runtime → `KeyError("unknown plugin {name!r}; available: ...")` from `Registry.get()`.
+- Unknown registry name at runtime → `Registry.get()` raises `KeyError("unknown plugin {name!r}; available: ...")` from `registry.py:24-31`. Runner wraps unknown step/assertion names as `ValueError("unknown step action: ...")` / `ValueError("unknown assertion type: ...")` at `runner.py:268-273,320-325`.

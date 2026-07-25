@@ -1,12 +1,12 @@
 # Plugin Authoring Guide
 
-This guide shows how to extend tui-verifier with custom step actions, assertion evaluators, execution modes, renderers, reporters, video backends, and session backends. All examples reflect actual protocol signatures from the source.
+This guide shows how to extend tui-verifier with custom step actions, assertion evaluators, execution modes, renderers, reporters, video backends, and session backends. All examples reflect actual protocol signatures from the source and runtime limitations noted in `extension-points.md`.
 
 ## Minimal Principle
 
 - One class per extension point, zero-arg constructor.
 - Read per-invocation parameters from the `step`/`assertion`/`recipe` dict at call time.
-- Class attribute `name` matches the config key.
+- Registry key, not class name, controls lookup — `name = "..."` on the class is conventional but lookup uses the YAML key you chose. Equality is not validated, and `AgentRunner`/`SessionBackend` protocols have no `name` field.
 - Value in config YAML is `"my_pkg.module:MyClass"`.
 
 ## Custom Step Action
@@ -19,13 +19,18 @@ class StepAction(Protocol):
     def execute(self, session: TerminalSession, step: dict[str, Any], index: int) -> StepResult: ...
 ```
 
+Positioning: steps dispatch through the registry **only in PTY mode** (`command.pty=true`). Process mode hardcodes `wait_for_text`/`sleep`; agent mode does not dispatch recipe steps at all. See `extension-points.md`.
+
 Example: wait for a count of occurrences.
+
+Note: the prior version of this example double-counted by summing `raw_output.count + screen.count`. The same terminal output appears in both representations, so counting both double-counts. The corrected example below checks `screen` first (post-ANSI, de-duplicated view) and only falls back to `raw_output` if needed.
 
 ```python
 # my_pkg/steps.py
+import time
+from typing import Any
 from tui_verifier.models import StepResult
 from tui_verifier.session import TerminalSession
-from typing import Any
 
 class WaitForCount:
     name = "wait_for_count"
@@ -35,10 +40,12 @@ class WaitForCount:
         needle = step["text"]
         expected = int(step.get("count", 1))
         timeout = float(step.get("timeout_seconds", 10))
-        deadline_stable = __import__("time").monotonic() + timeout
-        while __import__("time").monotonic() < deadline_stable:
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
             session.read_available(0.05)
-            occurrences = session.raw_output.count(needle) + session.screen.count(needle)
+            # Check screen rather than raw_output.count + screen.count to avoid double-counting
+            haystack = session.screen if needle in session.screen else session.raw_output
+            occurrences = haystack.count(needle)
             if occurrences >= expected:
                 return StepResult(display, True, f"found {occurrences} occurrences of {needle!r}", session.screen)
             if not session.is_alive():
@@ -71,6 +78,8 @@ class AssertionType(Protocol):
     def evaluate(self, recipe: Recipe, assertion: dict[str, Any],
                  screen: str, raw_output: str, exit_code: int | None) -> AssertionResult: ...
 ```
+
+Positioning: assertion registry is used only by scripted modes (PTY and process), not by agent checks — agent mode evaluates `recipe.checks` against agent-reported booleans via `_agent_assertions()` at `agent_driven.py:212-225`.
 
 Example: regex match on screen.
 
@@ -113,7 +122,7 @@ Notes:
 - Path resolution helper in real code: `_recipe_path(recipe, path)` — absolute passthrough, relative against `recipe.command.cwd or "."`. Replicate that pattern for file-based assertions.
 - Existing builtins raise detail as human-readable string; keep same convention.
 
-## Custom Screen Renderer
+## Custom Screen Renderer — Fixed `.svg` Contract
 
 Protocol (`builtin_renderers.py`):
 
@@ -123,48 +132,53 @@ class ScreenRenderer(Protocol):
     def render(self, text: str, output_path: Path, cols: int, rows: int) -> None: ...
 ```
 
-Example: PNG via PIL (illustrative — not bundled).
+**Important: evidence pipeline always supplies `.svg` paths.** `evidence.render_artifacts()` at `evidence.py:34-43` passes `run_dir/final.svg`, and per-step at `76-83` passes `{index:02d}-{safe}.svg`. It also always reports `screenshot` under that `.svg` path. A renderer using `PIL.Image.save(output_path)` would receive an `.svg` path and produce an invalid file (or mis-detected image type) while artifact metadata still says `.svg`. The prior PNG-via-PIL example is therefore invalid through the current pipeline and has been replaced with an SVG-compatible example.
+
+If you need PNG output, either fork `evidence.py` to pass extension-appropriate paths or provide a custom `evidence.render_artifacts` wrapper.
+
+### Styled SVG example (extension-compatible)
+
+This example respects the fixed `.svg` contract — it writes valid SVG, but with custom styling.
 
 ```python
 # my_pkg/renderers.py
+import html
 from pathlib import Path
 
-class PngRenderer:
-    name = "png"
+class StyledSvgRenderer:
+    name = "svg_styled"
 
     def render(self, text: str, output_path: Path, cols: int, rows: int) -> None:
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        try:
-            from PIL import Image, ImageDraw, ImageFont
-        except ImportError:
-            raise RuntimeError("Pillow is required for png renderer")
-        # Simplified: fixed-size canvas, monospace font
-        line_height = 18
-        char_width = 8
-        width = max(320, cols * char_width + 36)
-        height = max(160, rows * line_height + 36)
-        img = Image.new("RGB", (width, height), "#101418")
-        draw = ImageDraw.Draw(img)
-        try:
-            font = ImageFont.truetype("Menlo.ttc", 14)
-        except OSError:
-            font = ImageFont.load_default()
-        for i, line in enumerate(text.splitlines()[:rows]):
-            draw.text((18, 18 + i * line_height), line, fill="#e6edf3", font=font)
-        img.save(output_path)
+        line_height = 20
+        char_width = 9
+        padding = 18
+        width = max(320, cols * char_width + padding * 2)
+        height = max(160, rows * line_height + padding * 2)
+        visible_lines = text.splitlines()[:rows] or [""]
+        parts = [
+            f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">',
+            '<rect width="100%" height="100%" fill="#1a1f2e"/>',
+            '<style>text{font:14px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;fill:#c8d3f5;white-space:pre}</style>',
+        ]
+        for index, line in enumerate(visible_lines):
+            y = padding + line_height * (index + 1)
+            parts.append(f'<text x="{padding}" y="{y}">{html.escape(line)}</text>')
+        parts.append("</svg>")
+        output_path.write_text("\n".join(parts) + "\n", encoding="utf-8")
 ```
 
 Config:
 
 ```yaml
 screen_renderers:
-  png: "my_pkg.renderers:PngRenderer"
+  svg_styled: "my_pkg.renderers:StyledSvgRenderer"
 ```
 
 CLI:
 
 ```bash
-tui-verify run recipes/ --screen-renderer png
+tui-verify run recipes/ --screen-renderer svg_styled
 ```
 
 `render_artifacts()` in `evidence.py` receives `screen_renderer` and calls `render()` for final + each step. If `None`, it falls back to `screen.render_svg()`.
@@ -216,7 +230,7 @@ reporters:
 tui-verify run recipes/ --reporter json
 ```
 
-## Custom Session Backend
+## Custom Session Backend — Context Manager Required
 
 Protocol (`builtin_session.py`):
 
@@ -227,7 +241,11 @@ class SessionBackend(Protocol):
                        cols: int, rows: int) -> TerminalSession: ...
 ```
 
-Example: replace pexpect with alternative but still return `TerminalSession` subtype or compatible interface (must provide `raw_output`, `screen`, `exit_code`, `wait_for_text`, `wait_for_idle`, `wait_for_exit`, `read_available`, `is_alive`, `send_text`, `send_line`, `press`, etc.). Minimal wrapper:
+Compatibility: a session object returned by `create_session` must be a **context manager** because `runner.py:222-229,247-254` uses `with ...create_session(...) as session:`. So subclass `TerminalSession` (which already implements `__enter__`/`__exit__`) or provide an object implementing both `__enter__` and `__exit__` plus `raw_output`, `screen`, `exit_code`, `wait_for_text`, `wait_for_idle`, `wait_for_exit`, `read_available`, `is_alive`, `send_text`, `send_line`, `press`, `close`, and `raw_output`.
+
+Additionally, non-recorded agent mode at `agent_driven.py:87-131` bypasses the session backend entirely (uses `subprocess.run`), so custom backends have no effect when `record_terminal=False`.
+
+Example: minimal delegation backend:
 
 ```python
 # my_pkg/session.py
@@ -239,8 +257,8 @@ class MySessionBackend:
                        cwd: str | None, env: dict[str, str],
                        cols: int, rows: int) -> TerminalSession:
         # For example inject extra env, then delegate:
-        # actual customization would subclass TerminalSession
-        return TerminalSession(argv, cast_path, cwd, env, cols, rows)
+        merged_env = {**env, "MY_INJECTED": "1"}
+        return TerminalSession(argv, cast_path, cwd, merged_env, cols, rows)
 ```
 
 Config (single value, not dict):
@@ -251,7 +269,7 @@ session_backend: "my_pkg.session:MySessionBackend"
 
 No CLI flag — only config.
 
-## Custom Video Backend
+## Custom Video Backend — Gated on `agg`
 
 Protocol (`builtin_video.py`):
 
@@ -260,6 +278,15 @@ class VideoBackend(Protocol):
     name: str
     def render(self, cast_path: Path, output_path: Path, fps: int) -> None: ...
 ```
+
+Important guard at `evidence.py:55-60`:
+
+```python
+if render_video and shutil.which("agg"):
+    # backend invoked here
+```
+
+A video backend only runs when `--video` is set **and** `agg` binary is on PATH. A custom session backend cannot avoid the guard — it lives in `render_artifacts()` before any video backend call and is independent of session backend. Only forking `evidence.py` or installing `agg` fixes it.
 
 Example: no-op backend for CI without ffmpeg.
 
@@ -283,12 +310,10 @@ video_backends:
 ```
 
 ```bash
-tui-verify run recipes/ --video --video-backend noop
+tui-verify run recipes/ --video --video-backend noop  # still requires agg on PATH
 ```
 
-Note: `render_artifacts()` already guards `render_video` with `shutil.which("agg")` — if `agg` missing, video step is skipped even if backend exists. Use custom backend only when `agg` is present but you want different encoding, or create session backend that does not require `agg`.
-
-## Custom Execution Mode
+## Custom Execution Mode — Only Fixed Keys Work
 
 Protocol (`builtin_modes.py`):
 
@@ -299,7 +324,28 @@ class ExecutionMode(Protocol):
                ) -> tuple[list[StepResult], list[AssertionResult], str, int | None, str]: ...
 ```
 
-Example: mode that ignores timeout and always passes steps.
+Execution resolver at `runner.py:128-134` only returns 3 fixed names:
+
+```python
+def _resolve_execution_mode_name(recipe: Recipe) -> str:
+    if recipe.execution == "agent-driven":
+        return "agent_driven"
+    if recipe.command.pty:
+        return "scripted_pty"
+    return "scripted_process"
+```
+
+So adding a new execution mode name like `lenient_pty` to the config YAML parses but is never returned by the resolver. To actually use a custom execution mode, you must **replace** one of the fixed keys:
+
+```yaml
+# Replace PTY execution with lenient variant — every PTY recipe uses lenient mode
+execution_modes:
+  scripted_pty: "my_pkg.modes:LenientPtyMode"
+```
+
+If you need a brand-new execution name, you must fork `runner._resolve_execution_mode_name` — this is a current limitation.
+
+Example: lenient PTY mode that skips assertions:
 
 ```python
 # my_pkg/modes.py
@@ -308,30 +354,22 @@ from typing import Any
 from tui_verifier.models import Recipe, StepResult, AssertionResult
 
 class LenientPtyMode:
-    name = "lenient_pty"
+    name = "lenient_pty"  # name here is conventional; the YAML key is what the resolver uses
 
     def execute(self, runner: Any, recipe: Recipe, run_dir: Path):
         steps, raw_output, exit_code, screen = runner._run_pty(recipe, run_dir)
-        # don't evaluate assertions — mark all assertions pass
         assertions = [AssertionResult("lenient", True, "lenient mode skips assertions")]
         return steps, assertions, raw_output, exit_code, screen
 ```
 
-Config:
+Config (must override a fixed key to be wired):
 
 ```yaml
 execution_modes:
-  lenient_pty: "my_pkg.modes:LenientPtyMode"
+  scripted_pty: "my_pkg.modes:LenientPtyMode"
 ```
 
-But note `_resolve_execution_mode_name()` only returns 3 names currently — `agent_driven`, `scripted_pty`, `scripted_process`. To use custom name you would need to set `execution` field to a value that maps? As currently implemented, mapping is hardcoded. So custom execution mode names require either (a) overriding `execution` of recipe to custom value and also monkey-patching `_resolve_execution_mode_name` logic via fork, or (b) adding extra logic to `load_config` mapping to override the three built-in keys. The config maps name → qualname, but resolver still only returns one of three names. To actually use custom execution mode named `lenient_pty`, you would need to either:
-
-- Replace `scripted_pty` key in config with your custom class: `execution_modes: {scripted_pty: "my_pkg.modes:LenientPtyMode"}` — then every PTY recipe uses lenient mode.
-- Or fork `runner._resolve_execution_mode_name` — this is a current limitation.
-
-Documenting accurately: custom execution modes override built-in mode names, rather than introduce new recipe `execution` values (unless resolver extended).
-
-## Custom Agent Runner
+## Custom Agent Runner — Programmatic Path Is the Truthful One
 
 Protocol (`agent_driven.py`):
 
@@ -348,7 +386,12 @@ class AgentOutcome:
     metadata: dict[str, Any] = field(default_factory=dict)
 ```
 
-Example: echo agent that always passes.
+Important limitations:
+
+- `agent_runner_registry` (`runner.py:94-99,150`) is built from config `agent_runners` but **never read** by `_run_agent_driven()`. Config-only replacement has no effect today.
+- The prior docs used an `EchoAgent` with `recipe.operator` hardcoded to `Codex` and a recipe line containing duplicate `command` keys (invalid JSON). The `EchoAgent` check semantics were also wrong — when `recipe.checks` is empty, `AgentDrivenRunner` at `agent_driven.py:212-225` uses default check `"Codex operator completed the verification"`, so an `EchoAgentRunner` returning `{"default check": True}` would not satisfy that check.
+
+**Truthful programmatic path:**
 
 ```python
 # my_pkg/agent.py
@@ -357,31 +400,23 @@ from tui_verifier.agent_driven import AgentOutcome
 from tui_verifier.models import Recipe
 
 class EchoAgentRunner:
+    """Always-passing agent that returns all checks True."""
+
     def run(self, recipe: Recipe, prompt: str, run_dir: Path) -> AgentOutcome:
-        checks = recipe.checks or ["default check"]
+        # Default check used by runner when recipe.checks is empty
+        checks = recipe.checks or ["Codex operator completed the verification"]
         return AgentOutcome(
             assertions={check: True for check in checks},
             transcript=f"Echo: {prompt[:200]}",
-            raw_output=f'{{"assertions": {{{", ".join(f'"{c}": true' for c in checks)}}}, "transcript": "echo"}}',
+            raw_output='{"assertions": {'
+                       + ", ".join(f'"{c}": true' for c in checks)
+                       + '}, "transcript": "echo"}',
             exit_code=0,
             metadata={"agent": "echo"},
         )
 ```
 
-Config:
-
-```yaml
-agent_runners:
-  echo: "my_pkg.agent:EchoAgentRunner"
-```
-
-Then in recipe:
-
-```json
-{ "execution": "agent-driven", "operator": { "command": ["echo-agent"], "command": ["echo"] }, ... }
-```
-
-Wait — actual `from_recipe` method reads `recipe.operator` dict for `CodexCliAgentRunner`. For generic `AgentRunner`, resolution is via `VerificationRunner.agent_runner_registry.get(name)` — name originates from `recipe.operator.command`? Let's trace: in `VerificationRunner._run_agent_driven()`, it either uses `self.agent_runner` (if `--operator-command` supplied) or `CodexCliAgentRunner.from_recipe(recipe)`. The agent_runner_registry is built but not currently used by execution mode? Indeed `_build_agent_runner_registry` builds it, but `_run_agent_driven` does not consult it — it goes directly to Codex cli runner. The registry exists for future custom operator `command` selection but current code path bypasses it. Custom agent runner can still be used by injecting via CLI `--operator-command` (which creates Codex runner with that command) or by constructing `VerificationRunner` programmatically:
+Usage — programmatic injection (the only currently wired path for custom Python runners):
 
 ```python
 from tui_verifier.config import VerifierConfig
@@ -390,11 +425,12 @@ from my_pkg.agent import EchoAgentRunner
 
 config = VerifierConfig.builtin()
 runner = VerificationRunner(agent_runner=EchoAgentRunner(), config=config)
+# Explicitly use agent-driven execution via recipe's execution field:
+# recipe.execution = "agent-driven"
+result = runner.run(recipe, out_dir=Path(".tui-verifier/runs"), render_video=False)
 ```
 
-Python API allows arbitrary `AgentRunner`; registry-based selection from config is a reserved slot that currently not wired to execution mode beyond builtin `codex` key.
-
-For factual accuracy: agent_runners registry entries are loadable but execution path currently hard-codes `CodexCliAgentRunner`. Custom `AgentRunner` via config alone won't execute without Python-level injection or future runner change.
+Alternatively via CLI `--operator-command`, which creates `CodexCliAgentRunner` with that command (not your custom class). Custom `AgentRunner` via config alone won't execute without Python-level injection or future runner change.
 
 ## Recipe-Level Examples
 
@@ -441,6 +477,8 @@ For factual accuracy: agent_runners registry entries are loadable but execution 
 }
 ```
 
+Note: process mode evaluates steps via `_evaluate_output_steps()` — only `wait_for_text` and `sleep` do anything meaningful; other actions return failure requiring PTY.
+
 ### Multi-Renderer Recipe (from README)
 
 ```json
@@ -469,6 +507,11 @@ For factual accuracy: agent_runners registry entries are loadable but execution 
 - Step factory must be zero-arg — don't put config in `__init__`, read from `step` dict in `execute()`.
 - Assertion factory must be zero-arg — read `assertion` dict in `evaluate()`.
 - Qualname format is `"module:Class"` with colon, not dot. `_import_class` checks for colon and raises `ValueError` otherwise.
-- `Registry.get()` raises `KeyError` with available sorted names — handle in caller if you want custom error.
+- `Registry.get()` raises `KeyError` with available sorted names — Runner wraps unknown step/assertion as `ValueError("unknown step action")` / `ValueError("unknown assertion type")`.
 - `session_backend` is single string — replacing it replaces whole backend; you cannot have multiple session backends concurrently (runner resolves one).
-- Video backend only called if `render_video True` and `shutil.which("agg")` passes in `render_artifacts()`. Without `agg`, video rendering silently skipped regardless of backend config unless you patch that guard too.
+- Session backend must be a context manager (`__enter__`/`__exit__`) because runner uses `with ...create_session(...)`.
+- Non-recorded agent mode (`record_terminal=False`) bypasses session backend — it calls `subprocess.run` directly.
+- Video backend only called if `render_video True` and `shutil.which("agg")` passes in `render_artifacts()` at `evidence.py:55-60`. Without `agg`, video rendering silently skipped regardless of backend config unless you patch that guard too.
+- Execution resolver only emits 3 fixed names — new execution mode names require replacing `scripted_pty`/`scripted_process`/`agent_driven` or patching `runner._resolve_execution_mode_name`.
+- `agent_runner_registry` is built but unused — custom Python runner requires programmatic `VerificationRunner(agent_runner=...)`, not just config YAML.
+- Screen renderer receives fixed `.svg` paths from `evidence.py` — PNG-style examples are invalid unless pipeline changed.
