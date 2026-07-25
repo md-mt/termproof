@@ -10,6 +10,24 @@ The verifier is product-agnostic: any terminal program can be plugged in by
 checking in a recipe pack. Pi coding agent workflows are included as the main
 showcase because they exercise realistic multi-turn coding-agent UI flows.
 
+## Documentation
+
+**Engineering design docs: [`docs/index.md`](docs/index.md)**
+
+Full design set:
+
+- [Overview](docs/overview.md) — principle, layout, public API, mental model
+- [Architecture](docs/architecture.md) — component boundaries and dependencies
+- [Extension Points](docs/extension-points.md) — 8 registries and protocol signatures
+- [Execution Flow](docs/execution-flow.md) — end-to-end data/control flow
+- [Configuration](docs/configuration.md) — cascading builtin → user → project model
+- [Evidence Pipeline](docs/evidence-pipeline.md) — cast → SVG/TXT/MP4/result.json
+- [Testing, CI, Release](docs/testing-ci-release.md) — unit tests, GitHub Actions, release flow
+- [Plugin Authoring](docs/plugin-authoring.md) — accurate minimal examples for every extension point
+- [Design Decisions](docs/design-decisions.md) — trade-offs grounded in current code
+- [Recipe Packs](docs/recipe-packs.md) — reusable packaging contract
+- [Releases](docs/releases.md) — versioning and release lifecycle
+
 ## Quickstart
 
 Run the portable non-Pi example:

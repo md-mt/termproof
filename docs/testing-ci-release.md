@@ -1,0 +1,216 @@
+# Testing, GitHub Actions CI, and Release Flow
+
+## Local Testing
+
+### Unit Tests
+
+Repository uses stdlib `unittest`, not pytest (though pytest cache exists from runs).
+
+Run:
+
+```bash
+uv run python -m unittest discover -s tests
+# or python -m unittest discover -s tests
+```
+
+Test files (`tests/`):
+
+- `test_config.py` — cascading config merge: builtin → user → project YAML deep merge.
+- `test_runner.py` — runner orchestration, mode resolution, step/assertion wiring.
+- `test_screen.py` — cast replay, screen rendering.
+- `test_agent_driven.py` — agent prompt building, parse_agent_output JSON extraction cascade.
+- `test_stack_design.py` — recipe discovery (`load_recipes`, `find_recipe_files`, `select_recipes`), renderer selection (`selected_renderers`), `BuildInfo.from_command`, `ReportGenerator.generate_markdown`, `BeforeAfterResult` delta computation.
+- `test_cli.py` — `init` command creates recipe file, `CliTest.test_init_command_creates_recipe`.
+- `test_scaffold.py` — recipe pack scaffolding.
+- `test_examples.py` — validates example recipe JSON shape.
+
+All tests construct `Recipe` via `Recipe(...)` or `recipe_from_mapping()` directly — no need for asciinema or real TUIs. Registry and runner can be instantiated with `VerifierConfig.builtin()`.
+
+### Package Build
+
+Declared in `pyproject.toml`:
+
+- Build backend: `hatchling`
+- Wheel includes: `tui_verifier` package
+- Sdist includes: `tui_verifier`, `tests`, `examples`, `docs`, `README.md`, `LICENSE`, `pyproject.toml`, excludes `examples/artifacts`
+- Console script: `tui-verify = tui_verifier.cli:main`
+- Dependencies: `asciinema>=2.4.0`, `imageio-ffmpeg>=0.6.0`, `pexpect>=4.9.0`, `pyte>=0.8.2`, `pyyaml>=6.0`
+- Requires Python >=3.11
+
+Build via:
+
+```bash
+uv build
+# or hatch build
+```
+
+Produces `dist/tui_verifier-*.whl` + sdist.
+
+Smoke-test installed wheel (as release workflow does):
+
+```bash
+python -m venv .pkg-test
+.pkg-test/bin/pip install dist/*.whl
+.pkg-test/bin/tui-verify --help
+```
+
+### E2E Verification (Portable)
+
+```bash
+uv run tui-verify run examples/generic --video
+# Or full CI-like set:
+uv run tui-verify run \
+  examples/generic \
+  examples/multi_turn_conversation.recipe.json \
+  examples/pi_workflow_readonly_review.recipe.json \
+  examples/pi_workflow_guarded_edit.recipe.json \
+  examples/pi_workflow_session_resume_export.recipe.json \
+  examples/pi_workflow_model_context.recipe.json \
+  --video --video-fps 60 --out .tui-verifier/local-ci
+```
+
+Requires `asciinema` (Python CLI) and `agg` + `ffmpeg` for video. Portable recipes use deterministic Python fixtures (`examples/generic/generic_tui.py` etc.) so they run on any machine with Python.
+
+Pi-specific recipes (`pi_help`, `pi_version`, `pi_list`) call `examples/bin/pi-clean` which prefers `/usr/local/bin/pi_cli/pi.real` when present and can be overridden via `TUI_VERIFIER_PI_BIN`. Provider-backed Pi runs need Pi binary + credentials — run in local/private CI.
+
+## GitHub Actions — CI (`ci.yml`)
+
+File: `.github/workflows/ci.yml`
+
+Triggers: `pull_request` (any), `push` to `main`.
+
+Permissions: `contents: read`, `issues: write`, `pull-requests: write`.
+
+Single job `verify` on `ubuntu-latest`:
+
+1. `actions/checkout@v4`
+2. `actions/setup-python@v5` — python 3.12
+3. `astral-sh/setup-uv@v5`
+4. `dtolnay/rust-toolchain@stable` — needed for `agg`
+5. `actions/cache@v4` — caches `~/.cargo/bin`, `registry`, `git`; key `cargo-agg-v1.9.0-${{ runner.os }}`
+6. `sudo apt-get update && apt-get install -y ffmpeg`
+7. `cargo install --locked --git https://github.com/asciinema/agg --tag v1.9.0` if `agg` not on PATH
+8. `uv run python -m unittest discover -s tests`
+9. `uv build`
+10. Portable + deterministic Pi-style verification:
+
+```bash
+uv run tui-verify run \
+  examples/generic \
+  examples/multi_turn_conversation.recipe.json \
+  examples/pi_workflow_readonly_review.recipe.json \
+  examples/pi_workflow_guarded_edit.recipe.json \
+  examples/pi_workflow_session_resume_export.recipe.json \
+  examples/pi_workflow_model_context.recipe.json \
+  --video --video-fps 60 --out .tui-verifier/ci
+```
+
+11. Publish summary — `if: always()`, appends `## TUI Verifier CI Report` + evidence artifact name + content of `.tui-verifier/ci/latest-report.md` (or fallback message) to `$GITHUB_STEP_SUMMARY`.
+12. Upload artifact — `actions/upload-artifact@v4`, `name: tui-verifier-ci-evidence`, `path: .tui-verifier/ci`, `if-no-files-found: ignore`, `if: always()`.
+13. PR comment — `actions/github-script@v7`, `if: always() && pull_request`, `continue-on-error: true`:
+    - Reads `.tui-verifier/ci/latest-report.md` (or fallback)
+    - Truncates to 55k chars with note.
+    - Body: marker `<!-- tui-verifier-ci-report -->`, header `## TUI Verifier CI Report`, run link `serverUrl/owner/repo/actions/runs/runId`, evidence artifact note, `<details open><summary>latest-report.md</summary>` with report inside.
+    - Lists existing comments, finds one with marker from Bot user, updates if found else creates.
+14. Upload dist artifact — `actions/upload-artifact@v4`, `name: tui-verifier-dist`, `path: dist/*`
+
+### CI Report Shape
+
+Every PR receives sticky comment `TUI Verifier CI Report` containing:
+
+- Link to workflow run
+- Reference to `tui-verifier-ci-evidence` artifact name
+- Embedded `latest-report.md` (truncated to 55k chars if needed)
+- Note that report links point to files inside artifact
+
+Same markdown also appears in GitHub Run Summary for PR and main commits.
+
+## GitHub Actions — Release (`release.yml`)
+
+File: `.github/workflows/release.yml`
+
+Triggers: `push` tags `v*.*.*`, manual `workflow_dispatch`.
+
+Permissions: `contents: write` (create release), `id-token: write` (trusted publishing).
+
+Environment: `environment: pypi` for PyPI trusted publishing.
+
+Job `release` on `ubuntu-latest`, same setup as CI plus:
+
+- Run unit tests, build package.
+- Smoke-test installed wheel:
+
+```bash
+python -m venv .pkg-test
+.pkg-test/bin/pip install dist/*.whl
+.pkg-test/bin/tui-verify --help
+```
+
+- Release verification:
+
+```bash
+uv run tui-verify run \
+  examples/generic \
+  examples/multi_turn_conversation.recipe.json \
+  examples/pi_workflow_readonly_review.recipe.json \
+  examples/pi_workflow_guarded_edit.recipe.json \
+  examples/pi_workflow_session_resume_export.recipe.json \
+  examples/pi_workflow_model_context.recipe.json \
+  --video --video-fps 60 --out .tui-verifier/release
+tar -czf tui-verifier-release-evidence.tgz -C .tui-verifier release
+```
+
+- Write release notes `release-notes.md` (`if: always()`):
+
+```md
+## TUI Verifier Release Evidence
+
+Evidence archive: `tui-verifier-release-evidence.tgz`
+Report links point to files inside that archive.
+
+<content of latest-report.md>
+```
+
+Append same to `GITHUB_STEP_SUMMARY`.
+
+- Upload release evidence artifact (same as CI but `release` dir) + dist artifact.
+- Create GitHub Release — `softprops/action-gh-release@v2`, `if: startsWith(github.ref, 'refs/tags/v')`, `body_path: release-notes.md`, `files: dist/*` + `tui-verifier-release-evidence.tgz`.
+- Publish to PyPI — `pypa/gh-action-pypi-publish@release/v1`, `if: startsWith(github.ref, 'refs/tags/v')` — uses OIDC trusted publishing (no token, relies on `environment: pypi` + `id-token: write`).
+
+## Versioning Contract
+
+From `docs/releases.md`:
+
+- Patch: verifier bug fixes without changing recipe semantics.
+- Minor: add recipe fields, CLI commands, or artifact types.
+- Major: may change recipe semantics or artifact contracts.
+- `pyproject.toml` version should match tag without leading `v`.
+
+Example release prep:
+
+1. Update `pyproject.toml` version.
+2. Push tag `v0.1.1`.
+3. CI runs automatically; Release workflow runs on tag, verifies, creates GitHub release with evidence archive, publishes wheel+sdist to PyPI via trusted publishing.
+
+## What CI Intentionally Does NOT Run
+
+From README: public CI runs deterministic Pi-style workflows instead of provider-backed live Pi sessions. That keeps PR/main/release reproducible. Real Pi CLI surface (`pi_help`, `pi_version`, `pi_list` recipes) calls `examples/bin/pi-clean` which prefers `/usr/local/bin/pi_cli/pi.real`; those are covered locally via `uv run tui-verify run examples/pi_help.recipe.json --video` etc., with `TUI_VERIFIER_PI_BIN` override.
+
+## Recommended Downstream CI Usage
+
+From README — for a project with its own recipe pack at `.tui-verifier/recipes`:
+
+```yaml
+- name: Run TUI verification
+  run: |
+    uv run tui-verify run .tui-verifier/recipes \
+      --video --video-fps 60 --out .tui-verifier/ci
+
+- name: Upload TUI evidence
+  uses: actions/upload-artifact@v4
+  if: always()
+  with:
+    name: tui-verifier-evidence
+    path: .tui-verifier/ci
+    if-no-files-found: ignore
+```
