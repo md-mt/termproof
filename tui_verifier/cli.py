@@ -9,7 +9,6 @@ from .build_info import BuildInfo
 from .config import VerifierConfig, load_config
 from .registry import load_recipes, select_recipes
 from .renderer import selected_renderers
-from .report import ReportGenerator
 from .runner import VerificationRunner
 from .scaffold import write_recipe_pack
 
@@ -29,6 +28,10 @@ def main(argv: list[str] | None = None) -> int:
     run_parser.add_argument("--operator-command")
     run_parser.add_argument("--config", type=Path, default=None,
                             help="path to a tui-verifier config YAML file")
+    run_parser.add_argument("--reporter", default="markdown",
+                            help="reporter to use (default: markdown)")
+    run_parser.add_argument("--screen-renderer", default="svg",
+                            help="screen renderer to use (default: svg)")
     list_parser = subparsers.add_parser("list", help="list recipes")
     list_parser.add_argument("recipes", nargs="+", type=Path)
     list_parser.add_argument("--priority")
@@ -65,10 +68,12 @@ def main(argv: list[str] | None = None) -> int:
                         video_fps=args.video_fps,
                         renderer=renderer_name,
                         renderer_argv=renderer_argv,
+                        screen_renderer_name=args.screen_renderer,
                     )
                 )
         build_info = BuildInfo.from_command(recipes[0].command.argv) if recipes else None
-        report = ReportGenerator().generate_markdown(results, build_info=build_info)
+        reporter = runner.reporter_registry.get(args.reporter)
+        report = reporter.generate(results, build_info=build_info)
         args.out.mkdir(parents=True, exist_ok=True)
         report_path = args.out / "latest-report.md"
         report_path.write_text(report, encoding="utf-8")

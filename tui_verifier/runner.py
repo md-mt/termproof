@@ -40,6 +40,22 @@ def _build_assertion_registry(config: VerifierConfig) -> Registry[Any]:
     return registry
 
 
+def _build_reporter_registry(config: VerifierConfig) -> Registry[Any]:
+    registry: Registry[Any] = Registry()
+    for name, qualname in config.reporters.items():
+        cls = _import_class(qualname)
+        registry.register(name, lambda c=cls: c())
+    return registry
+
+
+def _build_renderer_registry(config: VerifierConfig) -> Registry[Any]:
+    registry: Registry[Any] = Registry()
+    for name, qualname in config.screen_renderers.items():
+        cls = _import_class(qualname)
+        registry.register(name, lambda c=cls: c())
+    return registry
+
+
 def _import_class(qualname: str) -> type:
     """Import a class from 'module.path:ClassName' string."""
     if ":" not in qualname:
@@ -63,6 +79,8 @@ class VerificationRunner:
         self.config = config or VerifierConfig.builtin()
         self.step_registry = _build_step_registry(self.config)
         self.assertion_registry = _build_assertion_registry(self.config)
+        self.reporter_registry = _build_reporter_registry(self.config)
+        self.screen_renderer_registry = _build_renderer_registry(self.config)
 
     def run(
         self,
@@ -72,6 +90,7 @@ class VerificationRunner:
         video_fps: int = 60,
         renderer: str = "default",
         renderer_argv: list[str] | None = None,
+        screen_renderer_name: str = "svg",
     ) -> RunResult:
         start = time.monotonic()
         runnable_recipe = _with_renderer_argv(recipe, renderer_argv or [])
@@ -89,6 +108,7 @@ class VerificationRunner:
         else:
             steps, raw_output, exit_code, screen = self._run_process(runnable_recipe, run_dir)
             assertions = self._evaluate_assertions(recipe, screen, raw_output, exit_code)
+        screen_renderer = self.screen_renderer_registry.get(screen_renderer_name)
         artifacts = render_artifacts(
             run_dir,
             render_video,
@@ -96,6 +116,7 @@ class VerificationRunner:
             steps=steps,
             cols=recipe.cols,
             rows=recipe.rows,
+            screen_renderer=screen_renderer,
         )
         score = score_from_assertions(assertions)
         passed = all(step.passed for step in steps) and all(a.passed for a in assertions)
