@@ -74,3 +74,53 @@ class RunnerTest(unittest.TestCase):
         runner = VerificationRunner()
         self.assertIsNotNone(runner.config)
         self.assertIn("wait_for_text", runner.step_registry.names())
+
+    def test_runner_has_session_backend(self) -> None:
+        runner = VerificationRunner()
+        self.assertIsNotNone(runner.session_backend)
+
+    def test_session_backend_creates_session(self) -> None:
+        runner = VerificationRunner()
+        session = runner.session_backend.create_session(
+            argv=[sys.executable, "-c", "print('hello')"],
+            cast_path=Path(tempfile.mkdtemp()) / "session.cast",
+            cwd=None,
+            env={},
+            cols=80,
+            rows=24,
+        )
+        try:
+            with session:
+                session.wait_for_text("hello", timeout_seconds=5)
+                self.assertIn("hello", session.raw_output)
+        finally:
+            session.close()
+
+    def test_runner_has_video_backend_registry(self) -> None:
+        runner = VerificationRunner()
+        self.assertIn("agg_ffmpeg", runner.video_backend_registry.names())
+
+    def test_video_backend_roundtrip(self) -> None:
+        """Resolve the agg_ffmpeg backend and verify it renders."""
+        runner = VerificationRunner()
+        backend = runner.video_backend_registry.get("agg_ffmpeg")
+        self.assertIsNotNone(backend)
+
+    def test_runner_run_uses_video_backend(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            recipe = Recipe(
+                name="video-test",
+                command=CommandSpec(
+                    argv=[sys.executable, "-c", "print('ok')"],
+                    pty=False,
+                ),
+                steps=[{"action": "wait_for_text", "text": "ok"}],
+                assertions=[{"type": "output_contains", "value": "ok"}],
+            )
+            result = VerificationRunner().run(
+                recipe,
+                Path(tmp),
+                render_video=False,
+                video_backend_name="agg_ffmpeg",
+            )
+            self.assertTrue(result.passed)
