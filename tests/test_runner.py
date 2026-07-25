@@ -5,6 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from tui_verifier.config import VerifierConfig
 from tui_verifier.models import CommandSpec, Recipe
 from tui_verifier.runner import VerificationRunner
 
@@ -61,3 +62,15 @@ class RunnerTest(unittest.TestCase):
             result = VerificationRunner().run(recipe, Path(tmp), render_video=False)
             self.assertTrue(result.passed)
             self.assertTrue(Path(result.artifacts["cast"]).exists())
+
+    def test_runner_accepts_config(self) -> None:
+        config = VerifierConfig.builtin()
+        runner = VerificationRunner(config=config)
+        self.assertIs(runner.config, config)
+        self.assertIn("wait_for_text", runner.step_registry.names())
+        self.assertIn("output_contains", runner.assertion_registry.names())
+
+    def test_runner_defaults_to_builtin_config(self) -> None:
+        runner = VerificationRunner()
+        self.assertIsNotNone(runner.config)
+        self.assertIn("wait_for_text", runner.step_registry.names())

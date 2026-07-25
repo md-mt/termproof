@@ -6,6 +6,7 @@ from pathlib import Path
 
 from .agent_driven import CodexCliAgentRunner
 from .build_info import BuildInfo
+from .config import VerifierConfig, load_config
 from .registry import load_recipes, select_recipes
 from .renderer import selected_renderers
 from .report import ReportGenerator
@@ -26,6 +27,8 @@ def main(argv: list[str] | None = None) -> int:
     run_parser.add_argument("--recipe-name", action="append", dest="recipe_names")
     run_parser.add_argument("--renderer", default="default")
     run_parser.add_argument("--operator-command")
+    run_parser.add_argument("--config", type=Path, default=None,
+                            help="path to a tui-verifier config YAML file")
     list_parser = subparsers.add_parser("list", help="list recipes")
     list_parser.add_argument("recipes", nargs="+", type=Path)
     list_parser.add_argument("--priority")
@@ -41,6 +44,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if args.command == "run":
+        config = _resolve_config(args)
         recipes = select_recipes(
             load_recipes(args.recipes),
             priority=args.priority,
@@ -50,7 +54,7 @@ def main(argv: list[str] | None = None) -> int:
         agent_runner = None
         if args.operator_command:
             agent_runner = CodexCliAgentRunner(command=shlex.split(args.operator_command))
-        runner = VerificationRunner(agent_runner)
+        runner = VerificationRunner(agent_runner, config=config)
         for recipe in recipes:
             for renderer_name, renderer_argv in selected_renderers(recipe, args.renderer):
                 results.append(
@@ -99,3 +103,13 @@ def main(argv: list[str] | None = None) -> int:
         print(f"created recipe: {recipe_path}")
         return 0
     return 2
+
+
+def _resolve_config(args: argparse.Namespace) -> VerifierConfig:
+    if args.config:
+        from .config import load_config as _load
+
+        user_path: Path | None = None
+        project_path: Path | None = args.config.resolve()
+        return _load(project_path=project_path, user_path=user_path)
+    return load_config()

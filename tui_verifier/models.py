@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 
@@ -105,6 +106,12 @@ def recipe_from_mapping(data: dict[str, Any]) -> Recipe:
         cols=int(data.get("cols", 100)),
         rows=int(data.get("rows", 30)),
     )
+
+
+def load_recipe(path: Path) -> Recipe:
+    import json
+
+    return recipe_from_mapping(json.loads(path.read_text(encoding="utf-8")))
 
 
 def score_from_assertions(assertions: list[AssertionResult]) -> float:

@@ -1,9 +1,40 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Callable, Generic, TypeVar
 
-from .models import Recipe
-from .runner import load_recipe
+from .models import Recipe, load_recipe
+
+T = TypeVar("T")
+
+
+class Registry(Generic[T]):
+    """Generic named registry for pluggable components.
+
+    Stores factories (callables returning T) keyed by name.
+    Lookup is O(1) dict access. Populated once at startup.
+    """
+
+    def __init__(self) -> None:
+        self._factories: dict[str, Callable[[], T]] = {}
+
+    def register(self, name: str, factory: Callable[[], T]) -> None:
+        self._factories[name] = factory
+
+    def get(self, name: str) -> T:
+        factory = self._factories.get(name)
+        if factory is None:
+            available = ", ".join(sorted(self._factories))
+            raise KeyError(
+                f"unknown plugin {name!r}; available: {available}"
+            )
+        return factory()
+
+    def names(self) -> list[str]:
+        return sorted(self._factories)
+
+
+# -- recipe discovery --------------------------------------------------------
 
 
 def find_recipe_files(paths: list[Path]) -> list[Path]:

@@ -1,32 +1,68 @@
 from __future__ import annotations
 
-import json
 import time
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
 from .agent_driven import AgentDrivenRunner, AgentRunner, CodexCliAgentRunner
+from .config import VerifierConfig
 from .evidence import new_run_dir, render_artifacts, write_result_files
 from .models import (
     AssertionResult,
     Recipe,
     RunResult,
     StepResult,
-    recipe_from_mapping,
+    load_recipe,
     score_from_assertions,
 )
+from .registry import Registry
 from .screen import replay_cast
 from .session import TerminalSession
 
 
-def load_recipe(path: Path) -> Recipe:
-    return recipe_from_mapping(json.loads(path.read_text(encoding="utf-8")))
+# -- registry builders -------------------------------------------------------
+
+
+def _build_step_registry(config: VerifierConfig) -> Registry[Any]:
+    registry: Registry[Any] = Registry()
+    for name, qualname in config.steps.items():
+        cls = _import_class(qualname)
+        registry.register(name, lambda c=cls: c())
+    return registry
+
+
+def _build_assertion_registry(config: VerifierConfig) -> Registry[Any]:
+    registry: Registry[Any] = Registry()
+    for name, qualname in config.assertions.items():
+        cls = _import_class(qualname)
+        registry.register(name, lambda c=cls: c())
+    return registry
+
+
+def _import_class(qualname: str) -> type:
+    """Import a class from 'module.path:ClassName' string."""
+    if ":" not in qualname:
+        raise ValueError(
+            f"expected 'module.path:ClassName', got {qualname!r}"
+        )
+    module_name, class_name = qualname.split(":", 1)
+    import importlib
+
+    module = importlib.import_module(module_name)
+    return getattr(module, class_name)
 
 
 class VerificationRunner:
-    def __init__(self, agent_runner: AgentRunner | None = None) -> None:
+    def __init__(
+        self,
+        agent_runner: AgentRunner | None = None,
+        config: VerifierConfig | None = None,
+    ) -> None:
         self.agent_runner = agent_runner
+        self.config = config or VerifierConfig.builtin()
+        self.step_registry = _build_step_registry(self.config)
+        self.assertion_registry = _build_assertion_registry(self.config)
 
     def run(
         self,
@@ -139,34 +175,12 @@ class VerificationRunner:
         index: int,
         step: dict[str, Any],
     ) -> StepResult:
-        action = step["action"]
-        name = step.get("name", f"{index}:{action}")
-        if action == "wait_for_text":
-            text = step["text"]
-            timeout = float(step.get("timeout_seconds", 10))
-            passed = session.wait_for_text(text, timeout)
-            detail = f"found {text!r}" if passed else f"timed out waiting for {text!r}"
-            return StepResult(name, passed, detail, session.screen)
-        if action == "wait_for_idle":
-            stable = float(step.get("stable_seconds", 0.5))
-            timeout = float(step.get("timeout_seconds", 10))
-            passed = session.wait_for_idle(stable, timeout)
-            detail = f"stable for {stable}s" if passed else "timed out waiting for idle"
-            return StepResult(name, passed, detail, session.screen)
-        if action == "send_text":
-            session.send_text(step["text"])
-            return StepResult(name, True, "sent text", session.screen)
-        if action == "send_line":
-            session.send_line(step.get("text", ""))
-            return StepResult(name, True, "sent line", session.screen)
-        if action == "press":
-            session.press(step["key"])
-            return StepResult(name, True, f"pressed {step['key']}", session.screen)
-        if action == "sleep":
-            time.sleep(float(step.get("seconds", 1)))
-            session.read_available(0)
-            return StepResult(name, True, "slept", session.screen)
-        raise ValueError(f"unknown step action: {action}")
+        action_name = step["action"]
+        try:
+            action = self.step_registry.get(action_name)
+        except KeyError:
+            raise ValueError(f"unknown step action: {action_name}")
+        return action.execute(session, step, index)
 
     def _evaluate_output_steps(
         self,
@@ -176,17 +190,17 @@ class VerificationRunner:
     ) -> list[StepResult]:
         results: list[StepResult] = []
         for index, step in enumerate(recipe.steps, start=1):
-            action = step["action"]
-            name = step.get("name", f"{index}:{action}")
-            if action == "wait_for_text":
+            action_name = step["action"]
+            name = step.get("name", f"{index}:{action_name}")
+            if action_name == "wait_for_text":
                 text = step["text"]
                 passed = text in screen or text in raw_output
                 detail = f"found {text!r}" if passed else f"missing {text!r}"
                 results.append(StepResult(name, passed, detail, screen))
-            elif action == "sleep":
+            elif action_name == "sleep":
                 results.append(StepResult(name, True, "not needed for process mode", screen))
             else:
-                detail = f"{action!r} requires command.pty=true"
+                detail = f"{action_name!r} requires command.pty=true"
                 results.append(StepResult(name, False, detail, screen))
         return results
 
@@ -214,49 +228,11 @@ class VerificationRunner:
         exit_code: int | None,
     ) -> AssertionResult:
         kind = assertion["type"]
-        value = assertion.get("value")
-        name = assertion.get("name", kind)
-        if kind == "output_contains":
-            return _contains(name, raw_output, value, True, assertion.get("detail"))
-        if kind == "output_not_contains":
-            return _contains(name, raw_output, value, False, assertion.get("detail"))
-        if kind == "screen_contains":
-            return _contains(name, screen, value, True, assertion.get("detail"))
-        if kind == "screen_not_contains":
-            return _contains(name, screen, value, False, assertion.get("detail"))
-        if kind == "exit_code":
-            passed = exit_code == value
-            return AssertionResult(name, passed, f"expected {value}, got {exit_code}")
-        if kind == "file_exists":
-            path = _recipe_path(recipe, str(value))
-            return AssertionResult(name, path.exists(), str(path))
-        if kind == "file_contains":
-            path = _recipe_path(recipe, str(assertion["path"]))
-            text = path.read_text(encoding="utf-8") if path.exists() else ""
-            return _contains(name, text, value, True)
-        raise ValueError(f"unknown assertion type: {kind}")
-
-
-def _contains(
-    name: str,
-    haystack: str,
-    needle: str,
-    should_contain: bool,
-    custom_detail: str | None = None,
-) -> AssertionResult:
-    found = needle in haystack
-    passed = found if should_contain else not found
-    expectation = "contains" if should_contain else "does not contain"
-    detail = custom_detail or f"{expectation} {needle!r}"
-    return AssertionResult(name, passed, detail)
-
-
-def _recipe_path(recipe: Recipe, path: str) -> Path:
-    candidate = Path(path)
-    if candidate.is_absolute():
-        return candidate
-    base = Path(recipe.command.cwd or ".")
-    return base / candidate
+        try:
+            evaluator = self.assertion_registry.get(kind)
+        except KeyError:
+            raise ValueError(f"unknown assertion type: {kind}")
+        return evaluator.evaluate(recipe, assertion, screen, raw_output, exit_code)
 
 
 def _with_renderer_argv(recipe: Recipe, renderer_argv: list[str]) -> Recipe:
