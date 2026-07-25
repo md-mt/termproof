@@ -1,6 +1,6 @@
 # Extension Points, Registries, and Protocols
 
-Every behavior in tui-verifier is pluggable. At startup `VerificationRunner` builds **7 `Registry` objects** plus a **separately resolved single session backend** from `VerifierConfig`. No decorators, no entry-points file scanning — just `module:ClassName` strings resolved via `importlib.import_module`. In prose: 8 extension families (7 registries + session backend).
+`VerificationRunner` builds **7 `Registry` objects** plus a **separately resolved single session backend** from `VerifierConfig` (8 extension families total). Runtime wiring is mode-specific: step registry only in PTY mode, assertion registry only in scripted modes, `agent_runner_registry` has no runtime selector (programmatic `VerificationRunner(agent_runner=...)` bypasses it), execution mode resolver returns only 3 fixed keys, session backend is bypassed by both built-in Codex paths, video backend gated on `agg` binary. See mode-specific sections below — do not blanket claim every behavior is pluggable.
 
 > Source: `runner.py:145-152` builds 7 registries (`step`, `assertion`, `reporter`, `screen_renderer`, `execution_mode`, `agent_runner`, `video_backend`); `runner.py:110-112,152` resolves session backend as a singleton via `_resolve_session_backend()`.
 
@@ -100,11 +100,11 @@ Extension surface — 7 registries plus session backend:
 | `video_backends` | Registry | VideoBackend | `--video-backend` |
 | `session_backend` | Single (not a Registry) | SessionBackend | config only (`session_backend` string) |
 
-Note `defaults` is modeled but currently unused by CLI/runner — see `configuration.md`.
+Note `defaults` is modeled and unused by CLI/runner — see `configuration.md`. No decorators, no entry-points file scanning — just `module:ClassName` strings resolved via `importlib.import_module`.
 
 ## Runtime Wiring — Mode-Specific Limitations (Important)
 
-The tables above suggest uniform pluggability. The actual runtime wiring is mode-specific:
+Do not blanket claim every behavior is pluggable. The actual runtime wiring is mode-specific:
 
 ### Step registry
 
@@ -153,9 +153,9 @@ if render_video and shutil.which("agg"):
 
 A custom video backend only runs when `--video` is set **and** `agg` binary is on PATH. Custom session backend cannot avoid that guard — the check lives in `render_artifacts()` before any backend call and is independent of session backend.
 
-### Session backend — Bypassed by Non-recorded Agent Mode
+### Session backend — Bypassed by Both Built-in Codex Paths
 
-`CodexCliAgentRunner._run_recorded()` at `agent_driven.py:51-70` uses `TerminalSession` (via the configured session backend's `create_session` path), but `_run_subprocess()` at `agent_driven.py:88-131` (used when `record_terminal=False`) calls `subprocess.run()` directly, bypassing the session backend entirely. Only error handling in `_run_subprocess` covers `TimeoutExpired` and `FileNotFoundError`; recorded mode handles errors via pexpect.
+`CodexCliAgentRunner._run_recorded()` at `agent_driven.py:51-70` directly constructs `TerminalSession(...)` (not `session_backend.create_session(...)`), so it bypasses the configured `config.session_backend`. `_run_subprocess()` at `agent_driven.py:88-131` (used when `record_terminal=False`) calls `subprocess.run()` directly and also bypasses it. Both built-in Codex paths bypass `config.session_backend`. Explicit `TimeoutExpired`/`FileNotFoundError` conversion exists only in the non-recorded subprocess path.
 
 ### Wait / Idle vs Exit Scope
 
@@ -279,7 +279,7 @@ class SessionBackend(Protocol):
                        cols: int, rows: int) -> TerminalSession: ...
 ```
 
-Under the hood, a compatible backend must also be a context manager because `runner.py:222-229,247-254` uses `with ...create_session(...) as session:`. Otherwise `_run_pty` / `_run_process` raise. Recorded agent mode at `agent_driven.py:56-85` also enters `TerminalSession`, while non-recorded mode at `agent_driven.py:87-131` bypasses the backend.
+Under the hood, the object returned by `create_session()` must support context manager protocol (`__enter__`/`__exit__`) because `runner.py:222-229,247-254` uses `with ...create_session(...) as session:`. The session backend itself (the object with `create_session` method) need not be a context manager — only the session object it returns must be. Otherwise `_run_pty` / `_run_process` raise. Recorded agent mode at `agent_driven.py:56-85` directly constructs `TerminalSession` (bypassing configured backend), while non-recorded mode at `agent_driven.py:87-131` bypasses via subprocess.
 
 `PexpectAsciinemaBackend` — `return TerminalSession(argv, cast_path, cwd, env, cols, rows)`.
 

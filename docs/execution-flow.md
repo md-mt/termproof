@@ -147,10 +147,8 @@ Inside `AgentDrivenRunner.run()`:
 
 `CodexCliAgentRunner.run()` branching:
 
-- `record_terminal=True` (default): delegates to `_run_recorded()` at `agent_driven.py:51-70`.
-  - Builds command list; if `prompt_mode=="arg"` appends prompt; if `"stdin"` writes prompt to file then wraps via `sh -lc "cmd < prompt_path"`.
-  - Enters `TerminalSession` with operator command, `wait_for_exit(timeout)`, parses output via `parse_agent_output(raw_output)`.
-- `record_terminal=False`: `_run_subprocess()` at `agent_driven.py:87-131` — `subprocess.run()` with merged env, input = prompt (unless arg mode), stdout+stderr merged, timeout handling (returns outcome with `timed_out=True`), FileNotFoundError → exit 127. Recorded mode bypasses? No — recorded mode uses `TerminalSession`; non-recorded uses subprocess and bypasses session backend. Error handling only covers timeout/FileNotFoundError in non-recorded mode.
+- `record_terminal=True` (default): `_run_recorded()` at `agent_driven.py:51-70` directly constructs `TerminalSession(...)` (not via `session_backend.create_session`), bypassing configured `config.session_backend`. Builds command list; if `prompt_mode=="arg"` appends prompt; if `"stdin"` writes prompt to file then wraps via `sh -lc "cmd < prompt_path"`. Enters that `TerminalSession` with operator command, `wait_for_exit(timeout)`, parses output via `parse_agent_output(raw_output)`.
+- `record_terminal=False`: `_run_subprocess()` at `agent_driven.py:87-131` calls `subprocess.run()` with merged env, input = prompt (unless arg mode), stdout+stderr merged, also bypassing `config.session_backend`. Both built-in Codex paths bypass `config.session_backend`. Explicit `TimeoutExpired` → `timed_out=True` outcome and `FileNotFoundError` → exit 127 conversion exists only in this non-recorded subprocess path.
 
 `parse_agent_output()` — JSON extraction cascade:
 - Tries: stripped output, each reversed line, fenced ```json blocks, and raw object scan using `json.JSONDecoder().raw_decode(output[start:])` for each `{` position from end.

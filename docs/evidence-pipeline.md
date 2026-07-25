@@ -2,14 +2,15 @@
 
 ## Principle
 
-> Every run records a real terminal session as an asciinema cast (`session.cast`). Several artifacts derive from it; some do not.
+> Scripted PTY and process runs record a real terminal session as an asciinema cast (`session.cast`). Non-recorded agent mode (`record_terminal=False`) runs the operator via `subprocess` and synthesizes a cast from transcript via `CastRecorder`.
 
-- Final text/SVG/video are cast replays (PTY and process both create a cast via `TerminalSession`; non-recorded agent mode synthesizes a cast via `CastRecorder` from transcript).
-- PTY step evidence in `steps/` renders stored `StepResult.screen` snapshots, not cast replay.
+- For terminal-recorded runs (scripted modes and recorded agent mode), final text/SVG/video are cast replays — `TerminalSession` creates a cast via `TerminalSession` / asciinema. For non-recorded agent mode, the cast is synthesized by `CastRecorder` from the agent transcript, not from a real terminal.
+- When a cast exists, replayed terminal-derived display artifacts (final text/SVG/video derived by `replay_cast`) use the cast as source of truth; other artifacts have other inputs.
+- `steps/` renders every `StepResult` — including PTY, process (`wait_for_text`/`sleep`), and agent synthetic (`codex-operator`) steps — from stored `StepResult.screen` snapshots, not cast replay.
 - `result.json`/`report.md` include independently evaluated assertions, exit status, file-system checks, and agent outcome — not just cast-derived data.
 - Agent metadata files (`agent_prompt.md`, `agent_transcript.md`, `agent_outcome.json`) do not derive from the cast — they are written by `_write_agent_files()`.
 
-The earlier claim "the cast is the source of truth, all other artifacts derive from it" was overbroad; this version reflects actual derivations.
+The earlier claim "the cast is the source of truth, all other artifacts derive from it" was overbroad; scoped above to replayed terminal-derived display artifacts.
 
 ## Run Directory Creation
 
@@ -47,7 +48,7 @@ def recorded_command(argv, exit_code_path):
 Wraps target to capture exit code reliably to sidecar file (since asciinema itself may exit with its own code).
 
 4. `pexpect.spawn(command[0], command[1:], cwd=cwd, env=merged_env, dimensions=(rows,cols), encoding="utf-8", codec_errors="replace")`
-   - Merged env: `os.environ.copy()` + recipe `env`; if `TERM` missing or `dumb`, sets `xterm-256color`.
+   - Merged env: `os.environ.copy()` into `merged_env`, then if `TERM` missing or `dumb` sets `xterm-256color` on `merged_env`; finally `merged_env.update(recipe_env)` overlays recipe env — so inherited `TERM` is normalized before recipe `env` overlay can override it.
 5. Returns `self` — caller drives via methods.
 
 ### Session Driving
@@ -65,7 +66,11 @@ Wraps target to capture exit code reliably to sidecar file (since asciinema itse
 
 ### Agent Mode Recording
 
-When `record_terminal=True`, `CodexCliAgentRunner._run_recorded()` also uses `TerminalSession` to wrap operator command via `builtin_session.PexpectAsciinemaBackend` → `TerminalSession`.
+When `record_terminal=True`, `CodexCliAgentRunner._run_recorded()` at `agent_driven.py:56-85` directly constructs `TerminalSession(...)` (not `session_backend.create_session(...)`), so it bypasses the configured `config.session_backend`.
+
+When `record_terminal=False`, `CodexCliAgentRunner._run_subprocess()` at `agent_driven.py:87-131` calls `subprocess.run()` directly and also bypasses `config.session_backend`. Explicit `TimeoutExpired`/`FileNotFoundError` → exit 127 conversion exists only in this non-recorded subprocess path.
+
+Both built-in Codex paths (recorded and non-recorded) bypass `config.session_backend`.
 
 When cast does not exist (non-recorded agent path), `AgentDrivenRunner` fallback:
 
@@ -105,7 +110,7 @@ This fallback applies whenever `run_dir/session.cast` does not exist after agent
 6. ` _render_step_screens(run_dir, steps, cols, rows, screen_renderer)`:
    - If no steps: returns None.
    - Creates `run_dir / "steps"` dir.
-   - For each StepResult: safe-name sanitized, writes `{index:02d}-{safe}.txt` = `screen+"\n"` and `{index:02d}-{safe}.svg` (not `{index}.svg`) via screen_renderer or `render_svg()` — filename is `path_base.with_suffix(".svg")` where `path_base = step_dir / f"{index:02d}-{safe}"`.
+   - For each StepResult — every StepResult including PTY, process (`wait_for_text`/`sleep`), and agent synthetic (`codex-operator`) steps, not PTY-only — safe-name sanitized, writes `{index:02d}-{safe}.txt` = `screen+"\n"` and `{index:02d}-{safe}.svg` (not `{index}.svg`) via screen_renderer or `render_svg()` — filename is `path_base.with_suffix(".svg")` where `path_base = step_dir / f"{index:02d}-{safe}"`.
    - Returns step_dir Path; caller adds `"step_screenshots": str(step_dir)`.
 
 7. For agent files: if `run_dir / name` exists for `agent_prompt.md`, `agent_transcript.md`, `agent_outcome.json`, adds stripped stem to artifacts (`agent_prompt`, `agent_transcript`, `agent_outcome` keys).
@@ -211,7 +216,7 @@ For a single recipe run with --video (when `agg` present):
 ├── agent_prompt.md              # if agent-driven
 ├── agent_transcript.md          # if agent-driven
 ├── agent_outcome.json           # if agent-driven
-└── steps/                       # if steps present (PTY snapshots, not cast replay)
+└── steps/                       # if steps present — renders every StepResult (PTY, process, agent synthetic), not PTY-only; stored screen snapshots, not cast replay
     ├── 01-wait-for-prompt.txt
     ├── 01-wait-for-prompt.svg
     ├── 02-open-dashboard.txt
@@ -226,7 +231,7 @@ For multi-recipe run, `out_dir/latest-report.md` aggregates all results.
 ## CI Artifacts
 
 - CI workflow (`ci.yml`) runs with `--out .tui-verifier/ci`, uploads entire `.tui-verifier/ci` as artifact `tui-verifier-ci-evidence`.
-- Release workflow uploads `.tui-verifier/release` as artifact and also tars to `tui-verifier-release-evidence.tgz` attached to GitHub Release.
+- Release workflow (tag-triggered) uploads `.tui-verifier/release` as artifact and also tars to `tui-verifier-release-evidence.tgz` attached to GitHub Release. Archive/release attachment applies only to tag-triggered release runs, not regular CI runs.
 
 ## Cast Format Notes
 

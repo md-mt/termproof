@@ -164,9 +164,8 @@ Used only by scripted PTY and process modes; agent mode does not dispatch throug
 - `AgentRunner` protocol: `run(recipe, prompt, run_dir)→AgentOutcome`.
 - `CodexCliAgentRunner(command=["codex","exec"], timeout_seconds=180, prompt_mode="stdin", cwd?, env={}, record_terminal=True)`:
   - `from_recipe(cls, recipe)` — reads `recipe.operator` dict: `command`, `timeout_seconds`, `prompt_mode`, `cwd`, `env`, `record_terminal`.
-  - `run(recipe, prompt, run_dir)`:
-    - if `record_terminal`: `_run_recorded()` — builds command, if `prompt_mode == "arg"` appends prompt, if `"stdin"` writes `agent_prompt.md` then wraps command via `sh -lc "... < prompt_path"`. Enters `TerminalSession` with that command, `wait_for_exit(timeout_seconds)`, `parse_agent_output(raw_output)`.
-    - else: `_run_subprocess()` — `subprocess.run()` with env merge, handles TimeoutExpired (returns `timed_out=True`), FileNotFoundError → exit 127. Bypasses session backend.
+  - if `record_terminal`: `_run_recorded()` — directly constructs `TerminalSession(...)` at `agent_driven.py:63-70` (not via `session_backend.create_session`), bypassing configured `config.session_backend`. Builds command, if `prompt_mode == "arg"` appends prompt, if `"stdin"` writes `agent_prompt.md` then wraps command via `sh -lc "... < prompt_path"`. Enters that `TerminalSession` with operator command, `wait_for_exit(timeout_seconds)`, `parse_agent_output(raw_output)`.
+  - else `_run_subprocess()` — calls `subprocess.run()` at `87-131`, also bypassing `config.session_backend`. Both built-in Codex paths bypass `config.session_backend`. Explicit `TimeoutExpired`/`FileNotFoundError` handling only in non-recorded path.
 - `AgentDrivenRunner(agent_runner).run(recipe, run_dir)` → orchestrates: `build_agent_prompt(recipe)` writes `agent_prompt.md`, calls agent_runner, `_write_agent_files()` writes `agent_transcript.md` + `agent_outcome.json`, `_screen_from_agent_cast()` replays cast or creates one via `CastRecorder`, returns steps/assertions/raw/screen.
 - `build_agent_prompt(recipe)` — formats checks, target command via shlex.quote, recipe context JSON, instructs agent to return JSON schema `{"assertions":...,"transcript":...,"notes":...}`.
 - `parse_agent_output(output)` → `(assertions, transcript, metadata)` — tries: stripped output, reversed lines, fenced ```json blocks, raw JSON object scan from `{`, picks first dict containing `"assertions"` or `"transcript"`, else first JSON dict.
@@ -186,7 +185,7 @@ Used only by scripted PTY and process modes; agent mode does not dispatch throug
 - `AggFfmpegBackend` — calls `evidence.render_mp4()`. Invoked only when `render_video and shutil.which("agg")` at `evidence.py:55-60`.
 
 ### `builtin_session.py`
-- `SessionBackend` protocol: `create_session(argv, cast_path, cwd, env, cols, rows)→TerminalSession` — session must also be a context manager (`runner.py:222-229,247-254` uses `with ...create_session(...) as session:`), so `TerminalSession` or subclass supporting `__enter__`/`__exit__`.
+- `SessionBackend` protocol: `create_session(argv, cast_path, cwd, env, cols, rows)→TerminalSession` — object returned by `create_session()` must support context manager protocol (`runner.py:222-229,247-254` uses `with ...create_session(...) as session:`). Session backend itself need not be a context manager — only the returned session object must be. So `TerminalSession` or subclass supporting `__enter__`/`__exit__`.
 - `PexpectAsciinemaBackend` — returns `TerminalSession(...)`.
 
 ### `evidence.py`
@@ -224,8 +223,8 @@ See evidence-pipeline doc for corrected details: fixed `.svg` paths, `steps/{ind
 - `models` has no internal dependencies except stdlib dataclasses; `frozen=True` prevents rebinding but inner mutable fields remain mutable.
 - `registry` depends on `models` only.
 - `session` depends on `screen`.
-- `config` has optional `yaml` dependency; raises RuntimeError if yaml missing and config file exists. `defaults` modeled but unused.
+- `config` has `PyYAML` as a declared required dependency (`pyyaml>=6.0` in `pyproject.toml`); guarded `try: import yaml except ImportError: yaml = None` at `config.py:7-10` only handles incomplete/broken environments and raises `RuntimeError` if a config file exists. `defaults` modeled but unused.
 - `runner` depends on everything: config (for registries), session, screen, evidence, models, agent_driven, registry, and dynamically imported plugins via `importlib.import_module()` (import-time side effects possible).
 - `evidence` depends on `screen` + `models`. Fixed `.svg` contract, `agg` gate, step filename `{index:02d}-{safe}.svg`.
-- `agent_driven` depends on `cast`, `screen`, `session`, `models`. Recorded mode uses `TerminalSession`; non-recorded bypasses backend.
+- `agent_driven` depends on `cast`, `screen`, `session`, `models`. Recorded Codex directly constructs `TerminalSession` (bypassing `config.session_backend`); non-recorded bypasses via `subprocess`. Both built-in Codex paths bypass `config.session_backend`.
 - CLI depends on `config`, `registry`, `renderer`, `runner`, `build_info`, `scaffold`, `agent_driven`.

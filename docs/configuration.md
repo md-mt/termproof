@@ -52,7 +52,7 @@ Every registry key maps to a string of form `"dotted.module:ClassName"`. These a
 - `VerificationRunner.run()` hardcodes its `out_dir` default `Path(".tui-verifier/runs")` and `video_fps` default `60` at `runner.py:154-163`.
 - Recipe fields `timeout_seconds`, `cols`, `rows` hardcode their own defaults at `models.py:31-34`.
 
-The `defaults` dict is reserved for future wiring; changing it in a config YAML today does not change CLI/runner fallbacks.
+The `defaults` dict is modeled and unused — parsed and stored in `VerifierConfig.defaults` but not read by CLI, runner, or recipe defaults. Changing it in a config YAML today does not change CLI/runner fallbacks.
 
 ## VerifierConfig Dataclass
 
@@ -180,7 +180,7 @@ User-level `~/.config/tui-verifier/config.yaml` has same schema. Note `defaults`
 
 ## Relationship to Recipe Fields
 
-Recipe JSON fields like `timeout_seconds`, `cols`, `rows` directly specify per-recipe values. Those recipe-level defaults are hardcoded at `models.py:31-34,82-108`, not read from `VerifierConfig.defaults`. Recipe values take direct precedence over any hardcoded CLI/runner fallback, but config `defaults` does not currently participate as an intermediate fallback.
+Recipe JSON fields like `timeout_seconds`, `cols`, `rows` directly specify per-recipe values with their own hardcoded defaults at `models.py:31-34,82-108`, independent of CLI/runner `out_dir`/`video_fps` defaults. CLI/runner `out_dir`/`video_fps` defaults (`.tui-verifier/runs`, `60`) and recipe-level `timeout_seconds`/`cols`/`rows` geometry defaults are independent hardcoded values — there is no recipe-vs-CLI precedence; `config.defaults` does not currently participate as an intermediate fallback.
 
 ## Evidence Pipeline Fixed `.svg` Contract
 
