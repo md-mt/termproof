@@ -1,0 +1,9 @@
+Pi workflow: read-only repository review
+Type workflow commands; use exit to close.
+
+pi> scope repository
+user> scope repository
+assistant> Launching Pi in read-only review mode.
+assistant> pi --tools read,grep,find,ls --no-session -p "Review the repository."
+assistant> write and edit tools are disabled for this run.
+assistant> READONLY SCOPE READY

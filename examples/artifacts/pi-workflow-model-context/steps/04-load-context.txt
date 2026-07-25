@@ -1,0 +1,9 @@
+Pi workflow: model routing and context resources
+Type workflow commands; use exit to close.
+
+pi> choose model
+user> choose model
+assistant> pi --provider openai --model gpt-4o-mini
+assistant> pi --model sonnet:high --thinking high
+assistant> pi --models claude-sonnet,claude-haiku,gpt-4o
+assistant> MODEL ROUTING READY

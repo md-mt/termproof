@@ -1,0 +1,9 @@
+Pi workflow: guarded edit and validation
+Type workflow commands; use exit to close.
+
+pi> propose change
+user> propose change
+assistant> Reading target files before editing.
+assistant> tool allowlist: read,bash,edit,write.
+assistant> proposing a small patch with isolated behavior.
+assistant> GUARDED EDIT PLAN READY

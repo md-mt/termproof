@@ -1,0 +1,116 @@
+{
+  "recipe_name": "pi-workflow-model-context",
+  "passed": true,
+  "exit_code": 0,
+  "duration_seconds": 6.168648875027429,
+  "priority": "P1",
+  "execution": "scripted",
+  "renderer": "default",
+  "score": 1.0,
+  "steps": [
+    {
+      "name": "wait for prompt",
+      "passed": true,
+      "detail": "found 'pi>'",
+      "screen": "Pi workflow: model routing and context resources\nType workflow commands; use exit to close.\n\npi>"
+    },
+    {
+      "name": "choose model",
+      "passed": true,
+      "detail": "sent line",
+      "screen": "Pi workflow: model routing and context resources\nType workflow commands; use exit to close.\n\npi>"
+    },
+    {
+      "name": "wait for model",
+      "passed": true,
+      "detail": "found 'MODEL ROUTING READY'",
+      "screen": "Pi workflow: model routing and context resources\nType workflow commands; use exit to close.\n\npi> choose model\nuser> choose model\nassistant> pi --provider openai --model gpt-4o-mini\nassistant> pi --model sonnet:high --thinking high\nassistant> pi --models claude-sonnet,claude-haiku,gpt-4o\nassistant> MODEL ROUTING READY"
+    },
+    {
+      "name": "load context",
+      "passed": true,
+      "detail": "sent line",
+      "screen": "Pi workflow: model routing and context resources\nType workflow commands; use exit to close.\n\npi> choose model\nuser> choose model\nassistant> pi --provider openai --model gpt-4o-mini\nassistant> pi --model sonnet:high --thinking high\nassistant> pi --models claude-sonnet,claude-haiku,gpt-4o\nassistant> MODEL ROUTING READY"
+    },
+    {
+      "name": "wait for context",
+      "passed": true,
+      "detail": "found 'CONTEXT RESOURCES LOADED'",
+      "screen": "Pi workflow: model routing and context resources\nType workflow commands; use exit to close.\n\npi> choose model\nuser> choose model\nassistant> pi --provider openai --model gpt-4o-mini\nassistant> pi --model sonnet:high --thinking high\nassistant> pi --models claude-sonnet,claude-haiku,gpt-4o\nassistant> MODEL ROUTING READY\nload context\n\npi> user> load context\nassistant> pi --append-system-prompt project-rules.md\nassistant> pi --skill ./skills/reviewer\nassistant> pi --prompt-template ./prompts/fix-bug.md\nassistant> CONTEXT RESOURCES LOADED"
+    },
+    {
+      "name": "configure startup",
+      "passed": true,
+      "detail": "sent line",
+      "screen": "Pi workflow: model routing and context resources\nType workflow commands; use exit to close.\n\npi> choose model\nuser> choose model\nassistant> pi --provider openai --model gpt-4o-mini\nassistant> pi --model sonnet:high --thinking high\nassistant> pi --models claude-sonnet,claude-haiku,gpt-4o\nassistant> MODEL ROUTING READY\nload context\n\npi> user> load context\nassistant> pi --append-system-prompt project-rules.md\nassistant> pi --skill ./skills/reviewer\nassistant> pi --prompt-template ./prompts/fix-bug.md\nassistant> CONTEXT RESOURCES LOADED"
+    },
+    {
+      "name": "wait for startup",
+      "passed": true,
+      "detail": "found 'MODEL CONTEXT WORKFLOW COMPLETE'",
+      "screen": "Pi workflow: model routing and context resources\nType workflow commands; use exit to close.\n\npi> choose model\nuser> choose model\nassistant> pi --provider openai --model gpt-4o-mini\nassistant> pi --model sonnet:high --thinking high\nassistant> pi --models claude-sonnet,claude-haiku,gpt-4o\nassistant> MODEL ROUTING READY\nload context\n\npi> user> load context\nassistant> pi --append-system-prompt project-rules.md\nassistant> pi --skill ./skills/reviewer\nassistant> pi --prompt-template ./prompts/fix-bug.md\nassistant> CONTEXT RESOURCES LOADED\nconfigure startup\n\npi> user> configure startup\nassistant> pi --offline --no-context-files --no-extensions --no-skills\nassistant> pi --theme ./themes/quiet.json --no-themes\nassistant> startup behavior is explicit and reviewable.\nassistant> MODEL CONTEXT WORKFLOW COMPLETE"
+    },
+    {
+      "name": "close session",
+      "passed": true,
+      "detail": "sent line",
+      "screen": "Pi workflow: model routing and context resources\nType workflow commands; use exit to close.\n\npi> choose model\nuser> choose model\nassistant> pi --provider openai --model gpt-4o-mini\nassistant> pi --model sonnet:high --thinking high\nassistant> pi --models claude-sonnet,claude-haiku,gpt-4o\nassistant> MODEL ROUTING READY\nload context\n\npi> user> load context\nassistant> pi --append-system-prompt project-rules.md\nassistant> pi --skill ./skills/reviewer\nassistant> pi --prompt-template ./prompts/fix-bug.md\nassistant> CONTEXT RESOURCES LOADED\nconfigure startup\n\npi> user> configure startup\nassistant> pi --offline --no-context-files --no-extensions --no-skills\nassistant> pi --theme ./themes/quiet.json --no-themes\nassistant> startup behavior is explicit and reviewable.\nassistant> MODEL CONTEXT WORKFLOW COMPLETE"
+    },
+    {
+      "name": "wait for close",
+      "passed": true,
+      "detail": "found 'WORKFLOW SESSION COMPLETE'",
+      "screen": "Pi workflow: model routing and context resources\nType workflow commands; use exit to close.\n\npi> choose model\nuser> choose model\nassistant> pi --provider openai --model gpt-4o-mini\nassistant> pi --model sonnet:high --thinking high\nassistant> pi --models claude-sonnet,claude-haiku,gpt-4o\nassistant> MODEL ROUTING READY\nload context\n\npi> user> load context\nassistant> pi --append-system-prompt project-rules.md\nassistant> pi --skill ./skills/reviewer\nassistant> pi --prompt-template ./prompts/fix-bug.md\nassistant> CONTEXT RESOURCES LOADED\nconfigure startup\n\npi> user> configure startup\nassistant> pi --offline --no-context-files --no-extensions --no-skills\nassistant> pi --theme ./themes/quiet.json --no-themes\nassistant> startup behavior is explicit and reviewable.\nassistant> MODEL CONTEXT WORKFLOW COMPLETE\nexit\n\npi> assistant> Closing Pi workflow demonstration.\nWORKFLOW SESSION COMPLETE"
+    }
+  ],
+  "assertions": [
+    {
+      "name": "output_contains",
+      "passed": true,
+      "detail": "contains '--provider openai --model gpt-4o-mini'"
+    },
+    {
+      "name": "output_contains",
+      "passed": true,
+      "detail": "contains '--model sonnet:high --thinking high'"
+    },
+    {
+      "name": "output_contains",
+      "passed": true,
+      "detail": "contains '--append-system-prompt project-rules.md'"
+    },
+    {
+      "name": "output_contains",
+      "passed": true,
+      "detail": "contains '--skill ./skills/reviewer'"
+    },
+    {
+      "name": "output_contains",
+      "passed": true,
+      "detail": "contains '--prompt-template ./prompts/fix-bug.md'"
+    },
+    {
+      "name": "output_contains",
+      "passed": true,
+      "detail": "contains '--offline --no-context-files --no-extensions --no-skills'"
+    },
+    {
+      "name": "output_contains",
+      "passed": true,
+      "detail": "contains 'MODEL CONTEXT WORKFLOW COMPLETE'"
+    },
+    {
+      "name": "exit_code",
+      "passed": true,
+      "detail": "expected 0, got 0"
+    }
+  ],
+  "artifacts": {
+    "cast": "examples/artifacts/pi-workflow-model-context/session.cast",
+    "screenshot": "examples/artifacts/pi-workflow-model-context/final.svg",
+    "screen_text": "examples/artifacts/pi-workflow-model-context/final.txt",
+    "exit_code_file": "examples/artifacts/pi-workflow-model-context/session.exitcode",
+    "step_screenshots": "examples/artifacts/pi-workflow-model-context/steps",
+    "video": "examples/artifacts/pi-workflow-model-context/session.mp4"
+  }
+}

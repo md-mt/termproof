@@ -1,0 +1,113 @@
+{
+  "recipe_name": "pi-workflow-readonly-review",
+  "passed": true,
+  "exit_code": 0,
+  "duration_seconds": 7.78463524999097,
+  "priority": "P1",
+  "execution": "scripted",
+  "renderer": "default",
+  "score": 1.0,
+  "steps": [
+    {
+      "name": "wait for prompt",
+      "passed": true,
+      "detail": "found 'pi>'",
+      "screen": "Pi workflow: read-only repository review\nType workflow commands; use exit to close.\n\npi>"
+    },
+    {
+      "name": "scope repository",
+      "passed": true,
+      "detail": "sent line",
+      "screen": "Pi workflow: read-only repository review\nType workflow commands; use exit to close.\n\npi>"
+    },
+    {
+      "name": "wait for scope",
+      "passed": true,
+      "detail": "found 'READONLY SCOPE READY'",
+      "screen": "Pi workflow: read-only repository review\nType workflow commands; use exit to close.\n\npi> scope repository\nuser> scope repository\nassistant> Launching Pi in read-only review mode.\nassistant> pi --tools read,grep,find,ls --no-session -p \"Review the repository.\"\nassistant> write and edit tools are disabled for this run.\nassistant> READONLY SCOPE READY"
+    },
+    {
+      "name": "inspect files",
+      "passed": true,
+      "detail": "sent line",
+      "screen": "Pi workflow: read-only repository review\nType workflow commands; use exit to close.\n\npi> scope repository\nuser> scope repository\nassistant> Launching Pi in read-only review mode.\nassistant> pi --tools read,grep,find,ls --no-session -p \"Review the repository.\"\nassistant> write and edit tools are disabled for this run.\nassistant> READONLY SCOPE READY"
+    },
+    {
+      "name": "wait for inspection",
+      "passed": true,
+      "detail": "found 'READONLY INSPECTION COMPLETE'",
+      "screen": "Pi workflow: read-only repository review\nType workflow commands; use exit to close.\n\npi> scope repository\nuser> scope repository\nassistant> Launching Pi in read-only review mode.\nassistant> pi --tools read,grep,find,ls --no-session -p \"Review the repository.\"\nassistant> write and edit tools are disabled for this run.\nassistant> READONLY SCOPE READY\ninspect files\n\npi> user> inspect files\nassistant> read package metadata.\nassistant> find recipe files under examples/.\nassistant> grep for assertion coverage and sandbox guards.\nassistant> no write/edit tools were enabled.\nassistant> READONLY INSPECTION COMPLETE"
+    },
+    {
+      "name": "run validation",
+      "passed": true,
+      "detail": "sent line",
+      "screen": "Pi workflow: read-only repository review\nType workflow commands; use exit to close.\n\npi> scope repository\nuser> scope repository\nassistant> Launching Pi in read-only review mode.\nassistant> pi --tools read,grep,find,ls --no-session -p \"Review the repository.\"\nassistant> write and edit tools are disabled for this run.\nassistant> READONLY SCOPE READY\ninspect files\n\npi> user> inspect files\nassistant> read package metadata.\nassistant> find recipe files under examples/.\nassistant> grep for assertion coverage and sandbox guards.\nassistant> no write/edit tools were enabled.\nassistant> READONLY INSPECTION COMPLETE"
+    },
+    {
+      "name": "wait for validation",
+      "passed": true,
+      "detail": "found 'READONLY VALIDATION COMPLETE'",
+      "screen": "Pi workflow: read-only repository review\nType workflow commands; use exit to close.\n\npi> scope repository\nuser> scope repository\nassistant> Launching Pi in read-only review mode.\nassistant> pi --tools read,grep,find,ls --no-session -p \"Review the repository.\"\nassistant> write and edit tools are disabled for this run.\nassistant> READONLY SCOPE READY\ninspect files\n\npi> user> inspect files\nassistant> read package metadata.\nassistant> find recipe files under examples/.\nassistant> grep for assertion coverage and sandbox guards.\nassistant> no write/edit tools were enabled.\nassistant> READONLY INSPECTION COMPLETE\nrun validation\n\npi> user> run validation\nassistant> bash tool is intentionally unavailable in this read-only pass.\nassistant> operator requests separate CI validation.\nassistant> recorded expectation: 12 tests passed in prior validation.\nassistant> READONLY VALIDATION COMPLETE"
+    },
+    {
+      "name": "report findings",
+      "passed": true,
+      "detail": "sent line",
+      "screen": "Pi workflow: read-only repository review\nType workflow commands; use exit to close.\n\npi> scope repository\nuser> scope repository\nassistant> Launching Pi in read-only review mode.\nassistant> pi --tools read,grep,find,ls --no-session -p \"Review the repository.\"\nassistant> write and edit tools are disabled for this run.\nassistant> READONLY SCOPE READY\ninspect files\n\npi> user> inspect files\nassistant> read package metadata.\nassistant> find recipe files under examples/.\nassistant> grep for assertion coverage and sandbox guards.\nassistant> no write/edit tools were enabled.\nassistant> READONLY INSPECTION COMPLETE\nrun validation\n\npi> user> run validation\nassistant> bash tool is intentionally unavailable in this read-only pass.\nassistant> operator requests separate CI validation.\nassistant> recorded expectation: 12 tests passed in prior validation.\nassistant> READONLY VALIDATION COMPLETE"
+    },
+    {
+      "name": "wait for review",
+      "passed": true,
+      "detail": "found 'READONLY REVIEW COMPLETE'",
+      "screen": "Type workflow commands; use exit to close.\n\npi> scope repository\nuser> scope repository\nassistant> Launching Pi in read-only review mode.\nassistant> pi --tools read,grep,find,ls --no-session -p \"Review the repository.\"\nassistant> write and edit tools are disabled for this run.\nassistant> READONLY SCOPE READY\ninspect files\n\npi> user> inspect files\nassistant> read package metadata.\nassistant> find recipe files under examples/.\nassistant> grep for assertion coverage and sandbox guards.\nassistant> no write/edit tools were enabled.\nassistant> READONLY INSPECTION COMPLETE\nrun validation\n\npi> user> run validation\nassistant> bash tool is intentionally unavailable in this read-only pass.\nassistant> operator requests separate CI validation.\nassistant> recorded expectation: 12 tests passed in prior validation.\nassistant> READONLY VALIDATION COMPLETE\nreport findings\n\npi> user> report findings\nassistant> Findings: no blocking issues.\nassistant> Residual risk: provider-backed live runs are covered by separate recipes.\nassistant> READONLY REVIEW COMPLETE"
+    },
+    {
+      "name": "close session",
+      "passed": true,
+      "detail": "sent line",
+      "screen": "Type workflow commands; use exit to close.\n\npi> scope repository\nuser> scope repository\nassistant> Launching Pi in read-only review mode.\nassistant> pi --tools read,grep,find,ls --no-session -p \"Review the repository.\"\nassistant> write and edit tools are disabled for this run.\nassistant> READONLY SCOPE READY\ninspect files\n\npi> user> inspect files\nassistant> read package metadata.\nassistant> find recipe files under examples/.\nassistant> grep for assertion coverage and sandbox guards.\nassistant> no write/edit tools were enabled.\nassistant> READONLY INSPECTION COMPLETE\nrun validation\n\npi> user> run validation\nassistant> bash tool is intentionally unavailable in this read-only pass.\nassistant> operator requests separate CI validation.\nassistant> recorded expectation: 12 tests passed in prior validation.\nassistant> READONLY VALIDATION COMPLETE\nreport findings\n\npi> user> report findings\nassistant> Findings: no blocking issues.\nassistant> Residual risk: provider-backed live runs are covered by separate recipes.\nassistant> READONLY REVIEW COMPLETE"
+    },
+    {
+      "name": "wait for close",
+      "passed": true,
+      "detail": "found 'WORKFLOW SESSION COMPLETE'",
+      "screen": "assistant> Launching Pi in read-only review mode.\nassistant> pi --tools read,grep,find,ls --no-session -p \"Review the repository.\"\nassistant> write and edit tools are disabled for this run.\nassistant> READONLY SCOPE READY\ninspect files\n\npi> user> inspect files\nassistant> read package metadata.\nassistant> find recipe files under examples/.\nassistant> grep for assertion coverage and sandbox guards.\nassistant> no write/edit tools were enabled.\nassistant> READONLY INSPECTION COMPLETE\nrun validation\n\npi> user> run validation\nassistant> bash tool is intentionally unavailable in this read-only pass.\nassistant> operator requests separate CI validation.\nassistant> recorded expectation: 12 tests passed in prior validation.\nassistant> READONLY VALIDATION COMPLETE\nreport findings\n\npi> user> report findings\nassistant> Findings: no blocking issues.\nassistant> Residual risk: provider-backed live runs are covered by separate recipes.\nassistant> READONLY REVIEW COMPLETE\nexit\n\npi> assistant> Closing Pi workflow demonstration.\nWORKFLOW SESSION COMPLETE"
+    }
+  ],
+  "assertions": [
+    {
+      "name": "output_contains",
+      "passed": true,
+      "detail": "contains '--tools read,grep,find,ls'"
+    },
+    {
+      "name": "output_contains",
+      "passed": true,
+      "detail": "contains 'no write/edit tools were enabled'"
+    },
+    {
+      "name": "output_contains",
+      "passed": true,
+      "detail": "contains 'READONLY REVIEW COMPLETE'"
+    },
+    {
+      "name": "output_contains",
+      "passed": true,
+      "detail": "contains 'WORKFLOW SESSION COMPLETE'"
+    },
+    {
+      "name": "exit_code",
+      "passed": true,
+      "detail": "expected 0, got 0"
+    }
+  ],
+  "artifacts": {
+    "cast": "examples/artifacts/20260724-180308-558779-pi-workflow-readonly-review-default/session.cast",
+    "screenshot": "examples/artifacts/20260724-180308-558779-pi-workflow-readonly-review-default/final.svg",
+    "screen_text": "examples/artifacts/20260724-180308-558779-pi-workflow-readonly-review-default/final.txt",
+    "exit_code_file": "examples/artifacts/20260724-180308-558779-pi-workflow-readonly-review-default/session.exitcode",
+    "step_screenshots": "examples/artifacts/20260724-180308-558779-pi-workflow-readonly-review-default/steps",
+    "video": "examples/artifacts/20260724-180308-558779-pi-workflow-readonly-review-default/session.mp4"
+  }
+}

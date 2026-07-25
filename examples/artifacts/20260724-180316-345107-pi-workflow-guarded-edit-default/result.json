@@ -1,0 +1,118 @@
+{
+  "recipe_name": "pi-workflow-guarded-edit",
+  "passed": true,
+  "exit_code": 0,
+  "duration_seconds": 7.377347250003368,
+  "priority": "P1",
+  "execution": "scripted",
+  "renderer": "default",
+  "score": 1.0,
+  "steps": [
+    {
+      "name": "wait for prompt",
+      "passed": true,
+      "detail": "found 'pi>'",
+      "screen": "Pi workflow: guarded edit and validation\nType workflow commands; use exit to close.\n\npi>"
+    },
+    {
+      "name": "propose change",
+      "passed": true,
+      "detail": "sent line",
+      "screen": "Pi workflow: guarded edit and validation\nType workflow commands; use exit to close.\n\npi>"
+    },
+    {
+      "name": "wait for plan",
+      "passed": true,
+      "detail": "found 'GUARDED EDIT PLAN READY'",
+      "screen": "Pi workflow: guarded edit and validation\nType workflow commands; use exit to close.\n\npi> propose change\nuser> propose change\nassistant> Reading target files before editing.\nassistant> tool allowlist: read,bash,edit,write.\nassistant> proposing a small patch with isolated behavior.\nassistant> GUARDED EDIT PLAN READY"
+    },
+    {
+      "name": "apply patch",
+      "passed": true,
+      "detail": "sent line",
+      "screen": "Pi workflow: guarded edit and validation\nType workflow commands; use exit to close.\n\npi> propose change\nuser> propose change\nassistant> Reading target files before editing.\nassistant> tool allowlist: read,bash,edit,write.\nassistant> proposing a small patch with isolated behavior.\nassistant> GUARDED EDIT PLAN READY"
+    },
+    {
+      "name": "wait for patch",
+      "passed": true,
+      "detail": "found 'GUARDED PATCH APPLIED'",
+      "screen": "Pi workflow: guarded edit and validation\nType workflow commands; use exit to close.\n\npi> propose change\nuser> propose change\nassistant> Reading target files before editing.\nassistant> tool allowlist: read,bash,edit,write.\nassistant> proposing a small patch with isolated behavior.\nassistant> GUARDED EDIT PLAN READY\napply patch\n\npi> user> apply patch\nassistant> edit tool: applying patch.\nassistant> changed files: recipe plus focused implementation.\nassistant> patch applied.\nassistant> GUARDED PATCH APPLIED"
+    },
+    {
+      "name": "validate tests",
+      "passed": true,
+      "detail": "sent line",
+      "screen": "Pi workflow: guarded edit and validation\nType workflow commands; use exit to close.\n\npi> propose change\nuser> propose change\nassistant> Reading target files before editing.\nassistant> tool allowlist: read,bash,edit,write.\nassistant> proposing a small patch with isolated behavior.\nassistant> GUARDED EDIT PLAN READY\napply patch\n\npi> user> apply patch\nassistant> edit tool: applying patch.\nassistant> changed files: recipe plus focused implementation.\nassistant> patch applied.\nassistant> GUARDED PATCH APPLIED"
+    },
+    {
+      "name": "wait for validation",
+      "passed": true,
+      "detail": "found 'GUARDED VALIDATION COMPLETE'",
+      "screen": "Pi workflow: guarded edit and validation\nType workflow commands; use exit to close.\n\npi> propose change\nuser> propose change\nassistant> Reading target files before editing.\nassistant> tool allowlist: read,bash,edit,write.\nassistant> proposing a small patch with isolated behavior.\nassistant> GUARDED EDIT PLAN READY\napply patch\n\npi> user> apply patch\nassistant> edit tool: applying patch.\nassistant> changed files: recipe plus focused implementation.\nassistant> patch applied.\nassistant> GUARDED PATCH APPLIED\nvalidate tests\n\npi> user> validate tests\nassistant> bash> uv run python -m unittest discover -s tests\nassistant> 12 tests passed.\nassistant> diff reviewed before final summary.\nassistant> GUARDED VALIDATION COMPLETE"
+    },
+    {
+      "name": "summarize diff",
+      "passed": true,
+      "detail": "sent line",
+      "screen": "Pi workflow: guarded edit and validation\nType workflow commands; use exit to close.\n\npi> propose change\nuser> propose change\nassistant> Reading target files before editing.\nassistant> tool allowlist: read,bash,edit,write.\nassistant> proposing a small patch with isolated behavior.\nassistant> GUARDED EDIT PLAN READY\napply patch\n\npi> user> apply patch\nassistant> edit tool: applying patch.\nassistant> changed files: recipe plus focused implementation.\nassistant> patch applied.\nassistant> GUARDED PATCH APPLIED\nvalidate tests\n\npi> user> validate tests\nassistant> bash> uv run python -m unittest discover -s tests\nassistant> 12 tests passed.\nassistant> diff reviewed before final summary.\nassistant> GUARDED VALIDATION COMPLETE"
+    },
+    {
+      "name": "wait for summary",
+      "passed": true,
+      "detail": "found 'GUARDED EDIT COMPLETE'",
+      "screen": "Pi workflow: guarded edit and validation\nType workflow commands; use exit to close.\n\npi> propose change\nuser> propose change\nassistant> Reading target files before editing.\nassistant> tool allowlist: read,bash,edit,write.\nassistant> proposing a small patch with isolated behavior.\nassistant> GUARDED EDIT PLAN READY\napply patch\n\npi> user> apply patch\nassistant> edit tool: applying patch.\nassistant> changed files: recipe plus focused implementation.\nassistant> patch applied.\nassistant> GUARDED PATCH APPLIED\nvalidate tests\n\npi> user> validate tests\nassistant> bash> uv run python -m unittest discover -s tests\nassistant> 12 tests passed.\nassistant> diff reviewed before final summary.\nassistant> GUARDED VALIDATION COMPLETE\nsummarize diff\n\npi> user> summarize diff\nassistant> Summary: implemented requested behavior and evidence checks.\nassistant> Test evidence: unit suite passed.\nassistant> GUARDED EDIT COMPLETE"
+    },
+    {
+      "name": "close session",
+      "passed": true,
+      "detail": "sent line",
+      "screen": "Pi workflow: guarded edit and validation\nType workflow commands; use exit to close.\n\npi> propose change\nuser> propose change\nassistant> Reading target files before editing.\nassistant> tool allowlist: read,bash,edit,write.\nassistant> proposing a small patch with isolated behavior.\nassistant> GUARDED EDIT PLAN READY\napply patch\n\npi> user> apply patch\nassistant> edit tool: applying patch.\nassistant> changed files: recipe plus focused implementation.\nassistant> patch applied.\nassistant> GUARDED PATCH APPLIED\nvalidate tests\n\npi> user> validate tests\nassistant> bash> uv run python -m unittest discover -s tests\nassistant> 12 tests passed.\nassistant> diff reviewed before final summary.\nassistant> GUARDED VALIDATION COMPLETE\nsummarize diff\n\npi> user> summarize diff\nassistant> Summary: implemented requested behavior and evidence checks.\nassistant> Test evidence: unit suite passed.\nassistant> GUARDED EDIT COMPLETE"
+    },
+    {
+      "name": "wait for close",
+      "passed": true,
+      "detail": "found 'WORKFLOW SESSION COMPLETE'",
+      "screen": "user> propose change\nassistant> Reading target files before editing.\nassistant> tool allowlist: read,bash,edit,write.\nassistant> proposing a small patch with isolated behavior.\nassistant> GUARDED EDIT PLAN READY\napply patch\n\npi> user> apply patch\nassistant> edit tool: applying patch.\nassistant> changed files: recipe plus focused implementation.\nassistant> patch applied.\nassistant> GUARDED PATCH APPLIED\nvalidate tests\n\npi> user> validate tests\nassistant> bash> uv run python -m unittest discover -s tests\nassistant> 12 tests passed.\nassistant> diff reviewed before final summary.\nassistant> GUARDED VALIDATION COMPLETE\nsummarize diff\n\npi> user> summarize diff\nassistant> Summary: implemented requested behavior and evidence checks.\nassistant> Test evidence: unit suite passed.\nassistant> GUARDED EDIT COMPLETE\nexit\n\npi> assistant> Closing Pi workflow demonstration.\nWORKFLOW SESSION COMPLETE"
+    }
+  ],
+  "assertions": [
+    {
+      "name": "output_contains",
+      "passed": true,
+      "detail": "contains 'tool allowlist: read,bash,edit,write'"
+    },
+    {
+      "name": "output_contains",
+      "passed": true,
+      "detail": "contains 'patch applied'"
+    },
+    {
+      "name": "output_contains",
+      "passed": true,
+      "detail": "contains '12 tests passed'"
+    },
+    {
+      "name": "output_contains",
+      "passed": true,
+      "detail": "contains 'diff reviewed'"
+    },
+    {
+      "name": "output_contains",
+      "passed": true,
+      "detail": "contains 'GUARDED EDIT COMPLETE'"
+    },
+    {
+      "name": "exit_code",
+      "passed": true,
+      "detail": "expected 0, got 0"
+    }
+  ],
+  "artifacts": {
+    "cast": "examples/artifacts/20260724-180316-345107-pi-workflow-guarded-edit-default/session.cast",
+    "screenshot": "examples/artifacts/20260724-180316-345107-pi-workflow-guarded-edit-default/final.svg",
+    "screen_text": "examples/artifacts/20260724-180316-345107-pi-workflow-guarded-edit-default/final.txt",
+    "exit_code_file": "examples/artifacts/20260724-180316-345107-pi-workflow-guarded-edit-default/session.exitcode",
+    "step_screenshots": "examples/artifacts/20260724-180316-345107-pi-workflow-guarded-edit-default/steps",
+    "video": "examples/artifacts/20260724-180316-345107-pi-workflow-guarded-edit-default/session.mp4"
+  }
+}

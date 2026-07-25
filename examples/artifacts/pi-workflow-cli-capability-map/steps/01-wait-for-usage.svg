@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1116" height="956" viewBox="0 0 1116 956">
+<rect width="100%" height="100%" fill="#101418"/>
+<style>text{font:14px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;fill:#e6edf3;white-space:pre}</style>
+<text x="18" y="38">  AZURE_OPENAI_DEPLOYMENT_NAME_MAP - Azure OpenAI model=deployment map (comma-separated)</text>
+<text x="18" y="58">  DEEPSEEK_API_KEY                 - DeepSeek API key</text>
+<text x="18" y="78">  NVIDIA_API_KEY                   - NVIDIA NIM API key</text>
+<text x="18" y="98">  GEMINI_API_KEY                   - Google Gemini API key</text>
+<text x="18" y="118">  GROQ_API_KEY                     - Groq API key</text>
+<text x="18" y="138">  CEREBRAS_API_KEY                 - Cerebras API key</text>
+<text x="18" y="158">  XAI_API_KEY                      - xAI Grok API key</text>
+<text x="18" y="178">  FIREWORKS_API_KEY                - Fireworks API key</text>
+<text x="18" y="198">  TOGETHER_API_KEY                 - Together AI API key</text>
+<text x="18" y="218">  OPENROUTER_API_KEY               - OpenRouter API key</text>
+<text x="18" y="238">  AI_GATEWAY_API_KEY               - Vercel AI Gateway API key</text>
+<text x="18" y="258">  ZAI_API_KEY                      - ZAI Coding Plan API key (Global)</text>
+<text x="18" y="278">  ZAI_CODING_CN_API_KEY            - ZAI Coding Plan API key (China)</text>
+<text x="18" y="298">  MISTRAL_API_KEY                  - Mistral API key</text>
+<text x="18" y="318">  MINIMAX_API_KEY                  - MiniMax API key</text>
+<text x="18" y="338">  MOONSHOT_API_KEY                 - Moonshot AI API key</text>
+<text x="18" y="358">  OPENCODE_API_KEY                 - OpenCode Zen/OpenCode Go API key</text>
+<text x="18" y="378">  KIMI_API_KEY                     - Kimi For Coding API key</text>
+<text x="18" y="398">  CLOUDFLARE_API_KEY               - Cloudflare API token (Workers AI and AI Gateway)</text>
+<text x="18" y="418">  CLOUDFLARE_ACCOUNT_ID            - Cloudflare account id (required for both)</text>
+<text x="18" y="438">  CLOUDFLARE_GATEWAY_ID            - Cloudflare AI Gateway slug (required for AI Gateway)</text>
+<text x="18" y="458">  XIAOMI_API_KEY                   - Xiaomi MiMo API key (api.xiaomimimo.com billing)</text>
+<text x="18" y="478">  XIAOMI_TOKEN_PLAN_CN_API_KEY     - Xiaomi MiMo Token Plan API key (China region)</text>
+<text x="18" y="498">  XIAOMI_TOKEN_PLAN_AMS_API_KEY    - Xiaomi MiMo Token Plan API key (Amsterdam region)</text>
+<text x="18" y="518">  XIAOMI_TOKEN_PLAN_SGP_API_KEY    - Xiaomi MiMo Token Plan API key (Singapore region)</text>
+<text x="18" y="538">  AWS_PROFILE                      - AWS profile for Amazon Bedrock</text>
+<text x="18" y="558">  AWS_ACCESS_KEY_ID                - AWS access key for Amazon Bedrock</text>
+<text x="18" y="578">  AWS_SECRET_ACCESS_KEY            - AWS secret key for Amazon Bedrock</text>
+<text x="18" y="598">  AWS_BEARER_TOKEN_BEDROCK         - Bedrock API key (bearer token)</text>
+<text x="18" y="618">  AWS_REGION                       - AWS region for Amazon Bedrock (e.g., us-east-1)</text>
+<text x="18" y="638">  PI_CODING_AGENT_DIR              - Config directory (default: ~/.pi/agent)</text>
+<text x="18" y="658">  PI_CODING_AGENT_SESSION_DIR      - Session storage directory (overridden by --session-dir)</text>
+<text x="18" y="678">  PI_PACKAGE_DIR                   - Override package directory (for Nix/Guix store paths)</text>
+<text x="18" y="698">  PI_OFFLINE                       - Disable startup network operations when set to 1/true/yes</text>
+<text x="18" y="718">  PI_TELEMETRY                     - Override install telemetry when set to 1/true/yes or 0/false/no</text>
+<text x="18" y="738">  PI_SHARE_VIEWER_URL              - Base URL for /share command (default: https://pi.dev/session/)</text>
+<text x="18" y="758"></text>
+<text x="18" y="778">Built-in Tool Names:</text>
+<text x="18" y="798">  read   - Read file contents</text>
+<text x="18" y="818">  bash   - Execute bash commands</text>
+<text x="18" y="838">  edit   - Edit files with find/replace</text>
+<text x="18" y="858">  write  - Write files (creates/overwrites)</text>
+<text x="18" y="878">  grep   - Search file contents (read-only, off by default)</text>
+<text x="18" y="898">  find   - Find files by glob pattern (read-only, off by default)</text>
+<text x="18" y="918">  ls     - List directory contents (read-only, off by default)</text>
+</svg>

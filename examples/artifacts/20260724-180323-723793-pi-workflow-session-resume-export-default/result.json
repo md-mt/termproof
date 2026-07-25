@@ -1,0 +1,111 @@
+{
+  "recipe_name": "pi-workflow-session-resume-export",
+  "passed": true,
+  "exit_code": 0,
+  "duration_seconds": 5.74499770795228,
+  "priority": "P1",
+  "execution": "scripted",
+  "renderer": "default",
+  "score": 1.0,
+  "steps": [
+    {
+      "name": "wait for prompt",
+      "passed": true,
+      "detail": "found 'pi>'",
+      "screen": "Pi workflow: session resume, fork, and export\nType workflow commands; use exit to close.\n\npi>"
+    },
+    {
+      "name": "start session",
+      "passed": true,
+      "detail": "sent line",
+      "screen": "Pi workflow: session resume, fork, and export\nType workflow commands; use exit to close.\n\npi>"
+    },
+    {
+      "name": "wait for start",
+      "passed": true,
+      "detail": "found 'SESSION STARTED'",
+      "screen": "Pi workflow: session resume, fork, and export\nType workflow commands; use exit to close.\n\npi> start session\nuser> start session\nassistant> pi --name \"Verifier workflow audit\" --session-dir .pi-sessions\nassistant> session id: workflow-001.\nassistant> SESSION STARTED"
+    },
+    {
+      "name": "continue session",
+      "passed": true,
+      "detail": "sent line",
+      "screen": "Pi workflow: session resume, fork, and export\nType workflow commands; use exit to close.\n\npi> start session\nuser> start session\nassistant> pi --name \"Verifier workflow audit\" --session-dir .pi-sessions\nassistant> session id: workflow-001.\nassistant> SESSION STARTED"
+    },
+    {
+      "name": "wait for resume",
+      "passed": true,
+      "detail": "found 'SESSION RESUMED'",
+      "screen": "Pi workflow: session resume, fork, and export\nType workflow commands; use exit to close.\n\npi> start session\nuser> start session\nassistant> pi --name \"Verifier workflow audit\" --session-dir .pi-sessions\nassistant> session id: workflow-001.\nassistant> SESSION STARTED\ncontinue session\n\npi> user> continue session\nassistant> pi --continue \"What did we verify?\"\nassistant> pi --session workflow-001\nassistant> previous context restored.\nassistant> SESSION RESUMED"
+    },
+    {
+      "name": "fork export",
+      "passed": true,
+      "detail": "sent line",
+      "screen": "Pi workflow: session resume, fork, and export\nType workflow commands; use exit to close.\n\npi> start session\nuser> start session\nassistant> pi --name \"Verifier workflow audit\" --session-dir .pi-sessions\nassistant> session id: workflow-001.\nassistant> SESSION STARTED\ncontinue session\n\npi> user> continue session\nassistant> pi --continue \"What did we verify?\"\nassistant> pi --session workflow-001\nassistant> previous context restored.\nassistant> SESSION RESUMED"
+    },
+    {
+      "name": "wait for export",
+      "passed": true,
+      "detail": "found 'SESSION RESUME EXPORT COMPLETE'",
+      "screen": "Pi workflow: session resume, fork, and export\nType workflow commands; use exit to close.\n\npi> start session\nuser> start session\nassistant> pi --name \"Verifier workflow audit\" --session-dir .pi-sessions\nassistant> session id: workflow-001.\nassistant> SESSION STARTED\ncontinue session\n\npi> user> continue session\nassistant> pi --continue \"What did we verify?\"\nassistant> pi --session workflow-001\nassistant> previous context restored.\nassistant> SESSION RESUMED\nfork export\n\npi> user> fork export\nassistant> pi --fork workflow-001 --name \"Workflow audit branch\"\nassistant> pi --export session.jsonl output.html\nassistant> exported review artifact for handoff.\nassistant> SESSION RESUME EXPORT COMPLETE"
+    },
+    {
+      "name": "close session",
+      "passed": true,
+      "detail": "sent line",
+      "screen": "Pi workflow: session resume, fork, and export\nType workflow commands; use exit to close.\n\npi> start session\nuser> start session\nassistant> pi --name \"Verifier workflow audit\" --session-dir .pi-sessions\nassistant> session id: workflow-001.\nassistant> SESSION STARTED\ncontinue session\n\npi> user> continue session\nassistant> pi --continue \"What did we verify?\"\nassistant> pi --session workflow-001\nassistant> previous context restored.\nassistant> SESSION RESUMED\nfork export\n\npi> user> fork export\nassistant> pi --fork workflow-001 --name \"Workflow audit branch\"\nassistant> pi --export session.jsonl output.html\nassistant> exported review artifact for handoff.\nassistant> SESSION RESUME EXPORT COMPLETE"
+    },
+    {
+      "name": "wait for close",
+      "passed": true,
+      "detail": "found 'WORKFLOW SESSION COMPLETE'",
+      "screen": "Pi workflow: session resume, fork, and export\nType workflow commands; use exit to close.\n\npi> start session\nuser> start session\nassistant> pi --name \"Verifier workflow audit\" --session-dir .pi-sessions\nassistant> session id: workflow-001.\nassistant> SESSION STARTED\ncontinue session\n\npi> user> continue session\nassistant> pi --continue \"What did we verify?\"\nassistant> pi --session workflow-001\nassistant> previous context restored.\nassistant> SESSION RESUMED\nfork export\n\npi> user> fork export\nassistant> pi --fork workflow-001 --name \"Workflow audit branch\"\nassistant> pi --export session.jsonl output.html\nassistant> exported review artifact for handoff.\nassistant> SESSION RESUME EXPORT COMPLETE\nexit\n\npi> assistant> Closing Pi workflow demonstration.\nWORKFLOW SESSION COMPLETE"
+    }
+  ],
+  "assertions": [
+    {
+      "name": "output_contains",
+      "passed": true,
+      "detail": "contains '--name \"Verifier workflow audit\"'"
+    },
+    {
+      "name": "output_contains",
+      "passed": true,
+      "detail": "contains '--continue'"
+    },
+    {
+      "name": "output_contains",
+      "passed": true,
+      "detail": "contains '--session workflow-001'"
+    },
+    {
+      "name": "output_contains",
+      "passed": true,
+      "detail": "contains '--fork workflow-001'"
+    },
+    {
+      "name": "output_contains",
+      "passed": true,
+      "detail": "contains '--export session.jsonl output.html'"
+    },
+    {
+      "name": "output_contains",
+      "passed": true,
+      "detail": "contains 'SESSION RESUME EXPORT COMPLETE'"
+    },
+    {
+      "name": "exit_code",
+      "passed": true,
+      "detail": "expected 0, got 0"
+    }
+  ],
+  "artifacts": {
+    "cast": "examples/artifacts/20260724-180323-723793-pi-workflow-session-resume-export-default/session.cast",
+    "screenshot": "examples/artifacts/20260724-180323-723793-pi-workflow-session-resume-export-default/final.svg",
+    "screen_text": "examples/artifacts/20260724-180323-723793-pi-workflow-session-resume-export-default/final.txt",
+    "exit_code_file": "examples/artifacts/20260724-180323-723793-pi-workflow-session-resume-export-default/session.exitcode",
+    "step_screenshots": "examples/artifacts/20260724-180323-723793-pi-workflow-session-resume-export-default/steps",
+    "video": "examples/artifacts/20260724-180323-723793-pi-workflow-session-resume-export-default/session.mp4"
+  }
+}

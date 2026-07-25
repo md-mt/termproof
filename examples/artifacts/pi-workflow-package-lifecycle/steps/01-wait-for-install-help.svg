@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1098" height="796" viewBox="0 0 1098 796">
+<rect width="100%" height="100%" fill="#101418"/>
+<style>text{font:14px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;fill:#e6edf3;white-space:pre}</style>
+<text x="18" y="38">Options:</text>
+<text x="18" y="58">  --self                  Update pi only (default when no target is given)</text>
+<text x="18" y="78">  --extensions            Update installed packages only</text>
+<text x="18" y="98">  --all                   Update pi and installed packages</text>
+<text x="18" y="118">  --extension &lt;source&gt;    Update one package only</text>
+<text x="18" y="138">  -a, --approve           Trust project-local files for this command</text>
+<text x="18" y="158">  -na, --no-approve       Ignore project-local files for this command</text>
+<text x="18" y="178">  --force                 Reinstall pi even if the current version is latest</text>
+<text x="18" y="198"></text>
+<text x="18" y="218">Short forms:</text>
+<text x="18" y="238">  pi update                Update pi only</text>
+<text x="18" y="258">  pi update --all          Update pi and all extensions</text>
+<text x="18" y="278">  pi update &lt;source&gt;       Update one package</text>
+<text x="18" y="298">  pi update pi             Update pi only (self works as alias to pi)</text>
+<text x="18" y="318"></text>
+<text x="18" y="338">$ pi list --help</text>
+<text x="18" y="358">Usage:</text>
+<text x="18" y="378">  pi list [--approve|--no-approve]</text>
+<text x="18" y="398"></text>
+<text x="18" y="418">List installed packages from user and project settings.</text>
+<text x="18" y="438"></text>
+<text x="18" y="458">Options:</text>
+<text x="18" y="478">  -a, --approve      Trust project-local files for this command</text>
+<text x="18" y="498">  -na, --no-approve  Ignore project-local files for this command</text>
+<text x="18" y="518"></text>
+<text x="18" y="538">$ pi config --help</text>
+<text x="18" y="558">Usage:</text>
+<text x="18" y="578">  pi config [-l] [--approve|--no-approve]</text>
+<text x="18" y="598"></text>
+<text x="18" y="618">Open the resource configuration TUI to enable or disable package resources.</text>
+<text x="18" y="638">Without -l, starts in global settings (~/.pi/agent/settings.json).</text>
+<text x="18" y="658">Press Tab in the TUI to switch between global and project-local modes.</text>
+<text x="18" y="678"></text>
+<text x="18" y="698">Options:</text>
+<text x="18" y="718">  -l, --local       Edit project overrides (.pi/settings.json)</text>
+<text x="18" y="738">  -a, --approve     Trust project-local files for this command with -l</text>
+<text x="18" y="758">  -na, --no-approve Ignore project-local files for this command with -l</text>
+</svg>

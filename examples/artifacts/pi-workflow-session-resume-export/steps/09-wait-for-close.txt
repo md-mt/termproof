@@ -1,0 +1,26 @@
+Pi workflow: session resume, fork, and export
+Type workflow commands; use exit to close.
+
+pi> start session
+user> start session
+assistant> pi --name "Verifier workflow audit" --session-dir .pi-sessions
+assistant> session id: workflow-001.
+assistant> SESSION STARTED
+continue session
+
+pi> user> continue session
+assistant> pi --continue "What did we verify?"
+assistant> pi --session workflow-001
+assistant> previous context restored.
+assistant> SESSION RESUMED
+fork export
+
+pi> user> fork export
+assistant> pi --fork workflow-001 --name "Workflow audit branch"
+assistant> pi --export session.jsonl output.html
+assistant> exported review artifact for handoff.
+assistant> SESSION RESUME EXPORT COMPLETE
+exit
+
+pi> assistant> Closing Pi workflow demonstration.
+WORKFLOW SESSION COMPLETE

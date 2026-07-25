@@ -1,0 +1,73 @@
+{
+  "recipe_name": "pi-workflow-package-lifecycle",
+  "passed": true,
+  "exit_code": 0,
+  "duration_seconds": 1.8101337919943035,
+  "priority": "P0",
+  "execution": "scripted",
+  "renderer": "default",
+  "score": 1.0,
+  "steps": [
+    {
+      "name": "wait for install help",
+      "passed": true,
+      "detail": "found 'pi install <source>'",
+      "screen": "Options:\n  --self                  Update pi only (default when no target is given)\n  --extensions            Update installed packages only\n  --all                   Update pi and installed packages\n  --extension <source>    Update one package only\n  -a, --approve           Trust project-local files for this command\n  -na, --no-approve       Ignore project-local files for this command\n  --force                 Reinstall pi even if the current version is latest\n\nShort forms:\n  pi update                Update pi only\n  pi update --all          Update pi and all extensions\n  pi update <source>       Update one package\n  pi update pi             Update pi only (self works as alias to pi)\n\n$ pi list --help\nUsage:\n  pi list [--approve|--no-approve]\n\nList installed packages from user and project settings.\n\nOptions:\n  -a, --approve      Trust project-local files for this command\n  -na, --no-approve  Ignore project-local files for this command\n\n$ pi config --help\nUsage:\n  pi config [-l] [--approve|--no-approve]\n\nOpen the resource configuration TUI to enable or disable package resources.\nWithout -l, starts in global settings (~/.pi/agent/settings.json).\nPress Tab in the TUI to switch between global and project-local modes.\n\nOptions:\n  -l, --local       Edit project overrides (.pi/settings.json)\n  -a, --approve     Trust project-local files for this command with -l\n  -na, --no-approve Ignore project-local files for this command with -l"
+    }
+  ],
+  "assertions": [
+    {
+      "name": "output_contains",
+      "passed": true,
+      "detail": "contains 'pi install <source>'"
+    },
+    {
+      "name": "output_contains",
+      "passed": true,
+      "detail": "contains 'pi remove <source>'"
+    },
+    {
+      "name": "output_contains",
+      "passed": true,
+      "detail": "contains 'pi update [source|self|pi]'"
+    },
+    {
+      "name": "output_contains",
+      "passed": true,
+      "detail": "contains 'pi list [--approve|--no-approve]'"
+    },
+    {
+      "name": "output_contains",
+      "passed": true,
+      "detail": "contains 'Open the resource configuration TUI'"
+    },
+    {
+      "name": "output_contains",
+      "passed": true,
+      "detail": "contains 'Press Tab in the TUI'"
+    },
+    {
+      "name": "sandbox failure is absent",
+      "passed": true,
+      "detail": "sandbox failure is absent"
+    },
+    {
+      "name": "sandbox launcher error is absent",
+      "passed": true,
+      "detail": "sandbox launcher error is absent"
+    },
+    {
+      "name": "exit_code",
+      "passed": true,
+      "detail": "expected 0, got 0"
+    }
+  ],
+  "artifacts": {
+    "cast": "examples/artifacts/20260724-180306-746994-pi-workflow-package-lifecycle-default/session.cast",
+    "screenshot": "examples/artifacts/20260724-180306-746994-pi-workflow-package-lifecycle-default/final.svg",
+    "screen_text": "examples/artifacts/20260724-180306-746994-pi-workflow-package-lifecycle-default/final.txt",
+    "exit_code_file": "examples/artifacts/20260724-180306-746994-pi-workflow-package-lifecycle-default/session.exitcode",
+    "step_screenshots": "examples/artifacts/20260724-180306-746994-pi-workflow-package-lifecycle-default/steps",
+    "video": "examples/artifacts/20260724-180306-746994-pi-workflow-package-lifecycle-default/session.mp4"
+  }
+}

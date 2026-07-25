@@ -1,0 +1,23 @@
+Pi workflow: guarded edit and validation
+Type workflow commands; use exit to close.
+
+pi> propose change
+user> propose change
+assistant> Reading target files before editing.
+assistant> tool allowlist: read,bash,edit,write.
+assistant> proposing a small patch with isolated behavior.
+assistant> GUARDED EDIT PLAN READY
+apply patch
+
+pi> user> apply patch
+assistant> edit tool: applying patch.
+assistant> changed files: recipe plus focused implementation.
+assistant> patch applied.
+assistant> GUARDED PATCH APPLIED
+validate tests
+
+pi> user> validate tests
+assistant> bash> uv run python -m unittest discover -s tests
+assistant> 12 tests passed.
+assistant> diff reviewed before final summary.
+assistant> GUARDED VALIDATION COMPLETE
