@@ -5,6 +5,7 @@ import shutil
 import subprocess
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 from .models import RunResult, StepResult
 from .screen import render_svg, replay_cast
@@ -24,13 +25,17 @@ def render_artifacts(
     steps: list[StepResult] | None = None,
     cols: int | None = None,
     rows: int | None = None,
+    screen_renderer: Any = None,
 ) -> dict[str, str]:
     cast_path = run_dir / "session.cast"
     final_text, cols, rows = replay_cast(cast_path)
     final_txt = run_dir / "final.txt"
     final_svg = run_dir / "final.svg"
     final_txt.write_text(final_text + "\n", encoding="utf-8")
-    render_svg(final_text, final_svg, cols, rows)
+    if screen_renderer is not None:
+        screen_renderer.render(final_text, final_svg, cols, rows)
+    else:
+        render_svg(final_text, final_svg, cols, rows)
     artifacts = {
         "cast": str(cast_path),
         "screenshot": str(final_svg),
@@ -39,7 +44,7 @@ def render_artifacts(
     exit_code_path = run_dir / "session.exitcode"
     if exit_code_path.exists():
         artifacts["exit_code_file"] = str(exit_code_path)
-    step_dir = _render_step_screens(run_dir, steps or [], cols, rows)
+    step_dir = _render_step_screens(run_dir, steps or [], cols, rows, screen_renderer)
     if step_dir is not None:
         artifacts["step_screenshots"] = str(step_dir)
     for name in ("agent_prompt.md", "agent_transcript.md", "agent_outcome.json"):
@@ -58,6 +63,7 @@ def _render_step_screens(
     steps: list[StepResult],
     cols: int,
     rows: int,
+    screen_renderer: Any = None,
 ) -> Path | None:
     if not steps:
         return None
@@ -67,7 +73,10 @@ def _render_step_screens(
         safe_name = "".join(ch if ch.isalnum() or ch in "-_" else "-" for ch in step.name)
         path_base = step_dir / f"{index:02d}-{safe_name}"
         (path_base.with_suffix(".txt")).write_text(step.screen + "\n", encoding="utf-8")
-        render_svg(step.screen, path_base.with_suffix(".svg"), cols, rows)
+        if screen_renderer is not None:
+            screen_renderer.render(step.screen, path_base.with_suffix(".svg"), cols, rows)
+        else:
+            render_svg(step.screen, path_base.with_suffix(".svg"), cols, rows)
     return step_dir
 
 
