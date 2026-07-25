@@ -61,7 +61,7 @@ jobs:
           .pkg-test/bin/pip install dist/*.whl
           .pkg-test/bin/tui-verify --help
 
-      - name: Run release end-to-end TUI verification
+      - name: Run release generic and Pi agent UI verification
         run: |
           uv run tui-verify run \
             examples/generic \

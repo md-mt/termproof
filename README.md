@@ -1,95 +1,164 @@
 # TUI Verifier
 
 TUI Verifier is an evidence-first verification harness for terminal and TUI
-applications. It launches a target command through `asciinema rec --command`,
-drives it with recipe steps when requested, derives terminal screenshots from
-the recorded cast, optionally renders a 60-fps MP4 video with `agg` plus
-`ffmpeg`, and writes a compact report.
+applications. It records the real terminal session with `asciinema`, drives the
+session from JSON recipes, replays the cast into screenshots and text snapshots,
+optionally renders a 60-fps MP4 with `agg` plus `ffmpeg`, and writes Markdown
+and JSON reports for review.
 
-The initial showcase recipes target the Pi coding agent because Pi is a real
-terminal coding assistant with a stable local CLI surface.
+The verifier is product-agnostic: any terminal program can be plugged in by
+checking in a recipe pack. Pi coding agent workflows are included as the main
+showcase because they exercise realistic multi-turn coding-agent UI flows.
 
 ## Quickstart
 
+Run the portable non-Pi example:
+
 ```bash
-uv run tui-verify run examples/pi_help.recipe.json --video
-uv run tui-verify run examples/pi_version.recipe.json --video
-uv run tui-verify run examples/pi_list.recipe.json --video
-uv run tui-verify run examples --priority P0 --renderer all --video
-uv run tui-verify run examples/multi_turn_conversation.recipe.json --video
-uv run tui-verify run examples/pi_codex_operator.recipe.json --video
-uv run tui-verify run examples/pi_workflow_*.recipe.json --video
 uv run tui-verify run examples/generic --video
-uv run tui-verify init .tui-verifier/recipes --name my-tui --command "my-tui --help"
-uv run tui-verify list examples --priority P0
 ```
 
-Each run writes artifacts under `.tui-verifier/runs/<run-id>/`:
+Run the Pi coding-agent workflow showcase:
+
+```bash
+uv run tui-verify run examples/pi_workflow_*.recipe.json --video
+```
+
+Create a starter recipe pack for your own TUI:
+
+```bash
+uv run tui-verify init .tui-verifier/recipes \
+  --name my-tui \
+  --command "my-tui"
+
+uv run tui-verify run .tui-verifier/recipes --video
+```
+
+Each run writes artifacts under `.tui-verifier/runs/<run-id>/` unless `--out`
+is provided:
 
 - `session.cast` - asciinema v2 terminal recording
-- `final.svg` - final terminal screenshot derived by replaying the cast
+- `final.svg` - final terminal screenshot from the cast
 - `final.txt` - final terminal screen text
-- `steps/` - per-step terminal screenshots and text snapshots
-- `session.mp4` - 60-fps H.264 video rendered with `agg` plus `ffmpeg`
+- `steps/` - per-step screenshots and text snapshots
+- `session.mp4` - H.264 video rendered through `agg` and `ffmpeg`
 - `result.json` - machine-readable verdict and artifact paths
-- `report.md` - review-friendly summary
-- `latest-report.md` - aggregate report when multiple recipes/renderers run
+- `report.md` - per-run review summary
+- `latest-report.md` - aggregate report for multi-recipe runs
 
-Tracked Pi sample artifacts are included under `examples/artifacts/`.
-`examples/multi_turn_conversation.recipe.json` is a longer deterministic
-conversation fixture for reviewing multi-turn casts and videos without model
-provider dependencies.
-`examples/pi_workflow_*.recipe.json` expands the Pi showcase into workflow
-recipes for CLI capability discovery, package lifecycle help, read-only review,
-guarded edit/validation, session resume/export, and model/context resource
-selection.
-`examples/generic/` is a portable recipe pack for non-Pi terminal software and
-is used by GitHub Actions as the arbitrary-TUI smoke test.
+## Plug In Any TUI
 
-The Pi recipes call `examples/bin/pi-clean`, which uses
-`/usr/local/bin/pi_cli/pi.real` when present. That avoids recording Meta's local
-launcher wrapper when the wrapper cannot apply its macOS sandbox in this
-environment. Set `TUI_VERIFIER_PI_BIN` to override the Pi binary.
+A recipe pack is just a directory with `*.recipe.json` files and optional helper
+scripts. Keep it near the product it verifies:
 
-`examples/pi_codex_operator.recipe.json` demonstrates agent-driven execution
-with Codex as the operator. The verifier records that operator process
-with `asciinema rec`, stores the prompt/transcript/outcome, then publishes the
-cast, screenshots, MP4 video, result JSON, and reports. In local Meta launcher
-environments, `examples/bin/codex-clean` uses the real Codex binary when present
-for the same reason. Set `TUI_VERIFIER_CODEX_BIN` to override it.
+```text
+.tui-verifier/
+  recipes/
+    smoke.recipe.json
+    regression.recipe.json
+    fixtures/
+      seed-project.sh
+```
 
-## Stack Design
+Run the whole pack:
 
-The harness follows the same architecture as the MetaCode TUI validation stack:
+```bash
+uv run tui-verify run .tui-verifier/recipes --video --out .tui-verifier/runs
+```
 
-- recipe metadata: `priority`, `execution`, `determinism`, `checks`, `ci_paths`
-- recipe discovery and selection from `*.recipe.json` files
-- renderer expansion with `--renderer default|all|<name>`
-- per-run build provenance in aggregate reports
-- evidence-first artifacts: cast, screenshot, per-step screenshots, MP4 video,
-  result JSON, report
-- agent-driven execution with a Codex CLI operator adapter
-- before/after delta primitives for guardrail-style comparisons
-
-## Recipe Format
-
-Recipes are JSON files so they can live beside any project without importing
-Python code.
+Use `command.argv` for the target process and keep `command.pty` set to `true`
+for interactive TUIs. Steps wait for visible terminal states and send input.
+Assertions check raw output, final screen text, exit code, or files.
 
 ```json
 {
-  "name": "hello-terminal",
+  "name": "my-tui-main-flow",
+  "description": "Open the dashboard, filter data, and export a report.",
   "priority": "P0",
   "execution": "scripted",
   "determinism": "deterministic",
-  "checks": ["terminal prints hello"],
-  "renderers": { "default": [] },
-  "command": { "argv": ["python3", "-c", "print('hello tui')"], "pty": true },
+  "checks": [
+    "dashboard opens",
+    "filter applies",
+    "export completes"
+  ],
+  "renderers": {
+    "default": []
+  },
+  "command": {
+    "argv": ["my-tui"],
+    "pty": true
+  },
+  "timeout_seconds": 30,
+  "cols": 100,
+  "rows": 30,
   "steps": [
-    { "action": "wait_for_text", "text": "hello tui", "timeout_seconds": 5 }
+    {
+      "name": "wait for prompt",
+      "action": "wait_for_text",
+      "text": "my-tui>",
+      "timeout_seconds": 5
+    },
+    {
+      "name": "open dashboard",
+      "action": "send_line",
+      "text": "open dashboard"
+    },
+    {
+      "name": "wait for dashboard",
+      "action": "wait_for_text",
+      "text": "DASHBOARD READY",
+      "timeout_seconds": 10
+    },
+    {
+      "name": "export report",
+      "action": "send_line",
+      "text": "export report"
+    },
+    {
+      "name": "wait for export",
+      "action": "wait_for_text",
+      "text": "EXPORT READY",
+      "timeout_seconds": 10
+    }
   ],
   "assertions": [
-    { "type": "output_contains", "value": "hello tui" }
+    {
+      "type": "output_contains",
+      "value": "DASHBOARD READY"
+    },
+    {
+      "type": "output_contains",
+      "value": "EXPORT READY"
+    }
+  ],
+  "expect_exit_code": 0
+}
+```
+
+For non-interactive terminal commands, set `pty` to `false`:
+
+```json
+{
+  "name": "my-tui-help",
+  "priority": "P0",
+  "execution": "scripted",
+  "command": {
+    "argv": ["my-tui", "--help"],
+    "pty": false
+  },
+  "steps": [
+    {
+      "action": "wait_for_text",
+      "text": "Usage:",
+      "timeout_seconds": 5
+    }
+  ],
+  "assertions": [
+    {
+      "type": "output_contains",
+      "value": "Usage:"
+    }
   ],
   "expect_exit_code": 0
 }
@@ -114,44 +183,101 @@ Supported assertions:
 - `file_exists`
 - `file_contains`
 
-`command.pty` defaults to `true` for interactive TUI coverage. Set it to
-`false` for terminal commands that should be captured without an interactive
-PTY, while still producing asciinema-derived evidence.
+Use `renderers` when one recipe should run against multiple TUI frontends. For
+example, `{"opentui": [], "ink": ["--renderer", "ink"]}` lets
+`--renderer all` run both command variants and publish evidence for each.
 
-`renderers` maps renderer names to extra argv appended to the command. For a
-TUI with two frontends, a recipe can declare `{"opentui": [], "ink": ["-x",
-"ink"]}` and `--renderer all` will run both.
+## GitHub Actions
 
-The Pi examples do not assert a fixed exit code because Meta launcher sandbox
-policy differs by machine. The actual exit code is still recorded in
-`result.json` and `report.md`.
+This repository includes Actions for the regular verification lifecycle:
 
-For agent-driven recipes, set `"execution": "agent-driven"` and add an
-`operator` block such as `{"command": ["codex", "exec"], "prompt_mode":
-"stdin", "record_terminal": true}`. The prompt includes the recipe checks,
-target command, terminal dimensions, and expected JSON response schema.
+| Workflow | Trigger | What runs |
+| --- | --- | --- |
+| `CI` | every pull request and every commit pushed to `main` | unit tests, package build, generic TUI E2E verification, deterministic Pi agent UI verification, evidence upload |
+| `Release` | `v*.*.*` tags and manual dispatch | unit tests, package build, installed-wheel smoke test, generic TUI E2E verification, deterministic Pi agent UI verification, release evidence archive |
 
-## Packaging and CI
+The CI command is intentionally the same shape a downstream project should use:
 
-TUI Verifier ships as a normal Python package with the `tui-verify` console
-script. Recipe packs are plain directories containing `*.recipe.json` files and
-optional helper scripts, so downstream TUI projects can keep verification next
-to their own code.
+```bash
+uv run tui-verify run \
+  examples/generic \
+  examples/multi_turn_conversation.recipe.json \
+  examples/pi_workflow_readonly_review.recipe.json \
+  examples/pi_workflow_guarded_edit.recipe.json \
+  examples/pi_workflow_session_resume_export.recipe.json \
+  examples/pi_workflow_model_context.recipe.json \
+  --video --video-fps 60 --out .tui-verifier/ci
+```
+
+For your own project, replace the `examples/...` paths with your recipe pack:
+
+```yaml
+- name: Run TUI verification
+  run: |
+    uv run tui-verify run .tui-verifier/recipes \
+      --video --video-fps 60 --out .tui-verifier/ci
+
+- name: Upload TUI evidence
+  uses: actions/upload-artifact@v4
+  if: always()
+  with:
+    name: tui-verifier-evidence
+    path: .tui-verifier/ci
+    if-no-files-found: ignore
+```
+
+Public CI runs deterministic Pi-style workflows instead of provider-backed live
+Pi sessions. That keeps every PR, `main` commit, and release reproducible on a
+fresh GitHub runner while still validating multi-turn coding-agent UI patterns.
+
+## Pi Coding Agent Showcase
+
+Pi examples demonstrate how TUI Verifier captures coding-agent workflows:
+
+- `examples/pi_workflow_readonly_review.recipe.json` - read-only review with
+  tool gating.
+- `examples/pi_workflow_guarded_edit.recipe.json` - edit, patch, validate, and
+  summarize flow.
+- `examples/pi_workflow_session_resume_export.recipe.json` - named session,
+  resume, fork, and export flow.
+- `examples/pi_workflow_model_context.recipe.json` - provider/model routing and
+  context resource selection.
+- `examples/pi_codex_operator.recipe.json` - Codex operates the verification
+  target and returns a structured judgment.
+
+Tracked evidence is included under `examples/artifacts/`:
+
+- `examples/artifacts/latest-pi-workflows-report.md`
+- `examples/artifacts/pi-workflow-guarded-edit/session.mp4`
+- `examples/artifacts/pi-workflow-readonly-review/session.mp4`
+- `examples/artifacts/multi-turn-conversation/session.mp4`
+
+The real Pi CLI surface is also covered locally by:
+
+```bash
+uv run tui-verify run examples/pi_help.recipe.json --video
+uv run tui-verify run examples/pi_version.recipe.json --video
+uv run tui-verify run examples/pi_list.recipe.json --video
+```
+
+Those recipes call `examples/bin/pi-clean`, which prefers
+`/usr/local/bin/pi_cli/pi.real` when present and can be overridden with
+`TUI_VERIFIER_PI_BIN`. Provider-backed or private Pi installations should be
+run in local or private CI environments where the Pi binary and credentials are
+available.
+
+## Packaging
+
+TUI Verifier ships as a Python package with the `tui-verify` console script.
 
 ```bash
 uv build
-uv run tui-verify init .tui-verifier/recipes --name my-tui --command "my-tui"
-uv run tui-verify run .tui-verifier/recipes --video
+uv pip install dist/tui_verifier-*.whl
+tui-verify --help
 ```
 
-The repository includes GitHub Actions for pull-request validation and tagged
-releases. CI runs unit tests, builds the package, and executes portable
-end-to-end TUI recipes with cast, screenshot, MP4, JSON, and Markdown evidence.
-Release tags use the same verification path before creating distribution
-artifacts.
-
 See `docs/recipe-packs.md` and `docs/releases.md` for the reusable packaging
-contract.
+contract and release flow.
 
 ## Why Asciinema First
 
@@ -167,10 +293,6 @@ ffmpeg -y -loglevel error -i session.agg.gif \
   -pix_fmt yuv420p -movflags +faststart session.mp4
 ```
 
-Screenshots and videos are generated from the same terminal recording that the
-verifier used for assertions, so reviewers can inspect what happened instead of
-trusting a private terminal session.
-
-This mirrors the product-validation direction from the MetaCode TUI validation
-docs: drive the real terminal surface, assert product outcomes, and publish
-reviewable evidence.
+Screenshots, videos, assertions, and reports all come from the same terminal
+recording. Reviewers can inspect what happened instead of trusting a private
+terminal session.

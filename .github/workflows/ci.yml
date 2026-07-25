@@ -53,7 +53,7 @@ jobs:
       - name: Build package
         run: uv build
 
-      - name: Run portable end-to-end TUI verification
+      - name: Run generic and Pi agent UI verification
         run: |
           uv run tui-verify run \
             examples/generic \
