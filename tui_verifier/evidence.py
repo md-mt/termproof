@@ -26,6 +26,7 @@ def render_artifacts(
     cols: int | None = None,
     rows: int | None = None,
     screen_renderer: Any = None,
+    video_backend: Any = None,
 ) -> dict[str, str]:
     cast_path = run_dir / "session.cast"
     final_text, cols, rows = replay_cast(cast_path)
@@ -53,7 +54,10 @@ def render_artifacts(
             artifacts[name.removesuffix(".md").removesuffix(".json")] = str(path)
     if render_video and shutil.which("agg"):
         mp4_path = run_dir / "session.mp4"
-        render_mp4(cast_path, mp4_path, video_fps)
+        if video_backend is not None:
+            video_backend.render(cast_path, mp4_path, video_fps)
+        else:
+            render_mp4(cast_path, mp4_path, video_fps)
         artifacts["video"] = str(mp4_path)
     return artifacts
 

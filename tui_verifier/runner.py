@@ -20,6 +20,33 @@ from .registry import Registry
 from .screen import replay_cast
 from .session import TerminalSession
 
+# Protocol types for session/video backends
+from typing import Protocol as _Protocol
+from pathlib import Path as _Path
+
+
+class _SessionBackend(_Protocol):
+    def create_session(
+        self,
+        argv: list[str],
+        cast_path: _Path,
+        cwd: str | None,
+        env: dict[str, str],
+        cols: int,
+        rows: int,
+    ) -> TerminalSession: ...
+
+
+class _VideoBackend(_Protocol):
+    name: str
+
+    def render(
+        self,
+        cast_path: _Path,
+        output_path: _Path,
+        fps: int,
+    ) -> None: ...
+
 
 # -- registry builders -------------------------------------------------------
 
@@ -72,6 +99,19 @@ def _build_agent_runner_registry(config: VerifierConfig) -> Registry[Any]:
     return registry
 
 
+def _build_video_backend_registry(config: VerifierConfig) -> Registry[Any]:
+    registry: Registry[Any] = Registry()
+    for name, qualname in config.video_backends.items():
+        cls = _import_class(qualname)
+        registry.register(name, lambda c=cls: c())
+    return registry
+
+
+def _resolve_session_backend(config: VerifierConfig) -> _SessionBackend:
+    cls = _import_class(config.session_backend)
+    return cls()  # type: ignore[return-value]
+
+
 def _import_class(qualname: str) -> type:
     """Import a class from 'module.path:ClassName' string."""
     if ":" not in qualname:
@@ -108,6 +148,8 @@ class VerificationRunner:
         self.screen_renderer_registry = _build_renderer_registry(self.config)
         self.execution_mode_registry = _build_execution_mode_registry(self.config)
         self.agent_runner_registry = _build_agent_runner_registry(self.config)
+        self.video_backend_registry = _build_video_backend_registry(self.config)
+        self.session_backend = _resolve_session_backend(self.config)
 
     def run(
         self,
@@ -118,6 +160,7 @@ class VerificationRunner:
         renderer: str = "default",
         renderer_argv: list[str] | None = None,
         screen_renderer_name: str = "svg",
+        video_backend_name: str = "agg_ffmpeg",
     ) -> RunResult:
         start = time.monotonic()
         runnable_recipe = _with_renderer_argv(recipe, renderer_argv or [])
@@ -129,6 +172,7 @@ class VerificationRunner:
             self, runnable_recipe, run_dir
         )
         screen_renderer = self.screen_renderer_registry.get(screen_renderer_name)
+        video_backend = self.video_backend_registry.get(video_backend_name)
         artifacts = render_artifacts(
             run_dir,
             render_video,
@@ -137,6 +181,7 @@ class VerificationRunner:
             cols=recipe.cols,
             rows=recipe.rows,
             screen_renderer=screen_renderer,
+            video_backend=video_backend,
         )
         score = score_from_assertions(assertions)
         passed = all(step.passed for step in steps) and all(a.passed for a in assertions)
@@ -173,9 +218,10 @@ class VerificationRunner:
         run_dir: Path,
     ) -> tuple[list[StepResult], str, int | None, str]:
         steps: list[StepResult] = []
-        with TerminalSession(
+        cast_path = run_dir / "session.cast"
+        with self.session_backend.create_session(
             recipe.command.argv,
-            run_dir / "session.cast",
+            cast_path,
             recipe.command.cwd,
             recipe.command.env,
             recipe.cols,
@@ -198,7 +244,7 @@ class VerificationRunner:
         run_dir: Path,
     ) -> tuple[list[StepResult], str, int | None, str]:
         cast_path = run_dir / "session.cast"
-        with TerminalSession(
+        with self.session_backend.create_session(
             recipe.command.argv,
             cast_path,
             recipe.command.cwd,

@@ -32,6 +32,8 @@ def main(argv: list[str] | None = None) -> int:
                             help="reporter to use (default: markdown)")
     run_parser.add_argument("--screen-renderer", default="svg",
                             help="screen renderer to use (default: svg)")
+    run_parser.add_argument("--video-backend", default="agg_ffmpeg",
+                            help="video backend to use (default: agg_ffmpeg)")
     list_parser = subparsers.add_parser("list", help="list recipes")
     list_parser.add_argument("recipes", nargs="+", type=Path)
     list_parser.add_argument("--priority")
@@ -69,6 +71,7 @@ def main(argv: list[str] | None = None) -> int:
                         renderer=renderer_name,
                         renderer_argv=renderer_argv,
                         screen_renderer_name=args.screen_renderer,
+                        video_backend_name=args.video_backend,
                     )
                 )
         build_info = BuildInfo.from_command(recipes[0].command.argv) if recipes else None
