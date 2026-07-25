@@ -56,6 +56,22 @@ def _build_renderer_registry(config: VerifierConfig) -> Registry[Any]:
     return registry
 
 
+def _build_execution_mode_registry(config: VerifierConfig) -> Registry[Any]:
+    registry: Registry[Any] = Registry()
+    for name, qualname in config.execution_modes.items():
+        cls = _import_class(qualname)
+        registry.register(name, lambda c=cls: c())
+    return registry
+
+
+def _build_agent_runner_registry(config: VerifierConfig) -> Registry[Any]:
+    registry: Registry[Any] = Registry()
+    for name, qualname in config.agent_runners.items():
+        cls = _import_class(qualname)
+        registry.register(name, lambda c=cls: c())
+    return registry
+
+
 def _import_class(qualname: str) -> type:
     """Import a class from 'module.path:ClassName' string."""
     if ":" not in qualname:
@@ -67,6 +83,15 @@ def _import_class(qualname: str) -> type:
 
     module = importlib.import_module(module_name)
     return getattr(module, class_name)
+
+
+def _resolve_execution_mode_name(recipe: Recipe) -> str:
+    """Map recipe execution + pty to a config registry name."""
+    if recipe.execution == "agent-driven":
+        return "agent_driven"
+    if recipe.command.pty:
+        return "scripted_pty"
+    return "scripted_process"
 
 
 class VerificationRunner:
@@ -81,6 +106,8 @@ class VerificationRunner:
         self.assertion_registry = _build_assertion_registry(self.config)
         self.reporter_registry = _build_reporter_registry(self.config)
         self.screen_renderer_registry = _build_renderer_registry(self.config)
+        self.execution_mode_registry = _build_execution_mode_registry(self.config)
+        self.agent_runner_registry = _build_agent_runner_registry(self.config)
 
     def run(
         self,
@@ -96,18 +123,11 @@ class VerificationRunner:
         runnable_recipe = _with_renderer_argv(recipe, renderer_argv or [])
         run_dir = new_run_dir(out_dir, recipe.name, renderer)
         run_dir.mkdir(parents=True, exist_ok=True)
-        if runnable_recipe.execution == "agent-driven":
-            steps, assertions, raw_output, exit_code, screen = self._run_agent_driven(
-                runnable_recipe, run_dir
-            )
-        elif runnable_recipe.execution != "scripted":
-            raise ValueError(f"unknown execution mode: {runnable_recipe.execution}")
-        elif runnable_recipe.command.pty:
-            steps, raw_output, exit_code, screen = self._run_pty(runnable_recipe, run_dir)
-            assertions = self._evaluate_assertions(recipe, screen, raw_output, exit_code)
-        else:
-            steps, raw_output, exit_code, screen = self._run_process(runnable_recipe, run_dir)
-            assertions = self._evaluate_assertions(recipe, screen, raw_output, exit_code)
+        mode_name = _resolve_execution_mode_name(runnable_recipe)
+        mode = self.execution_mode_registry.get(mode_name)
+        steps, assertions, raw_output, exit_code, screen = mode.execute(
+            self, runnable_recipe, run_dir
+        )
         screen_renderer = self.screen_renderer_registry.get(screen_renderer_name)
         artifacts = render_artifacts(
             run_dir,
@@ -141,7 +161,10 @@ class VerificationRunner:
         recipe: Recipe,
         run_dir: Path,
     ) -> tuple[list[StepResult], list[AssertionResult], str, int | None, str]:
-        agent_runner = self.agent_runner or CodexCliAgentRunner.from_recipe(recipe)
+        if self.agent_runner is not None:
+            agent_runner = self.agent_runner
+        else:
+            agent_runner = CodexCliAgentRunner.from_recipe(recipe)
         return AgentDrivenRunner(agent_runner).run(recipe, run_dir)
 
     def _run_pty(
