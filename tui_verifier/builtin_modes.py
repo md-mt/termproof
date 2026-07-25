@@ -13,7 +13,7 @@ class ExecutionMode(Protocol):
 
     def execute(
         self,
-        runner: Any,  # VerificationRunner (forward ref to avoid circular import)
+        runner: Any,  # VerificationRunner
         recipe: Recipe,
         run_dir: Path,
     ) -> tuple[list[StepResult], list[AssertionResult], str, int | None, str]:
@@ -21,27 +21,46 @@ class ExecutionMode(Protocol):
 
 
 class ScriptedPtyMode:
-    """PTY-based scripted execution (the current default)."""
+    """PTY-based scripted execution — steps run interactively via terminal session."""
 
     name = "scripted_pty"
 
-    def execute(self, runner: Any, recipe: Recipe, run_dir: Path):
-        return runner._run_pty(recipe, run_dir)
+    def execute(
+        self,
+        runner: Any,
+        recipe: Recipe,
+        run_dir: Path,
+    ) -> tuple[list[StepResult], list[AssertionResult], str, int | None, str]:
+        steps, raw_output, exit_code, screen = runner._run_pty(recipe, run_dir)
+        assertions = runner._evaluate_assertions(recipe, screen, raw_output, exit_code)
+        return steps, assertions, raw_output, exit_code, screen
 
 
 class ScriptedProcessMode:
-    """Process-mode scripted execution (non-PTY)."""
+    """Process-mode scripted execution — runs to completion, then evaluates."""
 
     name = "scripted_process"
 
-    def execute(self, runner: Any, recipe: Recipe, run_dir: Path):
-        return runner._run_process(recipe, run_dir)
+    def execute(
+        self,
+        runner: Any,
+        recipe: Recipe,
+        run_dir: Path,
+    ) -> tuple[list[StepResult], list[AssertionResult], str, int | None, str]:
+        steps, raw_output, exit_code, screen = runner._run_process(recipe, run_dir)
+        assertions = runner._evaluate_assertions(recipe, screen, raw_output, exit_code)
+        return steps, assertions, raw_output, exit_code, screen
 
 
 class AgentDrivenMode:
-    """Agent-driven execution mode."""
+    """Agent-driven execution — delegates to an AI agent for interactive verification."""
 
     name = "agent_driven"
 
-    def execute(self, runner: Any, recipe: Recipe, run_dir: Path):
+    def execute(
+        self,
+        runner: Any,
+        recipe: Recipe,
+        run_dir: Path,
+    ) -> tuple[list[StepResult], list[AssertionResult], str, int | None, str]:
         return runner._run_agent_driven(recipe, run_dir)
