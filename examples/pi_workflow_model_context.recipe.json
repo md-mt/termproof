@@ -1,0 +1,105 @@
+{
+  "name": "pi-workflow-model-context",
+  "description": "Drive a deterministic Pi-style model routing, thinking level, and context-resource workflow.",
+  "priority": "P1",
+  "execution": "scripted",
+  "determinism": "deterministic",
+  "checks": [
+    "provider and model selection are visible",
+    "thinking and model cycling are visible",
+    "skills, prompt templates, themes, and startup switches are visible"
+  ],
+  "renderers": {
+    "default": []
+  },
+  "command": {
+    "argv": ["python3", "examples/apps/pi_workflow_demo.py", "model-context"],
+    "pty": true
+  },
+  "timeout_seconds": 30,
+  "cols": 116,
+  "rows": 28,
+  "steps": [
+    {
+      "name": "wait for prompt",
+      "action": "wait_for_text",
+      "text": "pi>",
+      "timeout_seconds": 5
+    },
+    {
+      "name": "choose model",
+      "action": "send_line",
+      "text": "choose model"
+    },
+    {
+      "name": "wait for model",
+      "action": "wait_for_text",
+      "text": "MODEL ROUTING READY",
+      "timeout_seconds": 10
+    },
+    {
+      "name": "load context",
+      "action": "send_line",
+      "text": "load context"
+    },
+    {
+      "name": "wait for context",
+      "action": "wait_for_text",
+      "text": "CONTEXT RESOURCES LOADED",
+      "timeout_seconds": 10
+    },
+    {
+      "name": "configure startup",
+      "action": "send_line",
+      "text": "configure startup"
+    },
+    {
+      "name": "wait for startup",
+      "action": "wait_for_text",
+      "text": "MODEL CONTEXT WORKFLOW COMPLETE",
+      "timeout_seconds": 10
+    },
+    {
+      "name": "close session",
+      "action": "send_line",
+      "text": "exit"
+    },
+    {
+      "name": "wait for close",
+      "action": "wait_for_text",
+      "text": "WORKFLOW SESSION COMPLETE",
+      "timeout_seconds": 5
+    }
+  ],
+  "assertions": [
+    {
+      "type": "output_contains",
+      "value": "--provider openai --model gpt-4o-mini"
+    },
+    {
+      "type": "output_contains",
+      "value": "--model sonnet:high --thinking high"
+    },
+    {
+      "type": "output_contains",
+      "value": "--append-system-prompt project-rules.md"
+    },
+    {
+      "type": "output_contains",
+      "value": "--skill ./skills/reviewer"
+    },
+    {
+      "type": "output_contains",
+      "value": "--prompt-template ./prompts/fix-bug.md"
+    },
+    {
+      "type": "output_contains",
+      "value": "--offline --no-context-files --no-extensions --no-skills"
+    },
+    {
+      "type": "output_contains",
+      "value": "MODEL CONTEXT WORKFLOW COMPLETE"
+    }
+  ],
+  "expect_exit_code": 0
+}

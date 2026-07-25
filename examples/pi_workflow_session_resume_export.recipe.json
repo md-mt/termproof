@@ -1,0 +1,101 @@
+{
+  "name": "pi-workflow-session-resume-export",
+  "description": "Drive a deterministic Pi-style session naming, resume, fork, and export workflow.",
+  "priority": "P1",
+  "execution": "scripted",
+  "determinism": "deterministic",
+  "checks": [
+    "named sessions are visible",
+    "resume and explicit session selection are visible",
+    "fork and export handoff are visible"
+  ],
+  "renderers": {
+    "default": []
+  },
+  "command": {
+    "argv": ["python3", "examples/apps/pi_workflow_demo.py", "session-resume-export"],
+    "pty": true
+  },
+  "timeout_seconds": 30,
+  "cols": 110,
+  "rows": 28,
+  "steps": [
+    {
+      "name": "wait for prompt",
+      "action": "wait_for_text",
+      "text": "pi>",
+      "timeout_seconds": 5
+    },
+    {
+      "name": "start session",
+      "action": "send_line",
+      "text": "start session"
+    },
+    {
+      "name": "wait for start",
+      "action": "wait_for_text",
+      "text": "SESSION STARTED",
+      "timeout_seconds": 10
+    },
+    {
+      "name": "continue session",
+      "action": "send_line",
+      "text": "continue session"
+    },
+    {
+      "name": "wait for resume",
+      "action": "wait_for_text",
+      "text": "SESSION RESUMED",
+      "timeout_seconds": 10
+    },
+    {
+      "name": "fork export",
+      "action": "send_line",
+      "text": "fork export"
+    },
+    {
+      "name": "wait for export",
+      "action": "wait_for_text",
+      "text": "SESSION RESUME EXPORT COMPLETE",
+      "timeout_seconds": 10
+    },
+    {
+      "name": "close session",
+      "action": "send_line",
+      "text": "exit"
+    },
+    {
+      "name": "wait for close",
+      "action": "wait_for_text",
+      "text": "WORKFLOW SESSION COMPLETE",
+      "timeout_seconds": 5
+    }
+  ],
+  "assertions": [
+    {
+      "type": "output_contains",
+      "value": "--name \"Verifier workflow audit\""
+    },
+    {
+      "type": "output_contains",
+      "value": "--continue"
+    },
+    {
+      "type": "output_contains",
+      "value": "--session workflow-001"
+    },
+    {
+      "type": "output_contains",
+      "value": "--fork workflow-001"
+    },
+    {
+      "type": "output_contains",
+      "value": "--export session.jsonl output.html"
+    },
+    {
+      "type": "output_contains",
+      "value": "SESSION RESUME EXPORT COMPLETE"
+    }
+  ],
+  "expect_exit_code": 0
+}

@@ -1,0 +1,108 @@
+{
+  "name": "pi-workflow-guarded-edit",
+  "description": "Drive a deterministic Pi-style edit, validation, and diff-summary workflow.",
+  "priority": "P1",
+  "execution": "scripted",
+  "determinism": "deterministic",
+  "checks": [
+    "edit workflow reads before modifying",
+    "patch application is visible",
+    "tests and diff review are visible"
+  ],
+  "renderers": {
+    "default": []
+  },
+  "command": {
+    "argv": ["python3", "examples/apps/pi_workflow_demo.py", "guarded-edit"],
+    "pty": true
+  },
+  "timeout_seconds": 35,
+  "cols": 110,
+  "rows": 30,
+  "steps": [
+    {
+      "name": "wait for prompt",
+      "action": "wait_for_text",
+      "text": "pi>",
+      "timeout_seconds": 5
+    },
+    {
+      "name": "propose change",
+      "action": "send_line",
+      "text": "propose change"
+    },
+    {
+      "name": "wait for plan",
+      "action": "wait_for_text",
+      "text": "GUARDED EDIT PLAN READY",
+      "timeout_seconds": 10
+    },
+    {
+      "name": "apply patch",
+      "action": "send_line",
+      "text": "apply patch"
+    },
+    {
+      "name": "wait for patch",
+      "action": "wait_for_text",
+      "text": "GUARDED PATCH APPLIED",
+      "timeout_seconds": 10
+    },
+    {
+      "name": "validate tests",
+      "action": "send_line",
+      "text": "validate tests"
+    },
+    {
+      "name": "wait for validation",
+      "action": "wait_for_text",
+      "text": "GUARDED VALIDATION COMPLETE",
+      "timeout_seconds": 10
+    },
+    {
+      "name": "summarize diff",
+      "action": "send_line",
+      "text": "summarize diff"
+    },
+    {
+      "name": "wait for summary",
+      "action": "wait_for_text",
+      "text": "GUARDED EDIT COMPLETE",
+      "timeout_seconds": 10
+    },
+    {
+      "name": "close session",
+      "action": "send_line",
+      "text": "exit"
+    },
+    {
+      "name": "wait for close",
+      "action": "wait_for_text",
+      "text": "WORKFLOW SESSION COMPLETE",
+      "timeout_seconds": 5
+    }
+  ],
+  "assertions": [
+    {
+      "type": "output_contains",
+      "value": "tool allowlist: read,bash,edit,write"
+    },
+    {
+      "type": "output_contains",
+      "value": "patch applied"
+    },
+    {
+      "type": "output_contains",
+      "value": "12 tests passed"
+    },
+    {
+      "type": "output_contains",
+      "value": "diff reviewed"
+    },
+    {
+      "type": "output_contains",
+      "value": "GUARDED EDIT COMPLETE"
+    }
+  ],
+  "expect_exit_code": 0
+}

@@ -18,6 +18,7 @@ uv run tui-verify run examples/pi_list.recipe.json --video
 uv run tui-verify run examples --priority P0 --renderer all --video
 uv run tui-verify run examples/multi_turn_conversation.recipe.json --video
 uv run tui-verify run examples/pi_codex_operator.recipe.json --video
+uv run tui-verify run examples/pi_workflow_*.recipe.json --video
 uv run tui-verify list examples --priority P0
 ```
 
@@ -36,6 +37,10 @@ Tracked Pi sample artifacts are included under `examples/artifacts/`.
 `examples/multi_turn_conversation.recipe.json` is a longer deterministic
 conversation fixture for reviewing multi-turn casts and videos without model
 provider dependencies.
+`examples/pi_workflow_*.recipe.json` expands the Pi showcase into workflow
+recipes for CLI capability discovery, package lifecycle help, read-only review,
+guarded edit/validation, session resume/export, and model/context resource
+selection.
 
 The Pi recipes call `examples/bin/pi-clean`, which uses
 `/usr/local/bin/pi_cli/pi.real` when present. That avoids recording Meta's local

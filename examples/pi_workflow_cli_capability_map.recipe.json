@@ -1,0 +1,78 @@
+{
+  "name": "pi-workflow-cli-capability-map",
+  "description": "Capture Pi's top-level coding-agent workflow surface from the real CLI.",
+  "priority": "P0",
+  "execution": "scripted",
+  "determinism": "deterministic",
+  "checks": [
+    "interactive and print modes are documented",
+    "session workflows are documented",
+    "tool gating workflows are documented",
+    "context resource workflows are documented"
+  ],
+  "renderers": {
+    "default": []
+  },
+  "command": {
+    "argv": ["python3", "examples/apps/pi_cli_help_matrix.py", "overview"],
+    "pty": false
+  },
+  "timeout_seconds": 20,
+  "cols": 120,
+  "rows": 46,
+  "steps": [
+    {
+      "name": "wait for usage",
+      "action": "wait_for_text",
+      "text": "Usage:",
+      "timeout_seconds": 10
+    }
+  ],
+  "assertions": [
+    {
+      "type": "output_contains",
+      "value": "Interactive mode"
+    },
+    {
+      "type": "output_contains",
+      "value": "--print, -p"
+    },
+    {
+      "type": "output_contains",
+      "value": "--continue, -c"
+    },
+    {
+      "type": "output_contains",
+      "value": "--session-dir <dir>"
+    },
+    {
+      "type": "output_contains",
+      "value": "--tools, -t <tools>"
+    },
+    {
+      "type": "output_contains",
+      "value": "--append-system-prompt <text>"
+    },
+    {
+      "type": "output_contains",
+      "value": "--export <file>"
+    },
+    {
+      "type": "output_contains",
+      "value": "Built-in Tool Names"
+    },
+    {
+      "name": "sandbox failure is absent",
+      "type": "output_not_contains",
+      "value": "sandbox_apply",
+      "detail": "sandbox failure is absent"
+    },
+    {
+      "name": "sandbox launcher error is absent",
+      "type": "output_not_contains",
+      "value": "sandbox-exec",
+      "detail": "sandbox launcher error is absent"
+    }
+  ],
+  "expect_exit_code": 0
+}

@@ -1,0 +1,70 @@
+{
+  "name": "pi-workflow-package-lifecycle",
+  "description": "Capture Pi package install, remove, update, list, and config workflow help from the real CLI.",
+  "priority": "P0",
+  "execution": "scripted",
+  "determinism": "deterministic",
+  "checks": [
+    "package installation workflow is documented",
+    "package removal workflow is documented",
+    "package update workflow is documented",
+    "resource config TUI workflow is documented"
+  ],
+  "renderers": {
+    "default": []
+  },
+  "command": {
+    "argv": ["python3", "examples/apps/pi_cli_help_matrix.py", "packages"],
+    "pty": false
+  },
+  "timeout_seconds": 20,
+  "cols": 118,
+  "rows": 38,
+  "steps": [
+    {
+      "name": "wait for install help",
+      "action": "wait_for_text",
+      "text": "pi install <source>",
+      "timeout_seconds": 10
+    }
+  ],
+  "assertions": [
+    {
+      "type": "output_contains",
+      "value": "pi install <source>"
+    },
+    {
+      "type": "output_contains",
+      "value": "pi remove <source>"
+    },
+    {
+      "type": "output_contains",
+      "value": "pi update [source|self|pi]"
+    },
+    {
+      "type": "output_contains",
+      "value": "pi list [--approve|--no-approve]"
+    },
+    {
+      "type": "output_contains",
+      "value": "Open the resource configuration TUI"
+    },
+    {
+      "type": "output_contains",
+      "value": "Press Tab in the TUI"
+    },
+    {
+      "name": "sandbox failure is absent",
+      "type": "output_not_contains",
+      "value": "sandbox_apply",
+      "detail": "sandbox failure is absent"
+    },
+    {
+      "name": "sandbox launcher error is absent",
+      "type": "output_not_contains",
+      "value": "sandbox-exec",
+      "detail": "sandbox launcher error is absent"
+    }
+  ],
+  "expect_exit_code": 0
+}

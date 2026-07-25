@@ -1,0 +1,104 @@
+{
+  "name": "pi-workflow-readonly-review",
+  "description": "Drive a deterministic Pi-style read-only code review workflow with tool gating.",
+  "priority": "P1",
+  "execution": "scripted",
+  "determinism": "deterministic",
+  "checks": [
+    "read-only tool allowlist is visible",
+    "inspection avoids write/edit tools",
+    "review findings are summarized"
+  ],
+  "renderers": {
+    "default": []
+  },
+  "command": {
+    "argv": ["python3", "examples/apps/pi_workflow_demo.py", "readonly-review"],
+    "pty": true
+  },
+  "timeout_seconds": 35,
+  "cols": 110,
+  "rows": 30,
+  "steps": [
+    {
+      "name": "wait for prompt",
+      "action": "wait_for_text",
+      "text": "pi>",
+      "timeout_seconds": 5
+    },
+    {
+      "name": "scope repository",
+      "action": "send_line",
+      "text": "scope repository"
+    },
+    {
+      "name": "wait for scope",
+      "action": "wait_for_text",
+      "text": "READONLY SCOPE READY",
+      "timeout_seconds": 10
+    },
+    {
+      "name": "inspect files",
+      "action": "send_line",
+      "text": "inspect files"
+    },
+    {
+      "name": "wait for inspection",
+      "action": "wait_for_text",
+      "text": "READONLY INSPECTION COMPLETE",
+      "timeout_seconds": 10
+    },
+    {
+      "name": "run validation",
+      "action": "send_line",
+      "text": "run validation"
+    },
+    {
+      "name": "wait for validation",
+      "action": "wait_for_text",
+      "text": "READONLY VALIDATION COMPLETE",
+      "timeout_seconds": 10
+    },
+    {
+      "name": "report findings",
+      "action": "send_line",
+      "text": "report findings"
+    },
+    {
+      "name": "wait for review",
+      "action": "wait_for_text",
+      "text": "READONLY REVIEW COMPLETE",
+      "timeout_seconds": 10
+    },
+    {
+      "name": "close session",
+      "action": "send_line",
+      "text": "exit"
+    },
+    {
+      "name": "wait for close",
+      "action": "wait_for_text",
+      "text": "WORKFLOW SESSION COMPLETE",
+      "timeout_seconds": 5
+    }
+  ],
+  "assertions": [
+    {
+      "type": "output_contains",
+      "value": "--tools read,grep,find,ls"
+    },
+    {
+      "type": "output_contains",
+      "value": "no write/edit tools were enabled"
+    },
+    {
+      "type": "output_contains",
+      "value": "READONLY REVIEW COMPLETE"
+    },
+    {
+      "type": "output_contains",
+      "value": "WORKFLOW SESSION COMPLETE"
+    }
+  ],
+  "expect_exit_code": 0
+}
