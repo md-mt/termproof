@@ -1,0 +1,108 @@
+{
+  "name": "multi-turn-conversation",
+  "description": "Drive a longer multi-turn terminal conversation and publish cast, screenshots, video, and reports.",
+  "priority": "P1",
+  "execution": "scripted",
+  "determinism": "deterministic",
+  "checks": [
+    "multi-turn conversation renders",
+    "asciinema evidence is recorded",
+    "video contains multiple terminal states"
+  ],
+  "renderers": {
+    "default": []
+  },
+  "command": {
+    "argv": ["python3", "examples/apps/multi_turn_conversation.py"],
+    "pty": true
+  },
+  "timeout_seconds": 45,
+  "cols": 100,
+  "rows": 28,
+  "steps": [
+    {
+      "name": "wait for prompt",
+      "action": "wait_for_text",
+      "text": "you>",
+      "timeout_seconds": 5
+    },
+    {
+      "name": "inspect repository",
+      "action": "send_line",
+      "text": "Inspect the repository and identify the verifier pipeline."
+    },
+    {
+      "name": "wait for inspection",
+      "action": "wait_for_text",
+      "text": "Repository inspection complete.",
+      "timeout_seconds": 10
+    },
+    {
+      "name": "pause after inspection",
+      "action": "sleep",
+      "seconds": 1.2
+    },
+    {
+      "name": "run pipeline",
+      "action": "send_line",
+      "text": "Run the verifier pipeline and describe each artifact."
+    },
+    {
+      "name": "wait for pipeline",
+      "action": "wait_for_text",
+      "text": "Pipeline completed.",
+      "timeout_seconds": 10
+    },
+    {
+      "name": "pause after render",
+      "action": "sleep",
+      "seconds": 1.2
+    },
+    {
+      "name": "summarize evidence",
+      "action": "send_line",
+      "text": "Summarize the evidence package."
+    },
+    {
+      "name": "wait for summary",
+      "action": "wait_for_text",
+      "text": "Multi-turn verification passed.",
+      "timeout_seconds": 10
+    },
+    {
+      "name": "pause before exit",
+      "action": "sleep",
+      "seconds": 1.2
+    },
+    {
+      "name": "close session",
+      "action": "send_line",
+      "text": "exit"
+    },
+    {
+      "name": "wait for completion",
+      "action": "wait_for_text",
+      "text": "SESSION COMPLETE",
+      "timeout_seconds": 5
+    }
+  ],
+  "assertions": [
+    {
+      "type": "output_contains",
+      "value": "Repository inspection complete."
+    },
+    {
+      "type": "output_contains",
+      "value": "Rendering MP4 with agg plus ffmpeg."
+    },
+    {
+      "type": "output_contains",
+      "value": "Multi-turn verification passed."
+    },
+    {
+      "type": "output_contains",
+      "value": "SESSION COMPLETE"
+    }
+  ],
+  "expect_exit_code": 0
+}

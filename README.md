@@ -16,6 +16,7 @@ uv run tui-verify run examples/pi_help.recipe.json --video
 uv run tui-verify run examples/pi_version.recipe.json --video
 uv run tui-verify run examples/pi_list.recipe.json --video
 uv run tui-verify run examples --priority P0 --renderer all --video
+uv run tui-verify run examples/multi_turn_conversation.recipe.json --video
 uv run tui-verify run examples/pi_codex_operator.recipe.json --video
 uv run tui-verify list examples --priority P0
 ```
@@ -32,6 +33,9 @@ Each run writes artifacts under `.tui-verifier/runs/<run-id>/`:
 - `latest-report.md` - aggregate report when multiple recipes/renderers run
 
 Tracked Pi sample artifacts are included under `examples/artifacts/`.
+`examples/multi_turn_conversation.recipe.json` is a longer deterministic
+conversation fixture for reviewing multi-turn casts and videos without model
+provider dependencies.
 
 The Pi recipes call `examples/bin/pi-clean`, which uses
 `/usr/local/bin/pi_cli/pi.real` when present. That avoids recording Meta's local
