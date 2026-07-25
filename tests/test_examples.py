@@ -16,6 +16,7 @@ class ExampleRecipeTest(unittest.TestCase):
         self.assertIn("pi-workflow-guarded-edit", names)
         self.assertIn("pi-workflow-session-resume-export", names)
         self.assertIn("pi-workflow-model-context", names)
+        self.assertIn("generic-tui-workflow", names)
 
 
 if __name__ == "__main__":

@@ -16,7 +16,9 @@ from tui_verifier.report import ReportGenerator
 class StackDesignTest(unittest.TestCase):
     def test_registry_loads_and_filters_recipe_files(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            path = Path(tmp) / "demo.recipe.json"
+            nested = Path(tmp) / "pack"
+            nested.mkdir()
+            path = nested / "demo.recipe.json"
             path.write_text(
                 """{
   "name": "demo",

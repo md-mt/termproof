@@ -19,6 +19,8 @@ uv run tui-verify run examples --priority P0 --renderer all --video
 uv run tui-verify run examples/multi_turn_conversation.recipe.json --video
 uv run tui-verify run examples/pi_codex_operator.recipe.json --video
 uv run tui-verify run examples/pi_workflow_*.recipe.json --video
+uv run tui-verify run examples/generic --video
+uv run tui-verify init .tui-verifier/recipes --name my-tui --command "my-tui --help"
 uv run tui-verify list examples --priority P0
 ```
 
@@ -41,6 +43,8 @@ provider dependencies.
 recipes for CLI capability discovery, package lifecycle help, read-only review,
 guarded edit/validation, session resume/export, and model/context resource
 selection.
+`examples/generic/` is a portable recipe pack for non-Pi terminal software and
+is used by GitHub Actions as the arbitrary-TUI smoke test.
 
 The Pi recipes call `examples/bin/pi-clean`, which uses
 `/usr/local/bin/pi_cli/pi.real` when present. That avoids recording Meta's local
@@ -126,6 +130,28 @@ For agent-driven recipes, set `"execution": "agent-driven"` and add an
 `operator` block such as `{"command": ["codex", "exec"], "prompt_mode":
 "stdin", "record_terminal": true}`. The prompt includes the recipe checks,
 target command, terminal dimensions, and expected JSON response schema.
+
+## Packaging and CI
+
+TUI Verifier ships as a normal Python package with the `tui-verify` console
+script. Recipe packs are plain directories containing `*.recipe.json` files and
+optional helper scripts, so downstream TUI projects can keep verification next
+to their own code.
+
+```bash
+uv build
+uv run tui-verify init .tui-verifier/recipes --name my-tui --command "my-tui"
+uv run tui-verify run .tui-verifier/recipes --video
+```
+
+The repository includes GitHub Actions for pull-request validation and tagged
+releases. CI runs unit tests, builds the package, and executes portable
+end-to-end TUI recipes with cast, screenshot, MP4, JSON, and Markdown evidence.
+Release tags use the same verification path before creating distribution
+artifacts.
+
+See `docs/recipe-packs.md` and `docs/releases.md` for the reusable packaging
+contract.
 
 ## Why Asciinema First
 

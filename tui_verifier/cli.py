@@ -10,6 +10,7 @@ from .registry import load_recipes, select_recipes
 from .renderer import selected_renderers
 from .report import ReportGenerator
 from .runner import VerificationRunner
+from .scaffold import write_recipe_pack
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -28,6 +29,15 @@ def main(argv: list[str] | None = None) -> int:
     list_parser = subparsers.add_parser("list", help="list recipes")
     list_parser.add_argument("recipes", nargs="+", type=Path)
     list_parser.add_argument("--priority")
+    init_parser = subparsers.add_parser("init", help="create a reusable recipe pack")
+    init_parser.add_argument("path", type=Path)
+    init_parser.add_argument("--name", required=True)
+    init_parser.add_argument("--command", required=True, dest="target_command")
+    init_parser.add_argument("--non-pty", action="store_true")
+    init_parser.add_argument("--priority", default="P2")
+    init_parser.add_argument("--cols", type=int, default=100)
+    init_parser.add_argument("--rows", type=int, default=30)
+    init_parser.add_argument("--force", action="store_true")
     args = parser.parse_args(argv)
 
     if args.command == "run":
@@ -70,5 +80,22 @@ def main(argv: list[str] | None = None) -> int:
         recipes = select_recipes(load_recipes(args.recipes), priority=args.priority)
         for recipe in recipes:
             print(f"{recipe.name}\t{recipe.priority}\t{recipe.execution}\t{recipe.description}")
+        return 0
+    if args.command == "init":
+        try:
+            recipe_path = write_recipe_pack(
+                args.path,
+                args.name,
+                args.target_command,
+                not args.non_pty,
+                args.priority,
+                args.cols,
+                args.rows,
+                force=args.force,
+            )
+        except FileExistsError as error:
+            print(f"recipe already exists: {error}")
+            return 1
+        print(f"created recipe: {recipe_path}")
         return 0
     return 2

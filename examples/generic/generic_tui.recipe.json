@@ -1,0 +1,94 @@
+{
+  "name": "generic-tui-workflow",
+  "description": "Portable non-Pi TUI workflow used by CI and release verification.",
+  "priority": "P1",
+  "execution": "scripted",
+  "determinism": "deterministic",
+  "checks": [
+    "generic TUI opens dashboard",
+    "generic TUI filters data",
+    "generic TUI exports a report",
+    "terminal evidence is recorded"
+  ],
+  "renderers": {
+    "default": []
+  },
+  "command": {
+    "argv": ["python3", "examples/generic/generic_tui.py"],
+    "pty": true
+  },
+  "timeout_seconds": 25,
+  "cols": 100,
+  "rows": 24,
+  "steps": [
+    {
+      "name": "wait for prompt",
+      "action": "wait_for_text",
+      "text": "demo>",
+      "timeout_seconds": 5
+    },
+    {
+      "name": "open dashboard",
+      "action": "send_line",
+      "text": "open dashboard"
+    },
+    {
+      "name": "wait for dashboard",
+      "action": "wait_for_text",
+      "text": "DASHBOARD READY",
+      "timeout_seconds": 5
+    },
+    {
+      "name": "filter errors",
+      "action": "send_line",
+      "text": "filter errors"
+    },
+    {
+      "name": "wait for filter",
+      "action": "wait_for_text",
+      "text": "FILTER READY",
+      "timeout_seconds": 5
+    },
+    {
+      "name": "export report",
+      "action": "send_line",
+      "text": "export report"
+    },
+    {
+      "name": "wait for export",
+      "action": "wait_for_text",
+      "text": "EXPORT READY",
+      "timeout_seconds": 5
+    },
+    {
+      "name": "close session",
+      "action": "send_line",
+      "text": "exit"
+    },
+    {
+      "name": "wait for close",
+      "action": "wait_for_text",
+      "text": "GENERIC TUI COMPLETE",
+      "timeout_seconds": 5
+    }
+  ],
+  "assertions": [
+    {
+      "type": "output_contains",
+      "value": "DASHBOARD READY"
+    },
+    {
+      "type": "output_contains",
+      "value": "FILTER READY"
+    },
+    {
+      "type": "output_contains",
+      "value": "EXPORT READY"
+    },
+    {
+      "type": "output_contains",
+      "value": "GENERIC TUI COMPLETE"
+    }
+  ],
+  "expect_exit_code": 0
+}

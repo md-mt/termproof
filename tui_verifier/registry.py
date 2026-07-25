@@ -10,7 +10,7 @@ def find_recipe_files(paths: list[Path]) -> list[Path]:
     files: list[Path] = []
     for path in paths:
         if path.is_dir():
-            files.extend(sorted(path.glob("*.recipe.json")))
+            files.extend(sorted(path.rglob("*.recipe.json")))
         else:
             files.append(path)
     return files

@@ -1,0 +1,60 @@
+# Recipe Packs
+
+A recipe pack is a directory that contains one or more `*.recipe.json` files
+plus any helper scripts needed to drive the target terminal application.
+
+```text
+.tui-verifier/
+  recipes/
+    smoke.recipe.json
+    regression.recipe.json
+    apps/
+      scripted_fixture.py
+```
+
+Run a pack with:
+
+```bash
+tui-verify run .tui-verifier/recipes --video
+```
+
+Create a starter pack with:
+
+```bash
+tui-verify init .tui-verifier/recipes --name my-tui --command "my-tui"
+```
+
+## Package Contract
+
+- Recipes are JSON and can be checked into any repository.
+- Discovery is recursive, so larger projects can group recipes by feature.
+- Helper scripts are project-owned and can launch any TUI, CLI, or test fixture.
+- `command.argv` is the target process.
+- `command.pty` should be `true` for interactive TUI workflows.
+- `steps` drive the terminal with waits, keypresses, text, lines, and sleeps.
+- `assertions` evaluate raw output, final screen text, exit code, or files.
+- `renderers` let one recipe fan out across multiple frontend implementations.
+
+## Recommended Layout
+
+Use three layers for a real product:
+
+```text
+.tui-verifier/
+  recipes/
+    p0/
+      smoke.recipe.json
+    p1/
+      resize.recipe.json
+      multi-turn.recipe.json
+    fixtures/
+      seed-project.sh
+```
+
+Run P0 on every pull request and broader P1/P2 suites on release candidates.
+Upload `.tui-verifier/runs` as a CI artifact so reviewers can inspect casts,
+screenshots, MP4 videos, and reports.
+
+The Pi recipes under `examples/` are one recipe pack. The portable non-Pi pack
+under `examples/generic/` demonstrates the same interface for arbitrary terminal
+software.
