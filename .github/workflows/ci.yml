@@ -52,6 +52,37 @@ jobs:
       - name: Run unit tests
         run: uv run python -m unittest discover -s tests
 
+      - name: Run plugin-template unit tests
+        run: |
+          (cd plugin-template && uv run python -m unittest discover -s tests -v)
+
+      - name: Build plugin-template package
+        run: |
+          (cd plugin-template && uv build)
+
+      - name: Smoke-test plugin-template installed wheel
+        run: |
+          (cd plugin-template && python -m venv .pkg-test)
+          plugin-template/.pkg-test/bin/pip install plugin-template/dist/*.whl
+          plugin-template/.pkg-test/bin/python -c "
+          import termproof_my_plugin
+          expected = {'JsonSummaryReporter', 'ScreenCount', 'WaitForRegex'}
+          actual = set(termproof_my_plugin.__all__)
+          assert actual == expected, f'__all__ mismatch: {actual} != {expected}'
+          print('__all__ verified:', termproof_my_plugin.__all__)
+          "
+
+      - name: Verify plugin-template config wiring
+        run: |
+          PYTHONPATH=plugin-template/src uv run python plugin-template/scripts/check_config_wiring.py
+
+      - name: Run plugin-template demo end-to-end
+        run: |
+          PYTHONPATH=plugin-template/src:$PYTHONPATH uv run termproof run \
+            plugin-template/examples/demo.recipe.json \
+            --config plugin-template/examples/.termproof/config.yaml \
+            --reporter json_summary
+
       - name: Build package
         run: uv build
 
