@@ -204,6 +204,16 @@ example, `{"opentui": [], "ink": ["--renderer", "ink"]}` lets
 
 ## GitHub Actions
 
+TermProof is also a reusable composite action (`md-mt/termproof@v0.2.0`). It accepts a recipe path plus video and fps controls, installs the published platform wheel, executes the recipes, uploads `termproof-evidence`, and writes the recipe report to the GitHub job summary. It does not read repository secrets or post PR comments, so it is safe for pull requests from forks.
+
+```yaml
+- uses: md-mt/termproof@v0.2.0
+  with:
+    recipe-path: .termproof/recipes
+    video: "true"
+    fps: "60"
+```
+
 This repository includes Actions for the regular verification lifecycle:
 
 | Workflow | Trigger | What runs |

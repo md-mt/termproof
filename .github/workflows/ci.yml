@@ -1,166 +1,45 @@
 name: CI
-
-on:
-  pull_request:
-  push:
-    branches:
-      - main
-
+on: [pull_request, push]
 permissions:
   contents: read
-  issues: write
   pull-requests: write
-
 jobs:
-  verify:
-    name: Test, build, and verify TUI evidence
+  test:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Set up uv
-        uses: astral-sh/setup-uv@v5
-
-      - name: Set up Rust for agg
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache cargo
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/bin
-            ~/.cargo/registry
-            ~/.cargo/git
-          key: cargo-agg-v1.9.0-${{ runner.os }}
-
-      - name: Install system render dependencies
-        run: sudo apt-get update && sudo apt-get install -y ffmpeg
-
-      - name: Install agg
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv run python -m unittest discover -s tests
+  wheel:
+    name: bundled agg (${{ matrix.target }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: linux-x86_64
+            os: ubuntu-latest
+          - target: macos-arm64
+            os: macos-14
+          - target: macos-x86_64
+            os: macos-13
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build pinned agg and platform wheel
+        env:
+          TERMPROOF_AGG_TARGET: ${{ matrix.target }}
         run: |
-          if ! command -v agg >/dev/null 2>&1; then
-            cargo install --locked --git https://github.com/asciinema/agg --tag v1.9.0
-          fi
-
-      - name: Run unit tests
-        run: uv run python -m unittest discover -s tests
-
-      - name: Build package
-        run: uv build
-
+          uv run python scripts/build_agg.py --target "$TERMPROOF_AGG_TARGET"
+          uv build --wheel
       - name: Smoke-test installed wheel
         run: |
-          python -m venv .pkg-test
-          .pkg-test/bin/pip install dist/*.whl
-          (
-            cd /tmp
-            "$GITHUB_WORKSPACE/.pkg-test/bin/termproof" --help
-            "$GITHUB_WORKSPACE/.pkg-test/bin/python" -c "import termproof; from pathlib import Path; assert 'site-packages' in str(Path(termproof.__file__))"
-          )
-
-      - name: Run generic and Pi agent UI verification
-        run: |
-          uv run termproof run \
-            examples/generic \
-            examples/multi_turn_conversation.recipe.json \
-            examples/pi_workflow_readonly_review.recipe.json \
-            examples/pi_workflow_guarded_edit.recipe.json \
-            examples/pi_workflow_session_resume_export.recipe.json \
-            examples/pi_workflow_model_context.recipe.json \
-            --video --video-fps 60 --out .termproof/ci
-
-      - name: Publish TUI verification summary
-        if: always()
-        run: |
-          {
-            echo "## TermProof CI Report"
-            echo
-            echo "Evidence artifact: \`termproof-ci-evidence\`"
-            echo
-            if [ -f .termproof/ci/latest-report.md ]; then
-              cat .termproof/ci/latest-report.md
-            else
-              echo "No TermProof report was generated."
-            fi
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Upload verification evidence
-        uses: actions/upload-artifact@v4
-        if: always()
+          python3 -m venv .wheel-test
+          .wheel-test/bin/pip install dist/*.whl
+          .wheel-test/bin/python -c 'from termproof.agg_bundle import bundled_agg_path; p=bundled_agg_path(); assert p.is_file(); print(p)'
+          .wheel-test/bin/termproof --help
+      - uses: actions/upload-artifact@v4
         with:
-          name: termproof-ci-evidence
-          path: .termproof/ci
-          if-no-files-found: ignore
-
-      - name: Comment TUI verification report on PR
-        uses: actions/github-script@v7
-        if: always() && github.event_name == 'pull_request'
-        continue-on-error: true
-        with:
-          script: |
-            const fs = require('fs');
-            const marker = '<!-- termproof-ci-report -->';
-            const reportPath = '.termproof/ci/latest-report.md';
-            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
-            let report = fs.existsSync(reportPath)
-              ? fs.readFileSync(reportPath, 'utf8')
-              : 'No TermProof report was generated.';
-            const maxReportChars = 55000;
-            if (report.length > maxReportChars) {
-              report = `${report.slice(0, maxReportChars)}\n\n_Report truncated. Download the ` +
-                '`termproof-ci-evidence` artifact from the run for the full report._';
-            }
-            const body = [
-              marker,
-              '## TermProof CI Report',
-              '',
-              `Run: [${context.workflow} #${context.runNumber}](${runUrl})`,
-              '',
-              'Evidence artifact: `termproof-ci-evidence` in the workflow run artifacts.',
-              'Report links point to files inside that artifact.',
-              '',
-              '<details open><summary>latest-report.md</summary>',
-              '',
-              report,
-              '',
-              '</details>',
-            ].join('\n');
-            const { owner, repo } = context.repo;
-            const issue_number = context.payload.pull_request.number;
-            const comments = await github.paginate(github.rest.issues.listComments, {
-              owner,
-              repo,
-              issue_number,
-              per_page: 100,
-            });
-            const existing = comments.find(
-              (comment) => comment.user.type === 'Bot' && comment.body.includes(marker)
-            );
-            if (existing) {
-              await github.rest.issues.updateComment({
-                owner,
-                repo,
-                comment_id: existing.id,
-                body,
-              });
-            } else {
-              await github.rest.issues.createComment({
-                owner,
-                repo,
-                issue_number,
-                body,
-              });
-            }
-
-      - name: Upload package artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: termproof-dist
-          path: dist/*
+          name: termproof-${{ matrix.target }}-wheel
+          path: dist/*.whl

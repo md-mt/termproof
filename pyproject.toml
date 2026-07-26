@@ -37,6 +37,8 @@ termproof = "termproof.cli:main"
 [tool.hatch.build.targets.wheel]
 packages = ["termproof"]
 
+[tool.hatch.build.hooks.custom]
+
 [tool.hatch.build.targets.sdist]
 include = [
   "termproof",

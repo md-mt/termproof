@@ -1,0 +1,50 @@
+name: TermProof
+
+description: Run TermProof recipes and upload reviewable evidence.
+inputs:
+  recipe-path:
+    description: Recipe file or directory to execute.
+    required: true
+  video:
+    description: Render MP4 evidence (true or false).
+    required: false
+    default: "true"
+  fps:
+    description: Video frames per second.
+    required: false
+    default: "60"
+outputs:
+  evidence-path:
+    value: ${{ steps.run.outputs.evidence-path }}
+    description: Directory containing TermProof evidence.
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+    - uses: astral-sh/setup-uv@v5
+    - name: Install TermProof
+      shell: bash
+      run: uv tool install termproof
+    - id: run
+      name: Execute recipes
+      shell: bash
+      run: |
+        out="${RUNNER_TEMP}/termproof-evidence"
+        args=(termproof run "${{ inputs.recipe-path }}" --out "$out")
+        if [[ "${{ inputs.video }}" == "true" ]]; then args+=(--video --video-fps "${{ inputs.fps }}"); fi
+        "${args[@]}"
+        echo "evidence-path=$out" >> "$GITHUB_OUTPUT"
+    - name: Write evidence summary
+      if: always()
+      shell: bash
+      run: |
+        echo '## TermProof evidence' >> "$GITHUB_STEP_SUMMARY"
+        if [[ -f "${RUNNER_TEMP}/termproof-evidence/latest-report.md" ]]; then cat "${RUNNER_TEMP}/termproof-evidence/latest-report.md" >> "$GITHUB_STEP_SUMMARY"; fi
+    - uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: termproof-evidence
+        path: ${{ runner.temp }}/termproof-evidence
+        if-no-files-found: ignore
