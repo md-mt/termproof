@@ -1,0 +1,107 @@
+name: Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "site/**"
+      - "docs/**"
+      - "README.md"
+      - "examples/artifacts/**"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build Pages site
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build site preview
+        run: |
+          echo "Building site from site/ + docs/ + examples"
+          mkdir -p _site
+          # copy static site
+          cp -r site/* _site/
+          # copy docs as assets for reference (Markdown)
+          mkdir -p _site/docs
+          cp -r docs/* _site/docs/ || true
+          # create evidence index
+          if [ -d examples/artifacts ]; then
+            mkdir -p _site/artifacts
+            echo "<h1>Artifacts</h1><ul>" > _site/artifacts/index.html
+            ls examples/artifacts | head -200 | while read f; do
+              echo "<li><a href=\"../../examples/artifacts/$f\">$f</a></li>" >> _site/artifacts/index.html
+            done || true
+            echo "</ul>" >> _site/artifacts/index.html
+          fi
+          # add README rendered copy (raw)
+          cp README.md _site/README.md || true
+          echo "Site built:"
+          ls -la _site | head -40
+          echo "----"
+          find _site -type f | head -100
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - name: Upload site preview artifact (for private repo safety)
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: termproof-pages-preview
+          path: _site
+          if-no-files-found: warn
+
+  # Deployment is guarded so private repos without Pages enabled do not fail CI.
+  # For private repos, set repository variable ENABLE_PAGES=true to enable,
+  # or rely on public visibility. The job will be skipped otherwise.
+  deploy:
+    name: Deploy to Pages
+    needs: build
+    runs-on: ubuntu-latest
+    if: |
+      github.ref == 'refs/heads/main' && (
+        vars.ENABLE_PAGES == 'true' ||
+        github.event.repository.visibility == 'public' ||
+        github.event_name == 'workflow_dispatch'
+      )
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+  # Keep a separate notification that deploy was skipped for private repos — informative only.
+  deploy-skipped:
+    name: Pages deploy skipped (private repo guard)
+    needs: build
+    runs-on: ubuntu-latest
+    if: |
+      !(github.ref == 'refs/heads/main' && (
+        vars.ENABLE_PAGES == 'true' ||
+        github.event.repository.visibility == 'public' ||
+        github.event_name == 'workflow_dispatch'
+      ))
+    steps:
+      - run: |
+          echo "Pages deploy skipped — repository is private and ENABLE_PAGES is not 'true'."
+          echo "To enable Pages on this private repo, set the repository variable ENABLE_PAGES=true"
+          echo "in Settings > Secrets and variables > Actions > Variables, and enable Pages"
+          echo "in Settings > Pages (source: GitHub Actions)."
+          echo "Artifact 'termproof-pages-preview' contains the site preview."

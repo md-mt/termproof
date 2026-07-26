@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TermProof — evidence-first TUI verification</title>
+<meta name="description" content="TermProof records real terminal sessions with asciinema, replays into screenshots and MP4, and writes Markdown + JSON reports.">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="brand"><a href="index.html">TermProof</a></div>
+    <nav class="nav">
+      <a class="active" href="index.html">Home</a>
+      <a href="getting-started.html">Getting Started</a>
+      <a href="evidence.html">Evidence</a>
+      <a href="comparison.html">Comparison</a>
+      <a href="plugins.html">Plugins</a>
+      <a href="https://github.com/md-mt/termproof">GitHub</a>
+    </nav>
+  </div>
+</header>
+<main>
+  <section class="hero">
+    <h1>Don't trust the log.<br><span>Ship the proof.</span></h1>
+    <p>TermProof is an evidence-first harness for terminal and TUI apps. It drives your TUI from JSON recipes, records the real PTY with asciinema, replays the cast into SVGs and MP4s, and writes reviewable reports. Pi agent workflows are the flagship showcase.</p>
+    <div class="badges">
+      <img alt="CI" src="https://github.com/md-mt/termproof/actions/workflows/ci.yml/badge.svg">
+      <img alt="Verified by TermProof" src="https://img.shields.io/badge/verified%20by-TermProof-0a7a2e?style=flat-square">
+      <img alt="License" src="https://img.shields.io/badge/license-MIT-blue.svg">
+    </div>
+    <div style="display:flex; gap:0.6rem; flex-wrap:wrap; margin-top:1rem">
+      <a class="btn" href="getting-started.html">Get started in 3 commands →</a>
+      <a class="btn secondary" href="evidence.html">View sample evidence</a>
+    </div>
+  </section>
+
+  <section>
+    <h2>What is it?</h2>
+    <div class="card-grid">
+      <div class="card"><h3>Recipe → PTY → Cast</h3><p>JSON recipes describe how to drive your TUI. The runner spawns a real pexpect PTY — not a mock — and <code>asciinema</code> records the session. The cast is the source of truth.</p></div>
+      <div class="card"><h3>Screenshots + Video</h3><p>Every step writes a screenshot and text snapshot. With <code>--video</code>, agg + ffmpeg render a 60-fps MP4 from the same cast. Same recording, multiple renderers.</p></div>
+      <div class="card"><h3>Reports + PR Comments</h3><p><code>latest-report.md</code> embeds assertion tables and evidence links. CI posts a sticky comment on every PR and uploads <code>termproof-ci-evidence</code>.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>3-command quickstart</h2>
+<pre><code>pip install termproof
+termproof init .termproof/recipes --name my-tui --command "my-tui"
+termproof run .termproof/recipes --video --out .termproof/runs</code></pre>
+    <p class="muted small">Artifacts: <code>session.cast</code>, <code>final.svg</code>, <code>final.txt</code>, <code>session.mp4</code>, <code>steps/</code>, <code>result.json</code>, <code>report.md</code>, <code>latest-report.md</code></p>
+  </section>
+
+  <section>
+    <h2>Why not X?</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Tool</th><th>What it does</th><th>Gap for evidence</th></tr></thead>
+      <tbody>
+        <tr><td>Manual screenshots</td><td>Docs with images</td><td>Stale, no replay, no assertion</td></tr>
+        <tr><td>expect / pexpect</td><td>PTY driving</td><td>No cast, screenshots, video, report</td></tr>
+        <tr><td>Playwright / Cypress</td><td>Browser DOM</td><td>Can't drive terminal PTY / ANSI</td></tr>
+        <tr><td>VHS</td><td>Tape → GIF</td><td>Demo only, no assertions / CI gate</td></tr>
+        <tr><td>Asciinema alone</td><td>Manual recording</td><td>No driving, no assertions, no pipeline</td></tr>
+        <tr><td><strong>TermProof</strong></td><td>Recipe → PTY → cast → screens → video → report</td><td>Assertions, determinism, artifacts, PR reporting</td></tr>
+      </tbody>
+    </table></div>
+    <p><a href="comparison.html">Full comparison →</a></p>
+  </section>
+
+  <section>
+    <h2>CI snippet (GitHub Actions)</h2>
+<pre><code>- name: Install agg + ffmpeg
+  run: |
+    sudo apt-get update && sudo apt-get install -y ffmpeg
+    if ! command -v agg &gt;/dev/null 2&gt;&amp;1; then
+      cargo install --locked --git https://github.com/asciinema/agg --tag v1.9.0
+    fi
+- name: Run TermProof
+  run: uv run termproof run .termproof/recipes --video --video-fps 60 --out .termproof/ci
+- name: Upload evidence
+  uses: actions/upload-artifact@v4
+  if: always()
+  with:
+    name: termproof-ci-evidence
+    path: .termproof/ci
+- name: Summary
+  if: always()
+  run: cat .termproof/ci/latest-report.md >> "$GITHUB_STEP_SUMMARY"</code></pre>
+    <p class="muted small">This is exactly what <a href="https://github.com/md-mt/termproof/blob/main/.github/workflows/ci.yml">ci.yml</a> in this repo does, plus a sticky PR comment.</p>
+  </section>
+
+  <section>
+    <h2>Badge</h2>
+    <p><img alt="Verified by TermProof" src="https://img.shields.io/badge/verified%20by-TermProof-0a7a2e?style=flat-square"> If you verify your TUI with TermProof, add it to your README:</p>
+<pre><code>[![Verified by TermProof](https://img.shields.io/badge/verified%20by-TermProof-0a7a2e?style=flat-square)](https://github.com/md-mt/termproof)</code></pre>
+    <p><a href="https://github.com/md-mt/termproof/blob/main/docs/verified-badge.md">Variants & guidelines →</a></p>
+  </section>
+
+  <section>
+    <h2>Community</h2>
+    <div class="card-grid">
+      <div class="card"><h3>Plugins</h3><p>Steps, assertions, session backends, video backends, reporters. <a href="plugins.html">Directory →</a></p></div>
+      <div class="card"><h3>Contributing</h3><p>Ladder: star → recipe → bug → plugin → core → maintainer. <a href="https://github.com/md-mt/termproof/blob/main/CONTRIBUTING.md">CONTRIBUTING.md</a></p></div>
+      <div class="card"><h3>Code of Conduct</h3><p>Contributor Covenant 2.1. <a href="https://github.com/md-mt/termproof/blob/main/CODE_OF_CONDUCT.md">CODE_OF_CONDUCT.md</a></p></div>
+    </div>
+  </section>
+
+  <div class="footer">TermProof • <a href="https://github.com/md-mt/termproof">md-mt/termproof</a> • MIT • Built with TermProof itself</div>
+</main>
+</body>
+</html>

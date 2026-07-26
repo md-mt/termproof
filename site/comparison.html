@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Comparison — TermProof</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<header class="topbar"><div class="topbar-inner">
+<div class="brand"><a href="index.html">TermProof</a></div>
+<nav class="nav">
+<a href="index.html">Home</a>
+<a href="getting-started.html">Getting Started</a>
+<a href="evidence.html">Evidence</a>
+<a class="active" href="comparison.html">Comparison</a>
+<a href="plugins.html">Plugins</a>
+<a href="https://github.com/md-mt/termproof">GitHub</a>
+</nav>
+</div></header>
+<main>
+<h1>Why TermProof?</h1>
+<p class="muted">Most TUI testing stops at “stdout contains X”. TermProof records the real session and makes evidence reviewable.</p>
+
+<div class="table-wrap"><table>
+<thead><tr><th>Concern</th><th>Manual / ad-hoc</th><th>VHS / asciinema alone</th><th>expect / Playwright</th><th>TermProof</th></tr></thead>
+<tbody>
+<tr><td>Drives real PTY</td><td>no</td><td>no (VHS tapes are pre-scripted GIFs)</td><td>expect yes, Playwright no</td><td><strong>yes — pexpect PTY</strong></td></tr>
+<tr><td>Records cast</td><td>maybe</td><td>VHS no, asciinema yes (manual)</td><td>no</td><td><strong>yes — asciinema v2</strong></td></tr>
+<tr><td>Per-step screenshots</td><td>manual</td><td>no</td><td>no</td><td><strong>yes — SVG via pyte</strong></td></tr>
+<tr><td>MP4 video</td><td>manual ffmpeg</td><td>VHS GIF, asciinema needs agg</td><td>no</td><td><strong>yes — agg + ffmpeg 60fps</strong></td></tr>
+<tr><td>Assertions (output, screen, exit, file)</td><td>hand-rolled</td><td>no</td><td>expect partial</td><td><strong>yes — 7 built-ins + pluggable</strong></td></tr>
+<tr><td>JSON + Markdown report</td><td>no</td><td>no</td><td>no</td><td><strong>yes — result.json + report.md + latest-report.md</strong></td></tr>
+<tr><td>CI artifact + PR comment</td><td>no</td><td>no</td><td>no</td><td><strong>yes — upload + sticky comment</strong></td></tr>
+<tr><td>Recipe pack reusable</td><td>no</td><td>VHS tapes reuse, but not assertions</td><td>scripts</td><td><strong>yes — *.recipe.json, recursive discovery</strong></td></tr>
+<tr><td>Determinism for agent workflows</td><td>no</td><td>no</td><td>no</td><td><strong>yes — Pi-style fixtures</strong></td></tr>
+<tr><td>Pluggable (steps, reporters, etc.)</td><td>no</td><td>no</td><td>no</td><td><strong>yes — registry</strong></td></tr>
+</tbody>
+</table></div>
+
+<h2>When to use what</h2>
+<div class="card-grid">
+<div class="card"><h3>Use VHS if…</h3><p>You need a marketing GIF quickly. Write a tape, get a GIF. No assertions needed.</p></div>
+<div class="card"><h3>Use expect if…</h3><p>You need low-level PTY scripting and you will build your own assertion/report layer.</p></div>
+<div class="card"><h3>Use Playwright if…</h3><p>You're testing web, not terminal. It cannot drive ANSI / PTY / Ink renderers.</p></div>
+<div class="card"><h3>Use TermProof if…</h3><p>You want evidence that survives a PR review: cast, screenshots, video, report, CI gate, release attachment.</p></div>
+</div>
+
+<h2>Design principles</h2>
+<ul>
+<li><strong>Cast is source of truth</strong> — screenshots, videos, text snapshots all derive from the same recording.</li>
+<li><strong>Recipes are portable</strong> — JSON, versioned, checked into repos near the product.</li>
+<li><strong>Evidence over log line</strong> — reviewers inspect what happened, not a green check.</li>
+<li><strong>Deterministic by default</strong> — Pi workflows use scripted fixtures, not live provider calls, in public CI.</li>
+<li><strong>Product-agnostic</strong> — any CLI/TUI binary works via <code>command.argv</code>.</li>
+</ul>
+
+<div class="footer"><a href="index.html">← Home</a> • <a href="getting-started.html">Getting started →</a></div>
+</main>
+</body>
+</html>
