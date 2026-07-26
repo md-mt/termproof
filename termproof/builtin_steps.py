@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import re
 import time
 from typing import Any, Protocol
@@ -135,12 +136,14 @@ class WaitForRegex:
         index: int,
     ) -> StepResult:
         display = step.get("name", f"{index}:{self.name}")
+
+        # -- validate pattern -------------------------------------------------
         pattern_str = step.get("pattern")
-        if pattern_str is None:
+        if not isinstance(pattern_str, str):
             return StepResult(
                 display,
                 False,
-                "wait_for_regex requires 'pattern' field",
+                f"wait_for_regex 'pattern' must be a string, got {type(pattern_str).__name__}",
                 getattr(session, "screen", ""),
             )
 
@@ -154,7 +157,24 @@ class WaitForRegex:
                 getattr(session, "screen", ""),
             )
 
-        timeout = float(step.get("timeout_seconds", 10))
+        # -- validate timeout -------------------------------------------------
+        raw_timeout = step.get("timeout_seconds", 10)
+        try:
+            timeout = float(raw_timeout)
+        except (TypeError, ValueError):
+            return StepResult(
+                display,
+                False,
+                f"wait_for_regex timeout_seconds must be a number, got {raw_timeout!r}",
+                getattr(session, "screen", ""),
+            )
+        if math.isnan(timeout) or math.isinf(timeout):
+            return StepResult(
+                display,
+                False,
+                f"wait_for_regex timeout_seconds must be finite, got {timeout}",
+                getattr(session, "screen", ""),
+            )
         if timeout <= 0:
             return StepResult(
                 display,
@@ -162,16 +182,21 @@ class WaitForRegex:
                 f"wait_for_regex timeout_seconds must be > 0, got {timeout}",
                 getattr(session, "screen", ""),
             )
+
         deadline = time.monotonic() + timeout
         last_match_detail: str | None = None
 
         def _format_match(m: re.Match[str]) -> str:
             named = m.groupdict()
+            parts: list[str] = []
             if named:
                 pairs = ", ".join(f"{k}={v!r}" for k, v in named.items())
-                return f"matched {pattern_str!r} -> {pairs} (full: {m.group(0)!r})"
+                parts.append(pairs)
             if m.groups():
-                return f"matched {pattern_str!r} -> groups={m.groups()!r} (full: {m.group(0)!r})"
+                # Show positional groups even when named groups also exist
+                parts.append(f"groups={m.groups()!r}")
+            if parts:
+                return f"matched {pattern_str!r} -> {'; '.join(parts)} (full: {m.group(0)!r})"
             return f"matched {pattern_str!r} -> match={m.group(0)!r}"
 
         def _search(text: str) -> re.Match[str] | None:

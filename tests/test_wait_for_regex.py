@@ -161,6 +161,58 @@ class WaitForRegexStepTest(unittest.TestCase):
         self.assertFalse(result.passed)
         self.assertIn("timeout_seconds must be", result.detail or "")
 
+    def test_wait_for_regex_nan_timeout_fails_fast(self):
+        """NaN timeout_seconds must produce an immediate failure, not hang."""
+        from termproof.builtin_steps import WaitForRegex
+        import unittest.mock as mock
+        step_action = WaitForRegex()
+        fake_session = mock.Mock()
+        fake_session.screen = ""
+        fake_session.raw_output = ""
+        step = {"pattern": r"\d+", "timeout_seconds": float("nan")}
+        result = step_action.execute(fake_session, step, 1)
+        self.assertFalse(result.passed)
+        self.assertIn("timeout", result.detail.lower())
+
+    def test_wait_for_regex_infinity_timeout_fails_fast(self):
+        """Inf timeout_seconds must produce an immediate failure."""
+        from termproof.builtin_steps import WaitForRegex
+        import unittest.mock as mock
+        step_action = WaitForRegex()
+        fake_session = mock.Mock()
+        fake_session.screen = ""
+        fake_session.raw_output = ""
+        step = {"pattern": r"\d+", "timeout_seconds": float("inf")}
+        result = step_action.execute(fake_session, step, 1)
+        self.assertFalse(result.passed)
+        self.assertIn("timeout", result.detail.lower())
+
+    def test_wait_for_regex_non_string_pattern_fails_fast(self):
+        """Non-string pattern (e.g. dict/list) must produce immediate failure."""
+        from termproof.builtin_steps import WaitForRegex
+        import unittest.mock as mock
+        step_action = WaitForRegex()
+        fake_session = mock.Mock()
+        fake_session.screen = "screen"
+        for bad_pattern in [42, {"key": "val"}, ["list"], True, None]:
+            with self.subTest(pattern=bad_pattern):
+                step = {"pattern": bad_pattern, "timeout_seconds": 1}
+                result = step_action.execute(fake_session, step, 1)
+                self.assertFalse(result.passed)
+                self.assertIn("pattern", result.detail.lower())
+
+    def test_wait_for_regex_non_numeric_timeout_fails_fast(self):
+        """Non-numeric timeout_seconds must produce immediate failure."""
+        from termproof.builtin_steps import WaitForRegex
+        import unittest.mock as mock
+        step_action = WaitForRegex()
+        fake_session = mock.Mock()
+        fake_session.screen = "screen"
+        step = {"pattern": r"\d+", "timeout_seconds": "fast"}
+        result = step_action.execute(fake_session, step, 1)
+        self.assertFalse(result.passed)
+        self.assertIn("timeout", result.detail.lower())
+
     def test_wait_for_regex_no_synthetic_boundary_match(self):
         """Pattern that would only match across a synthetic boundary must fail."""
         with tempfile.TemporaryDirectory() as tmp:
@@ -265,6 +317,42 @@ class WaitForRegexStepTest(unittest.TestCase):
             # Immediate fail (no polling), then ~1.2s asciinema teardown.
             self.assertLess(elapsed, 3.0, f"invalid regex must fail without waiting; elapsed={elapsed:.3f}s")
             self.assertIn("invalid", (result.steps[0].detail or "").lower())
+
+    # -- observable process-mode ordering proof ---------------------------------
+
+    def test_process_mode_regex_match_before_next_action_observable(self):
+        """Observable proof: step1 regex match must succeed BEFORE process reaches
+        the late output that step2 waits for and misses.
+
+        Process: prints 'HIT_NOW' at ~0s, sleeps 3s, prints 'TOO_LATE'.
+        Step1: matches 'HIT_NOW' with 2s timeout → passes.
+        Step2: waits for text 'TOO_LATE' with 0.5s timeout → fails (process still sleeping).
+        If step1 had waited for process exit, it would see 'TOO_LATE' and step2 would pass.
+        The fact that step2 FAILS proves step1 returned BEFORE the process reached 'TOO_LATE'.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            recipe = Recipe(
+                name="observable-order-proof",
+                command=CommandSpec(
+                    argv=[
+                        sys.executable, "-c",
+                        "import sys, time; sys.stdout.write('HIT_NOW\\n'); sys.stdout.flush(); time.sleep(3); print('TOO_LATE')",
+                    ],
+                    pty=False,
+                ),
+                steps=[
+                    {"name": "step1: match early output", "action": "wait_for_regex", "pattern": r"HIT_NOW", "timeout_seconds": 2},
+                    {"name": "step2: fail on late output", "action": "wait_for_text", "text": "TOO_LATE", "timeout_seconds": 0.5},
+                ],
+                assertions=[{"type": "output_contains", "value": "HIT_NOW"}],
+                expect_exit_code=None,
+                timeout_seconds=10,
+            )
+            result = VerificationRunner().run(recipe, Path(tmp), render_video=False)
+            # step1 must pass (matched early output)
+            self.assertTrue(result.steps[0].passed, f"step1 should match HIT_NOW before process exit; steps={result.steps}")
+            # step2 must fail (TOO_LATE hasn't appeared yet = step1 returned BEFORE process got there)
+            self.assertFalse(result.steps[1].passed, f"step2 must fail waiting for TOO_LATE, proving step1 returned before process reached that point; steps={result.steps}")
 
 
 if __name__ == "__main__":

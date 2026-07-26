@@ -270,7 +270,7 @@ class VerificationRunner:
             for index, step in enumerate(recipe.steps, start=1):
                 try:
                     step_result = self._run_step(session, index, step)
-                except ValueError as exc:
+                except Exception as exc:
                     action_name = step["action"]
                     name = step.get("name", f"{index}:{action_name}")
                     step_result = StepResult(name, False, str(exc), session.screen)
@@ -298,57 +298,6 @@ class VerificationRunner:
         except KeyError:
             raise ValueError(f"unknown step action: {action_name}")
         return action.execute(session, step, index)
-
-    def _evaluate_output_steps(
-        self,
-        recipe: Recipe,
-        screen: str,
-        raw_output: str,
-    ) -> list[StepResult]:
-        import re as _re
-
-        results: list[StepResult] = []
-        for index, step in enumerate(recipe.steps, start=1):
-            action_name = step["action"]
-            name = step.get("name", f"{index}:{action_name}")
-            if action_name == "wait_for_text":
-                text = step["text"]
-                passed = text in screen or text in raw_output
-                detail = f"found {text!r}" if passed else f"missing {text!r}"
-                results.append(StepResult(name, passed, detail, screen))
-            elif action_name == "wait_for_regex":
-                pattern_str = step.get("pattern")
-                if pattern_str is None:
-                    results.append(StepResult(name, False, "wait_for_regex requires 'pattern'", screen))
-                    continue
-                try:
-                    pat = _re.compile(pattern_str)
-                except _re.error as exc:
-                    results.append(StepResult(name, False, f"invalid regex {pattern_str!r}: {exc}", screen))
-                    continue
-                # Search screen and raw_output independently — concatenating
-                # with '\n' creates synthetic boundaries that never existed.
-                m = pat.search(screen) or pat.search(raw_output)
-                if m:
-                    gd = m.groupdict()
-                    if gd:
-                        grp = ", ".join(f"{k}={v!r}" for k, v in gd.items())
-                    elif m.groups():
-                        grp = f"groups={m.groups()!r}"
-                    else:
-                        grp = f"match={m.group(0)!r}"
-                    results.append(StepResult(name, True, f"matched {pattern_str!r} -> {grp} (full: {m.group(0)!r})", screen))
-                else:
-                    results.append(StepResult(name, False, f"regex {pattern_str!r} not found", screen))
-            elif action_name == "wait_for_idle":
-                # always considered idle after process exit
-                results.append(StepResult(name, True, "process completed (idle)", screen))
-            elif action_name == "sleep":
-                results.append(StepResult(name, True, "not needed for process mode", screen))
-            else:
-                detail = f"{action_name!r} requires command.pty=true"
-                results.append(StepResult(name, False, detail, screen))
-        return results
 
     def _evaluate_assertions(
         self,

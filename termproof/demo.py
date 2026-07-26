@@ -117,6 +117,7 @@ def run_demo(
     screen_renderer_name: str = "svg",
     video_backend_name: str = "agg_ffmpeg",
     config_path: Path | None = None,
+    xml_path: Path | None = None,
 ) -> int:
     """Execute the demo recipe and report evidence location."""
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -124,7 +125,9 @@ def run_demo(
     if config_path:
         config = load_config(config_path=config_path.resolve())
     else:
-        config = load_config()
+        # Default demo uses builtin config only — avoids ambient project/user
+        # config contamination for a self-contained demo.
+        config = VerifierConfig.builtin()
 
     recipe = build_demo_recipe(out_dir=out_dir)
     runner = VerificationRunner(config=config)
@@ -145,6 +148,17 @@ def run_demo(
     )
 
     primary_report_path = _safe_generate_report(runner, recipe, result, reporter_name, out_dir)
+
+    # If --xml-path is explicit, also write a JUnit XML there regardless of
+    # the primary reporter choice.
+    if xml_path:
+        xml_path.parent.mkdir(parents=True, exist_ok=True)
+        from .build_info import BuildInfo as _BI
+        bi = _BI.from_command(recipe.command.argv)
+        junit_reporter = runner.reporter_registry.get("junit_xml")
+        xml_report = junit_reporter.generate([result], build_info=bi)
+        xml_path.write_text(xml_report, encoding="utf-8")
+        print(f"xml report: {xml_path}")
 
     verdict = "PASS" if result.passed else "FAIL"
     print("")
@@ -175,12 +189,31 @@ def run_demo(
         print(f"  {status} {assertion.name}: {assertion.detail}")
 
     if not no_open:
-        if primary_report_path and primary_report_path.exists():
+        # For JUnit XML reporter, open the markdown supplement in the
+        # browser — raw XML is not human-readable in a web browser.
+        if reporter_name == "junit_xml":
+            md_path = out_dir / "latest-report.md"
+            if md_path.exists():
+                try:
+                    file_url = md_path.resolve().as_uri()
+                    print("")
+                    if webbrowser.open(file_url):
+                        print(f"Opened markdown supplement: {file_url}")
+                    else:
+                        print(f"Report available at: {md_path}")
+                except Exception:
+                    print(f"Markdown supplement available at: {md_path}")
+            else:
+                print("")
+                print(f"Report available at: {primary_report_path}")
+        elif primary_report_path and primary_report_path.exists():
             try:
                 file_url = primary_report_path.resolve().as_uri()
                 print("")
-                print(f"Opening report: {file_url}")
-                webbrowser.open(file_url)
+                if webbrowser.open(file_url):
+                    print(f"Opened report: {file_url}")
+                else:
+                    print(f"Report available at: {primary_report_path}")
             except Exception:
                 print(f"Report available at: {primary_report_path}")
         if "screenshot" in result.artifacts:

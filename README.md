@@ -67,6 +67,15 @@ and Python import package are not shipped.
 - `result.json` - machine-readable verdict and artifact paths
 - `report.md` - per-run review summary
 - `latest-report.md` - aggregate report for multi-recipe runs
+- `latest-report.xml` - JUnit XML report (when using `--reporter junit_xml`), consumable by Jenkins, GitLab CI, CircleCI, etc.
+
+Use `--reporter junit_xml` to produce JUnit XML output, or `--xml-path <path>` to write the XML report to an explicit location (implies `--reporter junit_xml` on `termproof run`). For CI pipelines:
+
+```bash
+termproof run .termproof/recipes --reporter junit_xml --out .termproof/ci
+# Or with an explicit XML path:
+termproof run .termproof/recipes --xml-path junit.xml --out .termproof/ci
+```
 
 ## Plug In Any TUI
 
@@ -158,7 +167,12 @@ Assertions check raw output, final screen text, exit code, or files.
 }
 ```
 
-For non-interactive terminal commands, set `pty` to `false`:
+For non-interactive terminal commands, set `pty` to `false`. In process mode
+(`pty: false`), each step enforces its own per-step deadline independently:
+the step polls the process output at terminal-frame cadence and fails when its
+`timeout_seconds` elapses, rather than waiting for the process to exit and
+evaluating post-hoc. This means long-running processes with early output can
+be matched quickly without waiting for the full process lifetime.
 
 ```json
 {

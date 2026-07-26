@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import html
 import re
 import xml.etree.ElementTree as ET
 from typing import Protocol
@@ -13,20 +12,34 @@ from .models import RunResult
 # XML 1.0 spec: allowed characters are:
 #   #x9 | #xA | #xD | [#x20-#xD7FF] | [#xE000-#xFFFD] | [#x10000-#x10FFFF]
 # All other control characters (#x00-#x08, #x0B-#x0C, #x0E-#x1F) are FORBIDDEN.
-_XML_FORBIDDEN_CONTROL_RE = re.compile(
-    "[\x00-\x08\x0b\x0c\x0e-\x1f]"
+# Additionally, the following are FORBIDDEN by the XML 1.0 spec:
+#   - Surrogates: #xD800-#xDFFF
+#   - Noncharacters: #xFDD0-#xFDEF, #xFFFE-#xFFFF (and on every plane)
+_XML_FORBIDDEN_RE = re.compile(
+    "["
+    "\x00-\x08"          # control chars (excl. tab, lf, cr)
+    "\x0b\x0c"            # vertical tab, form feed
+    "\x0e-\x1f"           # other control chars
+    "\ud800-\udfff"       # surrogates
+    "\ufdd0-\ufdef"       # noncharacters
+    "\ufffe\uffff"        # noncharacters
+    "\U0001fffe\U0001ffff" # plane 1 noncharacters (handled by regex engine)
+    "]"
 )
 
 
 def _xml_sanitize(text: str) -> str:
-    """Strip XML 1.0 forbidden control characters from *text*.
+    """Strip XML 1.0 forbidden characters from *text*.
 
     Terminal output routinely contains ANSI escape sequences
     (``\\x1b[...``) and other byte-range control codes that would
-    produce invalid XML.  The standard ``html.escape`` / ``ET.tostring``
+    produce invalid XML.  The standard ``ET.tostring``
     escaping does not handle these — they must be removed pre-serialisation.
+
+    Also strips XML 1.0 noncharacters (#xFDD0-#xFDEF, #xFFFE-#xFFFF)
+    and surrogates (#xD800-#xDFFF) which are invalid in XML 1.0.
     """
-    return _XML_FORBIDDEN_CONTROL_RE.sub("", text)
+    return _XML_FORBIDDEN_RE.sub("", text)
 
 
 class Reporter(Protocol):
@@ -104,18 +117,26 @@ class JUnitXmlReporter:
         total_time = sum(r.duration_seconds for r in results)
 
         testsuites = ET.Element("testsuites")
-        testsuites.set("name", "termproof")
+        testsuites.set("name", _xml_sanitize("termproof"))
         testsuites.set("tests", str(total))
         testsuites.set("failures", str(failures))
         testsuites.set("errors", "0")
         testsuites.set("time", f"{total_time:.3f}")
+        # Aggregate attributes for CI consumers
+        import datetime
+        import socket
+        testsuites.set("timestamp", datetime.datetime.now(datetime.timezone.utc).isoformat())
+        try:
+            testsuites.set("hostname", socket.gethostname())
+        except Exception:
+            testsuites.set("hostname", "unknown")
 
         suite_name = "termproof"
         if build_info is not None and hasattr(build_info, "mode"):
-            suite_name = f"termproof-{build_info.mode}"
+            suite_name = f"termproof-{_xml_sanitize(build_info.mode)}"
 
         testsuite = ET.SubElement(testsuites, "testsuite")
-        testsuite.set("name", suite_name)
+        testsuite.set("name", _xml_sanitize(suite_name))
         testsuite.set("tests", str(total))
         testsuite.set("failures", str(failures))
         testsuite.set("errors", "0")
@@ -134,8 +155,8 @@ class JUnitXmlReporter:
                 if isinstance(val, list):
                     val = " ".join(str(x) for x in val)
                 prop = ET.SubElement(props, "property")
-                prop.set("name", key)
-                prop.set("value", str(val))
+                prop.set("name", _xml_sanitize(key))
+                prop.set("value", _xml_sanitize(str(val)))
 
         for result in results:
             testcase = ET.SubElement(testsuite, "testcase")
@@ -178,14 +199,22 @@ class JUnitXmlReporter:
 
             sysout = ET.SubElement(testcase, "system-out")
             out_lines: list[str] = []
-            # include step/assertion summary even for passing cases for visibility
+            # Include step AND assertion summary even for passing cases for CI visibility
             if result.steps:
                 out_lines.append("Steps:")
                 for st in result.steps:
                     mark = "PASS" if st.passed else "FAIL"
                     out_lines.append(f"  {mark} {_xml_sanitize(st.name)}: {_xml_sanitize(st.detail)}")
-                out_lines.append("")
+            if result.assertions:
+                if out_lines:
+                    out_lines.append("")
+                out_lines.append("Assertions:")
+                for a in result.assertions:
+                    mark = "PASS" if a.passed else "FAIL"
+                    out_lines.append(f"  {mark} {_xml_sanitize(a.name)}: {_xml_sanitize(a.detail)}")
             if result.artifacts:
+                if out_lines:
+                    out_lines.append("")
                 out_lines.append("Artifacts:")
                 for k, v in result.artifacts.items():
                     out_lines.append(f"  {_xml_sanitize(k)}: {_xml_sanitize(v)}")
