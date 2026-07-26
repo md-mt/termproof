@@ -54,7 +54,7 @@ jobs:
           if [ -d _site/artifacts ]; then
             echo "<h1>Evidence artifacts</h1><ul>" > _site/artifacts/index.html
             find _site/artifacts -type f | sort | while read f; do
-              rel="${f#_site/}"
+              rel="${f#_site/artifacts/}"
               echo "<li><a href=\"${rel}\">${rel}</a></li>" >> _site/artifacts/index.html
             done
             echo "</ul>" >> _site/artifacts/index.html
