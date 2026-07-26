@@ -231,7 +231,7 @@ For multi-recipe run, `out_dir/latest-report.md` aggregates all results.
 ## CI Artifacts
 
 - CI workflow (`ci.yml`) runs with `--out .tui-verifier/ci`, uploads entire `.tui-verifier/ci` as artifact `tui-verifier-ci-evidence`.
-- Release workflow runs on a `v*` tag push or manual dispatch. It uploads `.tui-verifier/release` as an artifact and tars it to `tui-verifier-release-evidence.tgz`; GitHub Release creation/archive attachment is gated by `startsWith(github.ref, 'refs/tags/v')`, so a manual dispatch on a matching v-tag ref also qualifies. Generated evidence paths include the output prefix, are not report-relative, and do not resolve inside embedded Markdown or archive members; users must download/extract the full artifact/archive. Release tar members are stored under `release/...`.
+- Release workflow runs on a `v*.*.*` tag push or manual dispatch. It uploads `.tui-verifier/release` as an artifact and tars it to `tui-verifier-release-evidence.tgz`; GitHub Release creation/archive attachment is gated by `startsWith(github.ref, 'refs/tags/v')`, so a manual dispatch on a matching v-tag ref also qualifies. Generated evidence paths include the output prefix, are not report-relative, and do not resolve inside embedded Markdown or archive members; users must download/extract the full artifact/archive. Release tar members are stored under `release/...`.
 
 ## Cast Format Notes
 

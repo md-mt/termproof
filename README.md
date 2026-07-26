@@ -65,7 +65,8 @@ is provided:
 - `session.mp4` - H.264 video rendered through `agg` and `ffmpeg`
 - `result.json` - machine-readable verdict and artifact paths
 - `report.md` - per-run review summary
-- `latest-report.md` - aggregate report for multi-recipe runs
+The aggregate `latest-report.md` is written once at `.tui-verifier/runs/latest-report.md`
+(or `out_dir/latest-report.md` when `--out` is used), not inside each run directory.
 
 ## Plug In Any TUI
 
@@ -262,7 +263,7 @@ to the GitHub run summary for PR and `main` runs.
 Release runs (tagged `v*.*.*` pushes) write `.tui-verifier/release/latest-report.md` into the GitHub run
 summary and into the GitHub Release body when that tag trigger fires. The tagged release also attaches
 `tui-verifier-release-evidence.tgz`, which contains the generated screenshots,
-videos, casts, and reports. The Release workflow runs on a `v*` tag push or manual dispatch; GitHub Release body/archive attachment is gated by `startsWith(github.ref, 'refs/tags/v')`, so manual dispatch on a matching v-tag ref also qualifies (see `release.yml:107-118`).
+videos, casts, and reports. The Release workflow runs on a `v*.*.*` tag push or manual dispatch; GitHub Release body/archive attachment is gated by `startsWith(github.ref, 'refs/tags/v')`, so manual dispatch on a matching v-tag ref also qualifies (see `release.yml:107-118`).
 
 ## Pi Coding Agent Showcase
 
@@ -336,9 +337,10 @@ Video rendering additionally requires `agg` on PATH and `--video` flag
 (`evidence.py:55-60`). Final text/SVG are produced by replaying the cast via
 `replay_cast()` (pyte) for recorded paths; `steps/` screenshots render every
 `StepResult` (scripted PTY, process, and agent synthetic) from stored screen
-snapshots via `evidence._render_step_screens()`. Assertions (scripted modes),
-agent outcomes (agent mode), exit status, and filesystem checks are evaluated
-independently and included in `result.json`/`report.md`; agent metadata files
-do not derive from the cast. Video is rendered by `render_mp4()` which calls
+snapshots via `evidence._render_step_screens()`. Assertions (scripted modes), derived `AssertionResult`s from agent check values,
+synthetic operator step/exit status, and agent artifact paths are represented in
+`result.json`/`report.md`; the full `AgentOutcome` is serialized only in
+`agent_outcome.json`. Agent metadata files do not derive from the cast. Video is
+rendered by `render_mp4()` which calls
 `agg` directly on the cast then `ffmpeg`; `replay_cast()` reconstructs
 text/screen for text/SVG artifacts.

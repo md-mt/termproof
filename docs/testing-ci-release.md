@@ -198,15 +198,16 @@ The current workflow writes (simplified):
 
 Evidence archive: `tui-verifier-release-evidence.tgz`
 # plus embedded latest-report.md content
-
-**Note:** Report links inside are CWD/output-prefix-relative (e.g. `.tui-verifier/release/...`) and do not resolve
-document-relatively from the release notes / GitHub Release body. Embedded Markdown in a Release body
-cannot address members inside `tui-verifier-release-evidence.tgz`. The tar itself was created via
-`tar -C .tui-verifier release`, so members are stored under `release/...`, not `.tui-verifier/release/...`.
-Users must download and extract `tui-verifier-release-evidence.tgz` as a whole and locate files inside.
-
-<content of latest-report.md - with same non-resolvable link caveat as CI>
 ```
+
+Current limitation: report links inside are CWD/output-prefix-relative (for
+example, `.tui-verifier/release/...`) and do not resolve document-relatively
+from release notes or the GitHub Release body. Embedded Markdown cannot address
+members inside `tui-verifier-release-evidence.tgz`; the tar is created via
+`tar -C .tui-verifier release`, so members are stored under `release/...`, not
+`.tui-verifier/release/...`. Users must download and extract the archive to locate
+the files. Generating report-relative links or hosting evidence as independently
+addressable assets is a product recommendation, not current workflow output.
 
 Key defects to be aware of:
 - Artifact paths are set CWD/out-prefix-relative in `evidence.py` and interpolated unchanged.
@@ -229,7 +230,7 @@ the full artifact/archive.
 - Create GitHub Release — `softprops/action-gh-release@v2`, `if: startsWith(github.ref, 'refs/tags/v')`, `body_path: release-notes.md`, `files: dist/*` + `tui-verifier-release-evidence.tgz`.
 - Publish to PyPI — `pypa/gh-action-pypi-publish@release/v1`, `if: startsWith(github.ref, 'refs/tags/v')` — uses OIDC trusted publishing (no token, relies on `environment: pypi` + `id-token: write`).
 
-The Release workflow runs on a `v*` tag push or manual dispatch, not CI. `ci.yml` triggers only PRs and pushes to `main`. GitHub Release body/archive creation is gated by `startsWith(github.ref, 'refs/tags/v')`, so a manual dispatch on a matching v-tag ref also qualifies. A tag push produces a Release run (plus GitHub Release body/archive when the tag condition holds), not a CI run, unless the tagged commit was also pushed to `main` via a separate branch push.
+The Release workflow runs on a `v*.*.*` tag push or manual dispatch, not CI. `ci.yml` triggers only PRs and pushes to `main`. GitHub Release body/archive creation is gated by `startsWith(github.ref, 'refs/tags/v')`, so a manual dispatch on a matching v-tag ref also qualifies. A tag push produces a Release run (plus GitHub Release body/archive when the tag condition holds), not a CI run, unless the tagged commit was also pushed to `main` via a separate branch push.
 
 ## Versioning Contract
 
