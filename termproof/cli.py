@@ -14,11 +14,11 @@ from .scaffold import write_recipe_pack
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="tui-verify")
+    parser = argparse.ArgumentParser(prog="termproof")
     subparsers = parser.add_subparsers(dest="command", required=True)
     run_parser = subparsers.add_parser("run", help="run a verification recipe")
     run_parser.add_argument("recipes", nargs="+", type=Path)
-    run_parser.add_argument("--out", type=Path, default=Path(".tui-verifier/runs"))
+    run_parser.add_argument("--out", type=Path, default=Path(".termproof/runs"))
     run_parser.add_argument("--video", action="store_true")
     run_parser.add_argument("--no-video", action="store_true")
     run_parser.add_argument("--video-fps", type=int, default=60)
@@ -27,7 +27,7 @@ def main(argv: list[str] | None = None) -> int:
     run_parser.add_argument("--renderer", default="default")
     run_parser.add_argument("--operator-command")
     run_parser.add_argument("--config", type=Path, default=None,
-                            help="path to a tui-verifier config YAML file")
+                            help="path to a termproof config YAML file")
     run_parser.add_argument("--reporter", default="markdown",
                             help="reporter to use (default: markdown)")
     run_parser.add_argument("--screen-renderer", default="svg",
@@ -115,9 +115,5 @@ def main(argv: list[str] | None = None) -> int:
 
 def _resolve_config(args: argparse.Namespace) -> VerifierConfig:
     if args.config:
-        from .config import load_config as _load
-
-        user_path: Path | None = None
-        project_path: Path | None = args.config.resolve()
-        return _load(project_path=project_path, user_path=user_path)
+        return load_config(config_path=args.config.resolve())
     return load_config()

@@ -3,8 +3,8 @@
 <style>text{font:14px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;fill:#e6edf3;white-space:pre}</style>
 <text x="18" y="38">assistant&gt; Inspecting the repository shape.</text>
 <text x="18" y="58">assistant&gt; Found recipe files under examples/.</text>
-<text x="18" y="78">assistant&gt; Found evidence renderer in tui_verifier/evidence.py.</text>
-<text x="18" y="98">assistant&gt; Found asciinema wrapper in tui_verifier/session.py.</text>
+<text x="18" y="78">assistant&gt; Found evidence renderer in termproof/evidence.py.</text>
+<text x="18" y="98">assistant&gt; Found asciinema wrapper in termproof/session.py.</text>
 <text x="18" y="118">assistant&gt; Repository inspection complete.</text>
 <text x="18" y="138"></text>
 <text x="18" y="158">you&gt; Run the verifier pipeline and describe each artifact.</text>

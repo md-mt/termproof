@@ -4,7 +4,7 @@
 
 - Mode: `installed`
 - Command: `python3 examples/apps/pi_cli_help_matrix.py overview`
-- Binary: `/Users/mengwei/tui-verifier/.venv/bin/python3`
+- Binary: `/Users/mengwei/termproof/.venv/bin/python3`
 - Version: `Python 3.13.2`
 - Git commit: `397920e31be55e19957aaac598110e399e8b2f0d`
 - Verified: `yes`

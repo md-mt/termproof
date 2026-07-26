@@ -1,6 +1,6 @@
-# TUI Verifier
+# TermProof
 
-TUI Verifier is an evidence-first verification harness for terminal and TUI
+TermProof is an evidence-first verification harness for terminal and TUI
 applications. It records the real terminal session with `asciinema`, drives the
 session from JSON recipes, replays the cast into screenshots and text snapshots,
 optionally renders a 60-fps MP4 with `agg` plus `ffmpeg`, and writes Markdown
@@ -15,27 +15,42 @@ showcase because they exercise realistic multi-turn coding-agent UI flows.
 Run the portable non-Pi example:
 
 ```bash
-uv run tui-verify run examples/generic --video
+uv run termproof run examples/generic --video
 ```
 
 Run the Pi coding-agent workflow showcase:
 
 ```bash
-uv run tui-verify run examples/pi_workflow_*.recipe.json --video
+uv run termproof run examples/pi_workflow_*.recipe.json --video
 ```
 
 Create a starter recipe pack for your own TUI:
 
 ```bash
-uv run tui-verify init .tui-verifier/recipes \
+uv run termproof init .termproof/recipes \
   --name my-tui \
   --command "my-tui"
 
-uv run tui-verify run .tui-verifier/recipes --video
+uv run termproof run .termproof/recipes --video
 ```
 
-Each run writes artifacts under `.tui-verifier/runs/<run-id>/` unless `--out`
+Each run writes artifacts under `.termproof/runs/<run-id>/` unless `--out`
 is provided:
+
+## Upgrading from TUI Verifier
+
+TermProof is the renamed distribution, import package, and CLI: install
+`termproof`, import `termproof`, and invoke `termproof`. Existing project and
+user configuration remains readable without being modified. During migration,
+configuration is loaded in this order: built-ins, legacy
+`~/.config/tui-verifier/config.yaml`, `~/.config/termproof/config.yaml`, legacy
+`.tui-verifier/config.yaml`, then `.termproof/config.yaml`. A value in the new
+location takes precedence over the corresponding legacy value.
+
+Plugin references using the legacy `tui_verifier.*:ClassName` module prefix are
+translated to `termproof.*:ClassName` at load time. This narrow compatibility
+path is intentionally limited to configured plugin references; the legacy CLI
+and Python import package are not shipped.
 
 - `session.cast` - asciinema v2 terminal recording
 - `final.svg` - final terminal screenshot from the cast
@@ -52,7 +67,7 @@ A recipe pack is just a directory with `*.recipe.json` files and optional helper
 scripts. Keep it near the product it verifies:
 
 ```text
-.tui-verifier/
+.termproof/
   recipes/
     smoke.recipe.json
     regression.recipe.json
@@ -63,7 +78,7 @@ scripts. Keep it near the product it verifies:
 Run the whole pack:
 
 ```bash
-uv run tui-verify run .tui-verifier/recipes --video --out .tui-verifier/runs
+uv run termproof run .termproof/recipes --video --out .termproof/runs
 ```
 
 Use `command.argv` for the target process and keep `command.pty` set to `true`
@@ -199,14 +214,14 @@ This repository includes Actions for the regular verification lifecycle:
 The CI command is intentionally the same shape a downstream project should use:
 
 ```bash
-uv run tui-verify run \
+uv run termproof run \
   examples/generic \
   examples/multi_turn_conversation.recipe.json \
   examples/pi_workflow_readonly_review.recipe.json \
   examples/pi_workflow_guarded_edit.recipe.json \
   examples/pi_workflow_session_resume_export.recipe.json \
   examples/pi_workflow_model_context.recipe.json \
-  --video --video-fps 60 --out .tui-verifier/ci
+  --video --video-fps 60 --out .termproof/ci
 ```
 
 For your own project, replace the `examples/...` paths with your recipe pack:
@@ -214,15 +229,15 @@ For your own project, replace the `examples/...` paths with your recipe pack:
 ```yaml
 - name: Run TUI verification
   run: |
-    uv run tui-verify run .tui-verifier/recipes \
-      --video --video-fps 60 --out .tui-verifier/ci
+    uv run termproof run .termproof/recipes \
+      --video --video-fps 60 --out .termproof/ci
 
 - name: Upload TUI evidence
   uses: actions/upload-artifact@v4
   if: always()
   with:
-    name: tui-verifier-evidence
-    path: .tui-verifier/ci
+    name: termproof-evidence
+    path: .termproof/ci
     if-no-files-found: ignore
 ```
 
@@ -230,20 +245,20 @@ Public CI runs deterministic Pi-style workflows instead of provider-backed live
 Pi sessions. That keeps every PR, `main` commit, and release reproducible on a
 fresh GitHub runner while still validating multi-turn coding-agent UI patterns.
 
-Every PR receives a sticky `TUI Verifier CI Report` comment. The comment links
-to the workflow run, embeds `.tui-verifier/ci/latest-report.md`, and points
-reviewers to the `tui-verifier-ci-evidence` artifact containing screenshots,
+Every PR receives a sticky `TermProof CI Report` comment. The comment links
+to the workflow run, embeds `.termproof/ci/latest-report.md`, and points
+reviewers to the `termproof-ci-evidence` artifact containing screenshots,
 casts, videos, JSON results, and per-recipe reports. The same report is written
 to the GitHub run summary for PR and `main` runs.
 
-Release runs write `.tui-verifier/release/latest-report.md` into the GitHub run
+Release runs write `.termproof/release/latest-report.md` into the GitHub run
 summary and into the GitHub Release body. The release also attaches
-`tui-verifier-release-evidence.tgz`, which contains the generated screenshots,
+`termproof-release-evidence.tgz`, which contains the generated screenshots,
 videos, casts, and reports.
 
 ## Pi Coding Agent Showcase
 
-Pi examples demonstrate how TUI Verifier captures coding-agent workflows:
+Pi examples demonstrate how TermProof captures coding-agent workflows:
 
 - `examples/pi_workflow_readonly_review.recipe.json` - read-only review with
   tool gating.
@@ -266,25 +281,25 @@ Tracked evidence is included under `examples/artifacts/`:
 The real Pi CLI surface is also covered locally by:
 
 ```bash
-uv run tui-verify run examples/pi_help.recipe.json --video
-uv run tui-verify run examples/pi_version.recipe.json --video
-uv run tui-verify run examples/pi_list.recipe.json --video
+uv run termproof run examples/pi_help.recipe.json --video
+uv run termproof run examples/pi_version.recipe.json --video
+uv run termproof run examples/pi_list.recipe.json --video
 ```
 
 Those recipes call `examples/bin/pi-clean`, which prefers
 `/usr/local/bin/pi_cli/pi.real` when present and can be overridden with
-`TUI_VERIFIER_PI_BIN`. Provider-backed or private Pi installations should be
+`TERMPROOF_PI_BIN`. Provider-backed or private Pi installations should be
 run in local or private CI environments where the Pi binary and credentials are
 available.
 
 ## Packaging
 
-TUI Verifier ships as a Python package with the `tui-verify` console script.
+TermProof ships as a Python package with the `termproof` console script.
 
 ```bash
 uv build
-uv pip install dist/tui_verifier-*.whl
-tui-verify --help
+uv pip install dist/termproof-*.whl
+termproof --help
 ```
 
 See `docs/recipe-packs.md` and `docs/releases.md` for the reusable packaging

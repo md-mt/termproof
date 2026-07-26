@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from tui_verifier.scaffold import write_recipe_pack
+from termproof.scaffold import write_recipe_pack
 
 
 class ScaffoldTest(unittest.TestCase):

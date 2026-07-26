@@ -6,7 +6,11 @@ from pathlib import Path
 from typing import Any
 
 from .agent_driven import AgentDrivenRunner, AgentRunner, CodexCliAgentRunner
-from .config import VerifierConfig
+from .config import (
+    CURRENT_PLUGIN_MODULE_PREFIX,
+    LEGACY_PLUGIN_MODULE_PREFIX,
+    VerifierConfig,
+)
 from .evidence import new_run_dir, render_artifacts, write_result_files
 from .models import (
     AssertionResult,
@@ -113,12 +117,22 @@ def _resolve_session_backend(config: VerifierConfig) -> _SessionBackend:
 
 
 def _import_class(qualname: str) -> type:
-    """Import a class from 'module.path:ClassName' string."""
+    """Import a plugin class from a ``module.path:ClassName`` reference.
+
+    Configuration written for the pre-TermProof package can keep using its
+    plugin module prefix. This narrow alias avoids a compatibility shim package
+    while ensuring external plugin configuration remains loadable.
+    """
     if ":" not in qualname:
         raise ValueError(
             f"expected 'module.path:ClassName', got {qualname!r}"
         )
     module_name, class_name = qualname.split(":", 1)
+    if module_name.startswith(LEGACY_PLUGIN_MODULE_PREFIX):
+        module_name = (
+            CURRENT_PLUGIN_MODULE_PREFIX
+            + module_name.removeprefix(LEGACY_PLUGIN_MODULE_PREFIX)
+        )
     import importlib
 
     module = importlib.import_module(module_name)
@@ -154,7 +168,7 @@ class VerificationRunner:
     def run(
         self,
         recipe: Recipe,
-        out_dir: Path = Path(".tui-verifier/runs"),
+        out_dir: Path = Path(".termproof/runs"),
         render_video: bool = False,
         video_fps: int = 60,
         renderer: str = "default",

@@ -37,8 +37,8 @@ def respond(text: str) -> None:
             [
                 "assistant> Inspecting the repository shape.",
                 "assistant> Found recipe files under examples/.",
-                "assistant> Found evidence renderer in tui_verifier/evidence.py.",
-                "assistant> Found asciinema wrapper in tui_verifier/session.py.",
+                "assistant> Found evidence renderer in termproof/evidence.py.",
+                "assistant> Found asciinema wrapper in termproof/session.py.",
                 "assistant> Repository inspection complete.",
             ],
             0.65,

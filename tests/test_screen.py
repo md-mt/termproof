@@ -4,8 +4,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from tui_verifier.cast import CastRecorder
-from tui_verifier.screen import render_svg, replay_cast
+from termproof.cast import CastRecorder
+from termproof.screen import render_svg, replay_cast
 
 
 class ScreenTest(unittest.TestCase):

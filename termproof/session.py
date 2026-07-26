@@ -228,7 +228,7 @@ def recorded_command(argv: list[str], exit_code_path: Path) -> str:
     exit_file = shlex.quote(str(exit_code_path.resolve()))
     return (
         f"{target}; "
-        "__tui_verifier_status=$?; "
-        f"printf '%s' \"$__tui_verifier_status\" > {exit_file}; "
-        'exit "$__tui_verifier_status"'
+        "__termproof_status=$?; "
+        f"printf '%s' \"$__termproof_status\" > {exit_file}; "
+        'exit "$__termproof_status"'
     )

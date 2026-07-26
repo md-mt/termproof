@@ -4,13 +4,13 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from tui_verifier.config import (
+from termproof.config import (
     BUILTIN_DEFAULTS,
     GlobalDefaults,
     VerifierConfig,
     load_config,
 )
-from tui_verifier.registry import Registry
+from termproof.registry import Registry
 
 
 class ConfigTest(unittest.TestCase):
@@ -52,7 +52,7 @@ class ConfigTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             project_dir = Path(tmp) / "project"
             project_dir.mkdir()
-            config_dir = project_dir / ".tui-verifier"
+            config_dir = project_dir / ".termproof"
             config_dir.mkdir()
             (config_dir / "config.yaml").write_text(
                 "defaults:\n  timeout_seconds: 90\n  cols: 120\n",
@@ -75,17 +75,17 @@ class ConfigTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             project_dir = Path(tmp) / "project"
             project_dir.mkdir()
-            config_dir = project_dir / ".tui-verifier"
+            config_dir = project_dir / ".termproof"
             config_dir.mkdir()
             (config_dir / "config.yaml").write_text(
-                "steps:\n  my_custom: tui_verifier.builtin_steps:Sleep\n",
+                "steps:\n  my_custom: termproof.builtin_steps:Sleep\n",
                 encoding="utf-8",
             )
             config = load_config(project_path=project_dir)
             self.assertIn("my_custom", config.steps)
             self.assertEqual(
                 config.steps["my_custom"],
-                "tui_verifier.builtin_steps:Sleep",
+                "termproof.builtin_steps:Sleep",
             )
 
 

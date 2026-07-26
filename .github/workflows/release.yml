@@ -59,33 +59,37 @@ jobs:
         run: |
           python -m venv .pkg-test
           .pkg-test/bin/pip install dist/*.whl
-          .pkg-test/bin/tui-verify --help
+          (
+            cd /tmp
+            "$GITHUB_WORKSPACE/.pkg-test/bin/termproof" --help
+            "$GITHUB_WORKSPACE/.pkg-test/bin/python" -c "import termproof; from pathlib import Path; assert 'site-packages' in str(Path(termproof.__file__))"
+          )
 
       - name: Run release generic and Pi agent UI verification
         run: |
-          uv run tui-verify run \
+          uv run termproof run \
             examples/generic \
             examples/multi_turn_conversation.recipe.json \
             examples/pi_workflow_readonly_review.recipe.json \
             examples/pi_workflow_guarded_edit.recipe.json \
             examples/pi_workflow_session_resume_export.recipe.json \
             examples/pi_workflow_model_context.recipe.json \
-            --video --video-fps 60 --out .tui-verifier/release
-          tar -czf tui-verifier-release-evidence.tgz -C .tui-verifier release
+            --video --video-fps 60 --out .termproof/release
+          tar -czf termproof-release-evidence.tgz -C .termproof release
 
       - name: Write release verification notes
         if: always()
         run: |
           {
-            echo "## TUI Verifier Release Evidence"
+            echo "## TermProof Release Evidence"
             echo
-            echo "Evidence archive: \`tui-verifier-release-evidence.tgz\`"
+            echo "Evidence archive: \`termproof-release-evidence.tgz\`"
             echo "Report links point to files inside that archive."
             echo
-            if [ -f .tui-verifier/release/latest-report.md ]; then
-              cat .tui-verifier/release/latest-report.md
+            if [ -f .termproof/release/latest-report.md ]; then
+              cat .termproof/release/latest-report.md
             else
-              echo "No TUI verifier report was generated."
+              echo "No TermProof report was generated."
             fi
           } > release-notes.md
           cat release-notes.md >> "$GITHUB_STEP_SUMMARY"
@@ -94,14 +98,14 @@ jobs:
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: tui-verifier-release-evidence
-          path: .tui-verifier/release
+          name: termproof-release-evidence
+          path: .termproof/release
           if-no-files-found: ignore
 
       - name: Upload package artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: tui-verifier-dist
+          name: termproof-dist
           path: dist/*
 
       - name: Create GitHub release
@@ -111,7 +115,7 @@ jobs:
           body_path: release-notes.md
           files: |
             dist/*
-            tui-verifier-release-evidence.tgz
+            termproof-release-evidence.tgz
 
       - name: Publish to PyPI
         if: startsWith(github.ref, 'refs/tags/v')

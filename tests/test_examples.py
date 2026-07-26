@@ -3,7 +3,7 @@ from __future__ import annotations
 import unittest
 from pathlib import Path
 
-from tui_verifier.registry import load_recipes
+from termproof.registry import load_recipes
 
 
 class ExampleRecipeTest(unittest.TestCase):

@@ -4,7 +4,7 @@
 
 - Mode: `installed`
 - Command: `python3 examples/apps/multi_turn_conversation.py`
-- Binary: `/Users/mengwei/tui-verifier/.venv/bin/python3`
+- Binary: `/Users/mengwei/termproof/.venv/bin/python3`
 - Version: `Python 3.13.2`
 - Git commit: `a737b42a1f9327fa9fc656cb4bb67cb29f11f497`
 - Verified: `yes`

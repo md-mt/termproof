@@ -1,6 +1,6 @@
 # Releases
 
-TUI Verifier releases are Python package releases plus evidence from an
+TermProof releases are Python package releases plus evidence from an
 end-to-end terminal verification run.
 
 ## Versioning
@@ -17,12 +17,12 @@ the leading `v`.
 ```bash
 uv run python -m unittest discover -s tests
 uv build
-uv run tui-verify run examples/generic examples/multi_turn_conversation.recipe.json \
+uv run termproof run examples/generic examples/multi_turn_conversation.recipe.json \
   examples/pi_workflow_readonly_review.recipe.json \
   examples/pi_workflow_guarded_edit.recipe.json \
   examples/pi_workflow_session_resume_export.recipe.json \
   examples/pi_workflow_model_context.recipe.json \
-  --video --video-fps 60 --out .tui-verifier/release
+  --video --video-fps 60 --out .termproof/release
 ```
 
 ## GitHub Release Flow
@@ -34,8 +34,8 @@ uv run tui-verify run examples/generic examples/multi_turn_conversation.recipe.j
    and release body, uploads evidence, and creates a GitHub release.
 4. PyPI publishing uses GitHub trusted publishing from the release workflow.
 
-The GitHub Release includes `tui-verifier-release-evidence.tgz`. That archive
-contains `.tui-verifier/release/latest-report.md`, per-recipe `report.md`,
+The GitHub Release includes `termproof-release-evidence.tgz`. That archive
+contains `.termproof/release/latest-report.md`, per-recipe `report.md`,
 `result.json`, `session.cast`, `final.svg`, `final.txt`, step screenshots, and
 `session.mp4` videos.
 

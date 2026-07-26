@@ -72,12 +72,12 @@ def _write_readme(path: Path, recipe_name: str) -> None:
     readme.write_text(
         "\n".join(
             [
-                "# TUI Verifier Recipe Pack",
+                "# TermProof Recipe Pack",
                 "",
                 "Run this pack from the repository root:",
                 "",
                 "```bash",
-                f"uv run tui-verify run {path}/{recipe_name} --video",
+                f"uv run termproof run {path}/{recipe_name} --video",
                 "```",
                 "",
                 "Edit the recipe assertions and steps to match the product workflow.",
