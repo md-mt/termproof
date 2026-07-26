@@ -1,0 +1,100 @@
+{
+  "recipe_name": "generic-tui-workflow",
+  "passed": true,
+  "exit_code": 0,
+  "duration_seconds": 3.1410402450710535,
+  "priority": "P1",
+  "execution": "scripted",
+  "renderer": "default",
+  "score": 1.0,
+  "steps": [
+    {
+      "name": "wait for prompt",
+      "passed": true,
+      "detail": "found 'demo>'",
+      "screen": "Generic TUI demo\nUse commands: open dashboard, filter errors, export report, exit\n\ndemo>"
+    },
+    {
+      "name": "open dashboard",
+      "passed": true,
+      "detail": "sent line",
+      "screen": "Generic TUI demo\nUse commands: open dashboard, filter errors, export report, exit\n\ndemo>"
+    },
+    {
+      "name": "wait for dashboard",
+      "passed": true,
+      "detail": "found 'DASHBOARD READY'",
+      "screen": "Generic TUI demo\nUse commands: open dashboard, filter errors, export report, exit\n\ndemo> open dashboard\ndemo> loading dashboard\ndemo> widgets rendered\nDASHBOARD READY"
+    },
+    {
+      "name": "filter errors",
+      "passed": true,
+      "detail": "sent line",
+      "screen": "Generic TUI demo\nUse commands: open dashboard, filter errors, export report, exit\n\ndemo> open dashboard\ndemo> loading dashboard\ndemo> widgets rendered\nDASHBOARD READY"
+    },
+    {
+      "name": "wait for filter",
+      "passed": true,
+      "detail": "found 'FILTER READY'",
+      "screen": "Generic TUI demo\nUse commands: open dashboard, filter errors, export report, exit\n\ndemo> open dashboard\ndemo> loading dashboard\ndemo> widgets rendered\nDASHBOARD READY\nfilter errors\n\ndemo> demo> applying status:error filter\ndemo> 3 rows visible\nFILTER READY"
+    },
+    {
+      "name": "export report",
+      "passed": true,
+      "detail": "sent line",
+      "screen": "Generic TUI demo\nUse commands: open dashboard, filter errors, export report, exit\n\ndemo> open dashboard\ndemo> loading dashboard\ndemo> widgets rendered\nDASHBOARD READY\nfilter errors\n\ndemo> demo> applying status:error filter\ndemo> 3 rows visible\nFILTER READY"
+    },
+    {
+      "name": "wait for export",
+      "passed": true,
+      "detail": "found 'EXPORT READY'",
+      "screen": "Generic TUI demo\nUse commands: open dashboard, filter errors, export report, exit\n\ndemo> open dashboard\ndemo> loading dashboard\ndemo> widgets rendered\nDASHBOARD READY\nfilter errors\n\ndemo> demo> applying status:error filter\ndemo> 3 rows visible\nFILTER READY\nexport report\n\ndemo> demo> writing verification summary\ndemo> report artifact linked\nEXPORT READY"
+    },
+    {
+      "name": "close session",
+      "passed": true,
+      "detail": "sent line",
+      "screen": "Generic TUI demo\nUse commands: open dashboard, filter errors, export report, exit\n\ndemo> open dashboard\ndemo> loading dashboard\ndemo> widgets rendered\nDASHBOARD READY\nfilter errors\n\ndemo> demo> applying status:error filter\ndemo> 3 rows visible\nFILTER READY\nexport report\n\ndemo> demo> writing verification summary\ndemo> report artifact linked\nEXPORT READY"
+    },
+    {
+      "name": "wait for close",
+      "passed": true,
+      "detail": "found 'GENERIC TUI COMPLETE'",
+      "screen": "Generic TUI demo\nUse commands: open dashboard, filter errors, export report, exit\n\ndemo> open dashboard\ndemo> loading dashboard\ndemo> widgets rendered\nDASHBOARD READY\nfilter errors\n\ndemo> demo> applying status:error filter\ndemo> 3 rows visible\nFILTER READY\nexport report\n\ndemo> demo> writing verification summary\ndemo> report artifact linked\nEXPORT READY\nexit\n\ndemo> demo> closing session\nGENERIC TUI COMPLETE"
+    }
+  ],
+  "assertions": [
+    {
+      "name": "output_contains",
+      "passed": true,
+      "detail": "contains 'DASHBOARD READY'"
+    },
+    {
+      "name": "output_contains",
+      "passed": true,
+      "detail": "contains 'FILTER READY'"
+    },
+    {
+      "name": "output_contains",
+      "passed": true,
+      "detail": "contains 'EXPORT READY'"
+    },
+    {
+      "name": "output_contains",
+      "passed": true,
+      "detail": "contains 'GENERIC TUI COMPLETE'"
+    },
+    {
+      "name": "exit_code",
+      "passed": true,
+      "detail": "expected 0, got 0"
+    }
+  ],
+  "artifacts": {
+    "cast": ".termproof/ci/20260725-222654-423229-generic-tui-workflow-default/session.cast",
+    "screenshot": ".termproof/ci/20260725-222654-423229-generic-tui-workflow-default/final.svg",
+    "screen_text": ".termproof/ci/20260725-222654-423229-generic-tui-workflow-default/final.txt",
+    "exit_code_file": ".termproof/ci/20260725-222654-423229-generic-tui-workflow-default/session.exitcode",
+    "step_screenshots": ".termproof/ci/20260725-222654-423229-generic-tui-workflow-default/steps"
+  }
+}

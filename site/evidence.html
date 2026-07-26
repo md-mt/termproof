@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sample Evidence — TermProof</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<header class="topbar"><div class="topbar-inner">
+<div class="brand"><a href="index.html">TermProof</a></div>
+<nav class="nav">
+<a href="index.html">Home</a>
+<a href="getting-started.html">Getting Started</a>
+<a class="active" href="evidence.html">Evidence</a>
+<a href="comparison.html">Comparison</a>
+<a href="plugins.html">Plugins</a>
+<a href="https://github.com/md-mt/termproof">GitHub</a>
+</nav>
+</div></header>
+<main>
+<h1>Sample evidence</h1>
+<p class="muted">Real artifacts from <code>md-mt/termproof</code> CI and local runs. Every PR uploads <code>termproof-ci-evidence</code>, and each release attaches <code>termproof-release-evidence.tgz</code>.</p>
+
+<h2>What you'll find in a run</h2>
+<div class="card-grid">
+<div class="card"><h3>session.cast</h3><p>Asciinema v2 recording — source of truth. Replays in any terminal. <code>asciinema play session.cast</code></p></div>
+<div class="card"><h3>final.svg + final.txt</h3><p>Final screenshot rendered via pyte + SVG renderer. Plus raw screen text for assertions.</p></div>
+<div class="card"><h3>steps/</h3><p>Per-step screenshots and text snapshots: <code>001-wait-for-prompt.svg</code>, <code>002-open-dashboard.txt</code>, …</p></div>
+<div class="card"><h3>session.mp4</h3><p>60-fps H.264 via <code>agg</code> + <code>ffmpeg</code>. Embed in docs or PR comments. H.264 is reviewer-friendly.</p></div>
+<div class="card"><h3>result.json</h3><p>Machine-readable verdict: passed, score, duration, artifact paths, assertion results.</p></div>
+<div class="card"><h3>report.md + latest-report.md</h3><p>Markdown report with assertion table and evidence links. Latest aggregates multi-recipe runs. This is what CI publishes to summary and PR comments.</p></div>
+</div>
+
+<h2>Checked-in samples</h2>
+<p>This repo checks in a subset of artifacts under <code>examples/artifacts/</code> so you can inspect without running. The latest report:</p>
+<pre><code>cat examples/artifacts/latest-report.md
+ls examples/artifacts/
+</code></pre>
+<p class="muted small">Artifacts include <code>20260724-*-pi-workflow-*.svg</code>, <code>session.mp4</code>, <code>session.cast</code>, <code>final.txt</code>, <code>steps/</code>. See <a href="https://github.com/md-mt/termproof/tree/main/examples/artifacts">examples/artifacts</a>.</p>
+
+<h2>Rendered evidence</h2>
+<p class="muted">Screenshots and reports from the curated evidence pack. These are the same artifacts copied into the built Pages site.</p>
+
+<div class="evidence-list">
+  <div class="evidence-item">
+    <img class="thumb" src="artifacts/generic-tui-workflow/final.svg" alt="Generic TUI final screenshot" loading="lazy">
+    <div>
+      <strong>Generic TUI — final screenshot</strong>
+      <p class="muted small">The portable, no-dependency TUI workflow (<code>examples/generic</code>).</p>
+    </div>
+  </div>
+  <div class="evidence-item">
+    <img class="thumb" src="artifacts/pi-workflow-guarded-edit/final.svg" alt="Pi guarded edit final screenshot" loading="lazy">
+    <div>
+      <strong>Pi guarded edit workflow — final screenshot</strong>
+      <p class="muted small">Edit, patch, validate, summarize — deterministic fixtures.</p>
+    </div>
+  </div>
+  <div class="evidence-item">
+    <img class="thumb" src="artifacts/pi-workflow-readonly-review/final.svg" alt="Pi readonly review final screenshot" loading="lazy">
+    <div>
+      <strong>Pi readonly review workflow — final screenshot</strong>
+      <p class="muted small">Tool gating, read-only review of a local repository.</p>
+    </div>
+  </div>
+</div>
+
+<h3>Reports</h3>
+<ul>
+  <li><a href="artifacts/latest-report.md">latest-report.md</a> — aggregate report for the most recent multi-recipe run</li>
+  <li><a href="artifacts/latest-pi-workflows-report.md">latest-pi-workflows-report.md</a> — full Pi workflow assertion tables</li>
+  <li><a href="artifacts/generic-tui-workflow/report.md">generic-tui-workflow/report.md</a> — per-recipe report for the generic TUI</li>
+</ul>
+
+<h2>Generic TUI (portable, no Pi required)</h2>
+<p>Recipe: <a href="https://github.com/md-mt/termproof/blob/main/examples/generic/generic_tui.recipe.json"><code>examples/generic/generic_tui.recipe.json</code></a> — drives a fake TUI that simulates dashboard/filter/export.</p>
+<pre><code>uv run termproof run examples/generic --video
+open .termproof/runs/*/final.svg
+open .termproof/runs/*/session.mp4
+cat .termproof/runs/*/report.md
+</code></pre>
+
+<h2>Pi workflow showcase</h2>
+<p>Deterministic fixtures that exercise realistic multi-turn coding-agent UI patterns:</p>
+<ul>
+<li><code>pi_workflow_readonly_review.recipe.json</code> — tool gating, read-only review</li>
+<li><code>pi_workflow_guarded_edit.recipe.json</code> — edit, patch, validate, summarize</li>
+<li><code>pi_workflow_session_resume_export.recipe.json</code> — named session, resume, fork, export</li>
+<li><code>pi_workflow_model_context.recipe.json</code> — provider/model routing</li>
+<li><code>pi_codex_operator.recipe.json</code> — Codex operates the target and returns structured judgment</li>
+</ul>
+<pre><code>uv run termproof run examples/pi_workflow_*.recipe.json --video --video-fps 60 --out .termproof/ci
+cat .termproof/ci/latest-report.md
+</code></pre>
+<p class="muted small">The real Pi CLI surface is also covered locally by <code>examples/pi_help.recipe.json</code>, <code>pi_version.recipe.json</code>, <code>pi_list.recipe.json</code> via <code>examples/bin/pi-clean</code>.</p>
+
+<h2>CI evidence</h2>
+<p>Every PR in <a href="https://github.com/md-mt/termproof/actions">Actions</a>:</p>
+<ul>
+<li>Sticky comment: <strong>TermProof CI Report</strong> with run link + embedded <code>latest-report.md</code></li>
+<li>Artifact: <code>termproof-ci-evidence</code> containing <code>.termproof/ci/</code> (casts, SVGs, MP4s, JSON, reports)</li>
+<li>Summary: same report written to GitHub Step Summary</li>
+</ul>
+<p>Releases: report written to Release body + <code>termproof-release-evidence.tgz</code> attached.</p>
+
+<h2>Live preview locally</h2>
+<pre><code>python3 -m http.server 8000 --directory site
+# open http://localhost:8000
+</code></pre>
+
+<div class="footer"><a href="index.html">← Home</a> • TermProof evidence is the artifact, not the log.</div>
+</main>
+</body>
+</html>

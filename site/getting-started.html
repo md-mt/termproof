@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Getting Started — TermProof</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<header class="topbar"><div class="topbar-inner">
+<div class="brand"><a href="index.html">TermProof</a></div>
+<nav class="nav">
+<a href="index.html">Home</a>
+<a class="active" href="getting-started.html">Getting Started</a>
+<a href="evidence.html">Evidence</a>
+<a href="comparison.html">Comparison</a>
+<a href="plugins.html">Plugins</a>
+<a href="https://github.com/md-mt/termproof">GitHub</a>
+</nav>
+</div></header>
+<main>
+<h1>Getting Started</h1>
+<p class="muted">3 commands → proof. Works for any TUI: Textual, Bubble Tea, Ratatui, Ink, curses.</p>
+
+<div class="steps">
+<div class="step"><div class="step-num">1</div><div>
+<h3 style="margin:0 0 0.3rem">Install</h3>
+<pre><code>pip install git+https://github.com/md-mt/termproof.git
+# or from source
+git clone https://github.com/md-mt/termproof.git && cd termproof
+uv run termproof --help</code></pre>
+<p class="muted small">Requires Python 3.11+. For video: <code>ffmpeg</code> + <code>agg</code> (Rust). <code>cargo install --locked --git https://github.com/asciinema/agg --tag v1.9.0</code></p>
+</div></div>
+
+<div class="step"><div class="step-num">2</div><div>
+<h3 style="margin:0 0 0.3rem">Scaffold a recipe pack</h3>
+<pre><code>termproof init .termproof/recipes --name my-tui --command "my-tui"
+cat .termproof/recipes/my-tui.recipe.json</code></pre>
+<p class="muted small">The init command writes a minimal JSON recipe with <code>command.argv</code>, pty=true, one wait step and one assertion. Edit it to match your TUI prompts.</p>
+</div></div>
+
+<div class="step"><div class="step-num">3</div><div>
+<h3 style="margin:0 0 0.3rem">Run with evidence</h3>
+<pre><code>termproof run .termproof/recipes --video --out .termproof/runs
+# inspect artifacts (macOS: open; Linux: xdg-open)
+open .termproof/runs/*/session.mp4
+cat .termproof/runs/*/latest-report.md</code></pre>
+<p class="muted small">Each run writes <code>session.cast</code> (asciinema v2), <code>final.svg</code>, <code>final.txt</code>, <code>steps/</code>, <code>session.mp4</code>, <code>result.json</code>, <code>report.md</code>.</p>
+</div></div>
+</div>
+
+<h2>Recipe anatomy</h2>
+<pre><code>{
+  "name": "my-tui-main-flow",
+  "description": "Open dashboard, filter, export.",
+  "priority": "P0",
+  "execution": "scripted",
+  "determinism": "deterministic",
+  "checks": ["dashboard opens", "filter applies", "export completes"],
+  "command": { "argv": ["my-tui"], "pty": true },
+  "timeout_seconds": 30,
+  "cols": 100,
+  "rows": 30,
+  "steps": [
+    { "action": "wait_for_text", "text": "my-tui>", "timeout_seconds": 5 },
+    { "action": "send_line", "text": "open dashboard" },
+    { "action": "wait_for_text", "text": "DASHBOARD READY" }
+  ],
+  "assertions": [
+    { "type": "output_contains", "value": "DASHBOARD READY" }
+  ],
+  "expect_exit_code": 0
+}</code></pre>
+
+<h2>Step actions</h2>
+<div class="table-wrap"><table>
+<thead><tr><th>Action</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td><code>wait_for_text</code></td><td>Wait until terminal output contains text</td></tr>
+<tr><td><code>wait_for_idle</code></td><td>Wait until no output for N seconds</td></tr>
+<tr><td><code>wait_for_count</code></td><td>Wait until text appears N times</td></tr>
+<tr><td><code>send_text</code></td><td>Send text without newline</td></tr>
+<tr><td><code>send_line</code></td><td>Send text + Enter</td></tr>
+<tr><td><code>press</code></td><td>Send key (e.g., <code>enter</code>, <code>escape</code>, <code>tab</code>)</td></tr>
+<tr><td><code>sleep</code></td><td>Wait N seconds</td></tr>
+</tbody>
+</table></div>
+
+<h2>Assertions</h2>
+<div class="table-wrap"><table>
+<thead><tr><th>Type</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td><code>output_contains</code></td><td>Raw output contains string</td></tr>
+<tr><td><code>output_not_contains</code></td><td>Raw output does NOT contain string</td></tr>
+<tr><td><code>screen_contains</code></td><td>Final screen text contains string</td></tr>
+<tr><td><code>screen_not_contains</code></td><td>Final screen text does NOT contain</td></tr>
+<tr><td><code>exit_code</code></td><td>Process exit code equals expected</td></tr>
+<tr><td><code>file_exists</code></td><td>File exists after run</td></tr>
+<tr><td><code>file_contains</code></td><td>File contains string</td></tr>
+</tbody>
+</table></div>
+
+<h2>CI integration</h2>
+<p>See homepage for GitHub Actions snippet. For GitLab / CircleCI, port the same three steps: install deps, <code>termproof run --video</code>, upload artifact + publish report to job summary.</p>
+<p>Full workflow: <a href="https://github.com/md-mt/termproof/blob/main/.github/workflows/ci.yml">ci.yml</a></p>
+
+<h2>Next steps</h2>
+<div class="card-grid">
+<div class="card"><h3>See sample evidence</h3><p>Inspect real casts, SVGs, MP4s, and reports from this repo. <a href="evidence.html">Evidence →</a></p></div>
+<div class="card"><h3>Comparison</h3><p>Why TermProof over VHS, expect, Playwright? <a href="comparison.html">Comparison →</a></p></div>
+<div class="card"><h3>Plugins</h3><p>Community steps, assertions, backends. <a href="plugins.html">Plugins →</a></p></div>
+</div>
+
+<div class="footer"><a href="index.html">← Home</a> • TermProof • <a href="https://github.com/md-mt/termproof">GitHub</a></div>
+</main>
+</body>
+</html>

@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Plugins — TermProof</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<header class="topbar"><div class="topbar-inner">
+<div class="brand"><a href="index.html">TermProof</a></div>
+<nav class="nav">
+<a href="index.html">Home</a>
+<a href="getting-started.html">Getting Started</a>
+<a href="evidence.html">Evidence</a>
+<a href="comparison.html">Comparison</a>
+<a class="active" href="plugins.html">Plugins</a>
+<a href="https://github.com/md-mt/termproof">GitHub</a>
+</nav>
+</div></header>
+<main>
+<h1>Plugin directory</h1>
+<p class="muted">TermProof is extensible via registries: steps, assertions, session backends, video backends, reporters, execution modes, agent runners. List your plugin here via PR.</p>
+
+<h2>How to add a plugin</h2>
+<pre><code># .termproof/config.yaml
+steps:
+  wait_for_regex: my_org.termproof_steps:WaitForRegexStep
+assertions:
+  json_schema: my_org.termproof_assertions:JsonSchemaAssertion
+session_backends:
+  docker: my_org.termproof_session:DockerSessionBackend
+reporters:
+  junit_xml: my_org.termproof_reporters:JunitReporter
+</code></pre>
+<p class="small muted">See <a href="https://github.com/md-mt/termproof/blob/main/docs/recipe-packs.md">recipe-packs.md</a> and <code>termproof/config.py</code> for built-ins.</p>
+
+<h2>Community plugins</h2>
+<div class="table-wrap"><table>
+<thead><tr><th>Name</th><th>Description</th><th>Install</th><th>Author</th></tr></thead>
+<tbody>
+<tr><td colspan="4" class="muted" style="text-align:center; padding:1.2rem">Be the first to ship a plugin. See sought list below.</td></tr>
+</tbody>
+</table></div>
+
+<h2>Sought (from open issues)</h2>
+<ul>
+<li><strong>WaitForRegex</strong> — <code>wait_for_regex</code> step — <a href="https://github.com/md-mt/termproof/issues/14">#14</a></li>
+<li><strong>JsonSchema</strong> assertion — <code>json_schema</code> — <a href="https://github.com/md-mt/termproof/issues/20">#20</a></li>
+<li><strong>JunitXml</strong> reporter — <a href="https://github.com/md-mt/termproof/issues/15">#15</a></li>
+<li><strong>PNG renderer</strong> for pixel screenshots — <a href="https://github.com/md-mt/termproof/issues/19">#19</a></li>
+<li><strong>Docker session backend</strong> — <a href="https://github.com/md-mt/termproof/issues/18">#18</a></li>
+<li><strong>Plugins CLI</strong> <code>termproof plugins</code> — <a href="https://github.com/md-mt/termproof/issues/21">#21</a></li>
+<li>Publish 2-3 first-party plugin examples as separate repos — <a href="https://github.com/md-mt/termproof/issues/23">#23</a></li>
+<li>Community plugin directory automation (&gt;30 entries) — <a href="https://github.com/md-mt/termproof/issues/22">#22</a></li>
+</ul>
+
+<h2>Publishing guidelines</h2>
+<ol>
+<li>Name: <code>termproof-&lt;integration&gt;</code> (e.g., <code>termproof-textual</code>)</li>
+<li>Expose <code>module:Class</code> references and document them in README.</li>
+<li>Include a recipe pack under <code>examples/</code> or <code>recipes/</code> and a CI job running <code>termproof run --video</code>.</li>
+<li>Add <strong>Verified by TermProof</strong> badge — see <a href="https://github.com/md-mt/termproof/blob/main/docs/verified-badge.md">verified-badge.md</a>.</li>
+</ol>
+
+<h2>Roadmap</h2>
+<ul>
+<li>Protocol stability guarantee — <a href="https://github.com/md-mt/termproof/issues/32">#32</a></li>
+<li>Recipe format v1.0 spec — <a href="https://github.com/md-mt/termproof/issues/31">#31</a></li>
+<li>Generic Docker image for CI — <a href="https://github.com/md-mt/termproof/issues/27">#27</a></li>
+</ul>
+
+<div class="footer"><a href="index.html">← Home</a> • Want to list your plugin? <a href="https://github.com/md-mt/termproof/blob/main/docs/plugins.md">Open a PR editing docs/plugins.md</a>.</div>
+</main>
+</body>
+</html>

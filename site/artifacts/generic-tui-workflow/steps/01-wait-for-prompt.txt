@@ -1,0 +1,4 @@
+Generic TUI demo
+Use commands: open dashboard, filter errors, export report, exit
+
+demo>
