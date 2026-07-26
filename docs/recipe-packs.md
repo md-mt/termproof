@@ -31,8 +31,10 @@ termproof init .termproof/recipes --name my-tui --command "my-tui"
 - Helper scripts are project-owned and can launch any TUI, CLI, or test fixture.
 - `command.argv` is the target process.
 - `command.pty` should be `true` for interactive TUI workflows.
-- `steps` drive the terminal with waits, keypresses, text, lines, and sleeps.
+- `steps` drive the terminal with waits (including `wait_for_regex` with regex validation and match-group evidence), keypresses, text, lines, and sleeps.
 - `assertions` evaluate raw output, final screen text, exit code, or files.
+- `reporters` include `markdown` and `junit_xml` (JUnit XML consumable by Jenkins, GitLab CI, CircleCI, etc).
+- `termproof demo` provides a self-contained demo TUI that exercises all step and assertion types without external dependencies.
 - `renderers` let one recipe fan out across multiple frontend implementations.
 
 ## Recommended Layout

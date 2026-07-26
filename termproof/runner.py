@@ -266,11 +266,24 @@ class VerificationRunner:
             recipe.cols,
             recipe.rows,
         ) as session:
+            steps: list[StepResult] = []
+            for index, step in enumerate(recipe.steps, start=1):
+                try:
+                    step_result = self._run_step(session, index, step)
+                except Exception as exc:
+                    action_name = step["action"]
+                    name = step.get("name", f"{index}:{action_name}")
+                    step_result = StepResult(name, False, str(exc), session.screen)
+                steps.append(step_result)
+                if not step_result.passed:
+                    break
+            # Wait for process to finish so exit_code is captured.
+            # Per-step deadlines were already enforced by _run_step above;
+            # this is the overall recipe timeout cap for post-step teardown.
             session.wait_for_exit(recipe.timeout_seconds)
             raw_output = session.raw_output
             exit_code = session.exit_code
         screen, _, _ = replay_cast(cast_path)
-        steps = self._evaluate_output_steps(recipe, screen, raw_output)
         return steps, raw_output, exit_code, screen
 
     def _run_step(
@@ -285,28 +298,6 @@ class VerificationRunner:
         except KeyError:
             raise ValueError(f"unknown step action: {action_name}")
         return action.execute(session, step, index)
-
-    def _evaluate_output_steps(
-        self,
-        recipe: Recipe,
-        screen: str,
-        raw_output: str,
-    ) -> list[StepResult]:
-        results: list[StepResult] = []
-        for index, step in enumerate(recipe.steps, start=1):
-            action_name = step["action"]
-            name = step.get("name", f"{index}:{action_name}")
-            if action_name == "wait_for_text":
-                text = step["text"]
-                passed = text in screen or text in raw_output
-                detail = f"found {text!r}" if passed else f"missing {text!r}"
-                results.append(StepResult(name, passed, detail, screen))
-            elif action_name == "sleep":
-                results.append(StepResult(name, True, "not needed for process mode", screen))
-            else:
-                detail = f"{action_name!r} requires command.pty=true"
-                results.append(StepResult(name, False, detail, screen))
-        return results
 
     def _evaluate_assertions(
         self,
