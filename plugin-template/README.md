@@ -9,13 +9,14 @@ Production-ready scaffold for writing a [TermProof](https://github.com/md-mt/ter
 
 Copy this repository to start your own plugin. It contains:
 
-- **Example step** (`WaitForRegex`) — regex-aware terminal wait (`src/termproof_my_plugin/steps.py`)
-- **Example assertions** (`DurationUnder`, `ScreenCount`) — budget and counting checks
-- **Example reporter** (`JsonSummaryReporter`) — machine-readable JSON summary
+- **Example step** (`WaitForRegex`) — regex-aware terminal wait with `ignore_case`/`multiline`/`dotall` flags (`src/termproof_my_plugin/steps.py`)
+- **Example assertion** (`ScreenCount`) — occurrence counting with optional min/max bounds (`src/termproof_my_plugin/assertions.py`)
+- **Example reporter** (`JsonSummaryReporter`) — machine-readable JSON summary with build provenance (`src/termproof_my_plugin/reporters.py`)
 - Packaging metadata (`pyproject.toml`) with dev extras
 - Tests (`tests/`) including config-wiring verification
-- CI (`.github/workflows/ci.yml`) — run unit tests + build wheel verification
+- CI (`.github/workflows/ci.yml`) — unit tests, build, wheel smoke-test, config wiring
 - README + badge pattern
+- Bootstrap / mirroring procedure: `scripts/bootstrap.sh` (human gate) and `scripts/sync.sh` (ongoing sync)
 
 Origin: prepared as reviewable source under `md-mt/termproof/plugin-template/` — see Bootstrap for mirroring to `md-mt/termproof-plugin-template`.
 
@@ -29,6 +30,8 @@ cd my-plugin
 # 2. Rename package
 #    - Rename src/termproof_my_plugin -> src/<your_package>
 #    - Update pyproject.toml project.name, authors, urls
+#    - Replace all project URLs (Homepage, Repository, Issues) with your own
+#    - Update badge links
 #    - Search-and-replace termproof_my_plugin in README and tests
 
 # 3. Install
@@ -48,7 +51,6 @@ steps:
   wait_for_regex: termproof_my_plugin.steps:WaitForRegex
 
 assertions:
-  duration_under: termproof_my_plugin.assertions:DurationUnder
   screen_count: termproof_my_plugin.assertions:ScreenCount
 
 reporters:
@@ -60,7 +62,7 @@ Then reference by name in recipe JSON:
 ```json
 {
   "steps": [
-    { "action": "wait_for_regex", "pattern": "Dashboard .* \\d+/\\d+" }
+    { "action": "wait_for_regex", "pattern": "Dashboard .* \\\\d+/\\\\d+" }
   ],
   "assertions": [
     { "type": "screen_count", "pattern": "TODO", "max": 0 }
@@ -115,7 +117,9 @@ GitHub requires an initial default-branch commit to create a repository. This is
    Or manually:
 
    ```bash
-   cd plugin-template
+   # Copy source out of monorepo first, then init inside the copy
+   cp -R plugin-template ../termproof-plugin-template
+   cd ../termproof-plugin-template
    git init
    git remote add origin https://github.com/md-mt/termproof-plugin-template.git
    git add .
@@ -138,12 +142,19 @@ After initial bootstrap, updates flow via `scripts/sync.sh`:
 ./plugin-template/scripts/sync.sh ../termproof-plugin-template
 cd ../termproof-plugin-template
 git status
-git commit -am "Sync template from termproof@SHA"
+git add -A
+git diff --cached   # review what will be committed
+git commit -m "Sync template from termproof@SHA"
 git push
 # Open PR in termproof-plugin-template if protected
 ```
 
 Or open PRs directly in `md-mt/termproof` that edit `plugin-template/` — once merged, run sync script and PR in the template repo.
+
+## License
+
+MIT License — see LICENSE. When instantiating a new project from this template,
+replace the copyright holder with your own.
 
 ## Development
 

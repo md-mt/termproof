@@ -1,101 +1,30 @@
 """Example custom assertion for TermProof.
 
-Implements ``duration_under`` — asserts the verification run completed
-within a budget. Register it in config:
+Implements ``screen_count`` — asserts a regex appears at least/at most N times
+on the final screen. Register it in config:
 
 .. code-block:: yaml
 
    assertions:
-     duration_under: termproof_my_plugin.assertions:DurationUnder
+     screen_count: termproof_my_plugin.assertions:ScreenCount
+
+Protocol compatibility:
+- Compatible with TermProof >=0.1.0
+- ``name`` class attribute must match the config ``assertions`` mapping
+- ``evaluate(recipe, assertion, screen, raw_output, exit_code) -> AssertionResult``
+
+Note: The assertion protocol only receives the final screen/raw_output/exit_code.
+Timing data and run artifacts are NOT available, so duration-based assertions
+must be implemented in TermProof core and cannot be written in a plugin.
+See ``docs/protocol.md`` for the full availability matrix.
 """
 
 from __future__ import annotations
 
-from pathlib import Path
+import re
 from typing import Any
 
 from termproof.models import AssertionResult, Recipe
-
-
-class DurationUnder:
-    """Fail when run artifacts indicate the run exceeded a duration budget.
-
-    Recipe usage::
-
-        {
-          "type": "duration_under",
-          "value": 30,
-          "name": "launch is fast"
-        }
-
-    The assertion inspects ``RunResult`` artifact paths indirectly through the
-    hosting runner (the runner populates ``duration_seconds`` on ``RunResult``,
-    which downstream assertions may receive via file conventions).  For
-    portability this example reads ``result.json`` next to the artifacts folder
-    when available and falls back to scanning ``raw_output`` metadata.
-
-    Protocol compatibility:
-    - Compatible with TermProof >=0.1.0
-    - ``name`` class attribute must match the config ``assertions`` mapping
-    - ``evaluate(recipe, assertion, screen, raw_output, exit_code) -> AssertionResult``
-    """
-
-    name = "duration_under"
-
-    def evaluate(
-        self,
-        recipe: Recipe,
-        assertion: dict[str, Any],
-        screen: str,
-        raw_output: str,
-        exit_code: int | None,
-    ) -> AssertionResult:
-        display = str(assertion.get("name", self.name))
-        raw_value = assertion.get("value")
-        if raw_value is None:
-            return AssertionResult(display, False, "missing required field 'value' (seconds budget)")
-        try:
-            budget = float(raw_value)
-        except (TypeError, ValueError):
-            return AssertionResult(display, False, f"invalid budget {raw_value!r}: expected number")
-
-        # Prefer result.json if present near cwd or recipe.command.cwd hints.
-        duration = _try_read_duration(recipe)
-        if duration is not None:
-            passed = duration <= budget
-            detail = f"duration {duration:.2f}s {'<=' if passed else '>'} budget {budget:.2f}s"
-            return AssertionResult(display, passed, detail)
-
-        # Fallback: if TermProof runner provides raw timing in raw_output metadata,
-        # we treat missing as soft-pass with a note rather than hard-fail.
-        return AssertionResult(display, True, f"budget {budget:.2f}s — no timing file found, skipping enforced check")
-
-
-def _try_read_duration(recipe: Recipe) -> float | None:
-    guesses: list[Path] = []
-    if recipe.command.cwd:
-        guesses.append(Path(recipe.command.cwd) / ".termproof" / "runs")
-    guesses.append(Path.cwd() / ".termproof" / "runs")
-
-    import json
-
-    for run_root in guesses:
-        if not run_root.is_dir():
-            continue
-        # Pick latest run dir matching recipe name
-        candidates = sorted(run_root.iterdir(), reverse=True)
-        for cand in candidates:
-            if recipe.name in cand.name and cand.is_dir():
-                result = cand / "result.json"
-                if result.exists():
-                    try:
-                        data = json.loads(result.read_text(encoding="utf-8"))
-                        dur = data.get("duration_seconds")
-                        if dur is not None:
-                            return float(dur)
-                    except Exception:
-                        continue
-    return None
 
 
 class ScreenCount:
@@ -109,6 +38,10 @@ class ScreenCount:
           "min": 0,
           "max": 3
         }
+
+    ``min`` and ``max`` are optional integer bounds (inclusive).
+    At least one of ``min`` or ``max`` must be provided.
+    Bounds must be non-negative integers, and ``min <= max`` when both set.
     """
 
     name = "screen_count"
@@ -121,37 +54,90 @@ class ScreenCount:
         raw_output: str,
         exit_code: int | None,
     ) -> AssertionResult:
-        import re
-
         display = str(assertion.get("name", self.name))
+
+        # --- validate pattern --------------------------------------------------
         pattern = assertion.get("pattern")
         if not pattern:
-            return AssertionResult(display, False, "missing required field 'pattern'")
+            return AssertionResult(
+                display, False, "missing required field 'pattern'"
+            )
+        if not isinstance(pattern, str):
+            return AssertionResult(
+                display, False,
+                f"pattern must be a string, got {type(pattern).__name__}"
+            )
         try:
             compiled = re.compile(pattern)
         except re.error as exc:
-            return AssertionResult(display, False, f"invalid regex {pattern!r}: {exc}")
+            return AssertionResult(
+                display, False, f"invalid regex {pattern!r}: {exc}"
+            )
+        except TypeError as exc:
+            return AssertionResult(
+                display, False, f"invalid pattern type: {exc}"
+            )
 
-        count = len(compiled.findall(screen))
+        # --- validate bounds ---------------------------------------------------
         min_c = assertion.get("min")
         max_c = assertion.get("max")
-        passed = True
-        reasons: list[str] = []
-        reasons.append(f"found {count} match(es) for {pattern!r}")
+        if min_c is None and max_c is None:
+            return AssertionResult(
+                display, False,
+                "at least one of 'min' or 'max' must be provided"
+            )
+
+        def _validate_bound(
+            value: object, label: str
+        ) -> tuple[bool, str]:
+            """Return (ok, error_msg)."""
+            if value is None:
+                return True, ""
+            # Reject booleans (bool is a subclass of int)
+            if isinstance(value, bool):
+                return False, f"invalid {label} {value!r}: must be an integer, not bool"
+            try:
+                v = int(value)
+            except (TypeError, ValueError):
+                return False, f"invalid {label} {value!r}: expected integer"
+            if v < 0:
+                return False, f"{label} {v} must be >= 0"
+            return True, str(v)
+
         if min_c is not None:
-            try:
-                mc = int(min_c)
-            except (TypeError, ValueError):
-                return AssertionResult(display, False, f"invalid min {min_c!r}")
-            if count < mc:
-                passed = False
-            reasons.append(f"min={mc}")
+            ok, msg = _validate_bound(min_c, "min")
+            if not ok:
+                return AssertionResult(display, False, msg)
+            min_val = int(msg)
+        else:
+            min_val = None
+
         if max_c is not None:
-            try:
-                mc = int(max_c)
-            except (TypeError, ValueError):
-                return AssertionResult(display, False, f"invalid max {max_c!r}")
-            if count > mc:
+            ok, msg = _validate_bound(max_c, "max")
+            if not ok:
+                return AssertionResult(display, False, msg)
+            max_val = int(msg)
+        else:
+            max_val = None
+
+        if min_val is not None and max_val is not None and min_val > max_val:
+            return AssertionResult(
+                display, False,
+                f"min ({min_val}) > max ({max_val})"
+            )
+
+        # --- evaluate ----------------------------------------------------------
+        count = len(compiled.findall(screen))
+        passed = True
+        reasons: list[str] = [f"found {count} match(es) for {pattern!r}"]
+
+        if min_val is not None:
+            reasons.append(f"min={min_val}")
+            if count < min_val:
                 passed = False
-            reasons.append(f"max={mc}")
+        if max_val is not None:
+            reasons.append(f"max={max_val}")
+            if count > max_val:
+                passed = False
+
         return AssertionResult(display, passed, ", ".join(reasons))

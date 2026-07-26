@@ -24,6 +24,24 @@ Each protocol requires a name class attribute and a single method:
 - ExecutionMode: execute(runner, recipe, run_dir) -> (steps, assertions, raw_output, exit_code, screen)
 - AgentRunner: run(recipe, prompt, run_dir) -> AgentOutcome
 
+## Context availability for assertions
+
+Assertions receive only the final state of the run. The following are **NOT**
+available at assertion evaluation time and must not be relied upon:
+
+- **Run directory** — no filesystem path to the current run's artifacts
+- **Elapsed time / duration** — `RunResult.duration_seconds` is computed after
+  assertions complete; it cannot be read during evaluation
+- **result.json** — written after assertions finish; scanning for it will find
+  stale prior runs at best, nothing at worst
+- **Accumulated raw output** — assertion receives the final raw output, not
+  the incremental stream
+
+Plugin authors should not attempt filesystem-based workarounds. To enforce
+timing constraints, use TermProof core features (e.g. recipe-level
+`timeout_seconds`). For counting and content checks, the `screen` and
+`raw_output` strings are the correct inputs.
+
 ## Version policy
 
 - Plugin declares termproof>=0.1.0 in dependencies.

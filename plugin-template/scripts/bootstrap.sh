@@ -12,13 +12,45 @@ TEMPLATE_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 echo "Template source: ${TEMPLATE_DIR}"
 echo "Target repo: ${TARGET_REPO}"
 echo "Target local dir: ${TARGET_DIR}"
-if [ -d "${TARGET_DIR}/.git" ]; then
-  echo "Target dir already a git repo: ${TARGET_DIR}"
-  echo "Use sync.sh for updates. Aborting bootstrap."
+
+# --- Guard: target must not exist or be empty --------------------------------
+if [ -e "${TARGET_DIR}" ]; then
+  if [ -d "${TARGET_DIR}/.git" ]; then
+    echo "Target dir already a git repo: ${TARGET_DIR}" >&2
+    echo "Use sync.sh for updates. Aborting bootstrap." >&2
+    exit 1
+  fi
+  if [ -d "${TARGET_DIR}" ] && [ "$(ls -A "${TARGET_DIR}" 2>/dev/null)" ]; then
+    echo "Target directory ${TARGET_DIR} exists and is not empty." >&2
+    echo "Refusing to overwrite. Remove or empty it first." >&2
+    exit 1
+  fi
+fi
+
+mkdir -p "${TARGET_DIR}"
+
+# --- Copy without suppressing errors -----------------------------------------
+cp -R "${TEMPLATE_DIR}/." "${TARGET_DIR}/"
+
+# --- Verify the copy produced expected files ---------------------------------
+REQUIRED_FILES=(
+  "README.md"
+  "pyproject.toml"
+  "src/termproof_my_plugin/__init__.py"
+  "tests/test_config_wiring.py"
+)
+MISSING=0
+for f in "${REQUIRED_FILES[@]}"; do
+  if [ ! -f "${TARGET_DIR}/${f}" ]; then
+    echo "ERROR: expected file missing after copy: ${f}" >&2
+    MISSING=1
+  fi
+done
+if [ "${MISSING}" -ne 0 ]; then
+  echo "Bootstrap copy incomplete — aborting." >&2
   exit 1
 fi
-mkdir -p "${TARGET_DIR}"
-cp -R "${TEMPLATE_DIR}/." "${TARGET_DIR}/" 2>/dev/null || true
+
 echo "Copied template to ${TARGET_DIR}"
 echo ""
 echo "Next steps (human gate):"

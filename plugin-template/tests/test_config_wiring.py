@@ -19,7 +19,6 @@ class PluginConfigWiringTest(unittest.TestCase):
                 steps:
                   wait_for_regex: termproof_my_plugin.steps:WaitForRegex
                 assertions:
-                  duration_under: termproof_my_plugin.assertions:DurationUnder
                   screen_count: termproof_my_plugin.assertions:ScreenCount
                 reporters:
                   json_summary: termproof_my_plugin.reporters:JsonSummaryReporter
@@ -28,7 +27,6 @@ class PluginConfigWiringTest(unittest.TestCase):
             )
             cfg = load_config(project_path=proj)
             self.assertIn("wait_for_regex", cfg.steps)
-            self.assertIn("duration_under", cfg.assertions)
             self.assertIn("screen_count", cfg.assertions)
             self.assertIn("json_summary", cfg.reporters)
 
@@ -36,7 +34,6 @@ class PluginConfigWiringTest(unittest.TestCase):
 
             runner = VerificationRunner(config=cfg)
             self.assertIn("wait_for_regex", runner.step_registry.names())
-            self.assertIn("duration_under", runner.assertion_registry.names())
             self.assertIn("screen_count", runner.assertion_registry.names())
             self.assertIn("json_summary", runner.reporter_registry.names())
 

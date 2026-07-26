@@ -1,11 +1,11 @@
 {
   "name": "my-plugin-demo",
-  "description": "Demo recipe using termproof-my-plugin custom step/assertion",
+  "description": "Demo recipe exercising termproof-my-plugin custom step and assertion",
   "priority": "P2",
   "execution": "scripted",
   "command": {
-    "argv": ["python3", "-c", "print('Dashboard 10/20 ready\nTODO: none\nDone')"],
-    "pty": false
+    "argv": ["python3", "-c", "print('Dashboard 10/20 ready\\nStatus: clean\\nDone')"],
+    "pty": true
   },
   "timeout_seconds": 10,
   "cols": 100,
@@ -13,15 +13,18 @@
   "steps": [
     {
       "name": "wait for dashboard",
-      "action": "wait_for_text",
-      "text": "Dashboard",
-      "timeout_seconds": 5
+      "action": "wait_for_regex",
+      "pattern": "Dashboard \\d+/\\d+",
+      "timeout_seconds": 5,
+      "search_raw_output": false
     }
   ],
   "assertions": [
     {
-      "type": "output_contains",
-      "value": "Done"
+      "name": "no ERROR on final screen",
+      "type": "screen_count",
+      "pattern": "ERROR",
+      "max": 0
     }
   ],
   "expect_exit_code": 0

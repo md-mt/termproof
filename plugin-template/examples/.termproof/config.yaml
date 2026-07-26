@@ -1,0 +1,6 @@
+steps:
+  wait_for_regex: termproof_my_plugin.steps:WaitForRegex
+assertions:
+  screen_count: termproof_my_plugin.assertions:ScreenCount
+reporters:
+  json_summary: termproof_my_plugin.reporters:JsonSummaryReporter
