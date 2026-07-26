@@ -1,0 +1,46 @@
+[project]
+name = "termproof-my-plugin"
+version = "0.1.0"
+description = "Example TermProof plugin — copy this template to create your own step, assertion, and reporter extensions"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Your Name", email = "you@example.com" }]
+keywords = ["termproof", "terminal", "tui", "testing", "plugin"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Software Development :: Testing",
+]
+dependencies = [
+  "termproof",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8",
+  "pyyaml>=6.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/md-mt/termproof-plugin-template"
+Repository = "https://github.com/md-mt/termproof-plugin-template"
+Issues = "https://github.com/md-mt/termproof-plugin-template/issues"
+TemplateSource = "https://github.com/md-mt/termproof/tree/main/plugin-template"
+TermProof = "https://github.com/md-mt/termproof"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/termproof_my_plugin"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
