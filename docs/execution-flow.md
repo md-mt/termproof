@@ -137,8 +137,8 @@ def _run_agent_driven(recipe, run_dir):
 
 Inside `AgentDrivenRunner.run()`:
 
-1. `build_agent_prompt(recipe)` → formatted prompt with recipe JSON context + instruction to return `{"assertions": {...}, "transcript": "...", "notes": "..."}`.
-2. `(run_dir / "agent_prompt.md").write_text(prompt)`.
+1. `build_agent_prompt(recipe)` → returns formatted prompt text with recipe JSON context + instruction to return `{"assertions": {...}, "transcript": "...", "notes": "..."}`; it does not write a file.
+2. `AgentDrivenRunner.run()` writes the returned prompt to `(run_dir / "agent_prompt.md")`.
 3. `outcome = agent_runner.run(recipe, prompt, run_dir)` → `AgentOutcome`.
 4. `_write_agent_files()` → `agent_transcript.md`, `agent_outcome.json`.
 5. `_screen_from_agent_cast()` → if `session.cast` exists, `replay_cast()`; else `CastRecorder(...).output(transcript)` then replay — fallback applies whenever cast does not exist, including custom runners, not just built-in non-recorded path.
@@ -147,7 +147,7 @@ Inside `AgentDrivenRunner.run()`:
 
 `CodexCliAgentRunner.run()` branching:
 
-- `record_terminal=True` (default): `_run_recorded()` at `agent_driven.py:51-70` directly constructs `TerminalSession(...)` (not via `session_backend.create_session`), bypassing configured `config.session_backend`. Builds command list; if `prompt_mode=="arg"` appends prompt; if `"stdin"` writes prompt to file then wraps via `sh -lc "cmd < prompt_path"`. Enters that `TerminalSession` with operator command, `wait_for_exit(timeout)`, parses output via `parse_agent_output(raw_output)`.
+- `record_terminal=True` (default): `_run_recorded()` at `agent_driven.py:51-70` directly constructs `TerminalSession(...)` (not via `session_backend.create_session`), bypassing configured `config.session_backend`. Builds command list; if `prompt_mode=="arg"` appends the prompt; if `"stdin"`, redirects stdin from the existing `agent_prompt.md` via `sh -lc "cmd < prompt_path"` (the file was written by `AgentDrivenRunner.run()`). Enters that `TerminalSession` with operator command, `wait_for_exit(timeout)`, parses output via `parse_agent_output(raw_output)`.
 - `record_terminal=False`: `_run_subprocess()` at `agent_driven.py:87-131` calls `subprocess.run()` with merged env, input = prompt (unless arg mode), stdout+stderr merged, also bypassing `config.session_backend`. Both built-in Codex paths bypass `config.session_backend`. Explicit `TimeoutExpired` → `timed_out=True` outcome and `FileNotFoundError` → exit 127 conversion exists only in this non-recorded subprocess path.
 
 `parse_agent_output()` — JSON extraction cascade:

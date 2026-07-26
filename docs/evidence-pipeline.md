@@ -8,7 +8,7 @@
 - When a cast exists, terminal-derived display artifacts use the cast as source: final text/SVG are reconstructed via `replay_cast()` (pyte) from the cast; video is rendered by `render_mp4()` calling `agg` directly on the cast then `ffmpeg`. Other artifacts/results (assertions, filesystem checks, exit status, agent outcomes) have independent inputs.
 - `steps/` renders every `StepResult` — including PTY, process (`wait_for_text`/`sleep`), and agent synthetic (`codex-operator`) steps — from stored `StepResult.screen` snapshots, not cast replay.
 - `result.json`/`report.md` include independently evaluated assertions, exit status, file-system checks, and agent outcome — not just cast-derived data.
-- Agent metadata files (`agent_prompt.md`, `agent_transcript.md`, `agent_outcome.json`) do not derive from the cast — they are written by `_write_agent_files()`.
+- Agent metadata files do not derive from the cast. `AgentDrivenRunner.run()` writes `agent_prompt.md` before invoking the runner; `_write_agent_files()` writes `agent_transcript.md` and `agent_outcome.json`. None of these files is derived from the cast.
 
 The earlier claim "the cast is the source of truth, all other artifacts derive from it" was overbroad; scoped above to replayed terminal-derived display artifacts.
 

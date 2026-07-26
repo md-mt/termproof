@@ -111,7 +111,7 @@ In `_run_pty`, after each `StepResult`, if `passed==False`, loop `break`s. Remai
 
 `verify_provenance()`: installed mode requires binary_path, source requires git_commit.
 
-**Trade-off:** Probes external commands. Could fail if binary is wrapper script that doesn't support `--version`. No cryptographic provenance (no Sigstore). But report includes mode, command, binary, version, commit, timestamp for audit.
+**Trade-off:** Probes external commands. Could fail if binary is wrapper script that doesn't support `--version`. No cryptographic provenance (no Sigstore). `BuildInfo` stores and serializes a timestamp, but the built-in Markdown outputs from `MarkdownReporter` and `ReportGenerator` include mode, command, binary, version, and commit and omit that timestamp.
 
 ## 12. Before/After delta for behavioral comparison
 
