@@ -266,11 +266,24 @@ class VerificationRunner:
             recipe.cols,
             recipe.rows,
         ) as session:
+            steps: list[StepResult] = []
+            for index, step in enumerate(recipe.steps, start=1):
+                try:
+                    step_result = self._run_step(session, index, step)
+                except ValueError as exc:
+                    action_name = step["action"]
+                    name = step.get("name", f"{index}:{action_name}")
+                    step_result = StepResult(name, False, str(exc), session.screen)
+                steps.append(step_result)
+                if not step_result.passed:
+                    break
+            # Wait for process to finish so exit_code is captured.
+            # Per-step deadlines were already enforced by _run_step above;
+            # this is the overall recipe timeout cap for post-step teardown.
             session.wait_for_exit(recipe.timeout_seconds)
             raw_output = session.raw_output
             exit_code = session.exit_code
         screen, _, _ = replay_cast(cast_path)
-        steps = self._evaluate_output_steps(recipe, screen, raw_output)
         return steps, raw_output, exit_code, screen
 
     def _run_step(
