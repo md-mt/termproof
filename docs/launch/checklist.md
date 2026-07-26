@@ -65,6 +65,7 @@ This checklist is the single source for launch readiness. Check items in order; 
 
 - [ ] Check availability for `@termproof` on X/Twitter, Mastodon (fosstodon.org/hachyderm.io), Bluesky
 - [ ] Decide fallback per `docs/launch/social/profiles.md` fallback order
+- [ ] Register/redirect `@tui_verifier` (legacy handle from Issue #38): reserve on X/Twitter and Mastodon; on Bluesky use a valid ATProto label (e.g. `tui-verifier.bsky.social` or `tuiverifier.bsky.social`) since underscores are not allowed
 - [ ] Create accounts with bio version A + avatar from `final.svg` PNG export
 - [ ] Record URLs on Issue #38 comment: X, Mastodon, Bluesky profile links
 - [ ] Link aggregator: update README "Community" or socials — if none, add issue to update README post-launch
@@ -72,7 +73,7 @@ This checklist is the single source for launch readiness. Check items in order; 
 ### Show HN (#36)
 
 - [ ] Time: Tuesday-Thursday 8-10am PT (HN best traffic)
-- [ ] Title final: `Show HN: TermProof – Evidence-first TUI verification (asciinema + screenshots + video + report)` (or variant from `show-hn.md`)
+- [ ] Title final: `Show HN: TermProof – Verify terminal apps with cast, screenshots, video` (or variant from `show-hn.md`)
 - [ ] Body: copy from `show-hn.md` draft body, verify all links alive (repo, quickstart, recipe-packs, generic example, artifacts)
 - [ ] Submit: https://news.ycombinator.com/submit
 - [ ] Immediately post companion comment from `show-hn.md`
@@ -108,7 +109,7 @@ This checklist is the single source for launch readiness. Check items in order; 
 
 - **#36 Show HN:** Closed only when HN post URL exists + companion comment posted + monitoring first 24h done. Otherwise comment on #36 with merged launch-kit PR URL + `t_550ba351` gate remaining.
 - **#37 Outreach:** Closed only when all 4 frameworks contacted AND responses tracked (interested/not now) with links. Otherwise comment with launch-kit PR + remaining sends.
-- **#38 Social:** Closed only when profiles created (URLs recorded) + first announcement posted. Otherwise comment with launch-kit PR + handle decision.
+- **#38 Social:** Closed only when profiles created (URLs recorded) + first announcement posted + legacy `@tui_verifier` registered/redirected. Development update, screenshot post, and first "Recipe of the Week" are tracked in #38 but do not block close — split ongoing content into follow-up issues. Otherwise comment with launch-kit PR + handle decision.
 
 ## Rollback / Contingency
 

@@ -4,10 +4,18 @@ Placeholder directory for avatar/banner source guidance — do not commit binary
 
 ## Avatar Guidance
 
-- Source: `examples/generic/generic_tui.py` final state or shield-check icon
-- Colors: badge green #0a7a2e bg + white `>_ ✓` glyph (from `docs/verified-badge.md`)
+- Source: run `uv run termproof run examples/generic --video` and use `final.svg` from the output directory, or use a shield-check icon
+- Colors: badge green #0a7a2e bg + white `>_ ✓` glyph
 - Sizes: 400x400 PNG for X/Twitter, 512x512 for Mastodon/Bluesky
-- Generation: export `examples/artifacts/generic-tui-workflow/final.svg` → PNG via `agg` + `ffmpeg` or Cairo, crop to square
+- Generation: convert `final.svg` to PNG via `rsvg-convert` (librsvg2-bin) or Inkscape:
+  ```bash
+  # From a termproof run output:
+  rsvg-convert -w 400 -h 400 .termproof/runs/<id>/final.svg -o avatar-400.png
+  rsvg-convert -w 512 -h 512 .termproof/runs/<id>/final.svg -o avatar-512.png
+  # Or with Inkscape:
+  inkscape --export-type=png --export-width=400 .termproof/runs/<id>/final.svg -o avatar-400.png
+  ```
+  Crop to square if the SVG is not already square (`mogrify -gravity center -extent 400x400 avatar-400.png` with ImageMagick).
 
 ## Banner Guidance
 

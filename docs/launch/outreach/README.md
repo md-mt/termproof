@@ -57,12 +57,15 @@ cat .termproof/demo/*/report.md
 - name: Install render deps
   run: |
     sudo apt-get update && sudo apt-get install -y ffmpeg
-    cargo install --locked --git https://github.com/asciinema/agg --tag v1.9.0 || true
+    cargo install --locked --git https://github.com/asciinema/agg --tag v1.9.0
 
 - name: Run TermProof
   run: |
     pip install termproof
     termproof run .termproof/recipes --video --out .termproof/ci
+
+- name: Check evidence produced
+  run: test -f .termproof/ci/*/session.mp4 || (echo "ERROR: session.mp4 missing (agg unavailable?)" && exit 1)
 
 - name: Upload evidence
   uses: actions/upload-artifact@v4

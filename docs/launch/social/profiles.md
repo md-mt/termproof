@@ -13,23 +13,23 @@ Primary handle: `@termproof`
 - Bluesky: `@termproof.bsky.social` (or custom domain `@termproof.sh` / `@termproof.dev` if domain acquired later)
 - GitHub org: `md-mt/termproof` (already has repo, could later create `termproof` org if MX moves)
 
-Secondary: `@tui_verifier` (legacy) — redirect to TermProof, mention rename in bio first 30 days post-launch.
+Secondary: `@tui_verifier` (legacy from Issue #38) — must reserve and redirect. On X/Twitter and Mastodon, register `@tui_verifier` and point bio to TermProof. On Bluesky, underscores are not valid in ATProto handles; register `tui-verifier.bsky.social` or `tuiverifier.bsky.social` as a redirect placeholder.
 
 ### Availability Check Process (Human)
 
 1. Search X/Twitter for `@termproof` — if taken but inactive 1+ year, consider `@termproof_dev`, `@termproofhq`, `@trytermproof`
 2. Search mastodon.social global for `termproof` — prefer instance fosstodon.org → hachyderm.io → mastodon.social
 3. Bluesky: check `bsky.app/profile/termproof.bsky.social` via API/handle resolution
-4. If `@termproof` taken actively, escalate: try `@termproof_io`, `@termproof_cli`, `@trytermproof` (consistent across platforms if fallback needed)
+4. If `@termproof` taken actively, escalate: try `@termproofhq`, `@trytermproof` (consistent across X/Twitter and Mastodon). For Bluesky, use only labels without underscores: `termproofhq.bsky.social`, `trytermproof.bsky.social` — `termproof_cli` and `termproof_io` are not valid ATProto handles.
 5. Reserve all three to same fallback if primary unavailable anywhere — consistency > perfection
 
 ### Fallback Order
 
-1. `@termproof` (preferred)
-2. `@termproofhq`
-3. `@trytermproof`
-4. `@termproof_cli`
-5. `@termproof_io`
+1. `@termproof` (preferred) — Bluesky: `termproof.bsky.social`
+2. `@termproofhq` — Bluesky: `termproofhq.bsky.social`
+3. `@trytermproof` — Bluesky: `trytermproof.bsky.social`
+4. `@termproof_dev` — X/Twitter and Mastodon only (not valid on Bluesky)
+5. `@termproof_io` — X/Twitter and Mastodon only (not valid on Bluesky)
 
 Document final choice in `t_550ba351` gate comment and update this file post-creation in follow-up PR.
 
@@ -45,11 +45,15 @@ Option B (benefit):
 
 > Stop trusting TUI screenshots. Record the real session, replay to evidence, ship the proof. MIT. Python 3.11+.
 
-Character counts: A = 119, B = 99. Use A for launch.
+Character counts: A = 140, B = 110. Use A for launch.
 
 ### Long Bio (for GitHub org, Mastodon, Bluesky profile extended)
 
-> TermProof verifies terminal and TUI applications with replayable evidence. JSON recipes drive real PTY sessions, record asciinema casts (source of truth), replay into SVG screenshots, text snapshots, 60-fps MP4 via agg+ffmpeg, and Markdown/JSON reports. Upload `.termproof/runs` as CI artifact — reviewers inspect proof, not just logs. Works with Textual, Bubble Tea, Ratatui, Ink, or any CLI. MIT. `pip install termproof`.
+> TermProof verifies terminal and TUI applications with replayable evidence. JSON recipes drive real PTY sessions, record asciinema casts, replay into SVG screenshots, text snapshots, 60-fps MP4 via agg+ffmpeg, and Markdown/JSON reports. Upload `.termproof/runs` as CI artifact — reviewers inspect proof, not just logs. Works with Textual, Bubble Tea, Ratatui, Ink, or any CLI. MIT. `pip install termproof`. (423 graphemes — Mastodon/GitHub; Bluesky 256-grapheme description limit requires the shorter variant below)
+
+### Bluesky Description (≤256 graphemes)
+
+> TermProof verifies TUI apps with replayable evidence. JSON recipes drive PTY, record casts, replay to screenshots + video. CI artifact for reviewer proof. Works with Textual, Bubble Tea, Ratatui, Ink. MIT. pip install termproof.
 
 ### GitHub Repo About Section (Keep Updated)
 
@@ -100,7 +104,7 @@ No avatar/banner binary committed in this PR — vector source + instructions on
 > **Tweet 4/6 (why not X):**
 > Screenshots stale in one PR. expect no video/report. Playwright/Cypress can't drive PTY. VHS great for demos, not assertions/CI. asciinema alone no driving.
 >
-> TermProof: cast is source of truth — screenshots, video, assertions, report all replay from same cast.
+> TermProof: cast is source of truth for terminal output — screenshots, final SVG, video replay from same cast. Assertions evaluate from live terminal state; report aggregates results.
 
 > **Tweet 5/6 (quickstart):**
 > pip install termproof
@@ -113,12 +117,12 @@ No avatar/banner binary committed in this PR — vector source + instructions on
 > Artifacts checked in: examples/artifacts/
 
 > **Tweet 6/6 (CTA + links):**
-> MIT. Python 3.11+. Extensible — steps, assertions, session/video backends, reporters all plugins in .termproof/config.yaml.
+> MIT. Python 3.11+. Extensible via plugins in .termproof/config.yaml.
 >
-> Try it, open an issue with your TUI command, I'll help write first recipe.
+> Try it, open an issue with your TUI command.
 >
 > Repo: github.com/md-mt/termproof
-> Badge: Verified by TermProof
+> Verified by TermProof
 > #TUI #Python #Rust #Go #CLI
 
 ### Mastodon (single post, 500 chars, plus thread)

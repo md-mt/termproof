@@ -6,15 +6,15 @@
 
 ## Target Title
 
-`Show HN: TermProof – Evidence-first TUI verification (asciinema + screenshots + video + report)`
+`Show HN: TermProof – Verify terminal apps with cast, screenshots, video` (71 chars)
 
 Alternatives, in order if HN dedupes or we need to reframe:
 
-1. `Show HN: TermProof – I built Cypress for terminal apps (cast, screenshots, video, report)`
-2. `Show HN: TermProof – Verify your TUI in CI with replayable evidence`
-3. `Show HN: TermProof – Stop trusting TUI screenshots, ship the proof`
+1. `Show HN: TermProof – I built Cypress for terminal apps (cast + video)` (69 chars)
+2. `Show HN: TermProof – Verify your TUI in CI with replayable evidence` (67 chars)
+3. `Show HN: TermProof – Stop trusting TUI screenshots, ship the proof` (66 chars)
 
-HN title limit: 80 chars recommended. Preferred title is 76 chars, passes.
+HN title limit: 80 chars recommended. All titles pass.
 
 ## Why TermProof Exists
 
@@ -108,7 +108,7 @@ Ask me anything about TUI testing — would love to help you write your first re
 ## Companion Comment (Post Immediately After Submitting, As Author)
 
 > Quick notes for context:
-> - The cast is the source of truth. Screenshots, video, assertions, report all replay from the same `.cast` — reviewers can diff it.
+> - The cast is the source of truth for terminal output. Screenshots, final SVG/text, and video replay from the same `.cast` — reviewers can diff it. Assertions evaluate from live terminal state during the run; the report aggregates those results with replayed evidence.
 > - Works for any terminal program, not just TUIs — the generic pack verifies a toy CLI with `open dashboard / filter errors / export report`.
 > - Plugin system is already shipping: if you have a custom step (e.g. wait_for_regex for Textual DOM), you register `my_pkg:WaitForRegex` in `.termproof/config.yaml`.
 > - Happy to review a recipe PR if you try it — open an issue with your command and expected flow.
@@ -117,9 +117,16 @@ Ask me anything about TUI testing — would love to help you write your first re
 
 HN doesn't embed images in the submission itself, but link in comments or host:
 
-- `examples/artifacts/generic-tui-workflow/final.svg` — render as SVG screenshot (convert to PNG for HN compatibility if needed via `termproof`'s svg renderer)
-- `examples/artifacts/pi-workflow-guarded-edit/session.mp4` — 60-second demo, upload to GitHub Releases or link to `termproof-ci-evidence` latest run
+- `examples/artifacts/pi-workflow-guarded-edit-default/session.mp4` — 60-second demo, upload to GitHub Releases or link to `termproof-ci-evidence` latest run
 - `examples/artifacts/latest-pi-workflows-report.md` — aggregate report
+- SVG screenshots: use `rsvg-convert` to convert `final.svg` to PNG for HN compatibility:
+  ```bash
+  # From a termproof run:
+  rsvg-convert -w 800 .termproof/runs/<id>/final.svg -o final.png
+  # Or for checked-in artifacts:
+  rsvg-convert -w 800 examples/artifacts/<run-dir>/final.svg -o final.png
+  ```
+  (`rsvg-convert` from `librsvg2-bin` on apt/brew; `inkscape --export-type=png` also works)
 
 Preferred canonical demo link after v0.2 release:
 

@@ -23,7 +23,7 @@ Goal: respond with technical depth, capture feedback, convert "tried it" into gu
 - [ ] Prepare local evidence:
   - Latest `termproof-ci-evidence` artifact from `origin/main` CI run
   - `examples/artifacts/` browse — have open links to SVGs + MP4s + reports ready to paste
-  - `uv run termproof run examples/generic --video` output — ensure <60s MP4 duration via `ffprobe .termproof/demo/*/session.mp4`
+  - `uv run termproof run examples/generic --video --out .termproof/demo` output — ensure <60s MP4 duration via `ffprobe .termproof/demo/*/session.mp4`; also fail preflight if `session.mp4` is absent (`termproof` silently skips video when `agg` is unavailable)
 - [ ] Pre-draft snippets (keep in clipboard manager):
   - Quickstart 3 commands
   - Recipe pack minimal JSON

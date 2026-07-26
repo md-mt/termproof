@@ -7,7 +7,7 @@
 ## Target
 
 - **Framework:** Ink (React renderer for CLI/TUI, by Vadim Demedes, now maintained by community)
-- **Repos:** https://github.com/vadimdemedes/ink, https://github.com/charmbracelet/ink (check current)
+- **Repos:** https://github.com/vadimdemedes/ink
 - **Maintainers:** via GitHub Discussions / Twitter
 - **Why relevant:** React mental model for CLIs, widely used for `claude-code`, `opencode`, etc. Needs E2E evidence beyond unit snapshots + ink-testing-library
 
@@ -59,10 +59,15 @@ TermProof closes that:
   run: |
     pipx install termproof
     sudo apt-get update && sudo apt-get install -y ffmpeg
-    cargo install --locked --git https://github.com/asciinema/agg --tag v1.9.0 || true
+    if ! command -v agg >/dev/null 2>&1; then
+      cargo install --locked --git https://github.com/asciinema/agg --tag v1.9.0
+    fi
 
 - name: Verify CLI
   run: termproof run .termproof/recipes --video --out .termproof/ci
+
+- name: Check evidence produced
+  run: test -f .termproof/ci/*/session.mp4 || (echo "ERROR: session.mp4 missing (agg or ffmpeg unavailable?)" && exit 1)
 
 - uses: actions/upload-artifact@v4
   with:

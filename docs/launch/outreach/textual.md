@@ -11,7 +11,7 @@
 - **Maintainers:** via GitHub Discussions / Twitter DM — do not spam
 - **Why relevant:** Largest Python TUI framework, needs CI evidence story beyond `pytest` + snapshot tests
 
-## Message Template (Short, Issue + PR + DM friendly, <280 chars for tweet)
+## Message Template (Short, Issue + PR + DM friendly)
 
 Subject: TermProof — CI evidence for Textual apps?
 

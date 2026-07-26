@@ -25,12 +25,12 @@ These URLs are referenced across outreach and social copy. Update after v0.2 rel
 - **Generic demo recipe:** `https://github.com/md-mt/termproof/tree/main/examples/generic`
 - **Pi workflow showcase:** `https://github.com/md-mt/termproof/tree/main/examples` (recipes `pi_workflow_*.recipe.json`)
 - **60-second demo (local):** run `uv run termproof run examples/generic --video` then open `.termproof/runs/<id>/session.mp4` and `final.svg`
-- **Tracked evidence artifacts:** `https://github.com/md-mt/termproof/tree/main/examples/artifacts` — e.g. `examples/artifacts/generic-tui-workflow/final.svg`, `pi-workflow-guarded-edit/session.mp4`, `latest-pi-workflows-report.md`
+- **Tracked evidence artifacts:** `https://github.com/md-mt/termproof/tree/main/examples/artifacts` — e.g. `pi-workflow-guarded-edit-default/session.mp4`, `latest-pi-workflows-report.md`
 - **CI evidence artifact:** `termproof-ci-evidence` attached to every PR and `main` push (`https://github.com/md-mt/termproof/actions/workflows/ci.yml`)
 - **Release evidence:** `termproof-release-evidence.tgz` on release tags (`https://github.com/md-mt/termproof/actions/workflows/release.yml`)
-- **Demo site (when live):** `https://md-mt.github.io/termproof/` (Issue #16, `docs/plugins.md`, `docs/verified-badge.md`)
+- **Demo site (when live):** `https://md-mt.github.io/termproof/` (Issue #16) — `docs/plugins.md` and `docs/verified-badge.md` will land in follow-up PRs (t_1b2bfea8 lane)
 - **Integration guides (v0.3 target):** `docs/guides/textual.md`, `docs/guides/bubbletea.md`, `docs/guides/ratatui.md` per Issue #24 — link to recipe-packs doc until guides ship
-- **Badge:** `docs/verified-badge.md`
+- **Badge:** `docs/verified-badge.md` (lands in t_1b2bfea8 lane; link to README badge section until then)
 
 ### Demo script (60-second wow moment)
 
@@ -54,7 +54,7 @@ Current integration surface until `docs/guides/` lands (Issue #24):
 - Creating a recipe pack: `termproof init .termproof/recipes --name my-tui --command "my-tui"`
 - Running with evidence: `termproof run .termproof/recipes --video --out .termproof/ci`
 - GitHub Actions snippet: `README.md` CI section + `.github/workflows/ci.yml`
-- Plugin system: `docs/plugins.md` + `docs/recipe-packs.md`
+- Plugin system: `docs/recipe-packs.md` (plugins.md lands in t_1b2bfea8)
 
 When referencing integration guides in outreach, link to:
 
@@ -77,7 +77,7 @@ Run:
 uv run python -m unittest discover -s tests -k launch
 ```
 
-This checks that all referenced files exist, required sections are present, canonical links are valid paths or https URLs, and no placeholder social handle is marked as created.
+This checks that all required files exist, required sections are present, and no placeholder social handle is marked as created. Path resolution and content validation are covered by behavioral tests in `tests/test_launch_kit.py`.
 
 ## After Merge
 

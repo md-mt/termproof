@@ -50,9 +50,12 @@ TermProof (https://github.com/md-mt/termproof) bridges that:
 **Rust CI snippet:**
 
 ```yaml
-- uses: cargo install --locked --git https://github.com/asciinema/agg --tag v1.9.0
-  if: "! command -v agg"
-- run: sudo apt-get update && sudo apt-get install -y ffmpeg
+- name: Install render deps
+  run: |
+    sudo apt-get update && sudo apt-get install -y ffmpeg
+    if ! command -v agg >/dev/null 2>&1; then
+      cargo install --locked --git https://github.com/asciinema/agg --tag v1.9.0
+    fi
 
 - name: Build TUI
   run: cargo build --bin my-ratatui-app
@@ -61,6 +64,9 @@ TermProof (https://github.com/md-mt/termproof) bridges that:
   run: |
     pipx install termproof
     termproof run .termproof/recipes --video --out .termproof/ci
+
+- name: Check evidence produced
+  run: test -f .termproof/ci/*/session.mp4 || (echo "ERROR: session.mp4 missing (agg or ffmpeg unavailable?)" && exit 1)
 
 - uses: actions/upload-artifact@v4
   with:
