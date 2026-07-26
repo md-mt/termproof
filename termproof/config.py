@@ -101,14 +101,17 @@ CURRENT_PLUGIN_MODULE_PREFIX = "termproof."
 def load_config(
     project_path: Path | None = None,
     user_path: Path | None = None,
+    config_path: Path | None = None,
 ) -> VerifierConfig:
-    """Load builtin, migrated user, and migrated project configuration.
+    """Load builtin, migrated user, migrated project, and explicit configuration.
 
     Normal discovery cascades in this order: builtin, legacy user config,
     TermProof user config, legacy project config, then TermProof project config.
     The newer location wins only for values it provides; legacy files are never
     changed on disk. Passing ``user_path`` loads exactly that user config and
-    skips implicit user-location discovery.
+    skips implicit user-location discovery. ``config_path`` is an explicit CLI
+    config file and is applied after the normal cascade, so its values win
+    without bypassing compatible discovery.
     """
     merged: dict[str, Any] = _deep_merge({}, BUILTIN_DEFAULTS)
     project_root = project_path or Path.cwd()
@@ -125,8 +128,9 @@ def load_config(
         project_root / LEGACY_PROJECT_CONFIG_DIR / "config.yaml",
         project_root / ".termproof" / "config.yaml",
     ]
+    explicit_files = [config_path] if config_path is not None else []
 
-    for config_file in [*user_files, *project_files]:
+    for config_file in [*user_files, *project_files, *explicit_files]:
         if config_file.exists():
             merged = _deep_merge(merged, _load_yaml(config_file))
 

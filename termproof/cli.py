@@ -115,9 +115,5 @@ def main(argv: list[str] | None = None) -> int:
 
 def _resolve_config(args: argparse.Namespace) -> VerifierConfig:
     if args.config:
-        from .config import load_config as _load
-
-        user_path: Path | None = None
-        project_path: Path | None = args.config.resolve()
-        return _load(project_path=project_path, user_path=user_path)
+        return load_config(config_path=args.config.resolve())
     return load_config()
