@@ -23,7 +23,12 @@ Positioning: steps dispatch through the registry **only in PTY mode** (`command.
 
 Example: wait for a count of occurrences.
 
-Note: the prior version of this example double-counted by summing `raw_output.count + screen.count`. The same terminal output appears in both representations, so counting both double-counts. The corrected example below checks `screen` first (post-ANSI, de-duplicated view) and only falls back to `raw_output` if needed.
+Note on prior fix attempts: summing `raw_output.count + screen.count` double-counts because the
+same terminal output appears in both. Selecting only screen when the needle is currently visible
+false-fails when older matches have scrolled out of the viewport but remain in accumulated history.
+Use `max(screen.count, raw_output.count)` to preserve history while avoiding double-counting —
+`raw_output` accumulates all output; `screen` is current pyte viewport; `max` returns the richer
+history without summing duplicates.
 
 ```python
 # my_pkg/steps.py
@@ -43,9 +48,10 @@ class WaitForCount:
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
             session.read_available(0.05)
-            # Check screen rather than raw_output.count + screen.count to avoid double-counting
-            haystack = session.screen if needle in session.screen else session.raw_output
-            occurrences = haystack.count(needle)
+            occurrences = max(
+                session.screen.count(needle),
+                session.raw_output.count(needle),
+            )
             if occurrences >= expected:
                 return StepResult(display, True, f"found {occurrences} occurrences of {needle!r}", session.screen)
             if not session.is_alive():
@@ -243,7 +249,7 @@ class SessionBackend(Protocol):
 
 Compatibility: a session object returned by `create_session` must be a **context manager** because `runner.py:222-229,247-254` uses `with ...create_session(...) as session:`. So subclass `TerminalSession` (which already implements `__enter__`/`__exit__`) or provide an object implementing both `__enter__` and `__exit__` plus `raw_output`, `screen`, `exit_code`, `wait_for_text`, `wait_for_idle`, `wait_for_exit`, `read_available`, `is_alive`, `send_text`, `send_line`, `press`, `close`, and `raw_output`.
 
-Additionally, non-recorded agent mode at `agent_driven.py:87-131` bypasses the session backend entirely (uses `subprocess.run`), so custom backends have no effect when `record_terminal=False`.
+Additionally, both built-in Codex agent paths bypass `config.session_backend`: recorded mode at `agent_driven.py:51-70` (`record_terminal=True`) directly constructs `TerminalSession(...)`, and non-recorded mode at `agent_driven.py:87-131` (`record_terminal=False`) calls `subprocess.run()` directly. Neither built-in agent path calls `config.session_backend.create_session(...)`. Configured session backend currently affects scripted PTY/process execution only.
 
 Example: minimal delegation backend:
 
@@ -557,7 +563,7 @@ Note: process mode evaluates steps via `_evaluate_output_steps()` — only `wait
 - `Registry.get()` raises `KeyError` with available sorted names — Runner wraps unknown step/assertion as `ValueError("unknown step action")` / `ValueError("unknown assertion type")`.
 - `session_backend` is single string — replacing it replaces whole backend; you cannot have multiple session backends concurrently (runner resolves one).
 - The object returned by `create_session()` must be a context manager (`__enter__`/`__exit__`) because runner uses `with ...create_session(...) as session:`; the session backend itself need not be a context manager — only the session object it returns must be.
-- Non-recorded agent mode (`record_terminal=False`) bypasses session backend — it calls `subprocess.run` directly.
+- Both built-in Codex agent paths bypass `config.session_backend`: recorded (`record_terminal=True`) at `agent_driven.py:51-70` directly constructs `TerminalSession(...)`; non-recorded (`record_terminal=False`) at `agent_driven.py:87-131` uses `subprocess.run(...)`. Configured session backend affects scripted PTY/process only.
 - Video backend only called if `render_video True` and `shutil.which("agg")` passes in `render_artifacts()` at `evidence.py:55-60`. Without `agg`, video rendering silently skipped regardless of backend config unless you patch that guard too.
 - Execution resolver only emits 3 fixed names — new execution mode names require replacing `scripted_pty`/`scripted_process`/`agent_driven` or patching `runner._resolve_execution_mode_name`.
 - `agent_runner_registry` is built but unused — custom Python runner requires programmatic `VerificationRunner(agent_runner=...)`, not just config YAML.

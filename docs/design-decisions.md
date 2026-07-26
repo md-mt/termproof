@@ -142,7 +142,7 @@ Keeping both in Recipe allows same file to declare data for both execution style
 - Writes `<safe-name>.recipe.json` with default steps (`wait_for_idle stable 0.75s`) and one assertion (`output_not_contains Traceback`), expect_exit_code None.
 - Writes README.md if not existing.
 
-**Trade-off:** Starter recipe is minimal — user must edit assertions/steps. But works as discovery test: running it immediately records evidence for whatever command, even if not yet interactive.
+**Trade-off:** The immediate-run behavior (scaffold then `tui-verify run`) works for the **default PTY scaffold** (`tui-verify init ...` without `--non-pty`): the emitted `wait_for_idle` step dispatches through the PTY step registry and records evidence even before assertions are edited. For `--non-pty` scaffolds (`tui-verify init --non-pty ...`), this guarantee does not hold: `scaffold.py:42-48` still emits `wait_for_idle` regardless of `pty`, but `runner.py:275-295` only supports `wait_for_text` and `sleep` in process mode — every other action fails with `"'wait_for_idle' requires command.pty=true"`. A non-PTY scaffold generated and run immediately fails verification; users must replace `wait_for_idle` with `wait_for_text` (or `sleep`) before running. Do not promise evidence success for arbitrary or non-PTY scaffolds — only default PTY scaffolds are immediately runnable as a discovery test.
 
 ## 16. Packaging choice: hatchling + uv
 

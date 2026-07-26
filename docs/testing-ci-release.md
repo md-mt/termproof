@@ -122,12 +122,37 @@ GitHub permissions and API calls permit — the comment step at `ci.yml:92-95` u
 deliberately tolerated). When successful, the comment contains:
 
 - Link to workflow run
-- Reference to `tui-verifier-ci-evidence` artifact name
-- Embedded `latest-report.md` (truncated to 55k chars if needed)
-- Note that report links point to files inside artifact
+- Reference to `tui-verifier-ci-evidence` artifact name (the full artifact must be downloaded; individual file links inside are not directly resolvable from the comment)
+- Embedded `latest-report.md` (truncated to 55k chars if needed) — note that Markdown links inside that file are **not** resolvable document-relative from `latest-report.md`, and they do not address members inside the uploaded ZIP. Users must download and extract the whole artifact/archive and locate files by name/path inside.
+
+**Known limitation — evidence links are not directly resolvable (pre-existing product/workflow defect):**
+
+`evidence.py:40-50` stores artifact paths CWD-relative including the output prefix,
+e.g. `.tui-verifier/ci/<timestamp>-<recipe>-default/final.svg`. `builtin_reporters.py:77-83`
+interpolates those strings unchanged into `latest-report.md`. `cli.py:80-82` writes
+`latest-report.md` inside that same output directory (`.tui-verifier/ci/`), so a link
+like `.tui-verifier/ci/<run>/final.svg` when resolved document-relative from
+`.tui-verifier/ci/latest-report.md` becomes `.tui-verifier/ci/.tui-verifier/ci/<run>/final.svg`
+— the prefix is duplicated and the target does not exist. The correct CWD-relative
+resolution is from repository root; document-relative resolution is broken.
+
+Further, embedding `latest-report.md` in a PR comment, run summary, or release body
+cannot make those paths address members inside an Actions ZIP (`tui-verifier-ci-evidence`)
+or a release tar (`tui-verifier-release-evidence.tgz`). Embedded Markdown in a comment
+does not resolve to archive members — there is no URL-to-ZIP-member mapping. Actions
+artifacts and release archives must be downloaded and extracted as a whole, then files
+located inside.
+
+Recommendation (product): generate artifact links relative to the report file
+itself, e.g. `<run-dir-name>/final.svg` instead of `.tui-verifier/ci/<run>/final.svg`,
+and add a validation step that resolves each local report link against
+`report_path.parent` on disk. For web surfaces, link to the whole artifact/archive
+URL or host evidence as independently addressable assets.
 
 The same markdown also appears in GitHub Run Summary for PR and main commits
-(handled by a separate `if: always()` summary step).
+(handled by a separate `if: always()` summary step) — Run Summary Markdown likewise
+does not resolve to files inside the uploaded artifact; users must download the
+full artifact and locate files inside.
 
 ## GitHub Actions — Release (`release.yml`)
 
@@ -166,18 +191,41 @@ tar -czf tui-verifier-release-evidence.tgz -C .tui-verifier release
 
 - Write release notes `release-notes.md` (`if: always()`):
 
+The current workflow writes (simplified):
+
 ```md
 ## TUI Verifier Release Evidence
 
 Evidence archive: `tui-verifier-release-evidence.tgz`
-Report links point to files inside that archive.
+# plus embedded latest-report.md content
 
-<content of latest-report.md>
+**Note:** Report links inside are CWD/output-prefix-relative (e.g. `.tui-verifier/release/...`) and do not resolve
+document-relatively from the release notes / GitHub Release body. Embedded Markdown in a Release body
+cannot address members inside `tui-verifier-release-evidence.tgz`. The tar itself was created via
+`tar -C .tui-verifier release`, so members are stored under `release/...`, not `.tui-verifier/release/...`.
+Users must download and extract `tui-verifier-release-evidence.tgz` as a whole and locate files inside.
+
+<content of latest-report.md - with same non-resolvable link caveat as CI>
 ```
 
-Append same to `GITHUB_STEP_SUMMARY`.
+Key defects to be aware of:
+- Artifact paths are set CWD/out-prefix-relative in `evidence.py` and interpolated unchanged.
+  When `latest-report.md` lives inside that same out dir, document-relative resolution
+  duplicates the prefix (`.tui-verifier/release/.tui-verifier/release/...`).
+- Release tar layout is `release/<run>/...` due to `tar -C .tui-verifier release` — not
+  `.tui-verifier/release/<run>/...`. Documentation must not claim release notes Markdown
+  links directly resolve inside the tar.
+- PR comment / Run Summary / Release body Markdown are separate presentation surfaces
+  from the ZIP/tgz contents — no automatic URL mapping to archive members.
 
-- Upload release evidence artifact (same as CI but `release` dir) + dist artifact.
+Recommendation (product): same as CI — generate report-relative links and host evidence
+as independently addressable assets or link only to the artifact/archive as a whole.
+Document current behavior precisely; label fix direction as recommendation, not current behavior.
+
+Append same to `GITHUB_STEP_SUMMARY` — with same non-resolvable caveat; users must download
+the full artifact/archive.
+
+- Upload release evidence artifact (same as CI but `release` dir, with same link limitation — files only accessible after download/extract) + dist artifact.
 - Create GitHub Release — `softprops/action-gh-release@v2`, `if: startsWith(github.ref, 'refs/tags/v')`, `body_path: release-notes.md`, `files: dist/*` + `tui-verifier-release-evidence.tgz`.
 - Publish to PyPI — `pypa/gh-action-pypi-publish@release/v1`, `if: startsWith(github.ref, 'refs/tags/v')` — uses OIDC trusted publishing (no token, relies on `environment: pypi` + `id-token: write`).
 
