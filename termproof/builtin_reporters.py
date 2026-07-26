@@ -1,12 +1,32 @@
 from __future__ import annotations
 
 import html
+import re
 import xml.etree.ElementTree as ET
 from typing import Protocol
 
 from .before_after import BeforeAfterResult
 from .build_info import BuildInfo
 from .models import RunResult
+
+
+# XML 1.0 spec: allowed characters are:
+#   #x9 | #xA | #xD | [#x20-#xD7FF] | [#xE000-#xFFFD] | [#x10000-#x10FFFF]
+# All other control characters (#x00-#x08, #x0B-#x0C, #x0E-#x1F) are FORBIDDEN.
+_XML_FORBIDDEN_CONTROL_RE = re.compile(
+    "[\x00-\x08\x0b\x0c\x0e-\x1f]"
+)
+
+
+def _xml_sanitize(text: str) -> str:
+    """Strip XML 1.0 forbidden control characters from *text*.
+
+    Terminal output routinely contains ANSI escape sequences
+    (``\\x1b[...``) and other byte-range control codes that would
+    produce invalid XML.  The standard ``html.escape`` / ``ET.tostring``
+    escaping does not handle these — they must be removed pre-serialisation.
+    """
+    return _XML_FORBIDDEN_CONTROL_RE.sub("", text)
 
 
 class Reporter(Protocol):
@@ -119,11 +139,11 @@ class JUnitXmlReporter:
 
         for result in results:
             testcase = ET.SubElement(testsuite, "testcase")
-            classname = result.execution or "termproof"
+            classname = _xml_sanitize(result.execution or "termproof")
             tc_name = (
-                f"{result.recipe_name} [{result.renderer}]"
+                f"{_xml_sanitize(result.recipe_name)} [{_xml_sanitize(result.renderer)}]"
                 if result.renderer != "default"
-                else result.recipe_name
+                else _xml_sanitize(result.recipe_name)
             )
             testcase.set("classname", classname)
             testcase.set("name", tc_name)
@@ -131,13 +151,13 @@ class JUnitXmlReporter:
 
             if not result.passed:
                 failure = ET.SubElement(testcase, "failure")
-                failure.set("message", f"{result.recipe_name} failed (score {result.score:.2f})")
+                failure.set("message", _xml_sanitize(f"{result.recipe_name} failed (score {result.score:.2f})"))
                 failure.set("type", "AssertionError")
                 lines = [
-                    f"Recipe: {result.recipe_name}",
-                    f"Renderer: {result.renderer}",
-                    f"Priority: {result.priority}",
-                    f"Execution: {result.execution}",
+                    f"Recipe: {_xml_sanitize(result.recipe_name)}",
+                    f"Renderer: {_xml_sanitize(result.renderer)}",
+                    f"Priority: {_xml_sanitize(result.priority)}",
+                    f"Execution: {_xml_sanitize(result.execution)}",
                     f"Score: {result.score:.2f}",
                     f"Exit code: {result.exit_code}",
                     "",
@@ -145,15 +165,15 @@ class JUnitXmlReporter:
                 ]
                 for st in result.steps:
                     mark = "PASS" if st.passed else "FAIL"
-                    lines.append(f"  {mark} {st.name}: {st.detail}")
+                    lines.append(f"  {mark} {_xml_sanitize(st.name)}: {_xml_sanitize(st.detail)}")
                 lines.extend(["", "Assertions:"])
                 for a in result.assertions:
                     mark = "PASS" if a.passed else "FAIL"
-                    lines.append(f"  {mark} {a.name}: {a.detail}")
+                    lines.append(f"  {mark} {_xml_sanitize(a.name)}: {_xml_sanitize(a.detail)}")
                 if result.artifacts:
                     lines.extend(["", "Artifacts:"])
                     for k, v in result.artifacts.items():
-                        lines.append(f"  {k}: {v}")
+                        lines.append(f"  {_xml_sanitize(k)}: {_xml_sanitize(v)}")
                 failure.text = "\n".join(lines)
 
             sysout = ET.SubElement(testcase, "system-out")
@@ -163,12 +183,12 @@ class JUnitXmlReporter:
                 out_lines.append("Steps:")
                 for st in result.steps:
                     mark = "PASS" if st.passed else "FAIL"
-                    out_lines.append(f"  {mark} {st.name}: {st.detail}")
+                    out_lines.append(f"  {mark} {_xml_sanitize(st.name)}: {_xml_sanitize(st.detail)}")
                 out_lines.append("")
             if result.artifacts:
                 out_lines.append("Artifacts:")
                 for k, v in result.artifacts.items():
-                    out_lines.append(f"  {k}: {v}")
+                    out_lines.append(f"  {_xml_sanitize(k)}: {_xml_sanitize(v)}")
             sysout.text = "\n".join(out_lines) if out_lines else ""
 
         xml_body = ET.tostring(testsuites, encoding="unicode")

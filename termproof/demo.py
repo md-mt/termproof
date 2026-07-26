@@ -92,15 +92,13 @@ def _safe_generate_report(runner: VerificationRunner, recipe: Recipe, result, re
     report = reporter.generate([result], build_info=build_info)
 
     if reporter_name == "junit_xml":
-        # JUnit XML as primary
         junit_path = out_dir / "junit.xml"
         junit_path.write_text(report, encoding="utf-8")
-        # Also write a markdown supplement for browser open
+        # supplement: always generate a markdown version for browser open
         try:
             md_reporter = runner.reporter_registry.get("markdown")
             md_report = md_reporter.generate([result], build_info=build_info)
             (out_dir / "latest-report.md").write_text(md_report, encoding="utf-8")
-            (out_dir / "latest-report-junit.xml").write_text(report, encoding="utf-8")
         except Exception:
             (out_dir / "latest-report.md").write_text(report, encoding="utf-8")
         return junit_path

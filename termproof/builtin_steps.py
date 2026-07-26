@@ -155,6 +155,13 @@ class WaitForRegex:
             )
 
         timeout = float(step.get("timeout_seconds", 10))
+        if timeout <= 0:
+            return StepResult(
+                display,
+                False,
+                f"wait_for_regex timeout_seconds must be > 0, got {timeout}",
+                getattr(session, "screen", ""),
+            )
         deadline = time.monotonic() + timeout
         last_match_detail: str | None = None
 
@@ -172,29 +179,29 @@ class WaitForRegex:
                 return None
             return pattern.search(text)
 
+        # Search screen and raw_output independently — concatenating
+        # with '\n' creates synthetic boundaries that never existed
+        # in the terminal.
         while True:
             # Poll for new terminal data (same cadence as wait_for_text)
             session.read_available(0.05)
-            combined = (getattr(session, "screen", "") or "") + "\n" + (getattr(session, "raw_output", "") or "")
+            screen_text = getattr(session, "screen", "") or ""
+            raw_text = getattr(session, "raw_output", "") or ""
 
-            m = _search(combined)
-            if m is None:
-                m = _search(getattr(session, "screen", "") or "")
-            if m is None:
-                m = _search(getattr(session, "raw_output", "") or "")
-
+            m = _search(screen_text) or _search(raw_text)
             if m:
-                return StepResult(display, True, _format_match(m), getattr(session, "screen", ""))
+                return StepResult(display, True, _format_match(m), screen_text)
 
             if time.monotonic() >= deadline:
                 break
 
             if hasattr(session, "is_alive") and not session.is_alive():
                 session.read_available(0)
-                combined = (getattr(session, "screen", "") or "") + "\n" + (getattr(session, "raw_output", "") or "")
-                final = _search(combined) or _search(getattr(session, "screen", "") or "") or _search(getattr(session, "raw_output", "") or "")
+                screen_text = getattr(session, "screen", "") or ""
+                raw_text = getattr(session, "raw_output", "") or ""
+                final = _search(screen_text) or _search(raw_text)
                 if final:
-                    return StepResult(display, True, _format_match(final), getattr(session, "screen", ""))
+                    return StepResult(display, True, _format_match(final), screen_text)
                 break
 
         return StepResult(

@@ -95,7 +95,8 @@ def main(argv: list[str] | None = None) -> int:
         reporter = runner.reporter_registry.get(args.reporter)
         report = reporter.generate(results, build_info=build_info)
         args.out.mkdir(parents=True, exist_ok=True)
-        report_path = args.out / "latest-report.md"
+        ext = ".xml" if args.reporter == "junit_xml" else ".md"
+        report_path = args.out / f"latest-report{ext}"
         report_path.write_text(report, encoding="utf-8")
         passed = sum(1 for result in results if result.passed)
         print(f"{passed}/{len(results)} passed")

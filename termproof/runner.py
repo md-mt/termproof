@@ -313,8 +313,9 @@ class VerificationRunner:
                 except _re.error as exc:
                     results.append(StepResult(name, False, f"invalid regex {pattern_str!r}: {exc}", screen))
                     continue
-                combined = raw_output + "\n" + screen
-                m = pat.search(combined) or pat.search(screen) or pat.search(raw_output)
+                # Search screen and raw_output independently — concatenating
+                # with '\n' creates synthetic boundaries that never existed.
+                m = pat.search(screen) or pat.search(raw_output)
                 if m:
                     gd = m.groupdict()
                     if gd:

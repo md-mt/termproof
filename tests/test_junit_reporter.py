@@ -115,6 +115,63 @@ class JUnitXmlReporterTest(unittest.TestCase):
         root = ET.fromstring(xml_str)
         self.assertIsNotNone(root)
 
+    def test_junit_xml_sanitizes_control_characters(self):
+        """XML 1.0-forbidden control chars (\\x00-\\x08, \\x0B-\\x0C, \\x0E-\\x1F)
+        must be stripped so the output is valid XML."""
+        from termproof.builtin_reporters import JUnitXmlReporter
+        reporter = JUnitXmlReporter()
+        # Include ANSI escape (\\x1b) and other control chars in detail text
+        dirty_name = "test\x01ctrl\x02\x1b[32mname"
+        dirty_detail = "output\x00null\x08bs\x0cff\x1b[0m"
+        result = RunResult(
+            recipe_name=dirty_name,
+            passed=False,
+            exit_code=1,
+            duration_seconds=0.2,
+            priority="P0",
+            execution="scripted",
+            renderer="default",
+            score=0.0,
+            steps=[StepResult("s", False, dirty_detail, "screen")],
+            assertions=[AssertionResult("a", True, dirty_detail)],
+            artifacts={},
+        )
+        xml_str = reporter.generate([result])
+        # Must be parseable XML — if control chars leaked through, ET will raise
+        root = ET.fromstring(xml_str)
+        self.assertIsNotNone(root)
+        # Check that forbidden chars are gone but safe content remains
+        self.assertIn("name", xml_str)
+        self.assertNotIn("\x01", xml_str)
+        self.assertNotIn("\x1b", xml_str)
+        self.assertNotIn("\x00", xml_str)
+
+    def test_junit_xml_sanitize_allows_valid_whitespace(self):
+        """Tab (\\t), newline (\\n), and carriage return (\\r) are valid XML
+        and must NOT be stripped."""
+        from termproof.builtin_reporters import JUnitXmlReporter
+        reporter = JUnitXmlReporter()
+        detail_with_tabs = "col1\tcol2\tcol3\nrow2\ta\tb\n"
+        result = RunResult(
+            recipe_name="tab_test",
+            passed=True,
+            exit_code=0,
+            duration_seconds=0.1,
+            priority="P0",
+            execution="scripted",
+            renderer="default",
+            score=1.0,
+            steps=[StepResult("s", True, detail_with_tabs, "screen")],
+            assertions=[],
+            artifacts={},
+        )
+        xml_str = reporter.generate([result])
+        root = ET.fromstring(xml_str)
+        self.assertIsNotNone(root)
+        # Valid whitespace chars should be preserved
+        self.assertIn("\t", xml_str)
+        self.assertIn("\n", xml_str)
+
     def test_junit_xml_empty_results(self):
         from termproof.builtin_reporters import JUnitXmlReporter
         reporter = JUnitXmlReporter()
