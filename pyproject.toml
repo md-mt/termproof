@@ -1,5 +1,5 @@
 [project]
-name = "tui-verifier"
+name = "termproof"
 version = "0.1.0"
 description = "Evidence-first verification for TUI and terminal applications"
 readme = "README.md"
@@ -27,19 +27,19 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/md-mt/tui-verifier"
-Repository = "https://github.com/md-mt/tui-verifier"
-Issues = "https://github.com/md-mt/tui-verifier/issues"
+Homepage = "https://github.com/md-mt/termproof"
+Repository = "https://github.com/md-mt/termproof"
+Issues = "https://github.com/md-mt/termproof/issues"
 
 [project.scripts]
-tui-verify = "tui_verifier.cli:main"
+termproof = "termproof.cli:main"
 
 [tool.hatch.build.targets.wheel]
-packages = ["tui_verifier"]
+packages = ["termproof"]
 
 [tool.hatch.build.targets.sdist]
 include = [
-  "tui_verifier",
+  "termproof",
   "tests",
   "examples",
   "docs",

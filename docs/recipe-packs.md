@@ -4,7 +4,7 @@ A recipe pack is a directory that contains one or more `*.recipe.json` files
 plus any helper scripts needed to drive the target terminal application.
 
 ```text
-.tui-verifier/
+.termproof/
   recipes/
     smoke.recipe.json
     regression.recipe.json
@@ -15,13 +15,13 @@ plus any helper scripts needed to drive the target terminal application.
 Run a pack with:
 
 ```bash
-tui-verify run .tui-verifier/recipes --video
+termproof run .termproof/recipes --video
 ```
 
 Create a starter pack with:
 
 ```bash
-tui-verify init .tui-verifier/recipes --name my-tui --command "my-tui"
+termproof init .termproof/recipes --name my-tui --command "my-tui"
 ```
 
 ## Package Contract
@@ -40,7 +40,7 @@ tui-verify init .tui-verifier/recipes --name my-tui --command "my-tui"
 Use three layers for a real product:
 
 ```text
-.tui-verifier/
+.termproof/
   recipes/
     p0/
       smoke.recipe.json
@@ -52,7 +52,7 @@ Use three layers for a real product:
 ```
 
 Run P0 on every pull request and broader P1/P2 suites on release candidates.
-Upload `.tui-verifier/runs` as a CI artifact so reviewers can inspect casts,
+Upload `.termproof/runs` as a CI artifact so reviewers can inspect casts,
 screenshots, MP4 videos, and reports.
 
 The Pi recipes under `examples/` are one recipe pack. The portable non-Pi pack

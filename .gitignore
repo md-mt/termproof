@@ -3,7 +3,7 @@
 .pytest_cache/
 __pycache__/
 *.pyc
-.tui-verifier/
+.termproof/
 dist/
 build/
 *.egg-info/

@@ -6,7 +6,7 @@
     "command": [
       "sh",
       "-lc",
-      "examples/bin/codex-clean exec --skip-git-repo-check < /Users/mengwei/tui-verifier/examples/artifacts/20260724-153619-129937-pi-codex-operator-default/agent_prompt.md"
+      "examples/bin/codex-clean exec --skip-git-repo-check < /Users/mengwei/termproof/examples/artifacts/20260724-153619-129937-pi-codex-operator-default/agent_prompt.md"
     ],
     "recorded_cast": "examples/artifacts/20260724-153619-129937-pi-codex-operator-default/session.cast"
   },

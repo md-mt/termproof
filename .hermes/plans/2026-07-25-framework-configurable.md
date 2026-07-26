@@ -1,8 +1,8 @@
-# TUI Verifier Framework Architecture Plan
+# TermProof Framework Architecture Plan
 
 > **For Hermes:** Use subagent-driven-development skill to implement this plan task-by-task.
 
-**Goal:** Refactor tui-verifier from a monolithic CLI tool into a fully configurable framework where each component (step actions, assertion types, agent runners, execution modes, renderers, reporters, session backends) is pluggable via a cascading configuration system.
+**Goal:** Refactor termproof from a monolithic CLI tool into a fully configurable framework where each component (step actions, assertion types, agent runners, execution modes, renderers, reporters, session backends) is pluggable via a cascading configuration system.
 
 **Architecture:** Introduce a `VerifierConfig` object loaded from YAML with cascading priority (recipe → project → user → built-in defaults), backed by a plugin registry pattern. Each extension point gets a `Registry[T]` that resolves named plugin references to concrete implementations. Existing recipe JSON files and CLI remain fully backward compatible — all current hardcoded behavior becomes the default plugin set.
 
@@ -63,12 +63,12 @@ Add `pyyaml>=6.0` to dependencies.
 ### Task 1.2: Create `VerifierConfig` model and loader
 
 **Files:**
-- Create: `tui_verifier/config.py`
+- Create: `termproof/config.py`
 
 `VerifierConfig` is a frozen dataclass that holds all plugin registrations and global settings. Cascading load:
 1. Built-in defaults (current hardcoded behavior — `BUILTIN_DEFAULTS` constant)
-2. `~/.config/tui-verifier/config.yaml` (user-global)
-3. `./.tui-verifier/config.yaml` (project-local)
+2. `~/.config/termproof/config.yaml` (user-global)
+3. `./.termproof/config.yaml` (project-local)
 4. Recipe-level overrides (fields in recipe JSON, future)
 
 ```python
@@ -90,7 +90,7 @@ class GlobalDefaults:
     cols: int = 100
     rows: int = 30
     video_fps: int = 60
-    out_dir: str = ".tui-verifier/runs"
+    out_dir: str = ".termproof/runs"
 
 def load_config(
     project_path: Path | None = None,
@@ -101,24 +101,24 @@ def load_config(
 
 Config YAML format:
 ```yaml
-# .tui-verifier/config.yaml
+# .termproof/config.yaml
 steps:
-  wait_for_text: tui_verifier.builtin_steps:WaitForText
-  wait_for_idle: tui_verifier.builtin_steps:WaitForIdle
-  send_text: tui_verifier.builtin_steps:SendText
-  send_line: tui_verifier.builtin_steps:SendLine
-  press: tui_verifier.builtin_steps:Press
-  sleep: tui_verifier.builtin_steps:Sleep
+  wait_for_text: termproof.builtin_steps:WaitForText
+  wait_for_idle: termproof.builtin_steps:WaitForIdle
+  send_text: termproof.builtin_steps:SendText
+  send_line: termproof.builtin_steps:SendLine
+  press: termproof.builtin_steps:Press
+  sleep: termproof.builtin_steps:Sleep
   my_custom_action: my_package.steps:CustomAction
 
 assertions:
-  output_contains: tui_verifier.builtin_assertions:OutputContains
-  output_not_contains: tui_verifier.builtin_assertions:OutputNotContains
-  screen_contains: tui_verifier.builtin_assertions:ScreenContains
-  screen_not_contains: tui_verifier.builtin_assertions:ScreenNotContains
-  exit_code: tui_verifier.builtin_assertions:ExitCode
-  file_exists: tui_verifier.builtin_assertions:FileExists
-  file_contains: tui_verifier.builtin_assertions:FileContains
+  output_contains: termproof.builtin_assertions:OutputContains
+  output_not_contains: termproof.builtin_assertions:OutputNotContains
+  screen_contains: termproof.builtin_assertions:ScreenContains
+  screen_not_contains: termproof.builtin_assertions:ScreenNotContains
+  exit_code: termproof.builtin_assertions:ExitCode
+  file_exists: termproof.builtin_assertions:FileExists
+  file_contains: termproof.builtin_assertions:FileContains
 
 defaults:
   timeout_seconds: 30
@@ -129,7 +129,7 @@ defaults:
 ### Task 1.3: Create generic `Registry[T]` class
 
 **Files:**
-- Create: `tui_verifier/registry.py` (extend existing)
+- Create: `termproof/registry.py` (extend existing)
 
 Add a generic registry:
 ```python
@@ -142,8 +142,8 @@ class Registry(Generic[T]):
 ### Task 1.4: Create `StepAction` protocol and built-in implementations
 
 **Files:**
-- Create: `tui_verifier/builtin_steps.py`
-- Modify: `tui_verifier/runner.py` (extract step logic)
+- Create: `termproof/builtin_steps.py`
+- Modify: `termproof/runner.py` (extract step logic)
 
 Extract each step action into its own class implementing a protocol:
 
@@ -173,16 +173,16 @@ def _run_step(self, session, index, step):
 ### Task 1.5: Create `AssertionType` protocol and built-in implementations
 
 **Files:**
-- Create: `tui_verifier/builtin_assertions.py`
-- Modify: `tui_verifier/runner.py` (extract assertion logic)
+- Create: `termproof/builtin_assertions.py`
+- Modify: `termproof/runner.py` (extract assertion logic)
 
 Same pattern. Seven built-in implementations.
 
 ### Task 1.6: Wire config into CLI and runner
 
 **Files:**
-- Modify: `tui_verifier/cli.py`
-- Modify: `tui_verifier/runner.py`
+- Modify: `termproof/cli.py`
+- Modify: `termproof/runner.py`
 
 - `VerificationRunner` accepts optional `VerifierConfig` (defaults to `load_config()`)
 - CLI loads config early and passes it down
@@ -203,8 +203,8 @@ Ensure existing tests pass with the new config-wired runner. Add tests for confi
 ### Task 2.1: Create `Reporter` protocol and registry
 
 **Files:**
-- Create: `tui_verifier/builtin_reporters.py`
-- Modify: `tui_verifier/report.py` (extract to class)
+- Create: `termproof/builtin_reporters.py`
+- Modify: `termproof/report.py` (extract to class)
 
 ```python
 class Reporter(Protocol):
@@ -224,8 +224,8 @@ Built-in: `MarkdownReporter`. Future: `JunitReporter`, `JsonReporter`, `GitHubSu
 ### Task 2.2: Create `ScreenRenderer` protocol and registry
 
 **Files:**
-- Create: `tui_verifier/builtin_renderers.py`
-- Modify: `tui_verifier/screen.py` and `tui_verifier/evidence.py`
+- Create: `termproof/builtin_renderers.py`
+- Modify: `termproof/screen.py` and `termproof/evidence.py`
 
 ```python
 class ScreenRenderer(Protocol):
@@ -256,8 +256,8 @@ Built-in: `SvgRenderer` (current behavior). Future: `PngRenderer` (via Cairo/Pil
 ### Task 3.1: Create `ExecutionMode` strategy pattern
 
 **Files:**
-- Modify: `tui_verifier/runner.py` (extract execution dispatch)
-- Create: `tui_verifier/builtin_modes.py`
+- Modify: `termproof/runner.py` (extract execution dispatch)
+- Create: `termproof/builtin_modes.py`
 
 ```python
 class ExecutionMode(Protocol):
@@ -277,7 +277,7 @@ Built-in: `ScriptedPtyMode`, `ScriptedProcessMode`, `AgentDrivenMode`.
 ### Task 3.2: Generalize `AgentRunner` registry
 
 **Files:**
-- Modify: `tui_verifier/agent_driven.py`
+- Modify: `termproof/agent_driven.py`
 
 Register `CodexCliAgentRunner` as the built-in. Allow config to register alternative agent runners (e.g., Claude Code, custom shell script).
 
@@ -288,8 +288,8 @@ Register `CodexCliAgentRunner` as the built-in. Allow config to register alterna
 ### Task 4.1: Create `SessionBackend` protocol
 
 **Files:**
-- Create: `tui_verifier/builtin_session.py`
-- Modify: `tui_verifier/session.py`
+- Create: `termproof/builtin_session.py`
+- Modify: `termproof/session.py`
 
 ```python
 class SessionBackend(Protocol):
@@ -310,8 +310,8 @@ Built-in: `PexpectAsciinemaBackend` (current behavior using pexpect+asciinema). 
 ### Task 4.2: Create `VideoBackend` protocol
 
 **Files:**
-- Create: `tui_verifier/builtin_video.py`
-- Modify: `tui_verifier/evidence.py`
+- Create: `termproof/builtin_video.py`
+- Modify: `termproof/evidence.py`
 
 ```python
 class VideoBackend(Protocol):
@@ -335,14 +335,14 @@ Built-in: `AggFfmpegBackend` (current agg+ffmpeg behavior). Future: `SvgTermBack
 ## Backward Compatibility Guarantees
 
 1. **All existing recipe JSON files continue to work unchanged.** The built-in defaults exactly mirror current behavior.
-2. **CLI interface unchanged.** `tui-verify run recipes/` works identically. New flags are additive.
+2. **CLI interface unchanged.** `termproof run recipes/` works identically. New flags are additive.
 3. **No config file required.** If no config file exists, everything defaults to current behavior.
 4. **Python API unchanged.** `VerificationRunner()` with no args uses built-in defaults.
 
 ## Files That Change
 
 ```
-tui_verifier/
+termproof/
 ├── config.py              NEW — VerifierConfig, load_config(), cascading loader
 ├── registry.py            MODIFY — add generic Registry[T]
 ├── builtin_steps.py       NEW — step action classes
@@ -380,7 +380,7 @@ pyproject.toml             MODIFY — add pyyaml dep
 
 ## Open Questions
 
-1. **Entry points vs YAML strings?** Phase 1 uses YAML `module:Class` strings for simplicity. Python entry points (`tui_verifier.plugins`) can be added as an alternative discovery mechanism in a later phase.
+1. **Entry points vs YAML strings?** Phase 1 uses YAML `module:Class` strings for simplicity. Python entry points (`termproof.plugins`) can be added as an alternative discovery mechanism in a later phase.
 
 2. **Should recipes gain a `config` field?** Defer to a later phase. Currently all config is external to recipes, keeping the recipe format stable.
 
@@ -393,8 +393,8 @@ pyproject.toml             MODIFY — add pyyaml dep
 After each phase:
 1. `pytest tests/ -v` — all existing tests pass
 2. New phase-specific tests pass
-3. Manual smoke test: `uv run tui-verify run examples/generic/generic_tui.recipe.json --video`
-4. Manual config test: create a `.tui-verifier/config.yaml` that registers a custom step action, verify it loads and executes
+3. Manual smoke test: `uv run termproof run examples/generic/generic_tui.recipe.json --video`
+4. Manual config test: create a `.termproof/config.yaml` that registers a custom step action, verify it loads and executes
 
 ---
 

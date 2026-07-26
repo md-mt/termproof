@@ -5,12 +5,12 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from tui_verifier.before_after import build_before_after
-from tui_verifier.build_info import BuildInfo
-from tui_verifier.models import AssertionResult, CommandSpec, Recipe, RunResult
-from tui_verifier.registry import load_recipes, select_recipes
-from tui_verifier.renderer import selected_renderers
-from tui_verifier.report import ReportGenerator
+from termproof.before_after import build_before_after
+from termproof.build_info import BuildInfo
+from termproof.models import AssertionResult, CommandSpec, Recipe, RunResult
+from termproof.registry import load_recipes, select_recipes
+from termproof.renderer import selected_renderers
+from termproof.report import ReportGenerator
 
 
 class StackDesignTest(unittest.TestCase):

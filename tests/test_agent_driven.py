@@ -5,9 +5,9 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from tui_verifier.agent_driven import build_agent_prompt, parse_agent_output
-from tui_verifier.models import CommandSpec, Recipe
-from tui_verifier.runner import VerificationRunner
+from termproof.agent_driven import build_agent_prompt, parse_agent_output
+from termproof.models import CommandSpec, Recipe
+from termproof.runner import VerificationRunner
 
 
 class AgentDrivenTest(unittest.TestCase):

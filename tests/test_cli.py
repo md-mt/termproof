@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from tui_verifier.cli import main
+from termproof.cli import main
 
 
 class CliTest(unittest.TestCase):

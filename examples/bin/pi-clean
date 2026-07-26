@@ -1,8 +1,8 @@
 #!/usr/bin/env sh
 set -eu
 
-if [ -n "${TUI_VERIFIER_PI_BIN:-}" ]; then
-  exec "$TUI_VERIFIER_PI_BIN" "$@"
+if [ -n "${TERMPROOF_PI_BIN:-}" ]; then
+  exec "$TERMPROOF_PI_BIN" "$@"
 fi
 
 if [ -x /usr/local/bin/pi_cli/pi.real ]; then

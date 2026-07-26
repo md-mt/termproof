@@ -5,9 +5,9 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from tui_verifier.config import VerifierConfig
-from tui_verifier.models import CommandSpec, Recipe
-from tui_verifier.runner import VerificationRunner
+from termproof.config import VerifierConfig
+from termproof.models import CommandSpec, Recipe
+from termproof.runner import VerificationRunner
 
 
 class RunnerTest(unittest.TestCase):
@@ -16,19 +16,19 @@ class RunnerTest(unittest.TestCase):
             recipe = Recipe(
                 name="hello",
                 command=CommandSpec(
-                    argv=[sys.executable, "-c", "print('hello tui verifier')"]
+                    argv=[sys.executable, "-c", "print('hello termproof')"]
                 ),
                 steps=[
                     {
                         "action": "wait_for_text",
-                        "text": "hello tui verifier",
+                        "text": "hello termproof",
                         "timeout_seconds": 5,
                     }
                 ],
                 assertions=[
                     {
                         "type": "output_contains",
-                        "value": "hello tui verifier",
+                        "value": "hello termproof",
                     }
                 ],
             )

@@ -14,46 +14,46 @@ except ImportError:
 
 BUILTIN_DEFAULTS: dict[str, Any] = {
     "steps": {
-        "wait_for_text": "tui_verifier.builtin_steps:WaitForText",
-        "wait_for_idle": "tui_verifier.builtin_steps:WaitForIdle",
-        "send_text": "tui_verifier.builtin_steps:SendText",
-        "send_line": "tui_verifier.builtin_steps:SendLine",
-        "press": "tui_verifier.builtin_steps:Press",
-        "sleep": "tui_verifier.builtin_steps:Sleep",
+        "wait_for_text": "termproof.builtin_steps:WaitForText",
+        "wait_for_idle": "termproof.builtin_steps:WaitForIdle",
+        "send_text": "termproof.builtin_steps:SendText",
+        "send_line": "termproof.builtin_steps:SendLine",
+        "press": "termproof.builtin_steps:Press",
+        "sleep": "termproof.builtin_steps:Sleep",
     },
     "assertions": {
-        "output_contains": "tui_verifier.builtin_assertions:OutputContains",
-        "output_not_contains": "tui_verifier.builtin_assertions:OutputNotContains",
-        "screen_contains": "tui_verifier.builtin_assertions:ScreenContains",
-        "screen_not_contains": "tui_verifier.builtin_assertions:ScreenNotContains",
-        "exit_code": "tui_verifier.builtin_assertions:ExitCode",
-        "file_exists": "tui_verifier.builtin_assertions:FileExists",
-        "file_contains": "tui_verifier.builtin_assertions:FileContains",
+        "output_contains": "termproof.builtin_assertions:OutputContains",
+        "output_not_contains": "termproof.builtin_assertions:OutputNotContains",
+        "screen_contains": "termproof.builtin_assertions:ScreenContains",
+        "screen_not_contains": "termproof.builtin_assertions:ScreenNotContains",
+        "exit_code": "termproof.builtin_assertions:ExitCode",
+        "file_exists": "termproof.builtin_assertions:FileExists",
+        "file_contains": "termproof.builtin_assertions:FileContains",
     },
     "agent_runners": {
-        "codex": "tui_verifier.agent_driven:CodexCliAgentRunner",
+        "codex": "termproof.agent_driven:CodexCliAgentRunner",
     },
     "execution_modes": {
-        "scripted_pty": "tui_verifier.builtin_modes:ScriptedPtyMode",
-        "scripted_process": "tui_verifier.builtin_modes:ScriptedProcessMode",
-        "agent_driven": "tui_verifier.builtin_modes:AgentDrivenMode",
+        "scripted_pty": "termproof.builtin_modes:ScriptedPtyMode",
+        "scripted_process": "termproof.builtin_modes:ScriptedProcessMode",
+        "agent_driven": "termproof.builtin_modes:AgentDrivenMode",
     },
     "reporters": {
-        "markdown": "tui_verifier.builtin_reporters:MarkdownReporter",
+        "markdown": "termproof.builtin_reporters:MarkdownReporter",
     },
     "screen_renderers": {
-        "svg": "tui_verifier.builtin_renderers:SvgRenderer",
+        "svg": "termproof.builtin_renderers:SvgRenderer",
     },
     "video_backends": {
-        "agg_ffmpeg": "tui_verifier.builtin_video:AggFfmpegBackend",
+        "agg_ffmpeg": "termproof.builtin_video:AggFfmpegBackend",
     },
-    "session_backend": "tui_verifier.builtin_session:PexpectAsciinemaBackend",
+    "session_backend": "termproof.builtin_session:PexpectAsciinemaBackend",
     "defaults": {
         "timeout_seconds": 30.0,
         "cols": 100,
         "rows": 30,
         "video_fps": 60,
-        "out_dir": ".tui-verifier/runs",
+        "out_dir": ".termproof/runs",
     },
 }
 
@@ -66,7 +66,7 @@ class GlobalDefaults:
     cols: int = 100
     rows: int = 30
     video_fps: int = 60
-    out_dir: str = ".tui-verifier/runs"
+    out_dir: str = ".termproof/runs"
 
 
 @dataclass(frozen=True)
@@ -89,20 +89,46 @@ class VerifierConfig:
 
 # -- cascading YAML loader --------------------------------------------------
 
+# Compatibility reads are deliberately limited to configuration and plugin
+# references. The renamed distribution, import package, and executable expose
+# only the TermProof names.
+LEGACY_USER_CONFIG_DIR = "tui-verifier"
+LEGACY_PROJECT_CONFIG_DIR = ".tui-verifier"
+LEGACY_PLUGIN_MODULE_PREFIX = "tui_verifier."
+CURRENT_PLUGIN_MODULE_PREFIX = "termproof."
+
+
 def load_config(
     project_path: Path | None = None,
     user_path: Path | None = None,
 ) -> VerifierConfig:
-    """Cascade: builtin → user → project."""
+    """Load builtin, migrated user, and migrated project configuration.
+
+    Normal discovery cascades in this order: builtin, legacy user config,
+    TermProof user config, legacy project config, then TermProof project config.
+    The newer location wins only for values it provides; legacy files are never
+    changed on disk. Passing ``user_path`` loads exactly that user config and
+    skips implicit user-location discovery.
+    """
     merged: dict[str, Any] = _deep_merge({}, BUILTIN_DEFAULTS)
+    project_root = project_path or Path.cwd()
 
-    user_file = user_path or Path.home() / ".config" / "tui-verifier" / "config.yaml"
-    if user_file.exists():
-        merged = _deep_merge(merged, _load_yaml(user_file))
+    if user_path is not None:
+        user_files = [user_path]
+    else:
+        config_home = Path.home() / ".config"
+        user_files = [
+            config_home / LEGACY_USER_CONFIG_DIR / "config.yaml",
+            config_home / "termproof" / "config.yaml",
+        ]
+    project_files = [
+        project_root / LEGACY_PROJECT_CONFIG_DIR / "config.yaml",
+        project_root / ".termproof" / "config.yaml",
+    ]
 
-    project_file = (project_path or Path.cwd()) / ".tui-verifier" / "config.yaml"
-    if project_file.exists():
-        merged = _deep_merge(merged, _load_yaml(project_file))
+    for config_file in [*user_files, *project_files]:
+        if config_file.exists():
+            merged = _deep_merge(merged, _load_yaml(config_file))
 
     return _from_mapping(merged)
 
@@ -125,7 +151,7 @@ def _from_mapping(data: dict[str, Any]) -> VerifierConfig:
             cols=int(defaults_raw.get("cols", 100)),
             rows=int(defaults_raw.get("rows", 30)),
             video_fps=int(defaults_raw.get("video_fps", 60)),
-            out_dir=str(defaults_raw.get("out_dir", ".tui-verifier/runs")),
+            out_dir=str(defaults_raw.get("out_dir", ".termproof/runs")),
         ),
     )
 
