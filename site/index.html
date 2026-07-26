@@ -47,7 +47,7 @@
 
   <section>
     <h2>3-command quickstart</h2>
-<pre><code>pip install termproof
+<pre><code>pip install git+https://github.com/md-mt/termproof.git
 termproof init .termproof/recipes --name my-tui --command "my-tui"
 termproof run .termproof/recipes --video --out .termproof/runs</code></pre>
     <p class="muted small">Artifacts: <code>session.cast</code>, <code>final.svg</code>, <code>final.txt</code>, <code>session.mp4</code>, <code>steps/</code>, <code>result.json</code>, <code>report.md</code>, <code>latest-report.md</code></p>
@@ -88,7 +88,7 @@ termproof run .termproof/recipes --video --out .termproof/runs</code></pre>
 - name: Summary
   if: always()
   run: cat .termproof/ci/latest-report.md >> "$GITHUB_STEP_SUMMARY"</code></pre>
-    <p class="muted small">This is exactly what <a href="https://github.com/md-mt/termproof/blob/main/.github/workflows/ci.yml">ci.yml</a> in this repo does, plus a sticky PR comment.</p>
+    <p class="muted small">This is the verification portion of <a href="https://github.com/md-mt/termproof/blob/main/.github/workflows/ci.yml">ci.yml</a> as used in this repo. A complete downstream workflow also needs Python + uv setup and a TermProof install step. See <a href="https://github.com/md-mt/termproof/blob/main/.github/workflows/ci.yml">the full workflow</a> for the complete template.</p>
   </section>
 
   <section>

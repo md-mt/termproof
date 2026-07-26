@@ -25,10 +25,9 @@
 <div class="steps">
 <div class="step"><div class="step-num">1</div><div>
 <h3 style="margin:0 0 0.3rem">Install</h3>
-<pre><code>pip install termproof
-# or
-uv pip install termproof
-# from source
+<pre><code>pip install git+https://github.com/md-mt/termproof.git
+# or from source
+git clone https://github.com/md-mt/termproof.git && cd termproof
 uv run termproof --help</code></pre>
 <p class="muted small">Requires Python 3.11+. For video: <code>ffmpeg</code> + <code>agg</code> (Rust). <code>cargo install --locked --git https://github.com/asciinema/agg --tag v1.9.0</code></p>
 </div></div>
@@ -43,6 +42,7 @@ cat .termproof/recipes/my-tui.recipe.json</code></pre>
 <div class="step"><div class="step-num">3</div><div>
 <h3 style="margin:0 0 0.3rem">Run with evidence</h3>
 <pre><code>termproof run .termproof/recipes --video --out .termproof/runs
+# inspect artifacts (macOS: open; Linux: xdg-open)
 open .termproof/runs/*/session.mp4
 cat .termproof/runs/*/latest-report.md</code></pre>
 <p class="muted small">Each run writes <code>session.cast</code> (asciinema v2), <code>final.svg</code>, <code>final.txt</code>, <code>steps/</code>, <code>session.mp4</code>, <code>result.json</code>, <code>report.md</code>.</p>

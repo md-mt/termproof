@@ -1,0 +1,17 @@
+Generic TUI demo
+Use commands: open dashboard, filter errors, export report, exit
+
+demo> open dashboard
+demo> loading dashboard
+demo> widgets rendered
+DASHBOARD READY
+filter errors
+
+demo> demo> applying status:error filter
+demo> 3 rows visible
+FILTER READY
+export report
+
+demo> demo> writing verification summary
+demo> report artifact linked
+EXPORT READY

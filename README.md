@@ -6,6 +6,7 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue?logo=python)](https://www.python.org)
 ![Stars](https://img.shields.io/github/stars/md-mt/termproof?style=social)
+![Forks](https://img.shields.io/github/forks/md-mt/termproof?style=social)
 
 > **Evidence-first verification for terminal and TUI applications.** No more "trust me, it works in my terminal." Record the real session, replay it, and ship the proof.
 
@@ -46,6 +47,10 @@ open .termproof/runs/<run-id>/final.svg
 cat .termproof/runs/<run-id>/report.md
 ```
 
+**Final screenshot** from `examples/generic` (checked-in evidence):
+
+![Generic TUI final screenshot](examples/artifacts/generic-tui-workflow/final.svg)
+
 Pi coding-agent showcase (deterministic fixtures, reproducible on any runner):
 
 ```bash
@@ -56,22 +61,21 @@ cat .termproof/ci/latest-report.md
 Sample artifacts are checked into `examples/artifacts/` so you can inspect without running anything:
 
 - [`latest-pi-workflows-report.md`](examples/artifacts/latest-pi-workflows-report.md) — full report with assertion tables
+- [`generic-tui-workflow/final.svg`](examples/artifacts/generic-tui-workflow/final.svg) — final screenshot from `examples/generic`
 - `pi-workflow-guarded-edit/session.mp4` — edited flow (when artifacts are present)
-- `generic-tui-workflow/final.svg` — final screenshot from `examples/generic`
 
 > Full evidence packs (screenshots, casts, videos, reports) are published as `termproof-ci-evidence` on every PR and as `termproof-release-evidence.tgz` on each release tag.
 
-See the [GitHub Pages demo](https://md-mt.github.io/termproof/) for rendered samples.
+> **GitHub Pages demo:** Once Pages is enabled on this repository (`ENABLE_PAGES=true` + Settings → Pages → Source: GitHub Actions), the rendered site will be at https://md-mt.github.io/termproof/. For now, preview locally with `python3 -m http.server 8000 --directory site`.
 
 ## 3-command quickstart
 
 Install (Python 3.11+):
 
 ```bash
-pip install termproof
-# or
-uv pip install termproof
+pip install git+https://github.com/md-mt/termproof.git
 # or from source
+git clone https://github.com/md-mt/termproof.git && cd termproof
 uv run termproof --help
 ```
 
@@ -186,7 +190,7 @@ See [`docs/verified-badge.md`](docs/verified-badge.md) for variants (flat, plast
 - **Plugin directory:** [`docs/plugins.md`](docs/plugins.md) — community step/assertion/session/reporters/video backends.
 - **Contributing:** [`CONTRIBUTING.md`](CONTRIBUTING.md) — ladder, setup, PR-only process.
 - **Code of Conduct:** [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) — Contributor Covenant 2.1.
-- **Pages demo:** https://md-mt.github.io/termproof/ — sample evidence, getting started, comparison, plugin directory.
+- **Pages demo:** Preview locally with `python3 -m http.server 8000 --directory site`. When Pages is enabled on this repo, the rendered site will be at https://md-mt.github.io/termproof/.
 - **Examples:** [`examples/generic`](examples/generic) — portable TUI; `examples/pi_workflow_*.recipe.json` — Pi agent showcase.
 - **Docs:** [`docs/recipe-packs.md`](docs/recipe-packs.md) · [`docs/releases.md`](docs/releases.md) · [`docs/plugins.md`](docs/plugins.md) · [`docs/verified-badge.md`](docs/verified-badge.md)
 

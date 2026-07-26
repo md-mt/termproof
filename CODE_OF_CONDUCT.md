@@ -36,7 +36,9 @@ This Code of Conduct applies within all community spaces, and also applies when 
 
 ## Enforcement
 
-Instances of abusive, harassing, or otherwise unacceptable behavior may be reported to the community leaders responsible for enforcement at the email address listed in the repository or via GitHub Issues (for non-sensitive reports). All complaints will be reviewed and investigated promptly and fairly.
+Instances of abusive, harassing, or otherwise unacceptable behavior may be reported to the community leaders responsible for enforcement at **md@mt.com**. All complaints will be reviewed and investigated promptly and fairly.
+
+For sensitive reports that should not be sent to a shared inbox, contact the maintainer directly through a private channel (e.g., GitHub's "Report abuse" feature for the repository).
 
 All community leaders are obligated to respect the privacy and security of the reporter of any incident.
 

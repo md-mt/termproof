@@ -32,6 +32,7 @@ pre code { background: transparent; border: none; padding: 0; }
 header.topbar {
   position: sticky; top: 0; z-index: 20;
   backdrop-filter: blur(12px);
+  background: var(--bg);
   background: color-mix(in srgb, var(--bg) 88%, transparent);
   border-bottom: 1px solid var(--border);
 }

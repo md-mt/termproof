@@ -39,6 +39,40 @@ ls examples/artifacts/
 </code></pre>
 <p class="muted small">Artifacts include <code>20260724-*-pi-workflow-*.svg</code>, <code>session.mp4</code>, <code>session.cast</code>, <code>final.txt</code>, <code>steps/</code>. See <a href="https://github.com/md-mt/termproof/tree/main/examples/artifacts">examples/artifacts</a>.</p>
 
+<h2>Rendered evidence</h2>
+<p class="muted">Screenshots and reports from the curated evidence pack. These are the same artifacts copied into the built Pages site.</p>
+
+<div class="evidence-list">
+  <div class="evidence-item">
+    <img class="thumb" src="artifacts/generic-tui-workflow/final.svg" alt="Generic TUI final screenshot" loading="lazy">
+    <div>
+      <strong>Generic TUI — final screenshot</strong>
+      <p class="muted small">The portable, no-dependency TUI workflow (<code>examples/generic</code>).</p>
+    </div>
+  </div>
+  <div class="evidence-item">
+    <img class="thumb" src="artifacts/pi-workflow-guarded-edit/final.svg" alt="Pi guarded edit final screenshot" loading="lazy">
+    <div>
+      <strong>Pi guarded edit workflow — final screenshot</strong>
+      <p class="muted small">Edit, patch, validate, summarize — deterministic fixtures.</p>
+    </div>
+  </div>
+  <div class="evidence-item">
+    <img class="thumb" src="artifacts/pi-workflow-readonly-review/final.svg" alt="Pi readonly review final screenshot" loading="lazy">
+    <div>
+      <strong>Pi readonly review workflow — final screenshot</strong>
+      <p class="muted small">Tool gating, read-only review of a local repository.</p>
+    </div>
+  </div>
+</div>
+
+<h3>Reports</h3>
+<ul>
+  <li><a href="artifacts/latest-report.md">latest-report.md</a> — aggregate report for the most recent multi-recipe run</li>
+  <li><a href="artifacts/latest-pi-workflows-report.md">latest-pi-workflows-report.md</a> — full Pi workflow assertion tables</li>
+  <li><a href="artifacts/generic-tui-workflow/report.md">generic-tui-workflow/report.md</a> — per-recipe report for the generic TUI</li>
+</ul>
+
 <h2>Generic TUI (portable, no Pi required)</h2>
 <p>Recipe: <a href="https://github.com/md-mt/termproof/blob/main/examples/generic/generic_tui.recipe.json"><code>examples/generic/generic_tui.recipe.json</code></a> — drives a fake TUI that simulates dashboard/filter/export.</p>
 <pre><code>uv run termproof run examples/generic --video

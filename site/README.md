@@ -22,11 +22,12 @@ python3 -m http.server 8000 --directory site
 
 Workflow: `.github/workflows/pages.yml`
 
-- **Build** job: copies `site/` to `_site/`, copies `docs/`, and creates an artifact preview. Always runs on push to `main` touching `site/**`, `docs/**`, `README.md`, `examples/artifacts/**`.
+- **Build** job: copies `site/` to `_site/`, copies `docs/`, copies curated evidence from `site/artifacts/`, and creates an artifact preview. Runs on push to `main` **and** on pull requests touching `site/**`, `docs/**`, `README.md`, `examples/artifacts/**`.
+- **Validate relative links** step: after building `_site`, checks that every relative `href`/`src` in the HTML files resolves inside `_site`. Fails the build if any link is broken.
 - **Deploy** job: guarded for private repos. Deploys only if:
   - `vars.ENABLE_PAGES == 'true'` OR
-  - repository visibility is public OR
-  - triggered via `workflow_dispatch`
+  - repository visibility is public
+  - Only on push to `main` or `workflow_dispatch` (not on PR builds).
 - **Private-repo safety**: when the guard fails, a `deploy-skipped` job explains how to enable Pages and leaves the preview artifact `termproof-pages-preview` for review.
 
 To enable on this private repo:

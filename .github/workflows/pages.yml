@@ -9,6 +9,13 @@ on:
       - "README.md"
       - "examples/artifacts/**"
       - ".github/workflows/pages.yml"
+  pull_request:
+    paths:
+      - "site/**"
+      - "docs/**"
+      - "README.md"
+      - "examples/artifacts/**"
+      - ".github/workflows/pages.yml"
   workflow_dispatch:
 
 permissions:
@@ -30,20 +37,26 @@ jobs:
 
       - name: Build site preview
         run: |
-          echo "Building site from site/ + docs/ + examples"
+          echo "Building site from site/ + docs/ + curated artifacts"
           mkdir -p _site
           # copy static site
           cp -r site/* _site/
           # copy docs as assets for reference (Markdown)
           mkdir -p _site/docs
           cp -r docs/* _site/docs/ || true
-          # create evidence index
-          if [ -d examples/artifacts ]; then
-            mkdir -p _site/artifacts
-            echo "<h1>Artifacts</h1><ul>" > _site/artifacts/index.html
-            ls examples/artifacts | head -200 | while read f; do
-              echo "<li><a href=\"../../examples/artifacts/$f\">$f</a></li>" >> _site/artifacts/index.html
-            done || true
+          # copy curated evidence artifacts (from site/artifacts/ — not examples/artifacts/)
+          if [ -d site/artifacts ]; then
+            cp -r site/artifacts _site/artifacts
+            # remove the source copy so find doesn't confuse the count
+            rm -rf site/artifacts
+          fi
+          # generate an evidence index with working relative links
+          if [ -d _site/artifacts ]; then
+            echo "<h1>Evidence artifacts</h1><ul>" > _site/artifacts/index.html
+            find _site/artifacts -type f | sort | while read f; do
+              rel="${f#_site/}"
+              echo "<li><a href=\"${rel}\">${rel}</a></li>" >> _site/artifacts/index.html
+            done
             echo "</ul>" >> _site/artifacts/index.html
           fi
           # add README rendered copy (raw)
@@ -52,6 +65,38 @@ jobs:
           ls -la _site | head -40
           echo "----"
           find _site -type f | head -100
+
+      - name: Validate relative links
+        run: |
+          echo "Checking that every relative link resolves inside _site..."
+          failures=0
+          cd _site
+          # find all href/src attributes in HTML that are relative (not http:// or #)
+          for file in $(find . -type f -name '*.html'); do
+            links=$(grep -oP '(?:href|src)=\"([^\"]+)\"' "$file" | grep -oP '\"([^\"]+)\"' | tr -d '\"' || true)
+            for link in $links; do
+              case "$link" in
+                http://*|https://*) continue ;;
+                \#*) continue ;;
+                *)
+                  # resolve relative to the file's directory
+                  dir=$(dirname "$file")
+                  target="$dir/$link"
+                  # normalize
+                  target=$(echo "$target" | sed 's|/\./|/|g')
+                  if [ ! -e "$target" ]; then
+                    echo "  BROKEN: $file -> $link (resolved: $target)"
+                    failures=$((failures + 1))
+                  fi
+                  ;;
+              esac
+            done
+          done
+          if [ "$failures" -gt 0 ]; then
+            echo "ERROR: $failures broken relative links found in _site"
+            exit 1
+          fi
+          echo "All relative links in _site resolve."
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
@@ -74,10 +119,14 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     if: |
-      github.ref == 'refs/heads/main' && (
+      (github.event_name == 'push' && github.ref == 'refs/heads/main' && (
         vars.ENABLE_PAGES == 'true' ||
-        github.event.repository.visibility == 'public' ||
-        github.event_name == 'workflow_dispatch'
+        github.event.repository.visibility == 'public'
+      )) || (
+        github.event_name == 'workflow_dispatch' && (
+          vars.ENABLE_PAGES == 'true' ||
+          github.event.repository.visibility == 'public'
+        )
       )
     environment:
       name: github-pages
@@ -93,11 +142,10 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     if: |
-      !(github.ref == 'refs/heads/main' && (
-        vars.ENABLE_PAGES == 'true' ||
-        github.event.repository.visibility == 'public' ||
-        github.event_name == 'workflow_dispatch'
-      ))
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/main' &&
+      !(vars.ENABLE_PAGES == 'true' ||
+        github.event.repository.visibility == 'public')
     steps:
       - run: |
           echo "Pages deploy skipped — repository is private and ENABLE_PAGES is not 'true'."

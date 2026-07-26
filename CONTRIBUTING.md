@@ -128,7 +128,7 @@ All changes go through pull requests. No direct commits to `main`.
 
 - Search existing issues first.
 - Include: reproduction recipe (JSON), `termproof --help` output, Python version, OS, and observed vs expected.
-- For security issues, email the maintainer directly instead of filing public issues (see `SECURITY.md` if present).
+- For security issues, email **md@mt.com** instead of filing public issues (see `SECURITY.md`).
 
 ## Compatibility contract
 
