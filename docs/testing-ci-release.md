@@ -229,7 +229,7 @@ the full artifact/archive.
 - Create GitHub Release — `softprops/action-gh-release@v2`, `if: startsWith(github.ref, 'refs/tags/v')`, `body_path: release-notes.md`, `files: dist/*` + `tui-verifier-release-evidence.tgz`.
 - Publish to PyPI — `pypa/gh-action-pypi-publish@release/v1`, `if: startsWith(github.ref, 'refs/tags/v')` — uses OIDC trusted publishing (no token, relies on `environment: pypi` + `id-token: write`).
 
-Tag pushes trigger the Release workflow, not CI. `ci.yml` triggers only PRs and pushes to `main`; `release.yml` is the tag-triggered workflow. A tag push produces a Release run (plus GitHub Release body/archive when tag conditions hold), not a CI run, unless the tagged commit was also pushed to `main` via a separate branch push.
+The Release workflow runs on a `v*` tag push or manual dispatch, not CI. `ci.yml` triggers only PRs and pushes to `main`. GitHub Release body/archive creation is gated by `startsWith(github.ref, 'refs/tags/v')`, so a manual dispatch on a matching v-tag ref also qualifies. A tag push produces a Release run (plus GitHub Release body/archive when the tag condition holds), not a CI run, unless the tagged commit was also pushed to `main` via a separate branch push.
 
 ## Versioning Contract
 
@@ -243,7 +243,7 @@ From `docs/releases.md`:
 Example release prep:
 
 1. Update `pyproject.toml` version.
-2. Push tag `v0.1.1` (triggers Release workflow, not CI).
+2. Push tag `v0.1.1` (triggers Release workflow, not CI; manual dispatch is also available).
 3. Release workflow verifies, creates GitHub Release with evidence archive, publishes wheel+sdist to PyPI via trusted publishing. CI only runs on PRs and merges to `main`, not on tag push alone.
 
 ## What CI Intentionally Does NOT Run

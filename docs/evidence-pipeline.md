@@ -7,7 +7,7 @@
 - For terminal-recorded runs (scripted modes and recorded agent mode), final text/SVG/video are cast replays — `TerminalSession` creates a cast via `TerminalSession` / asciinema. For non-recorded agent mode, the cast is synthesized by `CastRecorder` from the agent transcript, not from a real terminal.
 - When a cast exists, terminal-derived display artifacts use the cast as source: final text/SVG are reconstructed via `replay_cast()` (pyte) from the cast; video is rendered by `render_mp4()` calling `agg` directly on the cast then `ffmpeg`. Other artifacts/results (assertions, filesystem checks, exit status, agent outcomes) have independent inputs.
 - `steps/` renders every `StepResult` — including PTY, process (`wait_for_text`/`sleep`), and agent synthetic (`codex-operator`) steps — from stored `StepResult.screen` snapshots, not cast replay.
-- `result.json`/`report.md` include independently evaluated assertions, exit status, file-system checks, and agent outcome — not just cast-derived data.
+- `result.json`/`report.md` include independently evaluated `AssertionResult`s (including values reported by the agent's checks), synthetic operator step/exit status, and paths to agent artifacts as represented by `RunResult` — not the full agent outcome payload. The full `AgentOutcome` is serialized only in `agent_outcome.json`; these inputs remain independent of cast-derived data.
 - Agent metadata files do not derive from the cast. `AgentDrivenRunner.run()` writes `agent_prompt.md` before invoking the runner; `_write_agent_files()` writes `agent_transcript.md` and `agent_outcome.json`. None of these files is derived from the cast.
 
 The earlier claim "the cast is the source of truth, all other artifacts derive from it" was overbroad; scoped above to replayed terminal-derived display artifacts.
@@ -68,7 +68,7 @@ Wraps target to capture exit code reliably to sidecar file (since asciinema itse
 
 When `record_terminal=True`, `CodexCliAgentRunner._run_recorded()` at `agent_driven.py:56-85` directly constructs `TerminalSession(...)` (not `session_backend.create_session(...)`), so it bypasses the configured `config.session_backend`.
 
-When `record_terminal=False`, `CodexCliAgentRunner._run_subprocess()` at `agent_driven.py:87-131` calls `subprocess.run()` directly and also bypasses `config.session_backend`. Explicit `TimeoutExpired`/`FileNotFoundError` → exit 127 conversion exists only in this non-recorded subprocess path.
+When `record_terminal=False`, `CodexCliAgentRunner._run_subprocess()` at `agent_driven.py:87-131` calls `subprocess.run()` directly and also bypasses `config.session_backend`. In this non-recorded subprocess path only, the explicit `TimeoutExpired` catch returns an `AgentOutcome` with `exit_code=None` and `metadata.timed_out=True`, while the explicit `FileNotFoundError` catch returns one with `exit_code=127`; recorded mode has neither catch.
 
 Both built-in Codex paths (recorded and non-recorded) bypass `config.session_backend`.
 
@@ -231,7 +231,7 @@ For multi-recipe run, `out_dir/latest-report.md` aggregates all results.
 ## CI Artifacts
 
 - CI workflow (`ci.yml`) runs with `--out .tui-verifier/ci`, uploads entire `.tui-verifier/ci` as artifact `tui-verifier-ci-evidence`.
-- Release workflow (tag-triggered) uploads `.tui-verifier/release` as artifact and also tars to `tui-verifier-release-evidence.tgz` attached to GitHub Release. Archive/release attachment applies only to tag-triggered release runs, not regular CI runs.
+- Release workflow runs on a `v*` tag push or manual dispatch. It uploads `.tui-verifier/release` as an artifact and tars it to `tui-verifier-release-evidence.tgz`; GitHub Release creation/archive attachment is gated by `startsWith(github.ref, 'refs/tags/v')`, so a manual dispatch on a matching v-tag ref also qualifies. Generated evidence paths include the output prefix, are not report-relative, and do not resolve inside embedded Markdown or archive members; users must download/extract the full artifact/archive. Release tar members are stored under `release/...`.
 
 ## Cast Format Notes
 

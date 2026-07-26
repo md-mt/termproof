@@ -262,7 +262,7 @@ to the GitHub run summary for PR and `main` runs.
 Release runs (tagged `v*.*.*` pushes) write `.tui-verifier/release/latest-report.md` into the GitHub run
 summary and into the GitHub Release body when that tag trigger fires. The tagged release also attaches
 `tui-verifier-release-evidence.tgz`, which contains the generated screenshots,
-videos, casts, and reports. Manual dispatch runs the Release workflow but only attaches a GitHub Release body/archive when the ref is a tag (see `release.yml:107-118` tag gating).
+videos, casts, and reports. The Release workflow runs on a `v*` tag push or manual dispatch; GitHub Release body/archive attachment is gated by `startsWith(github.ref, 'refs/tags/v')`, so manual dispatch on a matching v-tag ref also qualifies (see `release.yml:107-118`).
 
 ## Pi Coding Agent Showcase
 
