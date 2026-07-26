@@ -292,6 +292,8 @@ class VerificationRunner:
         screen: str,
         raw_output: str,
     ) -> list[StepResult]:
+        import re as _re
+
         results: list[StepResult] = []
         for index, step in enumerate(recipe.steps, start=1):
             action_name = step["action"]
@@ -301,6 +303,32 @@ class VerificationRunner:
                 passed = text in screen or text in raw_output
                 detail = f"found {text!r}" if passed else f"missing {text!r}"
                 results.append(StepResult(name, passed, detail, screen))
+            elif action_name == "wait_for_regex":
+                pattern_str = step.get("pattern")
+                if pattern_str is None:
+                    results.append(StepResult(name, False, "wait_for_regex requires 'pattern'", screen))
+                    continue
+                try:
+                    pat = _re.compile(pattern_str)
+                except _re.error as exc:
+                    results.append(StepResult(name, False, f"invalid regex {pattern_str!r}: {exc}", screen))
+                    continue
+                combined = raw_output + "\n" + screen
+                m = pat.search(combined) or pat.search(screen) or pat.search(raw_output)
+                if m:
+                    gd = m.groupdict()
+                    if gd:
+                        grp = ", ".join(f"{k}={v!r}" for k, v in gd.items())
+                    elif m.groups():
+                        grp = f"groups={m.groups()!r}"
+                    else:
+                        grp = f"match={m.group(0)!r}"
+                    results.append(StepResult(name, True, f"matched {pattern_str!r} -> {grp} (full: {m.group(0)!r})", screen))
+                else:
+                    results.append(StepResult(name, False, f"regex {pattern_str!r} not found", screen))
+            elif action_name == "wait_for_idle":
+                # always considered idle after process exit
+                results.append(StepResult(name, True, "process completed (idle)", screen))
             elif action_name == "sleep":
                 results.append(StepResult(name, True, "not needed for process mode", screen))
             else:

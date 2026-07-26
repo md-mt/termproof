@@ -20,6 +20,7 @@ BUILTIN_DEFAULTS: dict[str, Any] = {
         "send_line": "termproof.builtin_steps:SendLine",
         "press": "termproof.builtin_steps:Press",
         "sleep": "termproof.builtin_steps:Sleep",
+        "wait_for_regex": "termproof.builtin_steps:WaitForRegex",
     },
     "assertions": {
         "output_contains": "termproof.builtin_assertions:OutputContains",
@@ -40,6 +41,7 @@ BUILTIN_DEFAULTS: dict[str, Any] = {
     },
     "reporters": {
         "markdown": "termproof.builtin_reporters:MarkdownReporter",
+        "junit_xml": "termproof.builtin_reporters:JUnitXmlReporter",
     },
     "screen_renderers": {
         "svg": "termproof.builtin_renderers:SvgRenderer",

@@ -46,6 +46,23 @@ def main(argv: list[str] | None = None) -> int:
     init_parser.add_argument("--cols", type=int, default=100)
     init_parser.add_argument("--rows", type=int, default=30)
     init_parser.add_argument("--force", action="store_true")
+    # demo subcommand
+    demo_parser = subparsers.add_parser("demo", help="run a self-contained demo exercising all features")
+    demo_parser.add_argument("--out", type=Path, default=Path(".termproof/demo"),
+                             help="output directory for demo evidence (default: .termproof/demo)")
+    demo_parser.add_argument("--no-open", action="store_true",
+                             help="do not attempt to open generated report in browser")
+    demo_parser.add_argument("--video", action="store_true",
+                             help="render video evidence if video backend available")
+    demo_parser.add_argument("--video-fps", type=int, default=60)
+    demo_parser.add_argument("--config", type=Path, default=None,
+                             help="path to a termproof config YAML file")
+    demo_parser.add_argument("--reporter", default="markdown",
+                             help="reporter to use (default: markdown, also: junit_xml)")
+    demo_parser.add_argument("--screen-renderer", default="svg",
+                             help="screen renderer (default: svg)")
+    demo_parser.add_argument("--video-backend", default="agg_ffmpeg",
+                             help="video backend (default: agg_ffmpeg)")
     args = parser.parse_args(argv)
 
     if args.command == "run":
@@ -110,6 +127,18 @@ def main(argv: list[str] | None = None) -> int:
             return 1
         print(f"created recipe: {recipe_path}")
         return 0
+    if args.command == "demo":
+        from .demo import run_demo
+        return run_demo(
+            out_dir=args.out,
+            no_open=args.no_open,
+            render_video=args.video,
+            video_fps=args.video_fps,
+            reporter_name=args.reporter,
+            screen_renderer_name=args.screen_renderer,
+            video_backend_name=args.video_backend,
+            config_path=args.config,
+        )
     return 2
 
 

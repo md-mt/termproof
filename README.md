@@ -34,6 +34,13 @@ uv run termproof init .termproof/recipes \
 uv run termproof run .termproof/recipes --video
 ```
 
+Try the self-contained demo (no external app needed):
+
+```bash
+uv run termproof demo --no-open
+uv run termproof demo --reporter junit_xml --no-open
+```
+
 Each run writes artifacts under `.termproof/runs/<run-id>/` unless `--out`
 is provided:
 
@@ -181,12 +188,13 @@ For non-interactive terminal commands, set `pty` to `false`:
 
 Supported step actions:
 
-- `wait_for_text`
-- `wait_for_idle`
-- `send_text`
-- `send_line`
-- `press`
-- `sleep`
+- `wait_for_text` - wait for literal substring in terminal output
+- `wait_for_regex` - wait for regex match with validated pattern and match-group evidence
+- `wait_for_idle` - wait until screen is stable
+- `send_text` - type text without newline
+- `send_line` - type a line including newline
+- `press` - press a key (enter, escape, tab, arrows, ctrl-x)
+- `sleep` - pause execution
 
 Supported assertions:
 
