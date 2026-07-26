@@ -18,7 +18,7 @@ classifiers = [
   "Topic :: Software Development :: Testing",
 ]
 dependencies = [
-  "termproof>=0.1.0",
+  "termproof",
 ]
 
 [project.optional-dependencies]
