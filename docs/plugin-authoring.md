@@ -283,35 +283,66 @@ Important guard at `evidence.py:55-60`:
 
 ```python
 if render_video and shutil.which("agg"):
-    # backend invoked here
+    # backend invoked here — full implementation at evidence.py:55-73
+    # calls video_backend.render() or render_mp4()
+    pass
 ```
 
 A video backend only runs when `--video` is set **and** `agg` binary is on PATH. A custom session backend cannot avoid the guard — it lives in `render_artifacts()` before any video backend call and is independent of session backend. Only forking `evidence.py` or installing `agg` fixes it.
 
-Example: no-op backend for CI without ffmpeg.
+Example: interface skeleton that deliberately raises (not selectable) — for illustrating the protocol without writing invalid media.
 
 ```python
 # my_pkg/video.py
 from pathlib import Path
 
-class NoopVideoBackend:
-    name = "noop"
+class SkeletonVideoBackend:
+    """Interface skeleton: documents VideoBackend shape but deliberately raises.
+
+    This backend is NOT selectable for real runs — it raises NotImplementedError
+    to make clear it does not satisfy the media contract of writing a valid MP4
+    to output_path. Use AggFfmpegBackend for real video, or implement a backend
+    that writes a valid media file (e.g., by delegating to evidence.render_mp4
+    or invoking ffmpeg on a valid intermediate).
+    """
+    name = "skeleton-not-selectable"
+
+    def render(self, cast_path: Path, output_path: Path, fps: int) -> None:
+        raise NotImplementedError(
+            "SkeletonVideoBackend is an interface skeleton only; "
+            "it does not write a valid MP4 and must not be selected as --video-backend. "
+            "Implement render() to produce a valid media file at output_path."
+        )
+```
+
+If you need a minimal runnable backend that produces a valid media file, delegate to the
+existing implementation:
+
+```python
+# my_pkg/video.py
+from pathlib import Path
+from tui_verifier.evidence import render_mp4
+
+class DelegatingVideoBackend:
+    name = "delegating"
 
     def render(self, cast_path: Path, output_path: Path, fps: int) -> None:
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        output_path.write_text("# video disabled\n")
+        # Valid MP4 production: agg directly on cast then ffmpeg
+        render_mp4(cast_path, output_path, fps=fps)
 ```
 
-Config:
+Config (only the delegating backend is selectable for real video):
 
 ```yaml
 video_backends:
-  noop: "my_pkg.video:NoopVideoBackend"
+  delegating: "my_pkg.video:DelegatingVideoBackend"
 ```
 
 ```bash
-tui-verify run recipes/ --video --video-backend noop  # still requires agg on PATH
+tui-verify run recipes/ --video --video-backend delegating  # still requires agg on PATH per evidence.py:55-60 guard
 ```
+
 
 ## Custom Execution Mode — Only Fixed Keys Work
 
@@ -419,15 +450,31 @@ class EchoAgentRunner:
 Usage — programmatic injection (the only currently wired path for custom Python runners):
 
 ```python
+from pathlib import Path
+import dataclasses
 from tui_verifier.config import VerifierConfig
+from tui_verifier.models import CommandSpec, Recipe
 from tui_verifier.runner import VerificationRunner
 from my_pkg.agent import EchoAgentRunner
 
+# Construct a recipe whose execution is already agent-driven (Recipe is frozen;
+# you cannot assign recipe.execution after construction). Use dataclasses.replace
+# if you need to change execution on an existing recipe, or load one that already
+# has execution="agent-driven" in its JSON.
+base_recipe = Recipe(
+    name="echo-agent-demo",
+    command=CommandSpec(argv=["echo", "hello"], pty=False),
+    execution="agent-driven",
+    checks=["Codex operator completed the verification"],
+)
+
+# If you loaded a recipe that was not already agent-driven, convert it immutably:
+# runnable_recipe = dataclasses.replace(base_recipe, execution="agent-driven")
+
 config = VerifierConfig.builtin()
 runner = VerificationRunner(agent_runner=EchoAgentRunner(), config=config)
-# Explicitly use agent-driven execution via recipe's execution field:
-# recipe.execution = "agent-driven"
-result = runner.run(recipe, out_dir=Path(".tui-verifier/runs"), render_video=False)
+result = runner.run(base_recipe, out_dir=Path(".tui-verifier/runs"), render_video=False)
+print(f"{result.recipe_name}: {'PASS' if result.passed else 'FAIL'}")
 ```
 
 Alternatively via CLI `--operator-command`, which creates `CodexCliAgentRunner` with that command (not your custom class). Custom `AgentRunner` via config alone won't execute without Python-level injection or future runner change.
@@ -509,7 +556,7 @@ Note: process mode evaluates steps via `_evaluate_output_steps()` — only `wait
 - Qualname format is `"module:Class"` with colon, not dot. `_import_class` checks for colon and raises `ValueError` otherwise.
 - `Registry.get()` raises `KeyError` with available sorted names — Runner wraps unknown step/assertion as `ValueError("unknown step action")` / `ValueError("unknown assertion type")`.
 - `session_backend` is single string — replacing it replaces whole backend; you cannot have multiple session backends concurrently (runner resolves one).
-- Session backend must be a context manager (`__enter__`/`__exit__`) because runner uses `with ...create_session(...)`.
+- The object returned by `create_session()` must be a context manager (`__enter__`/`__exit__`) because runner uses `with ...create_session(...) as session:`; the session backend itself need not be a context manager — only the session object it returns must be.
 - Non-recorded agent mode (`record_terminal=False`) bypasses session backend — it calls `subprocess.run` directly.
 - Video backend only called if `render_video True` and `shutil.which("agg")` passes in `render_artifacts()` at `evidence.py:55-60`. Without `agg`, video rendering silently skipped regardless of backend config unless you patch that guard too.
 - Execution resolver only emits 3 fixed names — new execution mode names require replacing `scripted_pty`/`scripted_process`/`agent_driven` or patching `runner._resolve_execution_mode_name`.

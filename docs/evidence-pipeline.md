@@ -5,7 +5,7 @@
 > Scripted PTY and process runs record a real terminal session as an asciinema cast (`session.cast`). Non-recorded agent mode (`record_terminal=False`) runs the operator via `subprocess` and synthesizes a cast from transcript via `CastRecorder`.
 
 - For terminal-recorded runs (scripted modes and recorded agent mode), final text/SVG/video are cast replays — `TerminalSession` creates a cast via `TerminalSession` / asciinema. For non-recorded agent mode, the cast is synthesized by `CastRecorder` from the agent transcript, not from a real terminal.
-- When a cast exists, replayed terminal-derived display artifacts (final text/SVG/video derived by `replay_cast`) use the cast as source of truth; other artifacts have other inputs.
+- When a cast exists, terminal-derived display artifacts use the cast as source: final text/SVG are reconstructed via `replay_cast()` (pyte) from the cast; video is rendered by `render_mp4()` calling `agg` directly on the cast then `ffmpeg`. Other artifacts/results (assertions, filesystem checks, exit status, agent outcomes) have independent inputs.
 - `steps/` renders every `StepResult` — including PTY, process (`wait_for_text`/`sleep`), and agent synthetic (`codex-operator`) steps — from stored `StepResult.screen` snapshots, not cast replay.
 - `result.json`/`report.md` include independently evaluated assertions, exit status, file-system checks, and agent outcome — not just cast-derived data.
 - Agent metadata files (`agent_prompt.md`, `agent_transcript.md`, `agent_outcome.json`) do not derive from the cast — they are written by `_write_agent_files()`.
@@ -18,8 +18,8 @@ The earlier claim "the cast is the source of truth, all other artifacts derive f
 
 ```python
 def new_run_dir(base_dir, recipe_name, renderer="default"):
-    safe_name = "".join(ch if alnum or in "-_" else "-" for ch in recipe_name)
-    safe_renderer = "".join(ch if alnum or in "-_" else "-" for ch in renderer)
+    safe_name = "".join(ch if ch.isalnum() or ch in "-_" else "-" for ch in recipe_name)
+    safe_renderer = "".join(ch if ch.isalnum() or ch in "-_" else "-" for ch in renderer)
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")  # microsecond precision
     return base_dir / f"{timestamp}-{safe_name}-{safe_renderer}"
 ```
@@ -237,4 +237,4 @@ For multi-recipe run, `out_dir/latest-report.md` aggregates all results.
 
 - v2 format: first line JSON header, subsequent lines `[float_timestamp, "o"|"i", data]` JSON arrays.
 - `replay_cast()` only feeds `"o"` (output) events — input events are ignored for screen replay (they originate from tester, not TUI).
-- Same cast file is used by `screen_text()` for final rendering and by `agg` for video when present.
+- Same cast file is used by `replay_cast()` for final text/SVG rendering and by `agg` directly for video when present (`render_mp4` calls `agg` on cast then `ffmpeg`; `replay_cast` reconstructs text/screen for text/SVG).

@@ -232,7 +232,7 @@ class AgentOutcome:
     metadata: dict[str, Any] = field(default_factory=dict)
 ```
 
-`CodexCliAgentRunner` — fields: `command=["codex","exec"]`, `timeout_seconds=180`, `prompt_mode="stdin"` (`"stdin"` or `"arg"`), `cwd?`, `env={}`, `record_terminal=True`. `from_recipe()` reads `recipe.operator` dict. Recorded mode wraps via `TerminalSession`; non-recorded mode via `subprocess.run`. Timeout returns `timed_out=True` metadata; `FileNotFoundError` → exit 127.
+`CodexCliAgentRunner` — fields: `command=["codex","exec"]`, `timeout_seconds=180`, `prompt_mode="stdin"` (`"stdin"` or `"arg"`), `cwd?`, `env={}`, `record_terminal=True`. `from_recipe()` reads `recipe.operator` dict. Recorded mode wraps via `TerminalSession` (direct `TerminalSession(...)` at `agent_driven.py:51-70`, bypassing `config.session_backend`; no explicit `TimeoutExpired`/`FileNotFoundError` catches there); non-recorded mode via `subprocess.run()` at `agent_driven.py:87-131`, also bypassing `config.session_backend`, where explicit `TimeoutExpired` → `timed_out=True` outcome and `FileNotFoundError` → exit 127 conversion exists only in this non-recorded subprocess path.
 
 `AgentDrivenRunner` is the adapter between execution mode and AgentRunner — builds prompt, runs agent, writes files, derives screen/assertions.
 

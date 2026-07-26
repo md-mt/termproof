@@ -1,10 +1,13 @@
 # TUI Verifier
 
 TUI Verifier is an evidence-first verification harness for terminal and TUI
-applications. It records the real terminal session with `asciinema`, drives the
-session from JSON recipes, replays the cast into screenshots and text snapshots,
-optionally renders a 60-fps MP4 with `agg` plus `ffmpeg`, and writes Markdown
-and JSON reports for review.
+applications. Scripted PTY and process runs and recorded agent mode record a
+real terminal session as an asciinema v2 cast; non-recorded agent runs
+(`record_terminal=False`) execute the operator via `subprocess` and synthesize a
+cast from transcript via `CastRecorder`. The harness drives the session from
+JSON recipes, replays the cast into screenshots and text snapshots, optionally
+renders an MP4 with `agg` plus `ffmpeg` (60 fps is the default and is
+configurable via `--video-fps`), and writes Markdown and JSON reports for review.
 
 The verifier is product-agnostic: any terminal program can be plugged in by
 checking in a recipe pack. Pi coding agent workflows are included as the main
@@ -248,8 +251,10 @@ Public CI runs deterministic Pi-style workflows instead of provider-backed live
 Pi sessions. That keeps every PR, `main` commit, and release reproducible on a
 fresh GitHub runner while still validating multi-turn coding-agent UI patterns.
 
-Every PR receives a sticky `TUI Verifier CI Report` comment. The comment links
-to the workflow run, embeds `.tui-verifier/ci/latest-report.md`, and points
+Every PR triggers an attempt to create/update a sticky `TUI Verifier CI Report`
+comment (the comment step uses `continue-on-error: true`, so it is attempted when
+GitHub permissions and API calls permit, not guaranteed). The comment links to
+the workflow run, embeds `.tui-verifier/ci/latest-report.md`, and points
 reviewers to the `tui-verifier-ci-evidence` artifact containing screenshots,
 casts, videos, JSON results, and per-recipe reports. The same report is written
 to the GitHub run summary for PR and `main` runs.
@@ -310,7 +315,12 @@ contract and release flow.
 
 ## Why Asciinema First
 
-The cast is the source of truth. The normal pipeline is:
+Every completed execution path is normalized to an asciinema v2 cast, but only
+terminal-recorded paths create that cast through asciinema recording. Scripted
+PTY and process runs record via `TerminalSession` (pexpect + `asciinema rec`);
+recorded agent mode also constructs `TerminalSession` directly (bypassing
+`config.session_backend`); non-recorded agent mode synthesizes a cast from
+transcript via `CastRecorder`. The normal pipeline for recorded PTY mode is:
 
 ```bash
 asciinema rec --overwrite --stdin --quiet --cols "$COLS" --rows "$ROWS" \
@@ -322,6 +332,13 @@ ffmpeg -y -loglevel error -i session.agg.gif \
   -pix_fmt yuv420p -movflags +faststart session.mp4
 ```
 
-Screenshots, videos, assertions (scripted modes), agent outcomes (agent mode), and reports all come from recorded sessions.
-Per-step `steps/` screenshots render stored screen snapshots in PTY mode. Reviewers can inspect what happened instead of trusting a private
-terminal session. Video rendering additionally requires `agg` on PATH and `--video` flag (`evidence.py:55-60`).
+Video rendering additionally requires `agg` on PATH and `--video` flag
+(`evidence.py:55-60`). Final text/SVG are produced by replaying the cast via
+`replay_cast()` (pyte) for recorded paths; `steps/` screenshots render every
+`StepResult` (scripted PTY, process, and agent synthetic) from stored screen
+snapshots via `evidence._render_step_screens()`. Assertions (scripted modes),
+agent outcomes (agent mode), exit status, and filesystem checks are evaluated
+independently and included in `result.json`/`report.md`; agent metadata files
+do not derive from the cast. Video is rendered by `render_mp4()` which calls
+`agg` directly on the cast then `ffmpeg`; `replay_cast()` reconstructs
+text/screen for text/SVG artifacts.

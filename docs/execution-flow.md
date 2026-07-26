@@ -199,8 +199,20 @@ raise ValueError(f"unknown renderer {selection!r}; available: {available}")
 
 Example recipe:
 
+```jsonc
+// Example recipe renderers field (fragment, not a complete file)
+// When embedded in a full recipe JSON, it lives at the top level:
+{
+  "renderers": { "default": [], "opentui": [], "ink": ["--renderer", "ink"] }
+}
+```
+
+Or as a minimal complete JSON document:
+
 ```json
-"renderers": { "default": [], "opentui": [], "ink": ["--renderer", "ink"] }
+{
+  "renderers": { "default": [], "opentui": [], "ink": ["--renderer", "ink"] }
+}
 ```
 
 - `--renderer default` runs `argv + []` → one `RunResult` with renderer `default`.

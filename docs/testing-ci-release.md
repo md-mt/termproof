@@ -19,7 +19,7 @@ Test suite: 31 tests across 8 files:
 - `test_cli.py` (1) — `init` command creates recipe file (`CliTest.test_init_command_creates_recipe`); scaffolds files on disk.
 - `test_config.py` (9) — cascading config merge: builtin → user → project YAML deep merge (`ConfigTest` 5 tests) plus `RegistryTest` (4 tests: register/get, unknown raises, sorted names, overwrite) covering the generic registry from `test_config.py`.
 - `test_examples.py` (1) — validates example recipe JSON shape loads.
-- `test_runner.py` (9) — runner orchestration: PTY mode `test_run_records_cast_and_asserts_output` spawns real processes via session backend (checks and requires `asciinema` CLI at `session.py:54-73,200-223`); process mode `test_run_process_mode_records_cast` also spawns real Python child processes; `test_runner_accepts_config`, `test_runner_defaults_to_builtin_config`, `test_runner_has_session_backend`, `test_session_backend_creates_session`, `test_runner_has_video_backend_registry`, `test_video_backend_roundtrip`, `test_runner_run_uses_video_backend` — the latter three cover video backend registry and artifact/backend plumbing.
+- `test_runner.py` (9) — runner orchestration: PTY mode `test_run_records_cast_and_asserts_output` spawns real processes via session backend (checks and requires `asciinema` CLI at `session.py:54-73,200-223`); process mode `test_run_process_mode_records_cast` also spawns real Python child processes; `test_runner_accepts_config`, `test_runner_defaults_to_builtin_config`, `test_runner_has_session_backend`, `test_session_backend_creates_session`, `test_runner_has_video_backend_registry`, `test_video_backend_roundtrip`, `test_runner_run_uses_video_backend` — note `test_video_backend_roundtrip` only resolves `agg_ffmpeg` from the registry and asserts non-null (`tests/test_runner.py:103-107`) without calling `render()`; `test_runner_run_uses_video_backend` sets `render_video=False` (`tests/test_runner.py:109-126`) so it verifies runner accepts a backend name but never reaches `evidence.render_artifacts()` video guard nor invokes any backend — both are registry/plumbing checks, not video rendering/artifact coverage.
 - `test_scaffold.py` (1) — recipe pack scaffolding creates files on disk.
 - `test_screen.py` (2) — cast replay, screen rendering.
 - `test_stack_design.py` (5) — recipe discovery (`load_recipes`, `find_recipe_files`, `select_recipes`), renderer selection (`selected_renderers`), `BuildInfo.from_command`, `ReportGenerator.generate_markdown`, `BeforeAfterResult` delta computation.
@@ -116,14 +116,18 @@ uv run tui-verify run \
 
 ### CI Report Shape
 
-Every PR receives sticky comment `TUI Verifier CI Report` containing:
+CI attempts to create/update a sticky `TUI Verifier CI Report` comment on PRs when
+GitHub permissions and API calls permit — the comment step at `ci.yml:92-95` uses
+`continue-on-error: true`, so it is not guaranteed (permission/API failures are
+deliberately tolerated). When successful, the comment contains:
 
 - Link to workflow run
 - Reference to `tui-verifier-ci-evidence` artifact name
 - Embedded `latest-report.md` (truncated to 55k chars if needed)
 - Note that report links point to files inside artifact
 
-Same markdown also appears in GitHub Run Summary for PR and main commits.
+The same markdown also appears in GitHub Run Summary for PR and main commits
+(handled by a separate `if: always()` summary step).
 
 ## GitHub Actions — Release (`release.yml`)
 

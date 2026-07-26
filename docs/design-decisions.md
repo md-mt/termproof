@@ -3,16 +3,16 @@
 All claims below reference observable current code and explicit source locations.
 
 ## 1. Evidence-first, cast as source of truth (with nuances)
-
-**Decision:** Every verification run records asciinema v2 cast via `asciinema rec` wrapper; several evidence outputs are derived from that cast.
+**Decision:** Every completed execution path is normalized to an asciinema v2 cast; terminal-recorded paths (scripted PTY, scripted process, recorded agent) create that cast through asciinema recording, while non-recorded agent mode synthesizes a cast from transcript.
 
 - `session.py:asciinema_rec_command()` shells out to `asciinema rec --overwrite --stdin --quiet --cols/--rows --command <recorded_command> <cast_path>`.
 - `recorded_command()` wraps target argv via `shlex.join` + writes exit code to sidecar file `<cast>.exitcode`.
 - `screen.py:replay_cast()` feeds output events into `pyte.Screen`.
 - `evidence.py:render_artifacts()` at `31-61` calls `replay_cast()` for final text, renders final SVG/TXT via SVG renderer or fallback; at `65-83` renders per-step screens from stored `StepResult.screen` snapshots (not from cast replay); at `31-61,65-83,133-167`, `runner.py:171-201,297-325`, `builtin_assertions.py:127-184`, `agent_driven.py:138-157,228-253` show that `result.json`/`report.md` include independently evaluated assertions, exit status, file-system checks, and agent outcome; agent metadata files (`agent_prompt.md`, etc.) do not derive from the cast.
 - Non-recorded agent mode at `agent_driven.py:138-157` synthesizes a cast from transcript via `CastRecorder` rather than recording a real terminal.
+- Configured session backend (`config.session_backend`) is the extension point for scripted PTY and process paths; the builtin `PexpectAsciinemaBackend` returns a `TerminalSession`. In contrast, both built-in Codex paths bypass it: recorded mode at `agent_driven.py:51-70` directly constructs `TerminalSession`, and non-recorded mode at `agent_driven.py:87-131` calls `subprocess.run()` directly.
 
-So final.txt/final.svg/video are cast replays, but PTY step files render stored `StepResult.screen` snapshots; result/report include independent evaluations and file checks; agent metadata does not derive from the cast; non-recorded agent mode synthesizes a cast from transcript.
+So final.txt/final.svg/video are cast replays for recorded paths (video via `render_mp4` calling `agg` directly on the cast then `ffmpeg`; `replay_cast` reconstructs text/screen for text/SVG), but PTY step files render stored `StepResult.screen` snapshots; result/report include independent evaluations and file checks; agent metadata does not derive from the cast; non-recorded agent mode synthesizes a cast from transcript.
 
 **Trade-off:** Requires external `asciinema` binary on PATH (`shutil.which("asciinema")` checked, `RuntimeError` if missing). Non-pty process mode still uses asciinema via `TerminalSession` — even non-interactive commands are cast-recorded. Overhead: cast file includes terminal escape sequences; replay via pyte approximates final screen (pyte not a full VT emulator, but sufficient for evidence).
 
@@ -99,7 +99,7 @@ In `_run_pty`, after each `StepResult`, if `passed==False`, loop `break`s. Remai
 - Same for video: `evidence.render_mp4()` standalone; `AggFfmpegBackend.render()` delegates to it; `render_artifacts()` guards `shutil.which("agg")` before calling backend.
 - `builtin_reporters.MarkdownReporter` contains generation logic; `report.py` defines `ReportGenerator` that independently defines its own generation logic with similar output shape; package `__init__.py:3-19` re-exports `ReportGenerator`.
 
-**Trade-off:** Duplication from phased refactor (Phases 1-4 wired registries). But ensures fallback: code path without config (None passed) still works because standalone functions exist. Note `MarkdownReporter` does not delegate to a shared implementation; `report.py` is not merely a legacy re-export — it independently defines its logic.
+**Trade-off:** Duplicate fallback implementations exist — `screen.py:render_svg()` plus `SvgRenderer`, `evidence.render_mp4()` plus `AggFfmpegBackend`, and `report.py:ReportGenerator` independently defines logic similar to `MarkdownReporter`. This ensures code paths without config still work via standalone functions. Note `MarkdownReporter` does not delegate to a shared implementation; `report.py` is not merely a legacy re-export — it independently defines its logic.
 
 ## 11. BuildInfo provenance via `which`, `--version`, `git rev-parse`
 
@@ -117,7 +117,7 @@ In `_run_pty`, after each `StepResult`, if `passed==False`, loop `break`s. Remai
 
 `before_after.py` compares two result lists keyed by `(recipe_name, renderer)`. Status per key: PASS/FAIL/SKIP. Deltas reported when status differs.
 
-Used by reporter if `BeforeAfterResult` supplied, though CLI currently does not wire before/after automatically (reserve for future `tui-verify diff` command).
+Used by reporter if `BeforeAfterResult` supplied, though CLI currently does not wire before/after automatically (no `diff` subcommand in current CLI).
 
 **Trade-off:** Extra module currently not exercised by main CLI path (no `diff` subcommand wired). But kept for programmatic use (`ReportGenerator.generate_markdown(..., before_after=...)`).
 
@@ -165,6 +165,6 @@ E2E tests live as example recipes (`examples/generic`, deterministic Pi-style fi
 - `--config` help at `cli.py:29-30` says "path to a tui-verifier config YAML file" but `_resolve_config` at `cli.py:116-123` treats arg as project path and appends `.tui-verifier/config.yaml`; supplied YAML file is not loaded; default user config at `config.py:99-105` still loads when `--config` given — see `configuration.md` known bug.
 - Screen renderer receives fixed `.svg` paths (`final.svg`, `steps/{index:02d}-{safe}.svg`) at `evidence.py:34-43,76-83` — PNG-via-PIL pattern passing `output_path` expecting extension-based format inference is invalid.
 - Process mode `_run_process` hardcodes step support to `wait_for_text` and `sleep`; other steps fail requiring PTY — see `runner.py:275-295`.
-- Agent-driven non-recorded mode `_run_subprocess` at `agent_driven.py:88-131` bypasses session backend; only timeout/FileNotFoundError are handled there, while recorded mode at `56-85` uses `TerminalSession`.
-- Compatibility: `create_session` must return a context manager because runner uses `with ...create_session(...)` at `runner.py:222-229,247-254`.
+- Agent-driven non-recorded mode `_run_subprocess` at `agent_driven.py:88-131` bypasses session backend; only explicit `TimeoutExpired`/`FileNotFoundError` → exit 127 conversion exists in this non-recorded subprocess path, while recorded mode at `56-85` uses `TerminalSession` without those explicit catches — see `extension-points.md`.
+- Compatibility: `create_session` return value (the session object) must be a context manager because runner uses `with ...create_session(...)` at `runner.py:222-229,247-254`; the backend object itself need not be a context manager — only the session it returns must be.
 - `config.defaults` is modeled but currently unused — CLI hardcodes `--out`/`--video-fps` at `cli.py:21-24`, runner at `runner.py:154-163`, recipe at `models.py:31-34,82-108`.
