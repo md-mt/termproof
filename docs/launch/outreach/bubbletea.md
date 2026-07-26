@@ -67,7 +67,11 @@ They complement: use VHS for polished 10s README embeds, TermProof for verifiabl
     termproof run .termproof/recipes --video --out .termproof/ci
 
 - name: Check evidence produced
-  run: test -f .termproof/ci/*/session.mp4 || (echo "ERROR: session.mp4 missing (agg or ffmpeg unavailable?)" && exit 1)
+  run: |
+    if ! find .termproof/ci -type f -name session.mp4 -print -quit | grep -q .; then
+      echo "ERROR: session.mp4 missing (agg or ffmpeg unavailable?)"
+      exit 1
+    fi
 
 - name: Upload evidence
   uses: actions/upload-artifact@v4

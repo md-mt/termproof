@@ -109,7 +109,7 @@ This checklist is the single source for launch readiness. Check items in order; 
 
 - **#36 Show HN:** Closed only when HN post URL exists + companion comment posted + monitoring first 24h done. Otherwise comment on #36 with merged launch-kit PR URL + `t_550ba351` gate remaining.
 - **#37 Outreach:** Closed only when all 4 frameworks contacted AND responses tracked (interested/not now) with links. Otherwise comment with launch-kit PR + remaining sends.
-- **#38 Social:** Closed only when profiles created (URLs recorded) + first announcement posted + legacy `@tui_verifier` registered/redirected. Development update, screenshot post, and first "Recipe of the Week" are tracked in #38 but do not block close — split ongoing content into follow-up issues. Otherwise comment with launch-kit PR + handle decision.
+- **#38 Social:** Closed only when profiles created (URLs recorded) + first announcement posted + legacy `@tui_verifier` registered/redirected. Development update, screenshot post, and first "Recipe of the Week" are required per #38 — keep #38 open until these are delivered, or create linked follow-up issues (e.g. #38-continued-1, #38-continued-2) and update #38 description with the agreed split before closing. Otherwise comment with launch-kit PR + handle decision.
 
 ## Rollback / Contingency
 

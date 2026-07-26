@@ -15,7 +15,7 @@
 
 ## Structure for Every Outreach
 
-### Short (DM, Tweet, GH Discussion first reply)
+### Short (DM, GH Discussion first reply)
 
 - What: TermProof = Cypress for terminal, evidence-first verifier
 - How: recipe JSON → PTY + asciinema cast → SVG + MP4 + Markdown report + CI artifact
@@ -65,7 +65,11 @@ cat .termproof/demo/*/report.md
     termproof run .termproof/recipes --video --out .termproof/ci
 
 - name: Check evidence produced
-  run: test -f .termproof/ci/*/session.mp4 || (echo "ERROR: session.mp4 missing (agg unavailable?)" && exit 1)
+  run: |
+    if ! find .termproof/ci -type f -name session.mp4 -print -quit | grep -q .; then
+      echo "ERROR: session.mp4 missing (agg unavailable?)"
+      exit 1
+    fi
 
 - name: Upload evidence
   uses: actions/upload-artifact@v4

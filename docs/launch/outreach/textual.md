@@ -71,7 +71,7 @@ Or inspect checked-in artifacts: `examples/artifacts/` (SVGs, MP4s, reports).
 - https://github.com/md-mt/termproof#quickstart
 - https://github.com/md-mt/termproof/blob/main/docs/recipe-packs.md
 - https://github.com/md-mt/termproof/tree/main/examples/generic
-- Upcoming: `docs/guides/textual.md` per #24 — I can co-author
+- Upcoming: `docs/guides/textual.md` per #24 — I can co-author (lands in t_1b2bfea8)
 
 **Offer:** If you're interested, I'll draft a recipe pack for one of your Textual examples (e.g., `textual-demo` or `calculator`) and open a PR showing CI integration. No obligations.
 
@@ -82,15 +82,15 @@ Thanks for Textual — it's the reason this tool exists.
 ## Attachments / Links to Include
 
 - Repo: https://github.com/md-mt/termproof
-- Demo artifacts: `examples/artifacts/generic-tui-workflow/` + `pi-workflow-guarded-edit/session.mp4`
+- Demo artifacts: `examples/artifacts/pi-workflow-guarded-edit/session.mp4` (60-second demo)
 - CI evidence: latest `termproof-ci-evidence` from https://github.com/md-mt/termproof/actions/workflows/ci.yml
-- Badge: `docs/verified-badge.md` — `Verified by TermProof`
+- Badge: `docs/verified-badge.md` — `Verified by TermProof` (lands in t_1b2bfea8 lane; link to README badge section until then)
 
 ## Follow-up Plan
 
 - Wait 3-5 days. If no reply, one polite bump with a concrete PR example.
 - If interested: co-author `docs/guides/textual.md` + `termproof-textual` plugin skeleton (Issue #23).
-- Add to `docs/plugins.md` and Pages site (#16) if they adopt.
+- Add to `docs/plugins.md` and Pages site (#16) if they adopt (lands in t_1b2bfea8 lane).
 
 ## Anti-patterns to Avoid
 

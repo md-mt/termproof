@@ -66,7 +66,11 @@ TermProof (https://github.com/md-mt/termproof) bridges that:
     termproof run .termproof/recipes --video --out .termproof/ci
 
 - name: Check evidence produced
-  run: test -f .termproof/ci/*/session.mp4 || (echo "ERROR: session.mp4 missing (agg or ffmpeg unavailable?)" && exit 1)
+  run: |
+    if ! find .termproof/ci -type f -name session.mp4 -print -quit | grep -q .; then
+      echo "ERROR: session.mp4 missing (agg or ffmpeg unavailable?)"
+      exit 1
+    fi
 
 - uses: actions/upload-artifact@v4
   with:
@@ -98,14 +102,14 @@ Or browse checked-in evidence: `examples/artifacts/` (MP4s, SVGs, reports from P
 - https://github.com/md-mt/termproof/tree/main/examples/generic
 - Future: `docs/guides/ratatui.md` per #24 — can co-author
 
-**Offer:** I'll draft a recipe pack for `ratatui/examples/demo` or `demo2` and show a GitHub Actions run with evidence artifact. If you adopt, we can list Ratatui projects in `docs/plugins.md` + badge program (`docs/verified-badge.md`).
+**Offer:** I'll draft a recipe pack for `ratatui/examples/demo` or `demo2` and show a GitHub Actions run with evidence artifact. If you adopt, we can list Ratatui projects in `docs/plugins.md` (future, lands in t_1b2bfea8) + badge program (`docs/verified-badge.md`, lands in t_1b2bfea8).
 
 Thanks for Ratatui — best TUI testing foundations in Rust.
 
 ## Links
 
 - https://github.com/md-mt/termproof
-- Badge + plugins: `docs/verified-badge.md`, `docs/plugins.md`
+- Badge + plugins: `docs/verified-badge.md`, `docs/plugins.md` (lands in t_1b2bfea8 lane)
 
 ## Follow-up
 

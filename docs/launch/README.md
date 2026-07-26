@@ -25,7 +25,7 @@ These URLs are referenced across outreach and social copy. Update after v0.2 rel
 - **Generic demo recipe:** `https://github.com/md-mt/termproof/tree/main/examples/generic`
 - **Pi workflow showcase:** `https://github.com/md-mt/termproof/tree/main/examples` (recipes `pi_workflow_*.recipe.json`)
 - **60-second demo (local):** run `uv run termproof run examples/generic --video` then open `.termproof/runs/<id>/session.mp4` and `final.svg`
-- **Tracked evidence artifacts:** `https://github.com/md-mt/termproof/tree/main/examples/artifacts` — e.g. `pi-workflow-guarded-edit-default/session.mp4`, `latest-pi-workflows-report.md`
+- **Tracked evidence artifacts:** `https://github.com/md-mt/termproof/tree/main/examples/artifacts` — e.g. `pi-workflow-guarded-edit/session.mp4`, `latest-pi-workflows-report.md`
 - **CI evidence artifact:** `termproof-ci-evidence` attached to every PR and `main` push (`https://github.com/md-mt/termproof/actions/workflows/ci.yml`)
 - **Release evidence:** `termproof-release-evidence.tgz` on release tags (`https://github.com/md-mt/termproof/actions/workflows/release.yml`)
 - **Demo site (when live):** `https://md-mt.github.io/termproof/` (Issue #16) — `docs/plugins.md` and `docs/verified-badge.md` will land in follow-up PRs (t_1b2bfea8 lane)

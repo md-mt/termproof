@@ -4,7 +4,7 @@ Validates:
 - HN titles are <=80 chars
 - Local paths referenced in launch docs resolve to existing files or are explicitly gated
 - Embedded JSON recipes are parseable and structurally valid
-- Embedded YAML CI snippets are syntactically valid
+- Embedded YAML CI snippets are syntactically valid (real PyYAML parse)
 - Social platform handle syntax (no underscores on Bluesky), bio limits, tweet limits
 - No secrets, tokens, or real account-created claims in any launch doc
 - Issue #38 legacy-handle migration represented in checklist
@@ -24,15 +24,9 @@ LAUNCH_DIR = REPO_ROOT / "docs" / "launch"
 
 
 def _yaml_safe_load(text: str):
-    """Try to load YAML; skip if pyyaml not available."""
-    try:
-        import yaml
-    except ImportError:
-        return None
-    try:
-        return yaml.safe_load(text)
-    except yaml.YAMLError:
-        return None
+    """Parse YAML with PyYAML. Returns parsed object or raises."""
+    import yaml
+    return yaml.safe_load(text)
 
 
 # ── helpers ──────────────────────────────────────────────────────────
@@ -57,15 +51,16 @@ def _extract_hackernews_titles(content: str) -> list[str]:
 def _extract_local_path_refs(content: str) -> list[str]:
     """Extract local file-system paths referenced in markdown.
 
-    Only returns paths that look like real repo file references:
+    Returns paths that look like real repo file/directory references:
     - backtick-quoted paths with directory components (e.g. `docs/foo/bar.md`)
+    - backtick-quoted extensionless directories (e.g. `examples/artifacts/pi-workflow-guarded-edit/`)
     - markdown links [text](relative/path)
     Skips: bare filenames in code blocks (artifact output examples like final.svg),
     single-component paths, and shell-command relative paths starting with '.'.
     """
     refs: list[str] = []
-    # inline code paths with at least one directory separator
-    for m in re.finditer(r"`([a-zA-Z0-9_./-]+/[a-zA-Z0-9_./-]+\.[a-zA-Z]{2,6})`", content):
+    # inline code paths with at least one directory separator, with or without extension
+    for m in re.finditer(r"`([a-zA-Z0-9_./-]+/[a-zA-Z0-9_./-]+(?:/[a-zA-Z0-9_./-]+)*(?:\.[a-zA-Z]{2,6}|/))`", content):
         ref = m.group(1)
         if not ref.startswith("."):
             # Skip domain-like paths (e.g. bsky.app/profile/...)
@@ -73,6 +68,14 @@ def _extract_local_path_refs(content: str) -> list[str]:
             if "." in first and not any(first.endswith(ext) for ext in (".md", ".py", ".json", ".yaml", ".toml", ".cfg", ".txt", ".svg", ".png")):
                 continue
             refs.append(ref)
+    # Also catch extensionless directory paths without trailing slash in backticks
+    for m in re.finditer(r"`([a-zA-Z0-9_./-]+/[a-zA-Z0-9_./-]+(?:/[a-zA-Z0-9_-]+)+)`", content):
+        ref = m.group(1)
+        if not ref.startswith(".") and "." not in ref.split("/")[-1]:
+            first = ref.split("/")[0]
+            if "." not in first or any(first.endswith(ext) for ext in (".md", ".py", ".json")):
+                if ref not in refs:
+                    refs.append(ref)
     # markdown links: [text](relative/path)
     for m in re.finditer(r"\]\(([^) ]+)\)", content):
         url = m.group(1)
@@ -86,6 +89,30 @@ def _extract_local_path_refs(content: str) -> list[str]:
 
 def _count_graphemes(s: str) -> int:
     return len(s)
+
+
+def _is_gated_in_context(content: str, ref: str) -> bool:
+    """Check if a reference is explicitly gated in nearby text.
+
+    A reference is gated if nearby text contains markers that the path is
+    not yet available (future, lands in, follow-up, etc.). References to
+    future docs/docs/guides/docs/plugins/docs/verified-badge are only
+    acceptable when accompanied by a gate marker within 150 chars.
+    """
+    idx = content.find(ref)
+    if idx < 0:
+        return False
+    context_start = max(0, idx - 150)
+    context_end = min(len(content), idx + len(ref) + 150)
+    context = content[context_start:context_end].lower()
+    gate_markers = (
+        "when live", "future", "v0.3", "lands in", "t_1b2bfea8",
+        "follow-up", "not yet", "lightweight", "transition",
+        "convert this runbook", "link to readme badge",
+        "if you adopt", "if interested", "co-author", "upcoming",
+        "if they adopt", "when it lands", "not yet available",
+    )
+    return any(g in context for g in gate_markers)
 
 
 # ── file existence ───────────────────────────────────────────────────
@@ -200,28 +227,22 @@ class ShowHNDraftTest(unittest.TestCase):
     # ── behavioral: path resolution ──────────────────────────────────
 
     def test_show_hn_local_paths_resolve(self) -> None:
-        """Local file paths referenced in show-hn.md must exist or be explicitly gated."""
-        # Known future/gated paths that are acceptable to reference
-        gated_prefixes = (
-            "docs/guides/", "docs/plugins.md", "docs/verified-badge.md",
-        )
-        content_lower = self.content.lower()
+        """Local file paths referenced in show-hn.md must exist or be explicitly gated.
+
+        No unconditional exemption list — each missing reference must be gated
+        by nearby context (future/lands-in/follow-up markers within 150 chars).
+        """
         refs = _extract_local_path_refs(self.content)
+        self.assertGreater(len(refs), 0,
+                           "No local path references extracted from show-hn.md")
         missing: list[str] = []
         for ref in refs:
             # Skip relative paths that start with . (shell commands)
             if ref.startswith("."):
                 continue
-            # Skip gated paths
-            if ref.startswith(gated_prefixes):
-                continue
-            full = REPO_ROOT / ref
+            full = REPO_ROOT / ref.rstrip("/")
             if not full.exists():
-                # Check if it's gated in nearby text
-                context_start = max(0, self.content.find(ref) - 100)
-                context_end = min(len(self.content), self.content.find(ref) + len(ref) + 100)
-                context = self.content[context_start:context_end].lower()
-                if any(gate in context for gate in ("when live", "future", "v0.3", "lands in", "t_1b2bfea8")):
+                if _is_gated_in_context(self.content, ref):
                     continue
                 missing.append(ref)
         self.assertEqual([], missing, f"show-hn.md references non-existent paths: {missing}")
@@ -274,7 +295,10 @@ class OutreachTemplatesTest(unittest.TestCase):
         """Every ```json block in outreach templates must be parseable JSON."""
         for fw in ["textual", "bubbletea", "ratatui", "ink"]:
             content = self._read(fw)
-            for m in re.finditer(r"```json\n(.*?)```", content, re.DOTALL):
+            blocks = list(re.finditer(r"```json\n(.*?)```", content, re.DOTALL))
+            self.assertGreater(len(blocks), 0,
+                               f"{fw}: no JSON fenced blocks found")
+            for m in blocks:
                 try:
                     data = json.loads(m.group(1))
                     # Must have required recipe fields
@@ -286,8 +310,53 @@ class OutreachTemplatesTest(unittest.TestCase):
 
     # ── behavioral: YAML CI validation ───────────────────────────────
 
+    def test_yaml_ci_snippets_parse(self) -> None:
+        """Every ```yaml block in outreach/README.md and framework templates
+        must be valid YAML as parsed by PyYAML.
+
+        This replaces the prior test that only grep'd for 'uses:' patterns
+        and never actually invoked the YAML parser.
+        """
+        for fw in ["textual", "bubbletea", "ratatui", "ink", "README"]:
+            content = self._read(fw)
+            blocks = list(re.finditer(r"```yaml\n(.*?)```", content, re.DOTALL))
+            self.assertGreater(len(blocks), 0,
+                               f"{fw}: no YAML fenced blocks found")
+            for i, m in enumerate(blocks):
+                yaml_text = m.group(1)
+                try:
+                    parsed = _yaml_safe_load(yaml_text)
+                    self.assertIsNotNone(parsed,
+                                         f"{fw} block {i+1}: YAML parsed to None")
+                    # Accept both CI step lists and config fragments
+                    if isinstance(parsed, list):
+                        self.assertGreater(len(parsed), 0,
+                                           f"{fw} block {i+1}: YAML step list is empty")
+                        for j, step in enumerate(parsed):
+                            self.assertIsInstance(step, dict,
+                                                 f"{fw} block {i+1} step {j+1}: step must be a mapping")
+                            has_uses = "uses" in step
+                            has_run = "run" in step
+                            has_name = "name" in step
+                            self.assertTrue(has_uses or has_run,
+                                            f"{fw} block {i+1} step {j+1}: step must have 'uses' or 'run'")
+                    elif isinstance(parsed, dict):
+                        # Config fragments (e.g., Textual plugin config) are valid YAML
+                        pass
+                    else:
+                        self.fail(
+                            f"{fw} block {i+1}: YAML must be a list or mapping, "
+                            f"got {type(parsed).__name__}"
+                        )
+                except Exception as e:
+                    self.fail(f"{fw} block {i+1}: YAML parse failed: {e}")
+
     def test_yaml_ci_snippets_use_valid_actions_syntax(self) -> None:
-        """YAML CI snippets must not misuse 'uses:' with shell commands."""
+        """YAML CI snippets must not misuse 'uses:' with shell commands.
+
+        This is now a secondary check — the primary YAML validation is in
+        test_yaml_ci_snippets_parse above.
+        """
         for fw in ["textual", "bubbletea", "ratatui", "ink", "README"]:
             content = self._read(fw)
             for m in re.finditer(r"```yaml\n(.*?)```", content, re.DOTALL):
@@ -318,6 +387,20 @@ class OutreachTemplatesTest(unittest.TestCase):
         content = self._read("textual")
         self.assertNotIn("<280 chars for tweet", content,
                          "textual.md short template is 458 chars, must not claim <280")
+
+    def test_common_readme_does_not_claim_tweet_for_short(self) -> None:
+        """The common template must not claim short outreach is for Tweet.
+
+        Textual's short body is 458 code points — far beyond Tweet limits.
+        """
+        content = self._read("README")
+        # The short heading must not mention Tweet
+        short_heading_match = re.search(r"### Short\s*\(([^)]*)\)", content)
+        if short_heading_match:
+            heading_text = short_heading_match.group(1).lower()
+            self.assertNotIn("tweet", heading_text,
+                             "outreach/README.md short template must not claim Tweet use — "
+                             "Textual short body is 458 chars")
 
     def test_dependency_preflight_present(self) -> None:
         """Framework CI snippets include render-dependency install steps."""
@@ -545,6 +628,18 @@ class ChecklistAndRunbookTest(unittest.TestCase):
         self.assertIn("@tui_verifier", close_section,
                       "Issue #38 close criteria must reference @tui_verifier")
 
+    def test_checklist_issue38_does_not_waive_deliverables(self) -> None:
+        """Issue #38 close criteria must not declare remaining deliverables
+        non-blocking without linked follow-up issues."""
+        content = (LAUNCH_DIR / "checklist.md").read_text(encoding="utf-8")
+        close_section = content[content.find("Close Criteria"):]
+        # Must NOT claim things "do not block close" without creating follow-ups
+        self.assertNotRegex(
+            close_section,
+            r"do not block close",
+            "Issue #38 close criteria must not waive deliverables without linked follow-up issues"
+        )
+
 
 # ── behavioral: canonical links ─────────────────────────────────────
 
@@ -561,36 +656,33 @@ class CanonicalLinksTest(unittest.TestCase):
         self.assertEqual([], missing, f"Canonical files missing: {missing}")
 
     def test_launch_docs_reference_only_existing_or_gated_paths(self) -> None:
-        """Every local path in launch docs must exist or be gated."""
-        gated_prefixes = (
-            "docs/guides/", "docs/plugins.md", "docs/verified-badge.md",
-        )
+        """Every local path in launch docs must exist or be explicitly gated.
+
+        No unconditional exemption list — each missing reference must be gated
+        by nearby context (future/lands-in/follow-up markers within 150 chars).
+        """
         all_missing: dict[str, list[str]] = {}
+        total_refs = 0
         for md_file in sorted(LAUNCH_DIR.rglob("*.md")):
             content = md_file.read_text(encoding="utf-8")
             refs = _extract_local_path_refs(content)
+            total_refs += len(refs)
             file_dir = md_file.parent
             for ref in refs:
                 if ref.startswith("."):
                     continue
-                if ref.startswith(gated_prefixes):
-                    continue
                 # Try resolving from the document's directory first, then repo root
-                full = file_dir / ref
+                full = file_dir / ref.rstrip("/")
                 if not full.exists():
-                    full = REPO_ROOT / ref
+                    full = REPO_ROOT / ref.rstrip("/")
                 if not full.exists():
-                    context_start = max(0, content.find(ref) - 100)
-                    context_end = min(len(content), content.find(ref) + len(ref) + 100)
-                    context = content[context_start:context_end].lower()
-                    if any(g in context for g in ("when live", "future", "v0.3",
-                                                   "lands in", "t_1b2bfea8",
-                                                   "follow-up", "not yet",
-                                                   "lightweight", "transition",
-                                                   "convert this runbook")):
+                    if _is_gated_in_context(content, ref):
                         continue
                     all_missing.setdefault(str(md_file.relative_to(REPO_ROOT)), []).append(ref)
-        self.assertEqual({}, all_missing, f"Launch docs reference non-existent paths: {all_missing}")
+        self.assertGreater(total_refs, 0,
+                           "No local path references extracted from any launch doc")
+        self.assertEqual({}, all_missing,
+                         f"Launch docs reference non-existent paths: {all_missing}")
 
     def test_examples_directory_has_expected_structure(self) -> None:
         generic_dir = REPO_ROOT / "examples" / "generic"
@@ -639,16 +731,26 @@ class LaunchKitSecretAndActionTest(unittest.TestCase):
                          f"Secrets found in launch docs: {violations}")
 
     def test_no_real_social_urls_claimed_live(self) -> None:
-        """No launch doc may claim an account was created or a post was sent."""
+        """No launch doc may claim an account was created or a post was sent.
+
+        Scans ALL launch docs — not just those with draft+gate markers.
+        Only exempts files that explicitly declare themselves as DRAFT
+        (within first 500 chars) AND reference the t_550ba351 human gate.
+        """
         violations: list[str] = []
         for md_file in sorted(LAUNCH_DIR.rglob("*.md")):
             content = md_file.read_text(encoding="utf-8").lower()
             rel = str(md_file.relative_to(REPO_ROOT))
-            # Skip this file if it's explicitly a DRAFT with gate markers
-            if "draft" in content[:500] and "t_550ba351" in content.lower():
-                for pattern in self.ACCOUNT_CREATED_PATTERNS:
-                    if re.search(pattern, content):
-                        violations.append(f"{rel}: matches '{pattern}'")
+            # Only exempt from account-created patterns if the file
+            # explicitly declares DRAFT + human gate
+            is_draft_gated = (
+                "draft" in content[:500]
+                and "t_550ba351" in content
+            )
+            for pattern in self.ACCOUNT_CREATED_PATTERNS:
+                if re.search(pattern, content):
+                    if not is_draft_gated:
+                        violations.append(f"{rel}: matches '{pattern}' without DRAFT+gate exemption")
         self.assertEqual([], violations,
                          f"Launch docs claim live accounts/posts: {violations}")
 

@@ -117,7 +117,7 @@ Ask me anything about TUI testing — would love to help you write your first re
 
 HN doesn't embed images in the submission itself, but link in comments or host:
 
-- `examples/artifacts/pi-workflow-guarded-edit-default/session.mp4` — 60-second demo, upload to GitHub Releases or link to `termproof-ci-evidence` latest run
+- `examples/artifacts/pi-workflow-guarded-edit/session.mp4` — 60-second demo, upload to GitHub Releases or link to `termproof-ci-evidence` latest run
 - `examples/artifacts/latest-pi-workflows-report.md` — aggregate report
 - SVG screenshots: use `rsvg-convert` to convert `final.svg` to PNG for HN compatibility:
   ```bash
@@ -150,5 +150,5 @@ After posting, see `docs/launch/runbook.md`:
 
 - Monitor HN comments every 15 min for first 2h
 - Respond with technical depth, not marketing
-- Track "tried it" responses — invite to `docs/plugins.md` or badge
+- Track "tried it" responses — invite to `docs/plugins.md` (lands in t_1b2bfea8) or badge
 - Capture FAQs for README/docs update

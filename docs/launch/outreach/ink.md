@@ -67,7 +67,11 @@ TermProof closes that:
   run: termproof run .termproof/recipes --video --out .termproof/ci
 
 - name: Check evidence produced
-  run: test -f .termproof/ci/*/session.mp4 || (echo "ERROR: session.mp4 missing (agg or ffmpeg unavailable?)" && exit 1)
+  run: |
+    if ! find .termproof/ci -type f -name session.mp4 -print -quit | grep -q .; then
+      echo "ERROR: session.mp4 missing (agg or ffmpeg unavailable?)"
+      exit 1
+    fi
 
 - uses: actions/upload-artifact@v4
   with:
@@ -101,7 +105,8 @@ Or inspect `examples/artifacts/` — checked-in MP4s + SVGs + reports.
 - Quickstart: https://github.com/md-mt/termproof#quickstart
 - Recipe packs: https://github.com/md-mt/termproof/blob/main/docs/recipe-packs.md
 - Generic example: https://github.com/md-mt/termproof/tree/main/examples/generic
-- Badge: `docs/verified-badge.md` — `Verified by TermProof`
+- Badge: `docs/verified-badge.md` — `Verified by TermProof` (lands in t_1b2bfea8 lane)
+- Upcoming: `docs/guides/ink.md` per #24
 
 **Offer:** I'll draft a recipe for one of your Ink examples (`examples/` in Ink repo or a real CLI like `pastel`/`ink-demo`) + GitHub Action snippet. If you adopt, we can list it in `docs/plugins.md` and ship an Ink-specific `wait_for_ink` step in future.
 
@@ -111,7 +116,7 @@ Thanks for Ink — made React CLI possible.
 
 - https://github.com/md-mt/termproof
 - https://github.com/md-mt/termproof#quickstart
-- Badge + plugins directory: `docs/verified-badge.md`, `docs/plugins.md`
+- Badge + plugins directory: `docs/verified-badge.md`, `docs/plugins.md` (lands in t_1b2bfea8 lane)
 
 ## Follow-up
 
