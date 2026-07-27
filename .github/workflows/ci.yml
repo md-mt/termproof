@@ -7,7 +7,7 @@ on:
       - main
 
 permissions:
-  contents: read
+  contents: write
   issues: write
   pull-requests: write
 
@@ -115,25 +115,85 @@ jobs:
         run: |
           uv run python -m termproof.ci_evidence run ci --out .termproof/ci
 
+      - name: Prepare screenshot evidence branch payload
+        if: always() && github.event_name == 'pull_request'
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          uv run python -m termproof.evidence_publish screenshots \
+            --base-dir .termproof/pr-base \
+            --head-dir .termproof/ci \
+            --out .termproof/evidence-branch \
+            --pr-number "$PR_NUMBER" \
+            --run-id "$RUN_ID"
+
+      - name: Publish screenshot evidence branch
+        if: |
+          always() &&
+          github.event_name == 'pull_request' &&
+          github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          EVIDENCE_BRANCH: termproof-evidence
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          if [ ! -d .termproof/evidence-branch/pr ]; then
+            echo "No screenshot evidence to publish."
+            exit 0
+          fi
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          tmp="$(mktemp -d)"
+          git -C "$tmp" init
+          git -C "$tmp" remote add origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          if git -C "$tmp" fetch --depth=1 origin "$EVIDENCE_BRANCH"; then
+            git -C "$tmp" checkout "$EVIDENCE_BRANCH"
+          else
+            git -C "$tmp" checkout --orphan "$EVIDENCE_BRANCH"
+            git -C "$tmp" rm -rf . || true
+          fi
+          mkdir -p "$tmp/pr"
+          cp -R .termproof/evidence-branch/pr/. "$tmp/pr/"
+          git -C "$tmp" add pr
+          if git -C "$tmp" diff --cached --quiet; then
+            echo "No screenshot evidence changes."
+            exit 0
+          fi
+          git -C "$tmp" commit -m "Add TermProof screenshots for PR ${PR_NUMBER} run ${RUN_ID}"
+          git -C "$tmp" push origin "HEAD:${EVIDENCE_BRANCH}"
+
       - name: Compose TUI verification report
         if: always()
         env:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           BASE_LABEL: ${{ github.event.pull_request.base.sha }}
           HEAD_LABEL: ${{ github.sha }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
+          screenshot_args=()
+          if [ "$HEAD_REPO" = "$GITHUB_REPOSITORY" ] && [ -n "$PR_NUMBER" ]; then
+            screenshot_args=(
+              --screenshot-base-url
+              "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/termproof-evidence/pr/${PR_NUMBER}/${GITHUB_RUN_ID}"
+            )
+          fi
           uv run python -m termproof.ci_evidence comment \
             --base-dir .termproof/pr-base \
             --head-dir .termproof/ci \
             --out .termproof/ci-pr-comment.md \
             --run-url "$RUN_URL" \
             --base-label "$BASE_LABEL" \
-            --head-label "$HEAD_LABEL"
+            --head-label "$HEAD_LABEL" \
+            "${screenshot_args[@]}"
           {
             echo "## TermProof CI Report"
             echo
             echo "Evidence artifact: \`termproof-ci-evidence\`"
             echo "Includes: \`.termproof/ci\`, \`.termproof/pr-base\`, and the PR comment body."
+            echo "Screenshot previews: \`termproof-evidence\` branch for same-repo PRs."
             echo "PR comment: before/after report in \`.termproof/ci-pr-comment.md\`"
             echo
             if [ -f .termproof/ci/latest-report.md ]; then

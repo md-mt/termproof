@@ -167,6 +167,10 @@ Copy-paste for GitHub Actions. Identical to what this repository uses:
 This repo also posts a sticky **TermProof CI Report** comment on every PR with
 the run link, base-commit report, head report, and behavioral delta. Release
 tags package the same receipt-backed report as `termproof-release-evidence.tgz`.
+For same-repository PRs, screenshot links are copied to the `termproof-evidence`
+branch and rewritten to raw GitHub URLs so they are directly viewable from the
+comment. Videos remain in the workflow artifact until hosted video evidence is
+implemented in [#69](https://github.com/md-mt/termproof/issues/69).
 See [`.github/workflows/ci.yml`](.github/workflows/ci.yml) for the full
 implementation.
 

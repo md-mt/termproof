@@ -63,7 +63,10 @@ records which recipes and render settings produced the report.
 Pull requests publish the same suite as the `termproof-ci-evidence` workflow
 artifact and as a sticky PR comment. The comment includes a base-commit report,
 a head-commit report, and a behavioral delta generated from each run's
-`result.json` files.
+`result.json` files. Same-repository PRs also copy screenshot files to the
+`termproof-evidence` branch and rewrite screenshot links to raw GitHub URLs.
+Videos remain in the workflow artifact; hosted video evidence is tracked in
+[#69](https://github.com/md-mt/termproof/issues/69).
 
 The release workflow intentionally uses portable recipes for public CI. The Pi
 coding-agent recipes remain the showcase and can be run in environments where

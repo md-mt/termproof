@@ -10,6 +10,7 @@ import yaml
 
 from termproof import ci_evidence
 from termproof.ci_evidence import compose_pr_comment, load_receipt, run_target
+from termproof.evidence_publish import prepare_screenshot_evidence, rewrite_screenshot_links
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -31,6 +32,9 @@ class CiEvidenceReceiptTest(unittest.TestCase):
         )
         self.assertEqual(True, receipt["targets"]["release"]["video"])
         self.assertEqual(60, receipt["targets"]["release"]["video_fps"])
+        self.assertEqual("termproof-evidence", receipt["screenshots"]["branch"])
+        self.assertIn(".svg", receipt["screenshots"]["image_extensions"])
+        self.assertIn("/issues/69", receipt["screenshots"]["video_issue"])
 
     def test_workflows_are_receipt_backed(self) -> None:
         ci_text = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
@@ -54,12 +58,18 @@ class CiEvidenceReceiptTest(unittest.TestCase):
         steps = workflow["jobs"]["verify"]["steps"]
         names = [step["name"] for step in steps]
 
+        self.assertEqual("write", workflow["permissions"]["contents"])
         self.assertIn("Run base TUI verification for PR comparison", names)
+        self.assertIn("Prepare screenshot evidence branch payload", names)
+        self.assertIn("Publish screenshot evidence branch", names)
         self.assertIn("Compose TUI verification report", names)
         comment_step = next(
             step for step in steps if step["name"] == "Comment TUI verification report on PR"
         )
         self.assertIn(".termproof/ci-pr-comment.md", comment_step["with"]["script"])
+        compose_step = next(step for step in steps if step["name"] == "Compose TUI verification report")
+        self.assertIn("--screenshot-base-url", compose_step["run"])
+        self.assertIn("raw.githubusercontent.com", compose_step["run"])
 
     def test_run_target_uses_receipt_command_and_copies_receipt(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -132,6 +142,11 @@ class CiEvidenceReceiptTest(unittest.TestCase):
                                 "video_fps": 60,
                             },
                         },
+                        "screenshots": {
+                            "branch": "termproof-evidence",
+                            "image_extensions": [".svg"],
+                            "video_issue": "https://github.com/md-mt/termproof/issues/69",
+                        },
                         "pr_comment": {
                             "marker": "<!-- termproof-ci-report -->",
                             "max_chars": 55000,
@@ -144,8 +159,18 @@ class CiEvidenceReceiptTest(unittest.TestCase):
             head = root / "head"
             _write_result(base, True)
             _write_result(head, False)
-            (base / "latest-report.md").write_text("# before\n", encoding="utf-8")
-            (head / "latest-report.md").write_text("# after\n", encoding="utf-8")
+            base_svg = base / "demo" / "final.svg"
+            head_svg = head / "demo" / "final.svg"
+            base_svg.write_text("<svg />\n", encoding="utf-8")
+            head_svg.write_text("<svg />\n", encoding="utf-8")
+            (base / "latest-report.md").write_text(
+                f"# before\n[screenshot]({base_svg}) / [video](base/demo/session.mp4)\n",
+                encoding="utf-8",
+            )
+            (head / "latest-report.md").write_text(
+                f"# after\n[screenshot]({head_svg}) / [video](head/demo/session.mp4)\n",
+                encoding="utf-8",
+            )
 
             body = compose_pr_comment(
                 base,
@@ -153,6 +178,7 @@ class CiEvidenceReceiptTest(unittest.TestCase):
                 "https://example.test/run",
                 base_label="abc123",
                 head_label="def456",
+                screenshot_base_url="https://raw.example/pr/1/2",
                 receipt_path=receipt_path,
             )
 
@@ -163,6 +189,10 @@ class CiEvidenceReceiptTest(unittest.TestCase):
         self.assertIn("After: head commit def456", body)
         self.assertIn("# after", body)
         self.assertIn("termproof-release-evidence.tgz", body)
+        self.assertIn("https://raw.example/pr/1/2/base/demo/final.svg", body)
+        self.assertIn("https://raw.example/pr/1/2/head/demo/final.svg", body)
+        self.assertIn("base/demo/session.mp4", body)
+        self.assertIn("issues/69", body)
 
     def test_absolute_artifact_paths_are_normalized_to_artifact_relative(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -196,6 +226,43 @@ class CiEvidenceReceiptTest(unittest.TestCase):
                 ".termproof/pr-base/demo/final.svg",
                 data["artifacts"]["screenshot"],
             )
+
+    def test_prepare_screenshot_evidence_copies_images_only(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            base = root / "base"
+            head = root / "head"
+            (base / "run" / "steps").mkdir(parents=True)
+            (head / "run").mkdir(parents=True)
+            (base / "run" / "final.svg").write_text("<svg />\n", encoding="utf-8")
+            (base / "run" / "steps" / "01.svg").write_text("<svg />\n", encoding="utf-8")
+            (base / "run" / "session.mp4").write_text("video\n", encoding="utf-8")
+            (head / "run" / "final.png").write_text("png\n", encoding="utf-8")
+
+            manifest = prepare_screenshot_evidence(base, head, root / "publish", "68", "123")
+
+            published = root / "publish" / "pr" / "68" / "123"
+            self.assertTrue((published / "base" / "run" / "final.svg").is_file())
+            self.assertTrue((published / "base" / "run" / "steps" / "01.svg").is_file())
+            self.assertTrue((published / "head" / "run" / "final.png").is_file())
+            self.assertFalse((published / "base" / "run" / "session.mp4").exists())
+            self.assertEqual(3, len(manifest))
+
+    def test_rewrite_screenshot_links_leaves_video_links_unchanged(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            evidence = root / "evidence"
+            (evidence / "run").mkdir(parents=True)
+            (evidence / "run" / "final.svg").write_text("<svg />\n", encoding="utf-8")
+            report = "[screenshot]({}) / [video]({})".format(
+                (evidence / "run" / "final.svg").as_posix(),
+                (evidence / "run" / "session.mp4").as_posix(),
+            )
+
+            rewritten = rewrite_screenshot_links(report, evidence, "https://raw.example/head")
+
+            self.assertIn("https://raw.example/head/run/final.svg", rewritten)
+            self.assertIn((evidence / "run" / "session.mp4").as_posix(), rewritten)
 
 
 def _write_result(root: Path, passed: bool) -> None:
