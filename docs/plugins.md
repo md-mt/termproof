@@ -46,7 +46,9 @@ termproof run .termproof/recipes --screen-renderer png
 
 | Name | Description | Install | Author |
 | --- | --- | --- | --- |
-| _Be the first_ | Show us your step/assertion/session/reporter | `pip install <your-package>` | you |
+| [termproof-slack-reporter](https://github.com/md-mt/termproof-slack-reporter) | Reporter that posts TermProof run summaries to Slack incoming webhooks | `pip install git+https://github.com/md-mt/termproof-slack-reporter.git` | [@md-mt](https://github.com/md-mt) |
+| [termproof-docker-backend](https://github.com/md-mt/termproof-docker-backend) | Session backend that runs recipe commands inside Docker containers | `pip install git+https://github.com/md-mt/termproof-docker-backend.git` | [@md-mt](https://github.com/md-mt) |
+| [termproof-png-renderer](https://github.com/md-mt/termproof-png-renderer) | Screen renderer that writes PNG screenshots for visual evidence | `pip install git+https://github.com/md-mt/termproof-png-renderer.git` | [@md-mt](https://github.com/md-mt) |
 
 Search or install from this manual directory with:
 
@@ -74,11 +76,10 @@ To list your plugin here, open a PR editing this file with:
 From open issues:
 
 - **Framework helpers** for Textual, Bubble Tea, and Ratatui recipes — see [#24](https://github.com/md-mt/termproof/issues/24)
-- **First-party example integrations** that can graduate into separate plugin repos — see [#23](https://github.com/md-mt/termproof/issues/23)
 
 ## Publishing
 
-If you publish a first-party example as a separate repo (per [#23](https://github.com/md-mt/termproof/issues/23)), follow:
+If you publish a plugin repo, follow:
 
 1. Name: `termproof-<integration>` (e.g., `termproof-textual`, `termproof-bubbletea`).
 2. Entry points in `pyproject.toml` or documented `module:Class` references.
