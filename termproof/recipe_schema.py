@@ -6,8 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from .config import VerifierConfig
-
-RECIPE_VERSION = 1
+from .models import RECIPE_VERSION
 
 
 @dataclass(frozen=True)

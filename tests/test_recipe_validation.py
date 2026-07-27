@@ -34,6 +34,16 @@ class RecipeValidationTest(unittest.TestCase):
         )
         self.assertEqual(1, recipe.recipe_version)
 
+    def test_recipe_loader_rejects_unsupported_recipe_version(self) -> None:
+        with self.assertRaisesRegex(ValueError, "unsupported recipe_version"):
+            recipe_from_mapping(
+                {
+                    "recipe_version": True,
+                    "name": "bad",
+                    "command": {"argv": ["echo", "ok"]},
+                }
+            )
+
     def test_valid_recipe_has_no_errors(self) -> None:
         issues = validate_recipe_mapping(_recipe(), VerifierConfig.builtin())
         self.assertEqual([], issues)
