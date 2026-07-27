@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import shlex
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from .agent_driven import CodexCliAgentRunner
@@ -25,6 +26,8 @@ def main(argv: list[str] | None = None) -> int:
     run_parser.add_argument("--video-fps", type=int, default=60)
     run_parser.add_argument("--priority")
     run_parser.add_argument("--recipe-name", action="append", dest="recipe_names")
+    run_parser.add_argument("--parallel", type=int, default=1,
+                            help="number of recipes to run concurrently")
     run_parser.add_argument("--renderer", default="default")
     run_parser.add_argument("--operator-command")
     run_parser.add_argument("--config", type=Path, default=None,
@@ -87,6 +90,9 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if args.command == "run":
+        if args.parallel < 1:
+            print("--parallel must be >= 1")
+            return 2
         config = _resolve_config(args)
         recipes = select_recipes(
             load_recipes(args.recipes),
@@ -97,23 +103,27 @@ def main(argv: list[str] | None = None) -> int:
         reporter_name = args.reporter
         if args.xml_path and reporter_name == "markdown":
             reporter_name = "junit_xml"
-        results = []
-        agent_runner = None
-        if args.operator_command:
-            agent_runner = CodexCliAgentRunner(command=shlex.split(args.operator_command))
-        runner = VerificationRunner(agent_runner, config=config)
-        for recipe in recipes:
-            for renderer_name, renderer_argv in selected_renderers(recipe, args.renderer):
-                results.append(
-                    runner.run(
-                        recipe,
-                        out_dir=args.out,
-                        render_video=args.video and not args.no_video,
-                        video_fps=args.video_fps,
-                        renderer=renderer_name,
-                        renderer_argv=renderer_argv,
-                        screen_renderer_name=args.screen_renderer,
-                        video_backend_name=args.video_backend,
+        run_items = [
+            (recipe, renderer_name, renderer_argv)
+            for recipe in recipes
+            for renderer_name, renderer_argv in selected_renderers(recipe, args.renderer)
+        ]
+        runner = VerificationRunner(_agent_runner(args), config=config)
+        if args.parallel == 1:
+            results = [
+                _run_item(runner, item, args)
+                for item in run_items
+            ]
+        else:
+            with ThreadPoolExecutor(max_workers=args.parallel) as executor:
+                results = list(
+                    executor.map(
+                        lambda item: _run_item(
+                            VerificationRunner(_agent_runner(args), config=config),
+                            item,
+                            args,
+                        ),
+                        run_items,
                     )
                 )
         build_info = BuildInfo.from_command(recipes[0].command.argv) if recipes else None
@@ -224,3 +234,27 @@ def _resolve_config(args: argparse.Namespace) -> VerifierConfig:
     if args.config:
         return load_config(config_path=args.config.resolve())
     return load_config()
+
+
+def _agent_runner(args: argparse.Namespace) -> CodexCliAgentRunner | None:
+    if not args.operator_command:
+        return None
+    return CodexCliAgentRunner(command=shlex.split(args.operator_command))
+
+
+def _run_item(
+    runner: VerificationRunner,
+    item: tuple,
+    args: argparse.Namespace,
+):
+    recipe, renderer_name, renderer_argv = item
+    return runner.run(
+        recipe,
+        out_dir=args.out,
+        render_video=args.video and not args.no_video,
+        video_fps=args.video_fps,
+        renderer=renderer_name,
+        renderer_argv=renderer_argv,
+        screen_renderer_name=args.screen_renderer,
+        video_backend_name=args.video_backend,
+    )

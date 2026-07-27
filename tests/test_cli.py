@@ -124,6 +124,81 @@ class CliTest(unittest.TestCase):
             reporter_calls = runner.reporter_registry.get.call_args_list
             self.assertTrue(any("junit_xml" in str(c) for c in reporter_calls))
 
+    def test_run_parallel_runs_all_selected_recipes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            recipes = []
+            for name in ("one", "two"):
+                recipe_path = root / f"{name}.json"
+                recipe_path.write_text(
+                    f"""{{
+  "name": "{name}",
+  "command": {{"argv": ["python3", "-c", "print('ok')"], "pty": false}}
+}}
+""",
+                    encoding="utf-8",
+                )
+                recipes.append(recipe_path)
+
+            class FakeReporter:
+                def generate(self, results, build_info=None):
+                    return "report"
+
+            class FakeRegistry:
+                def get(self, name):
+                    return FakeReporter()
+
+            class FakeRunner:
+                calls: list[str] = []
+                reporter_registry = FakeRegistry()
+
+                def __init__(self, *args, **kwargs):
+                    pass
+
+                def run(self, recipe, **kwargs):
+                    self.calls.append(recipe.name)
+                    return RunResult(
+                        recipe_name=recipe.name,
+                        passed=True,
+                        exit_code=0,
+                        duration_seconds=0.0,
+                        priority="P2",
+                        execution="scripted",
+                        renderer=kwargs["renderer"],
+                        score=1.0,
+                        steps=[],
+                        assertions=[],
+                        artifacts={},
+                    )
+
+            with patch("termproof.cli.VerificationRunner", side_effect=FakeRunner):
+                output = io.StringIO()
+                with contextlib.redirect_stdout(output):
+                    exit_code = main(
+                        [
+                            "run",
+                            str(recipes[0]),
+                            str(recipes[1]),
+                            "--out",
+                            str(root / "out"),
+                            "--parallel",
+                            "2",
+                        ]
+                    )
+
+            self.assertEqual(0, exit_code)
+            self.assertEqual(["one", "two"], sorted(FakeRunner.calls))
+            self.assertIn("2/2 passed", output.getvalue())
+
+    def test_run_rejects_invalid_parallel_count(self) -> None:
+        output = io.StringIO()
+
+        with contextlib.redirect_stdout(output):
+            exit_code = main(["run", "missing.recipe.json", "--parallel", "0"])
+
+        self.assertEqual(2, exit_code)
+        self.assertIn("--parallel must be >= 1", output.getvalue())
+
 
 class DemoCommandTest(unittest.TestCase):
     def test_demo_creates_recipe_and_passes(self):

@@ -18,6 +18,15 @@ Run a pack with:
 termproof run .termproof/recipes --video
 ```
 
+Large packs can run independent recipes concurrently:
+
+```bash
+termproof run .termproof/recipes --parallel 4 --out .termproof/runs
+```
+
+Each recipe/renderer pair still writes its own evidence directory, and
+`latest-report.md` combines the results.
+
 Validate a pack with:
 
 ```bash
