@@ -19,6 +19,23 @@ reporters:
 
 See [`plugin-protocols.md`](plugin-protocols.md) for the stable protocol contract and `termproof/config.py` for built-ins.
 
+TermProof also ships a built-in Docker session backend:
+
+```yaml
+session_backend: docker
+docker:
+  image: python:3.12-slim
+  workdir: /workspace
+  volumes:
+    - host: .
+      container: /workspace
+  env:
+    PYTHONUNBUFFERED: "1"
+```
+
+The backend runs each recipe command with `docker run --rm --interactive --tty`.
+Recipe `command.env` values are passed into the container alongside `docker.env`.
+
 ## Listing
 
 | Name | Description | Install | Author |
@@ -47,7 +64,6 @@ From open issues:
 - **JsonSchema assertion** (`json_schema`) — see [#20](https://github.com/md-mt/termproof/issues/20)
 - **JunitXml reporter** (`junit_xml`) — see [#15](https://github.com/md-mt/termproof/issues/15)
 - **PNG renderer** for pixel-level screenshots — see [#19](https://github.com/md-mt/termproof/issues/19)
-- **Docker session backend** — see [#18](https://github.com/md-mt/termproof/issues/18)
 - **Plugins CLI** (`termproof plugins`) — see [#21](https://github.com/md-mt/termproof/issues/21)
 
 ## Publishing
