@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from .before_after import build_before_after
+from .evidence_publish import rewrite_screenshot_links
 from .models import AssertionResult, RunResult, StepResult
 
 DEFAULT_RECEIPT = Path("docs/ci/evidence-receipt.json")
@@ -37,17 +38,20 @@ def run_target(target_name: str, repo: Path, out: Path | None = None,
 
 def compose_pr_comment(base_dir: Path, head_dir: Path, run_url: str,
                        base_label: str = "base", head_label: str = "head",
+                       screenshot_base_url: str = "",
                        receipt_path: Path = DEFAULT_RECEIPT) -> str:
     receipt = load_receipt(receipt_path)
     ci_target = receipt["targets"]["ci"]
     release_target = receipt["targets"]["release"]
     marker = receipt["pr_comment"]["marker"]
-    before_after = build_before_after(
-        load_results(base_dir),
-        load_results(head_dir),
-    )
-    base_report = _truncate(_read_report(base_dir), 18000)
-    head_report = _truncate(_read_report(head_dir), 26000)
+    before_after = build_before_after(load_results(base_dir), load_results(head_dir))
+    base_report = _read_report(base_dir)
+    head_report = _read_report(head_dir)
+    if screenshot_base_url:
+        base_report = rewrite_screenshot_links(base_report, base_dir, f"{screenshot_base_url.rstrip('/')}/base")
+        head_report = rewrite_screenshot_links(head_report, head_dir, f"{screenshot_base_url.rstrip('/')}/head")
+    base_report = _truncate(base_report, 18000)
+    head_report = _truncate(head_report, 26000)
     return "\n".join(
         [
             marker,
@@ -58,6 +62,8 @@ def compose_pr_comment(base_dir: Path, head_dir: Path, run_url: str,
             f"PR evidence artifact: `{ci_target['artifact_name']}` in this workflow run.",
             f"Release destination: GitHub Release asset `{release_target['archive_name']}`.",
             "Download the artifact/archive to inspect linked evidence files.",
+            "Screenshots are linked through raw GitHub URLs when available.",
+            f"Hosted video links are tracked separately in {receipt['screenshots']['video_issue']}.",
             "",
             "<details open><summary>Behavioral delta</summary>",
             "",
@@ -102,12 +108,12 @@ def main(argv: list[str] | None = None) -> int:
     run_parser.add_argument("--continue-on-fail", action="store_true")
 
     comment_parser = subparsers.add_parser("comment")
-    comment_parser.add_argument("--base-dir", type=Path, required=True)
-    comment_parser.add_argument("--head-dir", type=Path, required=True)
-    comment_parser.add_argument("--out", type=Path, required=True)
+    for name in ("base-dir", "head-dir", "out"):
+        comment_parser.add_argument(f"--{name}", type=Path, required=True)
     comment_parser.add_argument("--run-url", required=True)
     comment_parser.add_argument("--base-label", default="base")
     comment_parser.add_argument("--head-label", default="head")
+    comment_parser.add_argument("--screenshot-base-url", default="")
 
     args = parser.parse_args(argv)
     if args.command == "run":
@@ -120,6 +126,7 @@ def main(argv: list[str] | None = None) -> int:
             args.run_url,
             base_label=args.base_label or "base",
             head_label=args.head_label or "head",
+            screenshot_base_url=args.screenshot_base_url,
             receipt_path=args.receipt,
         )
         args.out.parent.mkdir(parents=True, exist_ok=True)
@@ -180,14 +187,8 @@ def _result_from_mapping(data: dict[str, Any]) -> RunResult:
         execution=data["execution"],
         renderer=data["renderer"],
         score=float(data["score"]),
-        steps=[
-            StepResult(step["name"], bool(step["passed"]), step["detail"], step["screen"])
-            for step in data.get("steps", [])
-        ],
-        assertions=[
-            AssertionResult(assertion["name"], bool(assertion["passed"]), assertion["detail"])
-            for assertion in data.get("assertions", [])
-        ],
+        steps=[StepResult(**step) for step in data.get("steps", [])],
+        assertions=[AssertionResult(**assertion) for assertion in data.get("assertions", [])],
         artifacts=dict(data.get("artifacts", {})),
     )
 
