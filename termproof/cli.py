@@ -44,6 +44,18 @@ def main(argv: list[str] | None = None) -> int:
     validate_parser.add_argument("recipes", nargs="+", type=Path)
     validate_parser.add_argument("--config", type=Path, default=None,
                                  help="path to a termproof config YAML file")
+    plugins_parser = subparsers.add_parser("plugins", help="manage TermProof plugins")
+    plugins_subparsers = plugins_parser.add_subparsers(dest="plugins_command", required=True)
+    plugins_list = plugins_subparsers.add_parser("list", help="list configured plugins")
+    plugins_list.add_argument("--config", type=Path, default=None,
+                              help="path to a termproof config YAML file")
+    plugins_search = plugins_subparsers.add_parser("search", help="search community plugins")
+    plugins_search.add_argument("query")
+    plugins_search.add_argument("--registry", type=Path, default=Path("docs/plugins.md"))
+    plugins_install = plugins_subparsers.add_parser("install", help="install a community plugin")
+    plugins_install.add_argument("name")
+    plugins_install.add_argument("--registry", type=Path, default=Path("docs/plugins.md"))
+    plugins_install.add_argument("--dry-run", action="store_true")
     init_parser = subparsers.add_parser("init", help="create a reusable recipe pack")
     init_parser.add_argument("path", type=Path)
     init_parser.add_argument("--name", required=True)
@@ -146,6 +158,35 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"{label} {path}:{issue.path}: {issue.message}")
             failed = failed or has_errors(issues)
         return 1 if failed else 0
+    if args.command == "plugins":
+        from .plugins_cli import (
+            install_community_plugin,
+            installed_plugins,
+            search_community_plugins,
+        )
+
+        if args.plugins_command == "list":
+            for plugin in installed_plugins(_resolve_config(args)):
+                print(f"{plugin.category}\t{plugin.name}\t{plugin.target}")
+            return 0
+        if args.plugins_command == "search":
+            matches = search_community_plugins(args.query, args.registry)
+            if not matches:
+                print("no plugins found")
+                return 0
+            for plugin in matches:
+                print(
+                    f"{plugin.name}\t{plugin.description}\t{plugin.install}\t{plugin.author}"
+                )
+            return 0
+        if args.plugins_command == "install":
+            code, detail = install_community_plugin(
+                args.name,
+                args.registry,
+                dry_run=args.dry_run,
+            )
+            print(detail)
+            return code
     if args.command == "init":
         try:
             recipe_path = write_recipe_pack(
