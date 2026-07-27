@@ -54,7 +54,8 @@ jobs:
 
       - name: Run plugin-template unit tests
         run: |
-          (cd plugin-template && uv run python -m unittest discover -s tests -v)
+          PYTHONPATH=plugin-template/src uv run --no-project --with . --with pytest --with pyyaml \
+            python -m unittest discover -s plugin-template/tests -v
 
       - name: Build plugin-template package
         run: |
@@ -63,7 +64,8 @@ jobs:
       - name: Smoke-test plugin-template installed wheel
         run: |
           (cd plugin-template && python -m venv .pkg-test)
-          plugin-template/.pkg-test/bin/pip install plugin-template/dist/*.whl
+          uv pip install --python plugin-template/.pkg-test/bin/python .
+          uv pip install --python plugin-template/.pkg-test/bin/python --no-deps plugin-template/dist/*.whl
           plugin-template/.pkg-test/bin/python -c "
           import termproof_my_plugin
           expected = {'JsonSummaryReporter', 'ScreenCount', 'WaitForRegex'}
@@ -195,3 +197,63 @@ jobs:
         with:
           name: termproof-dist
           path: dist/*
+
+  wheel:
+    name: bundled agg (${{ matrix.target }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: linux-x86_64
+            os: ubuntu-latest
+            smoke: native
+          - target: macos-arm64
+            os: macos-14
+            smoke: native
+          - target: macos-x86_64
+            os: ubuntu-latest
+            smoke: inspect
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: Build pinned agg and platform wheel
+        env:
+          TERMPROOF_AGG_TARGET: ${{ matrix.target }}
+        run: |
+          python3 scripts/build_agg.py --target "$TERMPROOF_AGG_TARGET"
+          uv build --wheel
+      - name: Smoke-test installed wheel
+        if: matrix.smoke == 'native'
+        run: |
+          python3 -m venv .wheel-test
+          .wheel-test/bin/pip install dist/*.whl
+          (
+            cd /tmp
+            "$GITHUB_WORKSPACE/.wheel-test/bin/python" -c 'from termproof.agg_bundle import bundled_agg_path; p=bundled_agg_path(); assert p.is_file(); print(p)'
+            "$GITHUB_WORKSPACE/.wheel-test/bin/termproof" --help
+          )
+      - name: Inspect cross-built wheel
+        if: matrix.smoke == 'inspect'
+        env:
+          TERMPROOF_AGG_TARGET: ${{ matrix.target }}
+        run: |
+          python3 - <<'PY'
+          import os
+          import zipfile
+          from pathlib import Path
+
+          target = os.environ["TERMPROOF_AGG_TARGET"]
+          wheel_tag = {"macos-x86_64": "macosx_10_15_x86_64"}[target]
+          wheel = next(Path("dist").glob("*.whl"))
+          assert wheel_tag in wheel.name, wheel
+          with zipfile.ZipFile(wheel) as archive:
+              names = set(archive.namelist())
+          assert f"termproof/_vendor/agg/{target}/agg" in names
+          assert "termproof/_vendor/agg/PROVENANCE.md" in names
+          print(wheel)
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: termproof-${{ matrix.target }}-wheel
+          path: dist/*.whl
