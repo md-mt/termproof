@@ -17,6 +17,7 @@ class CommandSpec:
 class Recipe:
     name: str
     command: CommandSpec
+    recipe_version: int = 1
     description: str = ""
     intent: str = ""
     priority: str = "P2"
@@ -89,6 +90,7 @@ def recipe_from_mapping(data: dict[str, Any]) -> Recipe:
     )
     return Recipe(
         name=data["name"],
+        recipe_version=int(data.get("recipe_version", 1)),
         description=data.get("description", ""),
         intent=data.get("intent", ""),
         command=command,

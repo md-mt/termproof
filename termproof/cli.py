@@ -7,7 +7,8 @@ from pathlib import Path
 from .agent_driven import CodexCliAgentRunner
 from .build_info import BuildInfo
 from .config import VerifierConfig, load_config
-from .registry import load_recipes, select_recipes
+from .recipe_schema import has_errors, validate_recipe_file
+from .registry import find_recipe_files, load_recipes, select_recipes
 from .renderer import selected_renderers
 from .runner import VerificationRunner
 from .scaffold import write_recipe_pack
@@ -39,6 +40,10 @@ def main(argv: list[str] | None = None) -> int:
     list_parser = subparsers.add_parser("list", help="list recipes")
     list_parser.add_argument("recipes", nargs="+", type=Path)
     list_parser.add_argument("--priority")
+    validate_parser = subparsers.add_parser("validate", help="validate recipe files")
+    validate_parser.add_argument("recipes", nargs="+", type=Path)
+    validate_parser.add_argument("--config", type=Path, default=None,
+                                 help="path to a termproof config YAML file")
     init_parser = subparsers.add_parser("init", help="create a reusable recipe pack")
     init_parser.add_argument("path", type=Path)
     init_parser.add_argument("--name", required=True)
@@ -124,6 +129,23 @@ def main(argv: list[str] | None = None) -> int:
         for recipe in recipes:
             print(f"{recipe.name}\t{recipe.priority}\t{recipe.execution}\t{recipe.description}")
         return 0
+    if args.command == "validate":
+        config = _resolve_config(args)
+        paths = find_recipe_files(args.recipes)
+        if not paths:
+            print("no recipe files found")
+            return 1
+        failed = False
+        for path in paths:
+            issues = validate_recipe_file(path, config)
+            if not issues:
+                print(f"PASS {path}")
+                continue
+            for issue in issues:
+                label = issue.severity.upper()
+                print(f"{label} {path}:{issue.path}: {issue.message}")
+            failed = failed or has_errors(issues)
+        return 1 if failed else 0
     if args.command == "init":
         try:
             recipe_path = write_recipe_pack(
