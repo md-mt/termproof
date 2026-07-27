@@ -4,7 +4,14 @@ TermProof verifies terminal and TUI behavior by running JSON recipes against a r
 
 ## Install
 
-Until the first PyPI release is published, install from GitHub:
+On macOS, install with Homebrew:
+
+```bash
+brew tap md-mt/termproof https://github.com/md-mt/termproof
+brew install termproof
+```
+
+Or install from GitHub with pip:
 
 ```bash
 pip install git+https://github.com/md-mt/termproof.git

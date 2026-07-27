@@ -18,6 +18,7 @@ export default defineConfig({
         items: [
           { text: "Overview", link: "/" },
           { text: "Install and Run", link: "/getting-started" },
+          { text: "Homebrew", link: "/install/homebrew" },
           { text: "FAQ", link: "/faq" }
         ]
       },

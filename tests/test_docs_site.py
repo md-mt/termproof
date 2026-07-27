@@ -20,6 +20,7 @@ class DocsSiteTest(unittest.TestCase):
         self.assertEqual("vitepress build .", package["scripts"]["docs:build"])
         for path in (
             "getting-started.md",
+            "install/homebrew.md",
             "guides/index.md",
             "api/index.md",
             "plugins.md",
@@ -32,6 +33,7 @@ class DocsSiteTest(unittest.TestCase):
         text = CONFIG.read_text(encoding="utf-8")
 
         self.assertIn("Getting Started", text)
+        self.assertIn("Homebrew", text)
         self.assertIn("Guides", text)
         self.assertIn("API Reference", text)
         self.assertIn("Plugins", text)
