@@ -98,24 +98,43 @@ jobs:
             "$GITHUB_WORKSPACE/.pkg-test/bin/python" -c "import termproof; from pathlib import Path; assert 'site-packages' in str(Path(termproof.__file__))"
           )
 
+      - name: Run base TUI verification for PR comparison
+        if: github.event_name == 'pull_request'
+        continue-on-error: true
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          git fetch --no-tags --depth=1 origin "$BASE_SHA"
+          git worktree add ../termproof-base "$BASE_SHA"
+          uv run python -m termproof.ci_evidence run ci \
+            --repo ../termproof-base \
+            --out "$GITHUB_WORKSPACE/.termproof/pr-base" \
+            --continue-on-fail
+
       - name: Run generic and Pi agent UI verification
         run: |
-          uv run termproof run \
-            examples/generic \
-            examples/multi_turn_conversation.recipe.json \
-            examples/pi_workflow_readonly_review.recipe.json \
-            examples/pi_workflow_guarded_edit.recipe.json \
-            examples/pi_workflow_session_resume_export.recipe.json \
-            examples/pi_workflow_model_context.recipe.json \
-            --video --video-fps 60 --out .termproof/ci
+          uv run python -m termproof.ci_evidence run ci --out .termproof/ci
 
-      - name: Publish TUI verification summary
+      - name: Compose TUI verification report
         if: always()
+        env:
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          BASE_LABEL: ${{ github.event.pull_request.base.sha }}
+          HEAD_LABEL: ${{ github.sha }}
         run: |
+          uv run python -m termproof.ci_evidence comment \
+            --base-dir .termproof/pr-base \
+            --head-dir .termproof/ci \
+            --out .termproof/ci-pr-comment.md \
+            --run-url "$RUN_URL" \
+            --base-label "$BASE_LABEL" \
+            --head-label "$HEAD_LABEL"
           {
             echo "## TermProof CI Report"
             echo
             echo "Evidence artifact: \`termproof-ci-evidence\`"
+            echo "Includes: \`.termproof/ci\`, \`.termproof/pr-base\`, and the PR comment body."
+            echo "PR comment: before/after report in \`.termproof/ci-pr-comment.md\`"
             echo
             if [ -f .termproof/ci/latest-report.md ]; then
               cat .termproof/ci/latest-report.md
@@ -129,7 +148,10 @@ jobs:
         if: always()
         with:
           name: termproof-ci-evidence
-          path: .termproof/ci
+          path: |
+            .termproof/ci
+            .termproof/pr-base
+            .termproof/ci-pr-comment.md
           if-no-files-found: ignore
 
       - name: Comment TUI verification report on PR
@@ -140,31 +162,7 @@ jobs:
           script: |
             const fs = require('fs');
             const marker = '<!-- termproof-ci-report -->';
-            const reportPath = '.termproof/ci/latest-report.md';
-            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
-            let report = fs.existsSync(reportPath)
-              ? fs.readFileSync(reportPath, 'utf8')
-              : 'No TermProof report was generated.';
-            const maxReportChars = 55000;
-            if (report.length > maxReportChars) {
-              report = `${report.slice(0, maxReportChars)}\n\n_Report truncated. Download the ` +
-                '`termproof-ci-evidence` artifact from the run for the full report._';
-            }
-            const body = [
-              marker,
-              '## TermProof CI Report',
-              '',
-              `Run: [${context.workflow} #${context.runNumber}](${runUrl})`,
-              '',
-              'Evidence artifact: `termproof-ci-evidence` in the workflow run artifacts.',
-              'Report links point to files inside that artifact.',
-              '',
-              '<details open><summary>latest-report.md</summary>',
-              '',
-              report,
-              '',
-              '</details>',
-            ].join('\n');
+            const body = fs.readFileSync('.termproof/ci-pr-comment.md', 'utf8');
             const { owner, repo } = context.repo;
             const issue_number = context.payload.pull_request.number;
             const comments = await github.paginate(github.rest.issues.listComments, {

@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "targets": {
+    "ci": {
+      "artifact_name": "termproof-ci-evidence",
+      "out": ".termproof/ci",
+      "recipes": [
+        "examples/generic",
+        "examples/multi_turn_conversation.recipe.json",
+        "examples/pi_workflow_readonly_review.recipe.json",
+        "examples/pi_workflow_guarded_edit.recipe.json",
+        "examples/pi_workflow_session_resume_export.recipe.json",
+        "examples/pi_workflow_model_context.recipe.json"
+      ],
+      "video": true,
+      "video_fps": 60
+    },
+    "release": {
+      "artifact_name": "termproof-release-evidence",
+      "archive_name": "termproof-release-evidence.tgz",
+      "out": ".termproof/release",
+      "recipes": [
+        "examples/generic",
+        "examples/multi_turn_conversation.recipe.json",
+        "examples/pi_workflow_readonly_review.recipe.json",
+        "examples/pi_workflow_guarded_edit.recipe.json",
+        "examples/pi_workflow_session_resume_export.recipe.json",
+        "examples/pi_workflow_model_context.recipe.json"
+      ],
+      "video": true,
+      "video_fps": 60
+    }
+  },
+  "pr_comment": {
+    "marker": "<!-- termproof-ci-report -->",
+    "max_chars": 55000
+  }
+}
