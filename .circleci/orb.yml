@@ -1,0 +1,108 @@
+version: 2.1
+
+description: Run TermProof recipes and upload reviewable TUI evidence.
+
+executors:
+  python:
+    docker:
+      - image: cimg/python:3.12
+
+commands:
+  verify:
+    description: Install TermProof, run recipes, and store evidence artifacts.
+    parameters:
+      recipe-path:
+        type: string
+        description: Recipe file or recipe pack directory to execute.
+      output-dir:
+        type: string
+        default: .termproof/runs
+        description: Directory where TermProof writes evidence.
+      termproof-source:
+        type: string
+        default: git+https://github.com/md-mt/termproof.git
+        description: Package source passed to uvx --from.
+      video:
+        type: boolean
+        default: true
+        description: Render MP4 evidence.
+      fps:
+        type: integer
+        default: 60
+        description: Video frames per second.
+      extra-args:
+        type: string
+        default: ""
+        description: Extra arguments appended to termproof run.
+    steps:
+      - run:
+          name: Install TermProof dependencies
+          command: |
+            sudo apt-get update
+            sudo apt-get install -y --no-install-recommends cargo curl ffmpeg git
+            echo 'export PATH="$HOME/.cargo/bin:$HOME/.local/bin:$PATH"' >> "$BASH_ENV"
+            source "$BASH_ENV"
+            if ! command -v agg >/dev/null 2>&1; then
+              cargo install --locked --git https://github.com/asciinema/agg --tag v1.9.0
+            fi
+            curl -LsSf https://astral.sh/uv/install.sh | sh
+      - run:
+          name: Run TermProof
+          command: |
+            source "$BASH_ENV"
+            mkdir -p "<< parameters.output-dir >>"
+            args=(
+              termproof run "<< parameters.recipe-path >>"
+              --out "<< parameters.output-dir >>"
+              --xml-path "<< parameters.output-dir >>/latest-report.xml"
+            )
+            if [ "<< parameters.video >>" = "true" ]; then
+              args+=(--video --video-fps "<< parameters.fps >>")
+            fi
+            set +e
+            uvx --from "<< parameters.termproof-source >>" "${args[@]}" << parameters.extra-args >>
+            status=$?
+            printf "%s\n" "$status" > "<< parameters.output-dir >>/.termproof-exit-code"
+            exit 0
+      - store_artifacts:
+          path: << parameters.output-dir >>
+          destination: termproof-evidence
+      - store_test_results:
+          path: << parameters.output-dir >>
+      - run:
+          name: Fail on TermProof result
+          command: |
+            status=$(cat "<< parameters.output-dir >>/.termproof-exit-code")
+            exit "$status"
+
+jobs:
+  verify:
+    description: Check out a project and run TermProof recipes.
+    executor: python
+    parameters:
+      recipe-path:
+        type: string
+      output-dir:
+        type: string
+        default: .termproof/runs
+      termproof-source:
+        type: string
+        default: git+https://github.com/md-mt/termproof.git
+      video:
+        type: boolean
+        default: true
+      fps:
+        type: integer
+        default: 60
+      extra-args:
+        type: string
+        default: ""
+    steps:
+      - checkout
+      - verify:
+          recipe-path: << parameters.recipe-path >>
+          output-dir: << parameters.output-dir >>
+          termproof-source: << parameters.termproof-source >>
+          video: << parameters.video >>
+          fps: << parameters.fps >>
+          extra-args: << parameters.extra-args >>
