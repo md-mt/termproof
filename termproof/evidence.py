@@ -33,21 +33,29 @@ def render_artifacts(
     cast_path = run_dir / "session.cast"
     final_text, cols, rows = replay_cast(cast_path)
     final_txt = run_dir / "final.txt"
-    final_svg = run_dir / "final.svg"
+    screenshot_ext = _screen_extension(screen_renderer)
+    final_screenshot = run_dir / f"final.{screenshot_ext}"
     final_txt.write_text(final_text + "\n", encoding="utf-8")
     if screen_renderer is not None:
-        screen_renderer.render(final_text, final_svg, cols, rows)
+        screen_renderer.render(final_text, final_screenshot, cols, rows)
     else:
-        render_svg(final_text, final_svg, cols, rows)
+        render_svg(final_text, final_screenshot, cols, rows)
     artifacts = {
         "cast": str(cast_path),
-        "screenshot": str(final_svg),
+        "screenshot": str(final_screenshot),
         "screen_text": str(final_txt),
     }
     exit_code_path = run_dir / "session.exitcode"
     if exit_code_path.exists():
         artifacts["exit_code_file"] = str(exit_code_path)
-    step_dir = _render_step_screens(run_dir, steps or [], cols, rows, screen_renderer)
+    step_dir = _render_step_screens(
+        run_dir,
+        steps or [],
+        cols,
+        rows,
+        screen_renderer,
+        screenshot_ext,
+    )
     if step_dir is not None:
         artifacts["step_screenshots"] = str(step_dir)
     for name in ("agent_prompt.md", "agent_transcript.md", "agent_outcome.json"):
@@ -71,6 +79,7 @@ def _render_step_screens(
     cols: int,
     rows: int,
     screen_renderer: Any = None,
+    screenshot_ext: str = "svg",
 ) -> Path | None:
     if not steps:
         return None
@@ -80,11 +89,19 @@ def _render_step_screens(
         safe_name = "".join(ch if ch.isalnum() or ch in "-_" else "-" for ch in step.name)
         path_base = step_dir / f"{index:02d}-{safe_name}"
         (path_base.with_suffix(".txt")).write_text(step.screen + "\n", encoding="utf-8")
+        screenshot_path = path_base.with_suffix(f".{screenshot_ext}")
         if screen_renderer is not None:
-            screen_renderer.render(step.screen, path_base.with_suffix(".svg"), cols, rows)
+            screen_renderer.render(step.screen, screenshot_path, cols, rows)
         else:
-            render_svg(step.screen, path_base.with_suffix(".svg"), cols, rows)
+            render_svg(step.screen, screenshot_path, cols, rows)
     return step_dir
+
+
+def _screen_extension(screen_renderer: Any = None) -> str:
+    if screen_renderer is None:
+        return "svg"
+    extension = str(getattr(screen_renderer, "extension", "svg")).lstrip(".")
+    return extension or "svg"
 
 
 def render_mp4(cast_path: Path, mp4_path: Path, fps: int = 60) -> None:

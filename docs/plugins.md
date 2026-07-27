@@ -36,6 +36,12 @@ docker:
 The backend runs each recipe command with `docker run --rm --interactive --tty`.
 Recipe `command.env` values are passed into the container alongside `docker.env`.
 
+Built-in screen renderers include `svg` and `png`:
+
+```bash
+termproof run .termproof/recipes --screen-renderer png
+```
+
 ## Listing
 
 | Name | Description | Install | Author |
@@ -63,7 +69,6 @@ From open issues:
 - **WaitForRegex** (`wait_for_regex`) — see [#14](https://github.com/md-mt/termproof/issues/14)
 - **JsonSchema assertion** (`json_schema`) — see [#20](https://github.com/md-mt/termproof/issues/20)
 - **JunitXml reporter** (`junit_xml`) — see [#15](https://github.com/md-mt/termproof/issues/15)
-- **PNG renderer** for pixel-level screenshots — see [#19](https://github.com/md-mt/termproof/issues/19)
 - **Plugins CLI** (`termproof plugins`) — see [#21](https://github.com/md-mt/termproof/issues/21)
 
 ## Publishing

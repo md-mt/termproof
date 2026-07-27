@@ -17,6 +17,8 @@ TermProof exposes stable plugin protocols from `termproof.protocols`.
 
 `StepAction`, `AssertionType`, `ExecutionMode`, `Reporter`, `ScreenRenderer`, and `VideoBackend` also require a `name: str` class attribute. `AgentRunner` and `SessionBackend` are selected by config keys and do not require a `name`.
 
+`ScreenRenderer` plugins can optionally set `extension = "png"` (or another file extension) so evidence artifacts use that screenshot filename suffix.
+
 ## Import policy
 
 New plugins should import protocols from `termproof.protocols`:
