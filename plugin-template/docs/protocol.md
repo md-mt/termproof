@@ -1,6 +1,6 @@
 # Protocol compatibility
 
-## Current protocols (TermProof >=0.1.0)
+## Stable protocols (TermProof >=0.2.1)
 
 | Extension point | Config key | Example qualname |
 |-----------------|------------|-------------------|
@@ -13,7 +13,9 @@
 | Execution mode | execution_modes | my_plugin.modes:MyMode |
 | Agent runner | agent_runners | my_plugin.agents:MyRunner |
 
-Each protocol requires a name class attribute and a single method:
+Import protocols from `termproof.protocols`. Older module locations still re-export the same protocol objects for compatibility.
+
+Most protocols require a `name` class attribute and a single method:
 
 - Step: execute(session, step, index) -> StepResult
 - Assertion: evaluate(recipe, assertion, screen, raw_output, exit_code) -> AssertionResult
@@ -23,6 +25,8 @@ Each protocol requires a name class attribute and a single method:
 - SessionBackend: create_session(argv, cast_path, cwd, env, cols, rows) -> TerminalSession
 - ExecutionMode: execute(runner, recipe, run_dir) -> (steps, assertions, raw_output, exit_code, screen)
 - AgentRunner: run(recipe, prompt, run_dir) -> AgentOutcome
+
+AgentRunner and SessionBackend are selected by config keys and do not require a `name`.
 
 ## Context availability for assertions
 
@@ -42,10 +46,12 @@ timing constraints, use TermProof core features (e.g. recipe-level
 `timeout_seconds`). For counting and content checks, the `screen` and
 `raw_output` strings are the correct inputs.
 
-## Version policy
+## Version and deprecation policy
 
-- Plugin declares termproof>=0.1.0 in dependencies.
-- Breaking protocol changes will be accompanied by major version bump and noted in issue 32.
+- Plugin declares `termproof>=0.2.1` in dependencies when using the stable `termproof.protocols` imports.
+- Additive changes are allowed when existing plugins keep working without source changes.
+- Breaking protocol changes require a major version bump and migration guide.
+- Deprecated protocol behavior remains available for at least one minor release after documentation.
 
 ## Legacy prefix
 

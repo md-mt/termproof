@@ -2,22 +2,7 @@ from __future__ import annotations
 
 import html
 from pathlib import Path
-from typing import Protocol
-
-
-class ScreenRenderer(Protocol):
-    """Protocol for pluggable screen renderers."""
-
-    name: str
-
-    def render(
-        self,
-        text: str,
-        output_path: Path,
-        cols: int,
-        rows: int,
-    ) -> None:
-        ...
+from .protocols import ScreenRenderer
 
 
 class SvgRenderer:

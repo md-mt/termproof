@@ -6,10 +6,11 @@ import shlex
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any
 
 from .cast import CastRecorder
 from .models import AssertionResult, Recipe, StepResult
+from .protocols import AgentRunner
 from .screen import replay_cast
 from .session import TerminalSession
 
@@ -21,11 +22,6 @@ class AgentOutcome:
     raw_output: str
     exit_code: int | None
     metadata: dict[str, Any] = field(default_factory=dict)
-
-
-class AgentRunner(Protocol):
-    def run(self, recipe: Recipe, prompt: str, run_dir: Path) -> AgentOutcome:
-        ...
 
 
 @dataclass

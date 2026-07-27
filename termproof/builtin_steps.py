@@ -3,24 +3,11 @@ from __future__ import annotations
 import math
 import re
 import time
-from typing import Any, Protocol
+from typing import Any
 
 from .models import StepResult
+from .protocols import StepAction
 from .session import TerminalSession
-
-
-class StepAction(Protocol):
-    """Protocol for pluggable step actions."""
-
-    name: str  # class-level identifier matching recipe "action" field
-
-    def execute(
-        self,
-        session: TerminalSession,
-        step: dict[str, Any],
-        index: int,
-    ) -> StepResult:
-        ...
 
 
 class WaitForText:

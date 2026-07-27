@@ -1,25 +1,10 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any
 
 from .models import AssertionResult, Recipe
-
-
-class AssertionType(Protocol):
-    """Protocol for pluggable assertion evaluators."""
-
-    name: str  # matches recipe assertion "type" field
-
-    def evaluate(
-        self,
-        recipe: Recipe,
-        assertion: dict[str, Any],
-        screen: str,
-        raw_output: str,
-        exit_code: int | None,
-    ) -> AssertionResult:
-        ...
+from .protocols import AssertionType
 
 
 def _contains(
