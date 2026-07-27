@@ -199,6 +199,61 @@ class CliTest(unittest.TestCase):
         self.assertEqual(2, exit_code)
         self.assertIn("--parallel must be >= 1", output.getvalue())
 
+    def test_run_diff_marks_visual_regression(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            recipe_path = root / "recipe.json"
+            recipe_path.write_text(
+                """{
+  "name": "diff-test",
+  "command": {"argv": ["python3", "-c", "print('ok')"], "pty": false}
+}
+""",
+                encoding="utf-8",
+            )
+            screenshot = root / "run" / "final.svg"
+            baseline = root / "baselines" / "diff-test" / "default" / "final.svg"
+            screenshot.parent.mkdir()
+            baseline.parent.mkdir(parents=True)
+            screenshot.write_text("<svg>actual</svg>\n", encoding="utf-8")
+            baseline.write_text("<svg>baseline</svg>\n", encoding="utf-8")
+
+            result = RunResult(
+                recipe_name="diff-test",
+                passed=True,
+                exit_code=0,
+                duration_seconds=0.0,
+                priority="P2",
+                execution="scripted",
+                renderer="default",
+                score=1.0,
+                steps=[],
+                assertions=[],
+                artifacts={"screenshot": str(screenshot)},
+            )
+
+            with patch("termproof.cli.VerificationRunner") as runner_class:
+                runner = runner_class.return_value
+                runner.run.return_value = result
+                runner.reporter_registry.get.return_value.generate.return_value = "report"
+                output = io.StringIO()
+                with contextlib.redirect_stdout(output):
+                    exit_code = main(
+                        [
+                            "run",
+                            str(recipe_path),
+                            "--out",
+                            str(root / "out"),
+                            "--diff",
+                            "--baseline-dir",
+                            str(root / "baselines"),
+                        ]
+                    )
+
+            self.assertEqual(1, exit_code)
+            self.assertTrue(screenshot.with_name("visual-diff.svg").is_file())
+            self.assertIn("0/1 passed", output.getvalue())
+
 
 class DemoCommandTest(unittest.TestCase):
     def test_demo_creates_recipe_and_passes(self):

@@ -27,6 +27,23 @@ termproof run .termproof/recipes --parallel 4 --out .termproof/runs
 Each recipe/renderer pair still writes its own evidence directory, and
 `latest-report.md` combines the results.
 
+Compare final screenshots against checked-in baselines with:
+
+```bash
+termproof run .termproof/recipes --diff --baseline-dir .termproof/baselines
+```
+
+Baselines live at `.termproof/baselines/<recipe>/<renderer>/final.svg` or
+`.termproof/baselines/<recipe>/<renderer>/final.png`. To create or refresh
+baselines from the current run:
+
+```bash
+termproof run .termproof/recipes --update-baselines
+```
+
+When a screenshot differs, TermProof adds a failing `visual_diff` assertion and
+writes `visual-diff.svg` or `visual-diff.png` beside the run artifacts.
+
 Validate a pack with:
 
 ```bash
