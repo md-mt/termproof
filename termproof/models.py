@@ -4,6 +4,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+RECIPE_VERSION = 1
+
 
 @dataclass(frozen=True)
 class CommandSpec:
@@ -17,6 +19,7 @@ class CommandSpec:
 class Recipe:
     name: str
     command: CommandSpec
+    recipe_version: int = 1
     description: str = ""
     intent: str = ""
     priority: str = "P2"
@@ -80,6 +83,13 @@ class RunResult:
 
 
 def recipe_from_mapping(data: dict[str, Any]) -> Recipe:
+    recipe_version = data.get("recipe_version", RECIPE_VERSION)
+    if (
+        not isinstance(recipe_version, int)
+        or isinstance(recipe_version, bool)
+        or recipe_version != RECIPE_VERSION
+    ):
+        raise ValueError(f"unsupported recipe_version: {recipe_version!r}")
     command_data = data["command"]
     command = CommandSpec(
         argv=list(command_data["argv"]),
@@ -89,6 +99,7 @@ def recipe_from_mapping(data: dict[str, Any]) -> Recipe:
     )
     return Recipe(
         name=data["name"],
+        recipe_version=recipe_version,
         description=data.get("description", ""),
         intent=data.get("intent", ""),
         command=command,

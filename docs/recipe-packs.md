@@ -18,6 +18,12 @@ Run a pack with:
 termproof run .termproof/recipes --video
 ```
 
+Validate a pack with:
+
+```bash
+termproof validate .termproof/recipes
+```
+
 Create a starter pack with:
 
 ```bash
@@ -27,6 +33,7 @@ termproof init .termproof/recipes --name my-tui --command "my-tui"
 ## Package Contract
 
 - Recipes are JSON and can be checked into any repository.
+- New recipes should declare `recipe_version: 1`; legacy recipes without it remain loadable.
 - Discovery is recursive, so larger projects can group recipes by feature.
 - Helper scripts are project-owned and can launch any TUI, CLI, or test fixture.
 - `command.argv` is the target process.
@@ -36,6 +43,8 @@ termproof init .termproof/recipes --name my-tui --command "my-tui"
 - `reporters` include `markdown` and `junit_xml` (JUnit XML consumable by Jenkins, GitLab CI, CircleCI, etc).
 - `termproof demo` provides a self-contained demo TUI that exercises all step and assertion types without external dependencies.
 - `renderers` let one recipe fan out across multiple frontend implementations.
+
+See [`recipe-format-v1.md`](recipe-format-v1.md) for the stable field reference and migration policy.
 
 ## Recommended Layout
 

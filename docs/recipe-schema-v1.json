@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/md-mt/termproof/docs/recipe-schema-v1.json",
+  "title": "TermProof recipe v1",
+  "type": "object",
+  "required": ["name", "command"],
+  "properties": {
+    "recipe_version": {"const": 1},
+    "name": {"type": "string", "minLength": 1},
+    "description": {"type": "string"},
+    "intent": {"type": "string"},
+    "priority": {"type": "string"},
+    "execution": {"type": "string"},
+    "determinism": {"type": "string"},
+    "ci_paths": {"type": "array", "items": {"type": "string"}},
+    "checks": {"type": "array", "items": {"type": "string"}},
+    "operator": {"type": "object"},
+    "renderers": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": {"type": "string"}
+      }
+    },
+    "command": {
+      "type": "object",
+      "required": ["argv"],
+      "properties": {
+        "argv": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"type": "string"}
+        },
+        "cwd": {"type": ["string", "null"]},
+        "env": {
+          "type": "object",
+          "additionalProperties": {"type": "string"}
+        },
+        "pty": {"type": "boolean"}
+      },
+      "additionalProperties": true
+    },
+    "steps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["action"],
+        "properties": {
+          "action": {"type": "string"},
+          "name": {"type": "string"},
+          "timeout_seconds": {"type": "number", "exclusiveMinimum": 0}
+        },
+        "additionalProperties": true
+      }
+    },
+    "assertions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["type"],
+        "properties": {
+          "type": {"type": "string"},
+          "name": {"type": "string"}
+        },
+        "additionalProperties": true
+      }
+    },
+    "expect_exit_code": {"type": ["integer", "null"]},
+    "timeout_seconds": {"type": "number", "exclusiveMinimum": 0},
+    "cols": {"type": "integer", "minimum": 1},
+    "rows": {"type": "integer", "minimum": 1}
+  },
+  "additionalProperties": true
+}
