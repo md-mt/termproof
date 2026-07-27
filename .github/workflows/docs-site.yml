@@ -1,0 +1,48 @@
+name: Documentation Site
+
+on:
+  pull_request:
+    paths:
+      - "docs-site/**"
+      - "docs/**"
+      - "README.md"
+      - ".github/workflows/docs-site.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "docs-site/**"
+      - "docs/**"
+      - "README.md"
+      - ".github/workflows/docs-site.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build VitePress docs
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install docs dependencies
+        run: npm install --prefix docs-site --no-package-lock
+
+      - name: Build docs site
+        run: npm run --prefix docs-site docs:build
+
+      - name: Upload docs site artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: termproof-docs-site
+          path: docs-site/.vitepress/dist
+          if-no-files-found: error
