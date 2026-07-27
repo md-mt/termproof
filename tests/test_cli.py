@@ -8,7 +8,8 @@ from pathlib import Path
 from unittest.mock import patch, MagicMock
 
 from termproof.cli import main
-from termproof.models import RunResult
+from termproof.models import RunResult, load_recipe
+from termproof.run_cache import store_cached_result
 
 
 class CliTest(unittest.TestCase):
@@ -253,6 +254,82 @@ class CliTest(unittest.TestCase):
             self.assertEqual(1, exit_code)
             self.assertTrue(screenshot.with_name("visual-diff.svg").is_file())
             self.assertIn("0/1 passed", output.getvalue())
+
+    def test_run_skip_unchanged_reuses_cached_results(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            pack = root / "recipes"
+            pack.mkdir()
+            cache = root / "cache"
+            for index in range(50):
+                name = f"recipe-{index:02d}"
+                recipe_path = pack / f"{name}.recipe.json"
+                recipe_path.write_text(
+                    f"""{{
+  "name": "{name}",
+  "command": {{"argv": ["python3", "-c", "print('ok')"], "pty": false}}
+}}
+""",
+                    encoding="utf-8",
+                )
+                screenshot = root / "runs" / name / "final.svg"
+                screenshot.parent.mkdir(parents=True)
+                screenshot.write_text("<svg/>\n", encoding="utf-8")
+                store_cached_result(
+                    cache,
+                    load_recipe(recipe_path),
+                    "default",
+                    [],
+                    RunResult(
+                        recipe_name=name,
+                        passed=True,
+                        exit_code=0,
+                        duration_seconds=1.0,
+                        priority="P2",
+                        execution="scripted",
+                        renderer="default",
+                        score=1.0,
+                        steps=[],
+                        assertions=[],
+                        artifacts={"screenshot": str(screenshot)},
+                    ),
+                    out_dir=root / "runs",
+                    screen_renderer="svg",
+                    video_backend="agg_ffmpeg",
+                    render_video=False,
+                    video_fps=60,
+                )
+
+            with patch("termproof.cli.VerificationRunner") as runner_class:
+                runner = runner_class.return_value
+                runner.run.side_effect = AssertionError("runner should be skipped")
+                runner.reporter_registry.get.return_value.generate.return_value = "report"
+                output = io.StringIO()
+                with contextlib.redirect_stdout(output):
+                    exit_code = main(
+                        [
+                            "run",
+                            str(pack),
+                            "--out",
+                            str(root / "runs"),
+                            "--skip-unchanged",
+                            "--cache-dir",
+                            str(cache),
+                        ]
+                    )
+
+            self.assertEqual(0, exit_code)
+            self.assertIn("50/50 passed", output.getvalue())
+            runner.run.assert_not_called()
+
+    def test_run_rejects_skip_unchanged_with_visual_diff(self) -> None:
+        output = io.StringIO()
+
+        with contextlib.redirect_stdout(output):
+            exit_code = main(["run", "missing.recipe.json", "--skip-unchanged", "--diff"])
+
+        self.assertEqual(2, exit_code)
+        self.assertIn("cannot be combined", output.getvalue())
 
 
 class DemoCommandTest(unittest.TestCase):
