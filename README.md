@@ -192,7 +192,7 @@ See [`docs/verified-badge.md`](docs/verified-badge.md) for variants (flat, plast
 - **Code of Conduct:** [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) — Contributor Covenant 2.1.
 - **Pages demo:** Preview locally with `python3 -m http.server 8000 --directory site`. When Pages is enabled on this repo, the rendered site will be at https://md-mt.github.io/termproof/.
 - **Examples:** [`examples/generic`](examples/generic) — portable TUI; `examples/pi_workflow_*.recipe.json` — Pi agent showcase.
-- **Docs:** [`docs/recipe-packs.md`](docs/recipe-packs.md) · [`docs/guides/textual.md`](docs/guides/textual.md) · [`docs/guides/bubbletea.md`](docs/guides/bubbletea.md) · [`docs/guides/ratatui.md`](docs/guides/ratatui.md) · [`docs/releases.md`](docs/releases.md) · [`docs/plugins.md`](docs/plugins.md) · [`docs/verified-badge.md`](docs/verified-badge.md) · [`docs/ci/gitlab.md`](docs/ci/gitlab.md)
+- **Docs:** [`docs/recipe-packs.md`](docs/recipe-packs.md) · [`docs/guides/textual.md`](docs/guides/textual.md) · [`docs/guides/bubbletea.md`](docs/guides/bubbletea.md) · [`docs/guides/ratatui.md`](docs/guides/ratatui.md) · [`docs/releases.md`](docs/releases.md) · [`docs/plugins.md`](docs/plugins.md) · [`docs/verified-badge.md`](docs/verified-badge.md) · [`docs/ci/gitlab.md`](docs/ci/gitlab.md) · [`docs/ci/circleci.md`](docs/ci/circleci.md)
 
 ## Upgrading from tui-verifier
 
