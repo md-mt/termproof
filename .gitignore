@@ -8,3 +8,6 @@ dist/
 build/
 *.egg-info/
 _site/
+node_modules/
+docs-site/.vitepress/cache/
+docs-site/.vitepress/dist/
