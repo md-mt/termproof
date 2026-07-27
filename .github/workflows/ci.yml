@@ -216,7 +216,7 @@ jobs:
         env:
           TERMPROOF_AGG_TARGET: ${{ matrix.target }}
         run: |
-          uv run python scripts/build_agg.py --target "$TERMPROOF_AGG_TARGET"
+          python3 scripts/build_agg.py --target "$TERMPROOF_AGG_TARGET"
           uv build --wheel
       - name: Smoke-test installed wheel
         run: |
