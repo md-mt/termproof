@@ -51,6 +51,12 @@ BUILTIN_DEFAULTS: dict[str, Any] = {
         "agg_ffmpeg": "termproof.builtin_video:AggFfmpegBackend",
     },
     "session_backend": "termproof.builtin_session:PexpectAsciinemaBackend",
+    "docker": {
+        "image": "",
+        "workdir": "/workspace",
+        "volumes": [{"host": ".", "container": "/workspace"}],
+        "env": {},
+    },
     "defaults": {
         "timeout_seconds": 30.0,
         "cols": 100,
@@ -73,6 +79,16 @@ class GlobalDefaults:
 
 
 @dataclass(frozen=True)
+class DockerBackendConfig:
+    image: str = ""
+    workdir: str = "/workspace"
+    volumes: list[Any] = field(
+        default_factory=lambda: [{"host": ".", "container": "/workspace"}]
+    )
+    env: dict[str, str] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
 class VerifierConfig:
     steps: dict[str, str]
     assertions: dict[str, str]
@@ -82,6 +98,7 @@ class VerifierConfig:
     screen_renderers: dict[str, str]
     video_backends: dict[str, str]
     session_backend: str
+    docker: DockerBackendConfig
     defaults: GlobalDefaults
 
     @classmethod
@@ -144,6 +161,8 @@ def load_config(
 
 def _from_mapping(data: dict[str, Any]) -> VerifierConfig:
     defaults_raw = data.get("defaults", {})
+    docker_raw = data.get("docker", {})
+    docker_volumes = docker_raw.get("volumes", [{"host": ".", "container": "/workspace"}])
     return VerifierConfig(
         steps=dict(data.get("steps", {})),
         assertions=dict(data.get("assertions", {})),
@@ -153,6 +172,15 @@ def _from_mapping(data: dict[str, Any]) -> VerifierConfig:
         screen_renderers=dict(data.get("screen_renderers", {})),
         video_backends=dict(data.get("video_backends", {})),
         session_backend=str(data.get("session_backend", "")),
+        docker=DockerBackendConfig(
+            image=str(docker_raw.get("image", "")),
+            workdir=str(docker_raw.get("workdir", "/workspace")),
+            volumes=list(docker_volumes) if isinstance(docker_volumes, list) else [],
+            env={
+                str(key): str(value)
+                for key, value in dict(docker_raw.get("env", {})).items()
+            },
+        ),
         defaults=GlobalDefaults(
             timeout_seconds=float(defaults_raw.get("timeout_seconds", 30.0)),
             cols=int(defaults_raw.get("cols", 100)),

@@ -28,6 +28,11 @@ from .session import TerminalSession
 
 # -- registry builders -------------------------------------------------------
 
+SESSION_BACKEND_ALIASES = {
+    "pexpect": "termproof.builtin_session:PexpectAsciinemaBackend",
+    "docker": "termproof.builtin_session:DockerSessionBackend",
+}
+
 
 def _build_step_registry(config: VerifierConfig) -> Registry[Any]:
     registry: Registry[Any] = Registry()
@@ -86,7 +91,10 @@ def _build_video_backend_registry(config: VerifierConfig) -> Registry[Any]:
 
 
 def _resolve_session_backend(config: VerifierConfig) -> SessionBackend:
-    cls = _import_class(config.session_backend)
+    qualname = SESSION_BACKEND_ALIASES.get(config.session_backend, config.session_backend)
+    cls = _import_class(qualname)
+    if qualname == "termproof.builtin_session:DockerSessionBackend":
+        return cls(config.docker)  # type: ignore[return-value]
     return cls()  # type: ignore[return-value]
 
 

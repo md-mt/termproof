@@ -6,6 +6,7 @@ from pathlib import Path
 
 from termproof.config import (
     BUILTIN_DEFAULTS,
+    DockerBackendConfig,
     GlobalDefaults,
     VerifierConfig,
     load_config,
@@ -21,6 +22,7 @@ class ConfigTest(unittest.TestCase):
         self.assertIn("output_contains", config.assertions)
         self.assertIn("exit_code", config.assertions)
         self.assertIsInstance(config.defaults, GlobalDefaults)
+        self.assertIsInstance(config.docker, DockerBackendConfig)
         self.assertEqual(config.defaults.timeout_seconds, 30.0)
         self.assertEqual(config.defaults.cols, 100)
 
@@ -87,6 +89,38 @@ class ConfigTest(unittest.TestCase):
                 config.steps["my_custom"],
                 "termproof.builtin_steps:Sleep",
             )
+
+    def test_docker_backend_config_loads_from_project(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            project_dir = Path(tmp) / "project"
+            project_dir.mkdir()
+            config_dir = project_dir / ".termproof"
+            config_dir.mkdir()
+            (config_dir / "config.yaml").write_text(
+                """session_backend: docker
+docker:
+  image: python:3.12-slim
+  workdir: /app
+  volumes:
+    - host: .
+      container: /app
+      read_only: true
+  env:
+    PYTHONUNBUFFERED: "1"
+""",
+                encoding="utf-8",
+            )
+
+            config = load_config(project_path=project_dir)
+
+        self.assertEqual("docker", config.session_backend)
+        self.assertEqual("python:3.12-slim", config.docker.image)
+        self.assertEqual("/app", config.docker.workdir)
+        self.assertEqual(
+            [{"host": ".", "container": "/app", "read_only": True}],
+            config.docker.volumes,
+        )
+        self.assertEqual({"PYTHONUNBUFFERED": "1"}, config.docker.env)
 
 
 class RegistryTest(unittest.TestCase):
