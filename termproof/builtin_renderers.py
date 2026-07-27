@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import html
 from pathlib import Path
+
+from PIL import Image, ImageDraw, ImageFont
+
 from .protocols import ScreenRenderer
 
 
@@ -9,6 +12,7 @@ class SvgRenderer:
     """SVG screen renderer."""
 
     name = "svg"
+    extension = "svg"
 
     def render(
         self,
@@ -35,3 +39,32 @@ class SvgRenderer:
             parts.append(f'<text x="{padding}" y="{y}">{html.escape(line)}</text>')
         parts.append("</svg>")
         output_path.write_text("\n".join(parts) + "\n", encoding="utf-8")
+
+
+class PngRenderer:
+    name = "png"
+    extension = "png"
+
+    def render(
+        self,
+        text: str,
+        output_path: Path,
+        cols: int,
+        rows: int,
+    ) -> None:
+        font = ImageFont.load_default()
+        bbox = font.getbbox("M")
+        char_width = max(9, bbox[2] - bbox[0])
+        line_height = max(18, bbox[3] - bbox[1] + 6)
+        padding = 18
+        width = max(320, cols * char_width + padding * 2)
+        height = max(160, rows * line_height + padding * 2)
+        image = Image.new("RGB", (width, height), "#101418")
+        draw = ImageDraw.Draw(image)
+
+        for index, line in enumerate(text.splitlines()[:rows] or [""]):
+            y = padding + line_height * index
+            draw.text((padding, y), line[:cols], font=font, fill="#e6edf3")
+
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        image.save(output_path, format="PNG")

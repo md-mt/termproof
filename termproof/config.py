@@ -46,6 +46,7 @@ BUILTIN_DEFAULTS: dict[str, Any] = {
     },
     "screen_renderers": {
         "svg": "termproof.builtin_renderers:SvgRenderer",
+        "png": "termproof.builtin_renderers:PngRenderer",
     },
     "video_backends": {
         "agg_ffmpeg": "termproof.builtin_video:AggFfmpegBackend",
