@@ -48,6 +48,13 @@ termproof run .termproof/recipes --screen-renderer png
 | --- | --- | --- | --- |
 | _Be the first_ | Show us your step/assertion/session/reporter | `pip install <your-package>` | you |
 
+Search or install from this manual directory with:
+
+```bash
+termproof plugins search textual
+termproof plugins install termproof-textual
+```
+
 To list your plugin here, open a PR editing this file with:
 
 - Name — package or plugin identifier.
@@ -66,10 +73,8 @@ To list your plugin here, open a PR editing this file with:
 
 From open issues:
 
-- **WaitForRegex** (`wait_for_regex`) — see [#14](https://github.com/md-mt/termproof/issues/14)
-- **JsonSchema assertion** (`json_schema`) — see [#20](https://github.com/md-mt/termproof/issues/20)
-- **JunitXml reporter** (`junit_xml`) — see [#15](https://github.com/md-mt/termproof/issues/15)
-- **Plugins CLI** (`termproof plugins`) — see [#21](https://github.com/md-mt/termproof/issues/21)
+- **Framework helpers** for Textual, Bubble Tea, and Ratatui recipes — see [#24](https://github.com/md-mt/termproof/issues/24)
+- **First-party example integrations** that can graduate into separate plugin repos — see [#23](https://github.com/md-mt/termproof/issues/23)
 
 ## Publishing
 
