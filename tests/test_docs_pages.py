@@ -180,6 +180,22 @@ class PagesWorkflowTest(unittest.TestCase):
         self.assertIn("github.event_name", deploy_section,
                       "pages.yml deploy job must check github.event_name to avoid running on PRs")
 
+    def test_deploy_requires_enable_pages_variable(self) -> None:
+        yml = _read(ROOT / ".github/workflows/pages.yml")
+        deploy_section = yml.split("name: Deploy to Pages")[1].split("environment:")[0] \
+            if "name: Deploy to Pages" in yml else ""
+
+        self.assertIn("vars.ENABLE_PAGES == 'true'", deploy_section)
+        self.assertNotIn("github.event.repository.visibility == 'public'", deploy_section)
+
+    def test_skipped_job_runs_when_enable_pages_is_not_true(self) -> None:
+        yml = _read(ROOT / ".github/workflows/pages.yml")
+        skipped_section = yml.split("name: Pages deploy skipped")[1] \
+            if "name: Pages deploy skipped" in yml else ""
+
+        self.assertIn("vars.ENABLE_PAGES != 'true'", skipped_section)
+        self.assertIn("Artifact 'termproof-pages-preview' contains the site preview.", skipped_section)
+
 
 class GenericTuiArtifactsTest(unittest.TestCase):
     """BLOCKING: examples/artifacts/generic-tui-workflow/ must contain demo evidence."""
