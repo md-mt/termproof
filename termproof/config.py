@@ -30,6 +30,7 @@ BUILTIN_DEFAULTS: dict[str, Any] = {
         "exit_code": "termproof.builtin_assertions:ExitCode",
         "file_exists": "termproof.builtin_assertions:FileExists",
         "file_contains": "termproof.builtin_assertions:FileContains",
+        "json_schema": "termproof.builtin_assertions:JsonSchema",
     },
     "agent_runners": {
         "codex": "termproof.agent_driven:CodexCliAgentRunner",
