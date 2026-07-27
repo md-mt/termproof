@@ -8,11 +8,13 @@ from pathlib import Path
 from .agent_driven import CodexCliAgentRunner
 from .build_info import BuildInfo
 from .config import VerifierConfig, load_config
+from .evidence import write_result_files
 from .recipe_schema import has_errors, validate_recipe_file
 from .registry import find_recipe_files, load_recipes, select_recipes
 from .renderer import selected_renderers
 from .runner import VerificationRunner
 from .scaffold import write_recipe_pack
+from .visual_diff import apply_visual_diff
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -40,6 +42,12 @@ def main(argv: list[str] | None = None) -> int:
                             help="screen renderer to use (default: svg)")
     run_parser.add_argument("--video-backend", default="agg_ffmpeg",
                             help="video backend to use (default: agg_ffmpeg)")
+    run_parser.add_argument("--diff", action="store_true",
+                            help="compare final screenshots against baselines")
+    run_parser.add_argument("--baseline-dir", type=Path, default=Path(".termproof/baselines"),
+                            help="baseline root for --diff")
+    run_parser.add_argument("--update-baselines", action="store_true",
+                            help="write current final screenshots as visual baselines")
     list_parser = subparsers.add_parser("list", help="list recipes")
     list_parser.add_argument("recipes", nargs="+", type=Path)
     list_parser.add_argument("--priority")
@@ -126,6 +134,19 @@ def main(argv: list[str] | None = None) -> int:
                         run_items,
                     )
                 )
+        if args.diff or args.update_baselines:
+            results = [
+                apply_visual_diff(
+                    result,
+                    args.baseline_dir,
+                    update=args.update_baselines,
+                )
+                for result in results
+            ]
+            for result in results:
+                screenshot = result.artifacts.get("screenshot")
+                if screenshot:
+                    write_result_files(Path(screenshot).parent, result)
         build_info = BuildInfo.from_command(recipes[0].command.argv) if recipes else None
         reporter = runner.reporter_registry.get(reporter_name)
         report = reporter.generate(results, build_info=build_info)
