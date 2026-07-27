@@ -44,6 +44,13 @@ termproof run .termproof/recipes --update-baselines
 When a screenshot differs, TermProof adds a failing `visual_diff` assertion and
 writes `visual-diff.svg` or `visual-diff.png` beside the run artifacts.
 
+Large CI suites can skip recipe/renderer pairs whose recipe file and
+run-affecting options are unchanged from the last passing run:
+
+```bash
+termproof run .termproof/recipes --parallel 8 --skip-unchanged --cache-dir .termproof/cache
+```
+
 Validate a pack with:
 
 ```bash

@@ -13,6 +13,7 @@ from .recipe_schema import has_errors, validate_recipe_file
 from .registry import find_recipe_files, load_recipes, select_recipes
 from .renderer import selected_renderers
 from .runner import VerificationRunner
+from .run_cache import load_cached_result, store_cached_result
 from .scaffold import write_recipe_pack
 from .visual_diff import apply_visual_diff
 
@@ -48,6 +49,10 @@ def main(argv: list[str] | None = None) -> int:
                             help="baseline root for --diff")
     run_parser.add_argument("--update-baselines", action="store_true",
                             help="write current final screenshots as visual baselines")
+    run_parser.add_argument("--skip-unchanged", action="store_true",
+                            help="reuse cached passing results for unchanged recipes")
+    run_parser.add_argument("--cache-dir", type=Path, default=Path(".termproof/cache"),
+                            help="cache root for --skip-unchanged")
     list_parser = subparsers.add_parser("list", help="list recipes")
     list_parser.add_argument("recipes", nargs="+", type=Path)
     list_parser.add_argument("--priority")
@@ -100,6 +105,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "run":
         if args.parallel < 1:
             print("--parallel must be >= 1")
+            return 2
+        if args.skip_unchanged and (args.diff or args.update_baselines):
+            print("--skip-unchanged cannot be combined with --diff or --update-baselines")
             return 2
         config = _resolve_config(args)
         recipes = select_recipes(
@@ -269,13 +277,42 @@ def _run_item(
     args: argparse.Namespace,
 ):
     recipe, renderer_name, renderer_argv = item
-    return runner.run(
+    render_video = args.video and not args.no_video
+    if args.skip_unchanged:
+        cached = load_cached_result(
+            args.cache_dir,
+            recipe,
+            renderer_name,
+            renderer_argv,
+            out_dir=args.out,
+            screen_renderer=args.screen_renderer,
+            video_backend=args.video_backend,
+            render_video=render_video,
+            video_fps=args.video_fps,
+        )
+        if cached is not None:
+            return cached
+    result = runner.run(
         recipe,
         out_dir=args.out,
-        render_video=args.video and not args.no_video,
+        render_video=render_video,
         video_fps=args.video_fps,
         renderer=renderer_name,
         renderer_argv=renderer_argv,
         screen_renderer_name=args.screen_renderer,
         video_backend_name=args.video_backend,
     )
+    if args.skip_unchanged:
+        store_cached_result(
+            args.cache_dir,
+            recipe,
+            renderer_name,
+            renderer_argv,
+            result,
+            out_dir=args.out,
+            screen_renderer=args.screen_renderer,
+            video_backend=args.video_backend,
+            render_video=render_video,
+            video_fps=args.video_fps,
+        )
+    return result

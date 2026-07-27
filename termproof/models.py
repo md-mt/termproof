@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
@@ -35,6 +35,7 @@ class Recipe:
     timeout_seconds: float = 30.0
     cols: int = 100
     rows: int = 30
+    source_path: str | None = None
 
 
 @dataclass(frozen=True)
@@ -122,7 +123,8 @@ def recipe_from_mapping(data: dict[str, Any]) -> Recipe:
 def load_recipe(path: Path) -> Recipe:
     import json
 
-    return recipe_from_mapping(json.loads(path.read_text(encoding="utf-8")))
+    recipe = recipe_from_mapping(json.loads(path.read_text(encoding="utf-8")))
+    return replace(recipe, source_path=str(path))
 
 
 def score_from_assertions(assertions: list[AssertionResult]) -> float:
