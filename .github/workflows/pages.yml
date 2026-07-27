@@ -111,23 +111,17 @@ jobs:
           path: _site
           if-no-files-found: warn
 
-  # Deployment is guarded so private repos without Pages enabled do not fail CI.
-  # For private repos, set repository variable ENABLE_PAGES=true to enable,
-  # or rely on public visibility. The job will be skipped otherwise.
+  # Deployment is explicitly opt-in so repos without Pages enabled do not fail CI.
+  # Set repository variable ENABLE_PAGES=true and enable Pages
+  # in Settings > Pages (source: GitHub Actions) to deploy.
   deploy:
     name: Deploy to Pages
     needs: build
     runs-on: ubuntu-latest
     if: |
-      (github.event_name == 'push' && github.ref == 'refs/heads/main' && (
-        vars.ENABLE_PAGES == 'true' ||
-        github.event.repository.visibility == 'public'
-      )) || (
-        github.event_name == 'workflow_dispatch' && (
-          vars.ENABLE_PAGES == 'true' ||
-          github.event.repository.visibility == 'public'
-        )
-      )
+      vars.ENABLE_PAGES == 'true' &&
+      ((github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+        github.event_name == 'workflow_dispatch')
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -136,20 +130,19 @@ jobs:
         id: deployment
         uses: actions/deploy-pages@v4
 
-  # Keep a separate notification that deploy was skipped for private repos — informative only.
+  # Keep a separate notification that deploy was skipped — informative only.
   deploy-skipped:
-    name: Pages deploy skipped (private repo guard)
+    name: Pages deploy skipped (ENABLE_PAGES not true)
     needs: build
     runs-on: ubuntu-latest
     if: |
       github.event_name == 'push' &&
       github.ref == 'refs/heads/main' &&
-      !(vars.ENABLE_PAGES == 'true' ||
-        github.event.repository.visibility == 'public')
+      vars.ENABLE_PAGES != 'true'
     steps:
       - run: |
-          echo "Pages deploy skipped — repository is private and ENABLE_PAGES is not 'true'."
-          echo "To enable Pages on this private repo, set the repository variable ENABLE_PAGES=true"
+          echo "Pages deploy skipped — ENABLE_PAGES is not 'true'."
+          echo "To enable Pages deploys, set repository variable ENABLE_PAGES=true"
           echo "in Settings > Secrets and variables > Actions > Variables, and enable Pages"
           echo "in Settings > Pages (source: GitHub Actions)."
           echo "Artifact 'termproof-pages-preview' contains the site preview."
