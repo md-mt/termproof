@@ -34,6 +34,20 @@ uv run termproof run examples/generic examples/multi_turn_conversation.recipe.js
    and release body, uploads evidence, and creates a GitHub release.
 4. PyPI publishing uses GitHub trusted publishing from the release workflow.
 
+## PyPI Trusted Publishing
+
+Before pushing the first release tag, create or claim the `termproof` project on
+PyPI and add this trusted publisher:
+
+- Owner: `md-mt`
+- Repository: `termproof`
+- Workflow: `release.yml`
+- Environment: `pypi`
+
+The release job must keep `permissions.id-token: write` and `environment: pypi`.
+If PyPI reports `invalid-publisher`, the GitHub release can still be created but
+the package upload will fail until the PyPI project has the publisher above.
+
 The GitHub Release includes `termproof-release-evidence.tgz`. That archive
 contains `.termproof/release/latest-report.md`, per-recipe `report.md`,
 `result.json`, `session.cast`, `final.svg`, `final.txt`, step screenshots, and
