@@ -1,23 +1,10 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any
 
 from .models import AssertionResult, Recipe, StepResult
-
-
-class ExecutionMode(Protocol):
-    """Protocol for pluggable execution strategies."""
-
-    name: str
-
-    def execute(
-        self,
-        runner: Any,  # VerificationRunner
-        recipe: Recipe,
-        run_dir: Path,
-    ) -> tuple[list[StepResult], list[AssertionResult], str, int | None, str]:
-        ...
+from .protocols import ExecutionMode
 
 
 class ScriptedPtyMode:

@@ -80,7 +80,8 @@ termproof run .termproof/recipes --reporter json_summary
 
 | TermProof version | Supported | Notes |
 |-------------------|-----------|-------|
-| >=0.1.0           | yes       | Current plugin protocols (StepAction, AssertionType, Reporter, ScreenRenderer, VideoBackend, SessionBackend, ExecutionMode, AgentRunner) |
+| >=0.2.1           | yes       | Stable plugin protocols exported from `termproof.protocols` |
+| >=0.1.0           | yes       | Legacy protocol import locations remain compatibility re-exports |
 | legacy tui_verifier prefix | yes via compat shim | tui_verifier.*:Cls auto-remapped |
 
 Guard version requirement in pyproject.toml: `termproof>=0.1.0`.

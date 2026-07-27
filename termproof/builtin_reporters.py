@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import re
 import xml.etree.ElementTree as ET
-from typing import Protocol
 
 from .before_after import BeforeAfterResult
 from .build_info import BuildInfo
 from .models import RunResult
+from .protocols import Reporter
 
 
 # XML 1.0 spec: allowed characters are:
@@ -40,20 +40,6 @@ def _xml_sanitize(text: str) -> str:
     and surrogates (#xD800-#xDFFF) which are invalid in XML 1.0.
     """
     return _XML_FORBIDDEN_RE.sub("", text)
-
-
-class Reporter(Protocol):
-    """Protocol for pluggable report generators."""
-
-    name: str
-
-    def generate(
-        self,
-        results: list[RunResult],
-        build_info: BuildInfo | None = None,
-        before_after: BeforeAfterResult | None = None,
-    ) -> str:
-        ...
 
 
 class MarkdownReporter:

@@ -12,13 +12,12 @@ steps:
   wait_for_regex: my_org.termproof_steps:WaitForRegexStep
 assertions:
   json_schema: my_org.termproof_assertions:JsonSchemaAssertion
-session_backends:
-  docker: my_org.termproof_session:DockerSessionBackend
+session_backend: my_org.termproof_session:DockerSessionBackend
 reporters:
   junit_xml: my_org.termproof_reporters:JunitReporter
 ```
 
-See [`docs/recipe-packs.md`](recipe-packs.md) for the contract and `termproof/config.py` for built-ins.
+See [`plugin-protocols.md`](plugin-protocols.md) for the stable protocol contract and `termproof/config.py` for built-ins.
 
 ## Listing
 
@@ -63,4 +62,4 @@ If you publish a first-party example as a separate repo (per [#23](https://githu
 ## Registry roadmap
 
 - Manual list (now, this file) → automated registry when >30 entries (see [#22](https://github.com/md-mt/termproof/issues/22)).
-- Protocol stability guarantee (see [#32](https://github.com/md-mt/termproof/issues/32)) and recipe format v1.0 (see [#31](https://github.com/md-mt/termproof/issues/31)) will precede a stable external plugin API.
+- Protocol stability is documented in [`plugin-protocols.md`](plugin-protocols.md). Recipe format v1.0 remains tracked in [#31](https://github.com/md-mt/termproof/issues/31).

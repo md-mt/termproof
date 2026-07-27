@@ -1,21 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Protocol
-
-
-class VideoBackend(Protocol):
-    """Protocol for pluggable video renderers."""
-
-    name: str
-
-    def render(
-        self,
-        cast_path: Path,
-        output_path: Path,
-        fps: int,
-    ) -> None:
-        ...
+from .protocols import VideoBackend
 
 
 class AggFfmpegBackend:

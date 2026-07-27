@@ -20,36 +20,10 @@ from .models import (
     load_recipe,
     score_from_assertions,
 )
+from .protocols import SessionBackend
 from .registry import Registry
 from .screen import replay_cast
 from .session import TerminalSession
-
-# Protocol types for session/video backends
-from typing import Protocol as _Protocol
-from pathlib import Path as _Path
-
-
-class _SessionBackend(_Protocol):
-    def create_session(
-        self,
-        argv: list[str],
-        cast_path: _Path,
-        cwd: str | None,
-        env: dict[str, str],
-        cols: int,
-        rows: int,
-    ) -> TerminalSession: ...
-
-
-class _VideoBackend(_Protocol):
-    name: str
-
-    def render(
-        self,
-        cast_path: _Path,
-        output_path: _Path,
-        fps: int,
-    ) -> None: ...
 
 
 # -- registry builders -------------------------------------------------------
@@ -111,7 +85,7 @@ def _build_video_backend_registry(config: VerifierConfig) -> Registry[Any]:
     return registry
 
 
-def _resolve_session_backend(config: VerifierConfig) -> _SessionBackend:
+def _resolve_session_backend(config: VerifierConfig) -> SessionBackend:
     cls = _import_class(config.session_backend)
     return cls()  # type: ignore[return-value]
 
