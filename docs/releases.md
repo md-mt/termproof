@@ -30,9 +30,15 @@ uv run termproof run examples/generic examples/multi_turn_conversation.recipe.js
 1. Update `pyproject.toml`.
 2. Push a tag such as `v0.1.1`.
 3. GitHub Actions runs unit tests, builds the wheel and sdist, executes the
-   portable TUI end-to-end suite, writes the verifier report to the run summary
-   and release body, uploads evidence, and creates a GitHub release.
+   receipt-backed portable TUI end-to-end suite, writes the verifier report to
+   the run summary and release body, uploads evidence, and creates a GitHub
+   release.
 4. PyPI publishing uses GitHub trusted publishing from the release workflow.
+
+The release evidence receipt lives at
+[`docs/ci/evidence-receipt.json`](ci/evidence-receipt.json). Update that receipt
+whenever the release or PR evidence suite changes; CI tests fail if the
+workflows stop using the receipt-backed runner.
 
 ## PyPI Trusted Publishing
 
@@ -51,7 +57,13 @@ the package upload will fail until the PyPI project has the publisher above.
 The GitHub Release includes `termproof-release-evidence.tgz`. That archive
 contains `.termproof/release/latest-report.md`, per-recipe `report.md`,
 `result.json`, `session.cast`, `final.svg`, `final.txt`, step screenshots, and
-`session.mp4` videos.
+`session.mp4` videos. It also contains `evidence-receipt.json`, so each release
+records which recipes and render settings produced the report.
+
+Pull requests publish the same suite as the `termproof-ci-evidence` workflow
+artifact and as a sticky PR comment. The comment includes a base-commit report,
+a head-commit report, and a behavioral delta generated from each run's
+`result.json` files.
 
 The release workflow intentionally uses portable recipes for public CI. The Pi
 coding-agent recipes remain the showcase and can be run in environments where

@@ -164,7 +164,11 @@ Copy-paste for GitHub Actions. Identical to what this repository uses:
   run: cat .termproof/ci/latest-report.md >> "$GITHUB_STEP_SUMMARY"
 ```
 
-This repo also posts a sticky **TermProof CI Report** comment on every PR with the run link and embedded report. See [`.github/workflows/ci.yml`](.github/workflows/ci.yml) for the full implementation.
+This repo also posts a sticky **TermProof CI Report** comment on every PR with
+the run link, base-commit report, head report, and behavioral delta. Release
+tags package the same receipt-backed report as `termproof-release-evidence.tgz`.
+See [`.github/workflows/ci.yml`](.github/workflows/ci.yml) for the full
+implementation.
 
 Reuse as a GitLab template or CircleCI orb by porting the same three steps — no Docker image required (see [#27](https://github.com/md-mt/termproof/issues/27) for generic image).
 
