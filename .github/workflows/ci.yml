@@ -54,7 +54,8 @@ jobs:
 
       - name: Run plugin-template unit tests
         run: |
-          (cd plugin-template && uv run python -m unittest discover -s tests -v)
+          PYTHONPATH=plugin-template/src uv run --no-project --with . --with pytest --with pyyaml \
+            python -m unittest discover -s plugin-template/tests -v
 
       - name: Build plugin-template package
         run: |
@@ -63,7 +64,8 @@ jobs:
       - name: Smoke-test plugin-template installed wheel
         run: |
           (cd plugin-template && python -m venv .pkg-test)
-          plugin-template/.pkg-test/bin/pip install plugin-template/dist/*.whl
+          uv pip install --python plugin-template/.pkg-test/bin/python .
+          uv pip install --python plugin-template/.pkg-test/bin/python --no-deps plugin-template/dist/*.whl
           plugin-template/.pkg-test/bin/python -c "
           import termproof_my_plugin
           expected = {'JsonSummaryReporter', 'ScreenCount', 'WaitForRegex'}
