@@ -195,3 +195,37 @@ jobs:
         with:
           name: termproof-dist
           path: dist/*
+
+  wheel:
+    name: bundled agg (${{ matrix.target }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: linux-x86_64
+            os: ubuntu-latest
+          - target: macos-arm64
+            os: macos-14
+          - target: macos-x86_64
+            os: macos-13
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build pinned agg and platform wheel
+        env:
+          TERMPROOF_AGG_TARGET: ${{ matrix.target }}
+        run: |
+          uv run python scripts/build_agg.py --target "$TERMPROOF_AGG_TARGET"
+          uv build --wheel
+      - name: Smoke-test installed wheel
+        run: |
+          python3 -m venv .wheel-test
+          .wheel-test/bin/pip install dist/*.whl
+          .wheel-test/bin/python -c 'from termproof.agg_bundle import bundled_agg_path; p=bundled_agg_path(); assert p.is_file(); print(p)'
+          .wheel-test/bin/termproof --help
+      - uses: actions/upload-artifact@v4
+        with:
+          name: termproof-${{ matrix.target }}-wheel
+          path: dist/*.whl

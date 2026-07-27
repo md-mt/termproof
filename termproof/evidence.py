@@ -3,10 +3,12 @@ from __future__ import annotations
 import json
 import shutil
 import subprocess
+import warnings
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from .agg_bundle import resolve_agg
 from .models import RunResult, StepResult
 from .screen import render_svg, replay_cast
 
@@ -52,7 +54,8 @@ def render_artifacts(
         path = run_dir / name
         if path.exists():
             artifacts[name.removesuffix(".md").removesuffix(".json")] = str(path)
-    if render_video and shutil.which("agg"):
+    agg_path = resolve_agg()
+    if render_video and agg_path:
         mp4_path = run_dir / "session.mp4"
         if video_backend is not None:
             video_backend.render(cast_path, mp4_path, video_fps)
@@ -85,11 +88,14 @@ def _render_step_screens(
 
 
 def render_mp4(cast_path: Path, mp4_path: Path, fps: int = 60) -> None:
+    agg_path = resolve_agg()
+    if agg_path is None:
+        return
     gif_path = mp4_path.with_suffix(".agg.gif")
     try:
         subprocess.run(
             [
-                "agg",
+                agg_path,
                 "--quiet",
                 "--fps-cap",
                 str(fps),
