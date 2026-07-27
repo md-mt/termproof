@@ -56,6 +56,8 @@ The validator checks JSON shape, required fields, configured step/action names, 
 
 The formal JSON Schema is published at [`recipe-schema-v1.json`](recipe-schema-v1.json).
 
+Recipes that verify JSON-producing CLIs can use the built-in `json_schema` assertion. Set `schema` to either an inline JSON Schema object or a recipe-relative schema file path.
+
 ## Migrating v0.x recipes
 
 Existing recipes usually need only one edit:
