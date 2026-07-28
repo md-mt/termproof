@@ -111,5 +111,15 @@ jobs:
             termproof-release-evidence.tgz
 
       - name: Publish to PyPI
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.ref, 'refs/tags/v') && vars.ENABLE_PYPI == 'true'
         uses: pypa/gh-action-pypi-publish@release/v1
+
+      - name: Note skipped PyPI publish
+        if: startsWith(github.ref, 'refs/tags/v') && vars.ENABLE_PYPI != 'true'
+        run: |
+          {
+            echo "## PyPI Publish"
+            echo
+            echo "Skipped because repository variable \`ENABLE_PYPI\` is not \`true\`."
+            echo "Configure PyPI trusted publishing, then set \`ENABLE_PYPI=true\` for future release tags."
+          } >> "$GITHUB_STEP_SUMMARY"
