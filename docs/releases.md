@@ -33,7 +33,8 @@ uv run termproof run examples/generic examples/multi_turn_conversation.recipe.js
    receipt-backed portable TUI end-to-end suite, writes the verifier report to
    the run summary and release body, uploads evidence, and creates a GitHub
    release.
-4. PyPI publishing uses GitHub trusted publishing from the release workflow.
+4. PyPI publishing uses GitHub trusted publishing from the release workflow
+   when the repository variable `ENABLE_PYPI` is set to `true`.
 
 The release evidence receipt lives at
 [`docs/ci/evidence-receipt.json`](ci/evidence-receipt.json). Update that receipt
@@ -51,8 +52,12 @@ PyPI and add this trusted publisher:
 - Environment: `pypi`
 
 The release job must keep `permissions.id-token: write` and `environment: pypi`.
-If PyPI reports `invalid-publisher`, the GitHub release can still be created but
-the package upload will fail until the PyPI project has the publisher above.
+Keep the repository variable `ENABLE_PYPI` unset or set to any value other than
+`true` until the PyPI project has the publisher above. The workflow will still
+create the GitHub release and attach evidence, but it will skip PyPI upload.
+After trusted publishing is configured, set `ENABLE_PYPI=true` before pushing
+the next release tag. If PyPI reports `invalid-publisher`, unset `ENABLE_PYPI`
+again until the publisher claims match the configuration above.
 
 The GitHub Release includes `termproof-release-evidence.tgz`. That archive
 contains `.termproof/release/latest-report.md`, per-recipe `report.md`,
