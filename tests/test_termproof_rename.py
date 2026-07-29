@@ -32,28 +32,33 @@ class TermProofRenameTest(unittest.TestCase):
                 directory.mkdir(parents=True)
 
             (legacy_user / "config.yaml").write_text(
-                "defaults:\n  timeout_seconds: 10\n  rows: 40\n",
+                "docker:\n  workdir: /legacy-user\n  image: persist-image\n",
                 encoding="utf-8",
             )
             (current_user / "config.yaml").write_text(
-                "defaults:\n  timeout_seconds: 20\n",
+                "docker:\n  workdir: /current-user\n",
                 encoding="utf-8",
             )
             (legacy_project / "config.yaml").write_text(
-                "defaults:\n  cols: 110\n",
+                "docker:\n  volumes:\n    - host: legacy\n      container: /x\n",
                 encoding="utf-8",
             )
             (current_project / "config.yaml").write_text(
-                "defaults:\n  cols: 120\n",
+                "docker:\n  volumes:\n    - host: current\n      container: /x\n",
                 encoding="utf-8",
             )
 
             with patch("termproof.config.Path.home", return_value=home):
                 config = load_config(project_path=project)
 
-            self.assertEqual(20.0, config.defaults.timeout_seconds)
-            self.assertEqual(40, config.defaults.rows)
-            self.assertEqual(120, config.defaults.cols)
+            # current user config wins over legacy user config
+            self.assertEqual("/current-user", config.docker.workdir)
+            # legacy user supplies a value neither newer file overrides
+            self.assertEqual("persist-image", config.docker.image)
+            # current project config wins over legacy project config
+            self.assertEqual(
+                [{"host": "current", "container": "/x"}], config.docker.volumes
+            )
 
     def test_legacy_plugin_references_resolve_through_compatibility_alias(self) -> None:
         from termproof.config import VerifierConfig
