@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Questions & discussion
+    url: https://github.com/md-mt/termproof/discussions
+    about: Ask questions, share recipes, and propose ideas in GitHub Discussions.
+  - name: Support & getting help
+    url: https://github.com/md-mt/termproof/blob/main/SUPPORT.md
+    about: Where and how to get help with TermProof.
+  - name: Report a security vulnerability
+    url: mailto:md@mt.com
+    about: Do not open public issues for security reports — email us privately (see SECURITY.md).
