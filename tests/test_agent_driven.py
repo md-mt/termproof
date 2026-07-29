@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from termproof.agent_driven import build_agent_prompt, parse_agent_output
+from termproof.agent_driven import _load_json, build_agent_prompt, parse_agent_output
 from termproof.models import CommandSpec, Recipe
 from termproof.runner import VerificationRunner
 
@@ -70,3 +70,81 @@ class AgentDrivenTest(unittest.TestCase):
             self.assertTrue(Path(result.artifacts["agent_transcript"]).exists())
             self.assertTrue(Path(result.artifacts["agent_outcome"]).exists())
             self.assertTrue(Path(result.artifacts["step_screenshots"]).exists())
+
+
+class LoadJsonTest(unittest.TestCase):
+    def test_clean_json_object(self) -> None:
+        data = _load_json('{"assertions": {"ok": true}, "transcript": "done"}')
+
+        self.assertEqual({"assertions": {"ok": True}, "transcript": "done"}, data)
+
+    def test_json_wrapped_in_prose(self) -> None:
+        output = 'Here is the result: {"assertions": {"ok": true}} thanks!'
+
+        data = _load_json(output)
+
+        self.assertEqual({"assertions": {"ok": True}}, data)
+
+    def test_json_inside_fenced_block(self) -> None:
+        output = 'Some notes\n```json\n{"assertions": {"ok": true}, "transcript": "x"}\n```\n'
+
+        data = _load_json(output)
+
+        self.assertEqual({"assertions": {"ok": True}, "transcript": "x"}, data)
+
+    def test_json_on_last_line_after_logs(self) -> None:
+        output = "\n".join(
+            [
+                "starting agent...",
+                "[info] running command",
+                "[info] finished",
+                '{"assertions": {"ok": true}, "transcript": "last"}',
+            ]
+        )
+
+        data = _load_json(output)
+
+        self.assertEqual({"assertions": {"ok": True}, "transcript": "last"}, data)
+
+    def test_object_with_assertions_wins_over_plain_object(self) -> None:
+        # Two JSON-looking fragments: only the one carrying "assertions"/"transcript"
+        # should be selected regardless of its position in the output.
+        output = "\n".join(
+            [
+                '{"unrelated": 1}',
+                '{"assertions": {"ok": true}}',
+                '{"also": 2}',
+            ]
+        )
+
+        data = _load_json(output)
+
+        self.assertEqual({"assertions": {"ok": True}}, data)
+
+    def test_trailing_text_after_object(self) -> None:
+        output = '{"assertions": {"ok": true}} trailing commentary that is not json'
+
+        data = _load_json(output)
+
+        self.assertEqual({"assertions": {"ok": True}}, data)
+
+    def test_falls_back_to_first_object_without_marker_keys(self) -> None:
+        # No fragment has "assertions"/"transcript"; the first collected dict wins.
+        output = '{"foo": 1}'
+
+        data = _load_json(output)
+
+        self.assertEqual({"foo": 1}, data)
+
+    def test_malformed_json_returns_none(self) -> None:
+        self.assertIsNone(_load_json('{"assertions": {"ok": true'))
+
+    def test_no_json_returns_none(self) -> None:
+        self.assertIsNone(_load_json("just some plain text, no json here"))
+
+    def test_empty_input_returns_none(self) -> None:
+        self.assertIsNone(_load_json(""))
+
+    def test_non_object_json_is_ignored(self) -> None:
+        # A top-level JSON array is valid JSON but not a dict, so it is skipped.
+        self.assertIsNone(_load_json("[1, 2, 3]"))
