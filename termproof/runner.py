@@ -224,7 +224,12 @@ class VerificationRunner:
             recipe.rows,
         ) as session:
             for index, step in enumerate(recipe.steps, start=1):
-                step_result = self._run_step(session, index, step)
+                try:
+                    step_result = self._run_step(session, index, step)
+                except Exception as exc:
+                    action_name = step["action"]
+                    name = step.get("name", f"{index}:{action_name}")
+                    step_result = StepResult(name, False, str(exc), session.screen)
                 steps.append(step_result)
                 if not step_result.passed:
                     break
