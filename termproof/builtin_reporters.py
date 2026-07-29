@@ -7,6 +7,7 @@ from .before_after import BeforeAfterResult
 from .build_info import BuildInfo
 from .models import RunResult
 from .protocols import Reporter
+from .report_helpers import _build_info_lines, _detail, _evidence_links
 
 
 # XML 1.0 spec: allowed characters are:
@@ -208,58 +209,3 @@ class JUnitXmlReporter:
 
         xml_body = ET.tostring(testsuites, encoding="unicode")
         return f'<?xml version="1.0" encoding="UTF-8"?>\n{xml_body}\n'
-
-
-def _build_info_lines(build_info: BuildInfo) -> list[str]:
-    verified = "yes" if build_info.verify_provenance() else "no"
-    return [
-        "## Build Provenance",
-        "",
-        f"- Mode: `{build_info.mode}`",
-        f"- Command: `{_one_line(' '.join(build_info.command))}`",
-        f"- Binary: `{_one_line(str(build_info.binary_path))}`",
-        f"- Version: `{_one_line(build_info.version)}`",
-        f"- Git commit: `{_one_line(str(build_info.git_commit))}`",
-        f"- Verified: `{verified}`",
-        "",
-    ]
-
-
-def _evidence_links(result: RunResult) -> str:
-    links: list[str] = []
-    for key in (
-        "screenshot",
-        "visual_diff",
-        "visual_baseline",
-        "video",
-        "cast",
-        "screen_text",
-        "step_screenshots",
-    ):
-        value = result.artifacts.get(key)
-        if value:
-            links.append(f"[{key}]({value})")
-    return " / ".join(links) if links else "-"
-
-
-def _detail(result: RunResult) -> str:
-    status = "PASS" if result.passed else "FAIL"
-    lines = [
-        f"<details><summary>{status} {result.recipe_name} [{result.renderer}]</summary>",
-        "",
-        "### Assertions",
-        "",
-    ]
-    for assertion in result.assertions:
-        mark = "PASS" if assertion.passed else "FAIL"
-        lines.append(f"- {mark} `{assertion.name}` - {assertion.detail}")
-    lines.extend(["", "### Steps", ""])
-    for step in result.steps:
-        mark = "PASS" if step.passed else "FAIL"
-        lines.append(f"- {mark} `{step.name}` - {step.detail}")
-    lines.extend(["", "</details>"])
-    return "\n".join(lines)
-
-
-def _one_line(value: str) -> str:
-    return " / ".join(part.strip() for part in value.splitlines() if part.strip())
