@@ -5,7 +5,7 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
-from .protocols import ScreenRenderer
+from .protocols import ScreenRenderer as ScreenRenderer
 
 
 class SvgRenderer:
@@ -59,7 +59,7 @@ class PngRenderer:
         padding = 18
         width = max(320, cols * char_width + padding * 2)
         height = max(160, rows * line_height + padding * 2)
-        image = Image.new("RGB", (width, height), "#101418")
+        image = Image.new("RGB", (int(width), int(height)), "#101418")
         draw = ImageDraw.Draw(image)
 
         for index, line in enumerate(text.splitlines()[:rows] or [""]):

@@ -24,8 +24,9 @@ class ResolveAggFallbackTests(unittest.TestCase):
     @patch("termproof.evidence.resolve_agg", return_value=None)
     def test_render_artifacts_skips_video_when_no_agg(self, resolve_agg) -> None:
         """Video rendering should be silently skipped when no agg is available."""
-        from termproof.evidence import render_artifacts
         import tempfile
+
+        from termproof.evidence import render_artifacts
 
         with tempfile.TemporaryDirectory() as tmp:
             run_dir = Path(tmp) / "run"

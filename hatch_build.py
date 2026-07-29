@@ -5,7 +5,6 @@ from pathlib import Path
 
 from hatchling.builders.hooks.plugin.interface import BuildHookInterface
 
-
 _WHEEL_TAGS = {
     "linux-x86_64": "py3-none-manylinux_2_17_x86_64",
     "macos-arm64": "py3-none-macosx_11_0_arm64",

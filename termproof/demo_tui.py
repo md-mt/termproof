@@ -146,8 +146,8 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _emit(lines: list[str], delay: float) -> None:
-    for l in lines:
-        print(l, flush=True)
+    for line in lines:
+        print(line, flush=True)
         if delay:
             time.sleep(delay)
 

@@ -17,14 +17,12 @@ from .models import (
     Recipe,
     RunResult,
     StepResult,
-    load_recipe,
     score_from_assertions,
 )
 from .protocols import SessionBackend
 from .registry import Registry
 from .screen import replay_cast
 from .session import TerminalSession
-
 
 # -- registry builders -------------------------------------------------------
 
@@ -282,8 +280,8 @@ class VerificationRunner:
         action_name = step["action"]
         try:
             action = self.step_registry.get(action_name)
-        except KeyError:
-            raise ValueError(f"unknown step action: {action_name}")
+        except KeyError as err:
+            raise ValueError(f"unknown step action: {action_name}") from err
         return action.execute(session, step, index)
 
     def evaluate_assertions(
@@ -347,8 +345,8 @@ class VerificationRunner:
         kind = assertion["type"]
         try:
             evaluator = self.assertion_registry.get(kind)
-        except KeyError:
-            raise ValueError(f"unknown assertion type: {kind}")
+        except KeyError as err:
+            raise ValueError(f"unknown assertion type: {kind}") from err
         return evaluator.evaluate(recipe, assertion, screen, raw_output, exit_code)
 
 

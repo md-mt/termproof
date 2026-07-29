@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from pathlib import Path
-from .protocols import VideoBackend
+
+from .protocols import VideoBackend as VideoBackend
 
 
 class AggFfmpegBackend:

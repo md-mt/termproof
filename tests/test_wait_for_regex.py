@@ -138,8 +138,9 @@ class WaitForRegexStepTest(unittest.TestCase):
 
     def test_wait_for_regex_zero_timeout_fails_fast(self):
         """Zero timeout_seconds must produce an immediate failure, not hang."""
-        from termproof.builtin_steps import WaitForRegex
         import unittest.mock as mock
+
+        from termproof.builtin_steps import WaitForRegex
         step_action = WaitForRegex()
         fake_session = mock.Mock()
         fake_session.screen = "some screen"
@@ -151,8 +152,9 @@ class WaitForRegexStepTest(unittest.TestCase):
 
     def test_wait_for_regex_negative_timeout_fails_fast(self):
         """Negative timeout_seconds must produce an immediate failure."""
-        from termproof.builtin_steps import WaitForRegex
         import unittest.mock as mock
+
+        from termproof.builtin_steps import WaitForRegex
         step_action = WaitForRegex()
         fake_session = mock.Mock()
         fake_session.screen = "screen"
@@ -163,8 +165,9 @@ class WaitForRegexStepTest(unittest.TestCase):
 
     def test_wait_for_regex_nan_timeout_fails_fast(self):
         """NaN timeout_seconds must produce an immediate failure, not hang."""
-        from termproof.builtin_steps import WaitForRegex
         import unittest.mock as mock
+
+        from termproof.builtin_steps import WaitForRegex
         step_action = WaitForRegex()
         fake_session = mock.Mock()
         fake_session.screen = ""
@@ -176,8 +179,9 @@ class WaitForRegexStepTest(unittest.TestCase):
 
     def test_wait_for_regex_infinity_timeout_fails_fast(self):
         """Inf timeout_seconds must produce an immediate failure."""
-        from termproof.builtin_steps import WaitForRegex
         import unittest.mock as mock
+
+        from termproof.builtin_steps import WaitForRegex
         step_action = WaitForRegex()
         fake_session = mock.Mock()
         fake_session.screen = ""
@@ -189,8 +193,9 @@ class WaitForRegexStepTest(unittest.TestCase):
 
     def test_wait_for_regex_non_string_pattern_fails_fast(self):
         """Non-string pattern (e.g. dict/list) must produce immediate failure."""
-        from termproof.builtin_steps import WaitForRegex
         import unittest.mock as mock
+
+        from termproof.builtin_steps import WaitForRegex
         step_action = WaitForRegex()
         fake_session = mock.Mock()
         fake_session.screen = "screen"
@@ -203,8 +208,9 @@ class WaitForRegexStepTest(unittest.TestCase):
 
     def test_wait_for_regex_non_numeric_timeout_fails_fast(self):
         """Non-numeric timeout_seconds must produce immediate failure."""
-        from termproof.builtin_steps import WaitForRegex
         import unittest.mock as mock
+
+        from termproof.builtin_steps import WaitForRegex
         step_action = WaitForRegex()
         fake_session = mock.Mock()
         fake_session.screen = "screen"

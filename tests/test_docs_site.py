@@ -8,7 +8,6 @@ from pathlib import Path
 
 import yaml
 
-
 ROOT = Path(__file__).resolve().parents[1]
 DOCS_SITE = ROOT / "docs-site"
 CONFIG = DOCS_SITE / ".vitepress" / "config.mts"

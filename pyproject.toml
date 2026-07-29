@@ -65,5 +65,43 @@ build-backend = "hatchling.build"
 
 [dependency-groups]
 dev = [
-    "pytest>=9.1.1",
+    "coverage>=7.6",
+    "mypy>=1.13",
+    "ruff>=0.8",
 ]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests use long inline assertion messages and occasional throwaway locals/loop vars.
+"tests/**" = ["E501", "F841", "B007"]
+# These modules embed long single-line SVG/recipe string literals that read worse when wrapped.
+"termproof/builtin_renderers.py" = ["E501"]
+"termproof/demo.py" = ["E501"]
+"termproof/demo_tui.py" = ["E501"]
+"termproof/screen.py" = ["E501"]
+"termproof/visual_diff.py" = ["E501"]
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+
+# runner.py builds registries with `lambda c=cls: c()` factories; mypy cannot infer
+# the type of a lambda with a default argument ("Cannot infer type of lambda" [misc]).
+# This is a known mypy limitation for that pattern, so scope the noisy code down here
+# rather than rewrite the working registry-wiring code.
+[[tool.mypy.overrides]]
+module = "termproof.runner"
+disable_error_code = ["misc"]
+
+[tool.coverage.run]
+branch = true
+source = ["termproof"]
+
+[tool.coverage.report]
+show_missing = true

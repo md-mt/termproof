@@ -227,7 +227,7 @@ class CuratedSiteArtifactsTest(unittest.TestCase):
     def test_site_artifacts_exist(self) -> None:
         base = ROOT / "site/artifacts"
         self.assertTrue(base.is_dir(),
-                        f"site/artifacts/ must exist as curated evidence for Pages")
+                        "site/artifacts/ must exist as curated evidence for Pages")
         # Generic TUI
         self.assertTrue((base / "generic-tui-workflow/final.svg").is_file(),
                         "site/artifacts/generic-tui-workflow/final.svg must exist")
@@ -249,7 +249,6 @@ class BuiltSiteLinkTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         # Build _site locally to validate links
-        import subprocess
         import shutil
         cls._site = ROOT / "_site"
         # Clean previous build

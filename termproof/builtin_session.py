@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Any
 
 from .config import DockerBackendConfig
-from .protocols import SessionBackend
+from .protocols import SessionBackend as SessionBackend
 from .session import TerminalSession
 
 
