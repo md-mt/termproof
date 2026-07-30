@@ -20,6 +20,13 @@ on:
 permissions:
   contents: read
 
+# Allow only one concurrent deployment, skipping runs queued between the run
+# in-progress and latest queued. Do not cancel in-progress runs so a deploy
+# finishes cleanly.
+concurrency:
+  group: "docs-site-pages"
+  cancel-in-progress: false
+
 jobs:
   build:
     name: Build VitePress docs
@@ -34,6 +41,10 @@ jobs:
         with:
           node-version: "22"
 
+      - name: Configure Pages
+        if: github.event_name != 'pull_request'
+        uses: actions/configure-pages@v5
+
       - name: Install docs dependencies
         run: npm install --prefix docs-site --no-package-lock
 
@@ -46,3 +57,27 @@ jobs:
           name: termproof-docs-site
           path: docs-site/.vitepress/dist
           if-no-files-found: error
+
+      - name: Upload Pages artifact
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs-site/.vitepress/dist
+
+  # Deploy only on push to main (or manual dispatch); pull requests build only.
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
