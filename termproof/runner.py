@@ -197,7 +197,7 @@ class VerificationRunner:
         write_result_files(run_dir, result)
         return result
 
-    def _run_agent_driven(
+    def run_agent_driven(
         self,
         recipe: Recipe,
         run_dir: Path,
@@ -208,7 +208,7 @@ class VerificationRunner:
             agent_runner = CodexCliAgentRunner.from_recipe(recipe)
         return AgentDrivenRunner(agent_runner).run(recipe, run_dir)
 
-    def _run_pty(
+    def run_pty(
         self,
         recipe: Recipe,
         run_dir: Path,
@@ -239,7 +239,7 @@ class VerificationRunner:
                 session.wait_for_idle(0.5, min(3, recipe.timeout_seconds))
             return steps, session.raw_output, session.exit_code, session.screen
 
-    def _run_process(
+    def run_process(
         self,
         recipe: Recipe,
         run_dir: Path,
@@ -286,7 +286,7 @@ class VerificationRunner:
             raise ValueError(f"unknown step action: {action_name}")
         return action.execute(session, step, index)
 
-    def _evaluate_assertions(
+    def evaluate_assertions(
         self,
         recipe: Recipe,
         screen: str,
@@ -300,6 +300,41 @@ class VerificationRunner:
             self._evaluate_assertion(recipe, assertion, screen, raw_output, exit_code)
             for assertion in assertions
         ]
+
+    # -- deprecated private aliases (retained for backward compatibility) -----
+    # The public ``run_*`` / ``evaluate_assertions`` methods above are the
+    # stable surface for ExecutionMode plugins. These underscore-prefixed
+    # aliases delegate to them so existing callers keep working.
+
+    def _run_agent_driven(
+        self,
+        recipe: Recipe,
+        run_dir: Path,
+    ) -> tuple[list[StepResult], list[AssertionResult], str, int | None, str]:
+        return self.run_agent_driven(recipe, run_dir)
+
+    def _run_pty(
+        self,
+        recipe: Recipe,
+        run_dir: Path,
+    ) -> tuple[list[StepResult], str, int | None, str]:
+        return self.run_pty(recipe, run_dir)
+
+    def _run_process(
+        self,
+        recipe: Recipe,
+        run_dir: Path,
+    ) -> tuple[list[StepResult], str, int | None, str]:
+        return self.run_process(recipe, run_dir)
+
+    def _evaluate_assertions(
+        self,
+        recipe: Recipe,
+        screen: str,
+        raw_output: str,
+        exit_code: int | None,
+    ) -> list[AssertionResult]:
+        return self.evaluate_assertions(recipe, screen, raw_output, exit_code)
 
     def _evaluate_assertion(
         self,

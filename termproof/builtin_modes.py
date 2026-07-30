@@ -18,8 +18,8 @@ class ScriptedPtyMode:
         recipe: Recipe,
         run_dir: Path,
     ) -> tuple[list[StepResult], list[AssertionResult], str, int | None, str]:
-        steps, raw_output, exit_code, screen = runner._run_pty(recipe, run_dir)
-        assertions = runner._evaluate_assertions(recipe, screen, raw_output, exit_code)
+        steps, raw_output, exit_code, screen = runner.run_pty(recipe, run_dir)
+        assertions = runner.evaluate_assertions(recipe, screen, raw_output, exit_code)
         return steps, assertions, raw_output, exit_code, screen
 
 
@@ -34,8 +34,8 @@ class ScriptedProcessMode:
         recipe: Recipe,
         run_dir: Path,
     ) -> tuple[list[StepResult], list[AssertionResult], str, int | None, str]:
-        steps, raw_output, exit_code, screen = runner._run_process(recipe, run_dir)
-        assertions = runner._evaluate_assertions(recipe, screen, raw_output, exit_code)
+        steps, raw_output, exit_code, screen = runner.run_process(recipe, run_dir)
+        assertions = runner.evaluate_assertions(recipe, screen, raw_output, exit_code)
         return steps, assertions, raw_output, exit_code, screen
 
 
@@ -50,4 +50,4 @@ class AgentDrivenMode:
         recipe: Recipe,
         run_dir: Path,
     ) -> tuple[list[StepResult], list[AssertionResult], str, int | None, str]:
-        return runner._run_agent_driven(recipe, run_dir)
+        return runner.run_agent_driven(recipe, run_dir)
