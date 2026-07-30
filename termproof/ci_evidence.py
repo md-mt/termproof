@@ -9,7 +9,7 @@ from typing import Any
 
 from .before_after import build_before_after
 from .evidence_publish import rewrite_screenshot_links
-from .models import AssertionResult, RunResult, StepResult
+from .models import RunResult
 
 DEFAULT_RECEIPT = Path("docs/ci/evidence-receipt.json")
 
@@ -91,7 +91,7 @@ def load_results(root: Path) -> list[RunResult]:
     if not root.exists():
         return []
     return [
-        _result_from_mapping(json.loads(path.read_text(encoding="utf-8")))
+        RunResult.from_dict(json.loads(path.read_text(encoding="utf-8")))
         for path in sorted(root.rglob("result.json"))
     ]
 
@@ -174,22 +174,6 @@ def _truncate(text: str, limit: int) -> str:
     return (
         f"{text[:limit]}\n\n_Report truncated. Download the "
         "`termproof-ci-evidence` artifact from the run for the full report._"
-    )
-
-
-def _result_from_mapping(data: dict[str, Any]) -> RunResult:
-    return RunResult(
-        recipe_name=data["recipe_name"],
-        passed=bool(data["passed"]),
-        exit_code=data["exit_code"],
-        duration_seconds=float(data["duration_seconds"]),
-        priority=data["priority"],
-        execution=data["execution"],
-        renderer=data["renderer"],
-        score=float(data["score"]),
-        steps=[StepResult(**step) for step in data.get("steps", [])],
-        assertions=[AssertionResult(**assertion) for assertion in data.get("assertions", [])],
-        artifacts=dict(data.get("artifacts", {})),
     )
 
 

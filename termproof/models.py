@@ -45,12 +45,35 @@ class StepResult:
     detail: str
     screen: str
 
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "name": self.name,
+            "passed": self.passed,
+            "detail": self.detail,
+            "screen": self.screen,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> StepResult:
+        return cls(**data)
+
 
 @dataclass(frozen=True)
 class AssertionResult:
     name: str
     passed: bool
     detail: str
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "name": self.name,
+            "passed": self.passed,
+            "detail": self.detail,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> AssertionResult:
+        return cls(**data)
 
 
 @dataclass(frozen=True)
@@ -77,10 +100,29 @@ class RunResult:
             "execution": self.execution,
             "renderer": self.renderer,
             "score": self.score,
-            "steps": [step.__dict__ for step in self.steps],
-            "assertions": [assertion.__dict__ for assertion in self.assertions],
+            "steps": [step.to_dict() for step in self.steps],
+            "assertions": [assertion.to_dict() for assertion in self.assertions],
             "artifacts": self.artifacts,
         }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> RunResult:
+        return cls(
+            recipe_name=data["recipe_name"],
+            passed=bool(data["passed"]),
+            exit_code=data.get("exit_code"),
+            duration_seconds=float(data["duration_seconds"]),
+            priority=data["priority"],
+            execution=data["execution"],
+            renderer=data["renderer"],
+            score=float(data["score"]),
+            steps=[StepResult.from_dict(step) for step in data.get("steps", [])],
+            assertions=[
+                AssertionResult.from_dict(assertion)
+                for assertion in data.get("assertions", [])
+            ],
+            artifacts=dict(data.get("artifacts", {})),
+        )
 
 
 def recipe_from_mapping(data: dict[str, Any]) -> Recipe:
