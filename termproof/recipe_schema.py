@@ -2,11 +2,17 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
+from functools import lru_cache
+from importlib import resources
 from pathlib import Path
 from typing import Any
 
+import jsonschema
+
 from .config import VerifierConfig
 from .models import RECIPE_VERSION
+
+_SCHEMA_RESOURCE = "recipe-schema-v1.json"
 
 
 @dataclass(frozen=True)
@@ -18,6 +24,38 @@ class ValidationIssue:
 
 def has_errors(issues: list[ValidationIssue]) -> bool:
     return any(issue.severity == "error" for issue in issues)
+
+
+@lru_cache(maxsize=1)
+def load_recipe_schema() -> dict[str, Any]:
+    """Load the canonical recipe JSON schema shipped as a package resource."""
+    resource = resources.files("termproof").joinpath("_resources", _SCHEMA_RESOURCE)
+    if resource.is_file():
+        return json.loads(resource.read_text(encoding="utf-8"))
+    # Source-tree fallback: the canonical schema lives under docs/ and is only
+    # force-included into the built wheel under termproof/_resources/.
+    docs_schema = Path(__file__).resolve().parent.parent / "docs" / _SCHEMA_RESOURCE
+    return json.loads(docs_schema.read_text(encoding="utf-8"))
+
+
+@lru_cache(maxsize=1)
+def _schema_validator() -> jsonschema.protocols.Validator:
+    schema = load_recipe_schema()
+    validator_cls = jsonschema.validators.validator_for(schema)
+    validator_cls.check_schema(schema)
+    return validator_cls(schema)
+
+
+def _issue_path(error: jsonschema.ValidationError) -> str:
+    parts: list[str] = []
+    for part in error.absolute_path:
+        if isinstance(part, int):
+            parts.append(f"[{part}]")
+        elif parts:
+            parts.append(f".{part}")
+        else:
+            parts.append(str(part))
+    return "".join(parts) or "$"
 
 
 def validate_recipe_file(path: Path, config: VerifierConfig) -> list[ValidationIssue]:
@@ -35,6 +73,18 @@ def validate_recipe_mapping(
     config: VerifierConfig,
 ) -> list[ValidationIssue]:
     issues: list[ValidationIssue] = []
+    _validate_recipe_version(data, issues)
+    for error in _schema_validator().iter_errors(data):
+        # recipe_version carries a legacy-warning nuance that JSON Schema cannot
+        # express, so it is handled entirely by _validate_recipe_version above.
+        if list(error.absolute_path) == ["recipe_version"]:
+            continue
+        issues.append(ValidationIssue(_issue_path(error), error.message))
+    _validate_plugin_names(data, config, issues)
+    return issues
+
+
+def _validate_recipe_version(data: dict[str, Any], issues: list[ValidationIssue]) -> None:
     version = data.get("recipe_version")
     if version is None:
         issues.append(
@@ -47,164 +97,35 @@ def validate_recipe_mapping(
     elif not isinstance(version, int) or isinstance(version, bool) or version != RECIPE_VERSION:
         issues.append(ValidationIssue("recipe_version", "must be 1"))
 
-    _require_str(data, "name", issues)
-    _validate_command(data.get("command"), issues)
-    _validate_positive_number(data, "timeout_seconds", issues)
-    _validate_positive_int(data, "cols", issues)
-    _validate_positive_int(data, "rows", issues)
-    _validate_expect_exit_code(data.get("expect_exit_code"), issues)
-    _validate_optional_string(data, "priority", issues)
-    _validate_optional_string(data, "execution", issues)
-    _validate_optional_string(data, "determinism", issues)
-    _validate_string_list(data, "checks", issues)
-    _validate_string_list(data, "ci_paths", issues)
-    _validate_object(data, "operator", issues)
-    _validate_renderers(data.get("renderers"), issues)
-    _validate_steps(data.get("steps", []), config, issues)
-    _validate_assertions(data.get("assertions", []), config, issues)
-    return issues
 
-
-def _require_str(data: dict[str, Any], key: str, issues: list[ValidationIssue]) -> None:
-    value = data.get(key)
-    if not isinstance(value, str) or not value:
-        issues.append(ValidationIssue(key, "must be a non-empty string"))
-
-
-def _validate_optional_string(
+def _validate_plugin_names(
     data: dict[str, Any],
-    key: str,
-    issues: list[ValidationIssue],
-) -> None:
-    value = data.get(key)
-    if value is not None and not isinstance(value, str):
-        issues.append(ValidationIssue(key, "must be a string"))
-
-
-def _validate_command(value: Any, issues: list[ValidationIssue]) -> None:
-    if not isinstance(value, dict):
-        issues.append(ValidationIssue("command", "must be an object"))
-        return
-    argv = value.get("argv")
-    if not isinstance(argv, list) or not argv or not all(isinstance(item, str) for item in argv):
-        issues.append(ValidationIssue("command.argv", "must be a non-empty list of strings"))
-    if value.get("cwd") is not None and not isinstance(value.get("cwd"), str):
-        issues.append(ValidationIssue("command.cwd", "must be a string"))
-    env = value.get("env", {})
-    if not isinstance(env, dict) or not all(
-        isinstance(key, str) and isinstance(item, str) for key, item in env.items()
-    ):
-        issues.append(ValidationIssue("command.env", "must be an object of string values"))
-    if value.get("pty") is not None and not isinstance(value.get("pty"), bool):
-        issues.append(ValidationIssue("command.pty", "must be true or false"))
-
-
-def _validate_positive_number(
-    data: dict[str, Any],
-    key: str,
-    issues: list[ValidationIssue],
-) -> None:
-    value = data.get(key)
-    if value is not None and (
-        not isinstance(value, (int, float)) or isinstance(value, bool) or value <= 0
-    ):
-        issues.append(ValidationIssue(key, "must be a positive number"))
-
-
-def _validate_positive_int(
-    data: dict[str, Any],
-    key: str,
-    issues: list[ValidationIssue],
-) -> None:
-    value = data.get(key)
-    if value is not None and (not isinstance(value, int) or isinstance(value, bool) or value <= 0):
-        issues.append(ValidationIssue(key, "must be a positive integer"))
-
-
-def _validate_expect_exit_code(value: Any, issues: list[ValidationIssue]) -> None:
-    if value is not None and (not isinstance(value, int) or isinstance(value, bool)):
-        issues.append(ValidationIssue("expect_exit_code", "must be an integer or null"))
-
-
-def _validate_string_list(
-    data: dict[str, Any],
-    key: str,
-    issues: list[ValidationIssue],
-) -> None:
-    value = data.get(key)
-    if value is not None and (
-        not isinstance(value, list) or not all(isinstance(item, str) for item in value)
-    ):
-        issues.append(ValidationIssue(key, "must be a list of strings"))
-
-
-def _validate_object(data: dict[str, Any], key: str, issues: list[ValidationIssue]) -> None:
-    value = data.get(key)
-    if value is not None and not isinstance(value, dict):
-        issues.append(ValidationIssue(key, "must be an object"))
-
-
-def _validate_renderers(value: Any, issues: list[ValidationIssue]) -> None:
-    if value is None:
-        return
-    if not isinstance(value, dict):
-        issues.append(ValidationIssue("renderers", "must be an object"))
-        return
-    for name, argv in value.items():
-        if not isinstance(name, str) or not isinstance(argv, list) or not all(
-            isinstance(item, str) for item in argv
-        ):
-            issues.append(ValidationIssue(f"renderers.{name}", "must be a list of strings"))
-
-
-def _validate_steps(
-    value: Any,
     config: VerifierConfig,
     issues: list[ValidationIssue],
 ) -> None:
-    if not isinstance(value, list):
-        issues.append(ValidationIssue("steps", "must be a list"))
-        return
-    for index, step in enumerate(value):
-        path = f"steps[{index}]"
-        if not isinstance(step, dict):
-            issues.append(ValidationIssue(path, "must be an object"))
-            continue
-        action = step.get("action")
-        if not isinstance(action, str):
-            issues.append(ValidationIssue(f"{path}.action", "must be a string"))
-        elif action not in config.steps:
-            issues.append(ValidationIssue(f"{path}.action", f"unknown step action {action!r}"))
-        _validate_step_timeout(step, path, issues)
-
-
-def _validate_step_timeout(
-    step: dict[str, Any],
-    path: str,
-    issues: list[ValidationIssue],
-) -> None:
-    value = step.get("timeout_seconds")
-    if value is not None and (
-        not isinstance(value, (int, float)) or isinstance(value, bool) or value <= 0
-    ):
-        issues.append(ValidationIssue(f"{path}.timeout_seconds", "must be a positive number"))
-
-
-def _validate_assertions(
-    value: Any,
-    config: VerifierConfig,
-    issues: list[ValidationIssue],
-) -> None:
-    if not isinstance(value, list):
-        issues.append(ValidationIssue("assertions", "must be a list"))
-        return
-    for index, assertion in enumerate(value):
-        path = f"assertions[{index}]"
-        if not isinstance(assertion, dict):
-            issues.append(ValidationIssue(path, "must be an object"))
-            continue
-        kind = assertion.get("type")
-        if not isinstance(kind, str):
-            issues.append(ValidationIssue(f"{path}.type", "must be a string"))
-        elif kind not in config.assertions:
-            issues.append(ValidationIssue(f"{path}.type", f"unknown assertion type {kind!r}"))
+    # Plugin-registry membership depends on runtime config and cannot be encoded
+    # in the static JSON Schema, so these checks stay in Python.
+    steps = data.get("steps")
+    if isinstance(steps, list):
+        for index, step in enumerate(steps):
+            if isinstance(step, dict):
+                action = step.get("action")
+                if isinstance(action, str) and action not in config.steps:
+                    issues.append(
+                        ValidationIssue(
+                            f"steps[{index}].action",
+                            f"unknown step action {action!r}",
+                        )
+                    )
+    assertions = data.get("assertions")
+    if isinstance(assertions, list):
+        for index, assertion in enumerate(assertions):
+            if isinstance(assertion, dict):
+                kind = assertion.get("type")
+                if isinstance(kind, str) and kind not in config.assertions:
+                    issues.append(
+                        ValidationIssue(
+                            f"assertions[{index}].type",
+                            f"unknown assertion type {kind!r}",
+                        )
+                    )
