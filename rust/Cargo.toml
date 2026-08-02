@@ -1,0 +1,45 @@
+# TermProof Rust workspace manifest.
+#
+# The entire Rust implementation lives in this dedicated `rust/` directory so
+# the Cargo metadata never collides with the Python package at the repository
+# root. The Python implementation, packaging, and docs remain at the top level
+# and are the executable default until the parity gates in
+# docs/rust-reimplementation-spec.md (section 11) pass.
+#
+# Policies that govern this workspace (formatting, linting, errors, tracing,
+# dependencies, features, unsafe code) are documented in
+# rust/docs/engineering-baseline.md.
+
+[workspace]
+resolver = "2"
+members = [
+    "crates/termproof-cli",
+    "crates/termproof-core",
+    "crates/termproof-terminal",
+    "crates/termproof-evidence",
+    "crates/termproof-plugin-protocol",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.96"
+license = "MIT"
+repository = "https://github.com/md-mt/termproof"
+authors = ["TermProof maintainers"]
+description = "Evidence-first verification for TUI and terminal applications (Rust reimplementation)"
+
+# Workspace-wide lint policy. Every crate inherits these via `[lints] workspace = true`.
+# CI enforces `cargo clippy --all-targets --all-features -- -D warnings`, so warnings
+# here are effectively denied at the gate. See rust/docs/engineering-baseline.md.
+[workspace.lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"
+
+[workspace.lints.clippy]
+all = "warn"
+
+# Shared dependency pins. Crates opt in via `foo.workspace = true`.
+# No dependency may be added without a documented reason in engineering-baseline.md.
+[workspace.dependencies]
+termproof-core = { path = "crates/termproof-core" }
