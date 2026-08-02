@@ -1,0 +1,15 @@
+[package]
+name = "termproof-terminal"
+description = "TermProof PTY/process sessions, terminal screen, cast recording"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]

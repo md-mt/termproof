@@ -1,0 +1,11 @@
+# Pin the Rust toolchain for this workspace.
+#
+# `rustup` (used by CI and most developers) reads this file and installs the
+# pinned channel automatically. Homebrew/manual installs should install the
+# same stable channel. MSRV is documented in rust/docs/engineering-baseline.md
+# and reflected in `rust-version` in Cargo.toml.
+
+[toolchain]
+channel = "stable"
+components = ["rustfmt", "clippy"]
+profile = "minimal"
