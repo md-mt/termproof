@@ -266,7 +266,6 @@ class SupportRoutingTest(unittest.TestCase):
     Discussions (feature disabled) are banned.
     """
 
-    OWN_REPO = "md-mt/termproof"
     OWN_DISCUSSIONS_URL = "github.com/md-mt/termproof/discussions"
     RUNBOOK = ROOT / "docs" / "launch" / "runbook.md"
 
