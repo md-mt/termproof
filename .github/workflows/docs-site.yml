@@ -41,8 +41,13 @@ jobs:
         with:
           node-version: "22"
 
+      # Pages-specific steps are gated on BOTH a non-PR event and
+      # ENABLE_PAGES == 'true': configure-pages calls the Pages API and throws
+      # on repositories without a Pages site, which would otherwise fail a
+      # main push before the deploy-skipped notice can run. The generic
+      # preview artifact below stays unconditional.
       - name: Configure Pages
-        if: github.event_name != 'pull_request'
+        if: github.event_name != 'pull_request' && vars.ENABLE_PAGES == 'true'
         uses: actions/configure-pages@v5
 
       - name: Install docs dependencies
@@ -59,7 +64,7 @@ jobs:
           if-no-files-found: error
 
       - name: Upload Pages artifact
-        if: github.event_name != 'pull_request'
+        if: github.event_name != 'pull_request' && vars.ENABLE_PAGES == 'true'
         uses: actions/upload-pages-artifact@v3
         with:
           path: docs-site/.vitepress/dist

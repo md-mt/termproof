@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import ast
 import json
+import re
 import unittest
 from pathlib import Path
 
@@ -11,6 +13,36 @@ ROOT = Path(__file__).resolve().parents[1]
 DOCS_SITE = ROOT / "docs-site"
 CONFIG = DOCS_SITE / ".vitepress" / "config.mts"
 WORKFLOW = ROOT / ".github" / "workflows" / "docs-site.yml"
+
+
+def _evaluate_github_condition(
+    cond: str,
+    *,
+    event_name: str,
+    ref: str = "",
+    enable_pages: str = "false",
+) -> bool:
+    """Evaluate the subset of GitHub Actions ``if`` expressions used by
+    docs-site.yml (``==``, ``!=``, ``&&``, ``||``, parentheses) against the
+    given inputs.
+
+    Only the three variables the workflow references are supported and string
+    literals are inert, so evaluation is safe.
+    """
+    if not cond or not cond.strip():
+        return True
+    py = re.sub(r"\s+", " ", cond.strip())
+    py = py.replace("!=", "__NE__")
+    py = py.replace("&&", " and ").replace("||", " or ")
+    py = py.replace("==", " == ")
+    py = re.sub(r"!", " not ", py)
+    py = py.replace("__NE__", " != ")
+    py = py.replace("github.event_name", "event_name")
+    py = py.replace("github.ref", "ref")
+    py = py.replace("vars.ENABLE_PAGES", "enable_pages")
+    tree = ast.parse(py, mode="eval")
+    namespace = {"event_name": event_name, "ref": ref, "enable_pages": enable_pages}
+    return bool(eval(compile(tree, "<condition>", "eval"), {"__builtins__": {}}, namespace))
 
 
 class DocsSiteTest(unittest.TestCase):
@@ -104,7 +136,117 @@ class DocsSiteDeployTest(unittest.TestCase):
         build = workflow["jobs"]["build"]
         steps = build["steps"]
         upload = next(s for s in steps if "upload-pages-artifact" in s.get("uses", ""))
-        self.assertEqual("github.event_name != 'pull_request'", upload["if"])
+        self.assertEqual(
+            "github.event_name != 'pull_request' && vars.ENABLE_PAGES == 'true'",
+            upload["if"],
+        )
+
+    def test_docs_site_pages_steps_enumerated_and_gated(self) -> None:
+        """Every Pages-specific step (Configure Pages, Upload Pages artifact)
+        must be gated on BOTH non-PR events AND ``vars.ENABLE_PAGES == 'true'``
+        so a repository with Pages disabled never reaches the Pages API."""
+        workflow = self._workflow()
+        steps = workflow["jobs"]["build"]["steps"]
+
+        pages_steps = [
+            s
+            for s in steps
+            if "actions/configure-pages@" in s.get("uses", "")
+            or "actions/upload-pages-artifact@" in s.get("uses", "")
+        ]
+        self.assertGreaterEqual(len(pages_steps), 2)
+        for step in pages_steps:
+            cond = step.get("if", "")
+            self.assertIn("github.event_name != 'pull_request'", cond)
+            self.assertIn("vars.ENABLE_PAGES == 'true'", cond)
+
+    def test_docs_site_disabled_opt_out_runs_no_pages_steps(self) -> None:
+        """Structurally simulate the disabled opt-out path: a main push with
+        ``ENABLE_PAGES != 'true'`` must skip every Pages-specific step so the
+        build job succeeds and the deploy-skipped notice can run."""
+        workflow = self._workflow()
+        steps = workflow["jobs"]["build"]["steps"]
+
+        pages_steps = [
+            s
+            for s in steps
+            if "actions/configure-pages@" in s.get("uses", "")
+            or "actions/upload-pages-artifact@" in s.get("uses", "")
+        ]
+        self.assertTrue(pages_steps, "expected Pages-specific steps in build job")
+        for step in pages_steps:
+            self.assertFalse(
+                _evaluate_github_condition(
+                    step.get("if", ""),
+                    event_name="push",
+                    ref="refs/heads/main",
+                    enable_pages="false",
+                ),
+                f"{step.get('name')} must be skipped when ENABLE_PAGES is not 'true'",
+            )
+
+        # deploy job must not run and the skipped notice must run.
+        self.assertFalse(
+            _evaluate_github_condition(
+                workflow["jobs"]["deploy"]["if"],
+                event_name="push",
+                ref="refs/heads/main",
+                enable_pages="false",
+            )
+        )
+        self.assertTrue(
+            _evaluate_github_condition(
+                workflow["jobs"]["deploy-skipped"]["if"],
+                event_name="push",
+                ref="refs/heads/main",
+                enable_pages="false",
+            )
+        )
+
+    def test_docs_site_enabled_path_still_runs_pages_steps(self) -> None:
+        """When Pages is enabled, Configure Pages and Upload Pages artifact run
+        on non-PR events and never on pull requests."""
+        workflow = self._workflow()
+        steps = workflow["jobs"]["build"]["steps"]
+        pages_steps = [
+            s
+            for s in steps
+            if "actions/configure-pages@" in s.get("uses", "")
+            or "actions/upload-pages-artifact@" in s.get("uses", "")
+        ]
+        for step in pages_steps:
+            self.assertTrue(
+                _evaluate_github_condition(
+                    step.get("if", ""),
+                    event_name="push",
+                    ref="refs/heads/main",
+                    enable_pages="true",
+                ),
+                f"{step.get('name')} should run on main push when ENABLE_PAGES is 'true'",
+            )
+            self.assertFalse(
+                _evaluate_github_condition(
+                    step.get("if", ""),
+                    event_name="pull_request",
+                    ref="refs/heads/main",
+                    enable_pages="true",
+                ),
+                f"{step.get('name')} must never run on pull_request",
+            )
+
+    def test_docs_site_generic_preview_artifact_stays_unconditional(self) -> None:
+        """The generic preview artifact (upload-artifact) must remain available
+        even when Pages is disabled or on pull requests."""
+        workflow = self._workflow()
+        steps = workflow["jobs"]["build"]["steps"]
+        preview = next(
+            s
+            for s in steps
+            if "actions/upload-artifact@" in s.get("uses", "")
+            and "pages" not in s.get("uses", "")
+        )
+        self.assertNotIn("if", preview, "generic preview artifact must be unconditional")
+        self.assertEqual("termproof-docs-site", preview["with"]["name"])
 
     def test_docs_site_workflow_yaml_parses(self) -> None:
         workflow = self._workflow()
