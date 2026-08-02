@@ -46,23 +46,25 @@ packages = ["termproof"]
 path = "hatch_build.py"
 
 [tool.hatch.build.targets.sdist]
-# Anchor every include to the repository root (leading `/`) so bare names like
-# `docs` or `termproof` cannot match nested directories (Hatch matches these
-# with gitignore semantics, which is how `rust/` leaked into the sdist before).
+# Keep the original unanchored include list (gitignore-style matching). Bare
+# names like `docs` or `tests` intentionally match nested non-Rust assets
+# (plugin-template/** and site/README.md shipped in the base revision's sdist).
+# The Rust workspace is explicitly excluded so Cargo/rustdoc artifacts can
+# never leak into the Python release artifact at this migration stage; the
+# artifact-content regression test (tests/test_sdist_artifact_content.py)
+# enforces both invariants after Cargo build/test/doc outputs exist.
 include = [
-  "/termproof",
-  "/tests",
-  "/examples",
-  "/docs",
-  "/README.md",
-  "/LICENSE",
-  "/pyproject.toml",
+  "termproof",
+  "tests",
+  "examples",
+  "docs",
+  "README.md",
+  "LICENSE",
+  "pyproject.toml",
 ]
 exclude = [
   # The Rust workspace is not yet part of the Python release artifact. Keep
-  # `rust/` out of the sdist until a milestone deliberately ships it; the
-  # artifact-content regression test (tests/test_sdist_artifact_content.py)
-  # enforces this after Cargo outputs exist.
+  # `rust/` out of the sdist until a milestone deliberately ships it.
   "/rust/",
   "examples/artifacts",
 ]
