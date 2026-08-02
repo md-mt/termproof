@@ -3,6 +3,7 @@ import { defineConfig } from "vitepress";
 export default defineConfig({
   title: "TermProof",
   description: "Evidence-first verification for terminal and TUI applications.",
+  base: "/termproof/",
   cleanUrls: true,
   themeConfig: {
     nav: [
