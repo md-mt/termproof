@@ -217,7 +217,7 @@ class IdleCapWiringTest(unittest.TestCase):
         def __init__(self) -> None:
             self.idle_calls: list[tuple[float, float]] = []
 
-        def __enter__(self) -> "IdleCapWiringTest._RecordingSession":
+        def __enter__(self) -> IdleCapWiringTest._RecordingSession:
             return self
 
         def __exit__(self, *args: object) -> None:
@@ -243,7 +243,7 @@ class IdleCapWiringTest(unittest.TestCase):
             return None
 
     class _FakeBackend:
-        def __init__(self, session: "IdleCapWiringTest._RecordingSession") -> None:
+        def __init__(self, session: IdleCapWiringTest._RecordingSession) -> None:
             self.session = session
 
         def create_session(self, argv, cast_path, cwd, env, cols, rows):
