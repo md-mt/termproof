@@ -72,6 +72,11 @@ jobs:
   # Deployment is explicitly opt-in so repos without Pages enabled do not fail CI.
   # Set repository variable ENABLE_PAGES=true and enable Pages
   # in Settings > Pages (source: GitHub Actions) to deploy.
+  #
+  # This deploy job is the SINGLE authoritative github-pages deployer for the
+  # shared docs/** and README.md triggers. pages.yml is build-validation only
+  # and must never deploy, so an ENABLE_PAGES=true push can produce at most
+  # one deployment to the github-pages environment.
   deploy:
     name: Deploy docs to GitHub Pages
     needs: build

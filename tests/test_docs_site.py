@@ -13,6 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 DOCS_SITE = ROOT / "docs-site"
 CONFIG = DOCS_SITE / ".vitepress" / "config.mts"
 WORKFLOW = ROOT / ".github" / "workflows" / "docs-site.yml"
+LEGACY_PAGES_WORKFLOW = ROOT / ".github" / "workflows" / "pages.yml"
 
 
 def _evaluate_github_condition(
@@ -252,6 +253,103 @@ class DocsSiteDeployTest(unittest.TestCase):
         workflow = self._workflow()
         self.assertIn("build", workflow["jobs"])
         self.assertIn("pull_request", workflow[True])
+
+
+class CrossWorkflowPagesDeployerTest(unittest.TestCase):
+    """Cross-workflow regression coverage for the dual-deployer Pages race.
+
+    When ENABLE_PAGES=true, exactly one authoritative workflow/deployer may
+    target the ``github-pages`` environment for the shared ``docs/**`` and
+    ``README.md`` triggers across ``.github/workflows/docs-site.yml`` and
+    ``.github/workflows/pages.yml``.  The VitePress ``docs-site.yml`` is the
+    authoritative deployer; the legacy ``pages.yml`` is build-validation only
+    and must not deploy to Pages.
+    """
+
+    @staticmethod
+    def _workflows() -> dict[str, dict]:
+        return {
+            "docs-site.yml": yaml.safe_load(WORKFLOW.read_text(encoding="utf-8")),
+            "pages.yml": yaml.safe_load(LEGACY_PAGES_WORKFLOW.read_text(encoding="utf-8")),
+        }
+
+    def test_exactly_one_authoritative_enable_pages_deployer(self) -> None:
+        """Across both workflows, at most one job may deploy to the
+        github-pages environment when ENABLE_PAGES=true.  The single
+        authoritative deployer must be docs-site.yml."""
+        workflows = self._workflows()
+        deployers: list[str] = []
+        for workflow_name, workflow in workflows.items():
+            for job_name, job in workflow.get("jobs", {}).items():
+                environment = job.get("environment")
+                if isinstance(environment, dict) and environment.get("name") == "github-pages":
+                    deployers.append(f"{workflow_name}:{job_name}")
+        self.assertEqual(
+            len(deployers),
+            1,
+            "expected exactly one authoritative github-pages deployer across "
+            f"docs-site.yml and pages.yml, found: {deployers}",
+        )
+        self.assertEqual(
+            deployers[0],
+            "docs-site.yml:deploy",
+            "the authoritative github-pages deployer must be docs-site.yml:deploy",
+        )
+
+    def test_authoritative_deployer_gated_on_enable_pages_and_main_push(self) -> None:
+        workflows = self._workflows()
+        deploy = workflows["docs-site.yml"]["jobs"]["deploy"]
+        condition = deploy["if"]
+        self.assertIn("vars.ENABLE_PAGES == 'true'", condition)
+        self.assertIn("github.event_name == 'push'", condition)
+        self.assertIn("github.ref == 'refs/heads/main'", condition)
+        self.assertEqual("github-pages", deploy["environment"]["name"])
+
+    def test_legacy_pages_workflow_is_build_validation_only(self) -> None:
+        """pages.yml must retain build validation but must not contain a
+        deploy job, a Pages artifact upload, or a github-pages environment."""
+        workflow = self._workflows()["pages.yml"]
+        jobs = workflow["jobs"]
+        # Build validation stays.
+        self.assertIn("build", jobs)
+        text = LEGACY_PAGES_WORKFLOW.read_text(encoding="utf-8")
+        self.assertIn("Validate relative links", text)
+        self.assertIn("Build site preview", text)
+        # No deploy job and no Pages environment.
+        self.assertNotIn("deploy", jobs)
+        self.assertNotIn("actions/deploy-pages@", text)
+        self.assertNotIn("actions/upload-pages-artifact@", text)
+        self.assertNotIn("name: github-pages", text)
+
+    def test_legacy_pages_workflow_uses_least_privilege_permissions(self) -> None:
+        """Without a Pages deployer, pages.yml must not request pages:write or
+        id-token:write at workflow scope."""
+        workflow = self._workflows()["pages.yml"]
+        permissions = workflow.get("permissions", {})
+        self.assertEqual(
+            {"contents": "read"},
+            permissions,
+            "pages.yml (build-validation only) must request only contents:read",
+        )
+
+    def test_single_concurrency_regime(self) -> None:
+        """The authoritative deployer uses one concurrency group; the legacy
+        workflow must not share a Pages deploy concurrency group."""
+        workflows = self._workflows()
+        docs_concurrency = workflows["docs-site.yml"].get("concurrency")
+        self.assertIsNotNone(docs_concurrency)
+        self.assertIn("group", docs_concurrency)
+        pages_text = LEGACY_PAGES_WORKFLOW.read_text(encoding="utf-8")
+        # Legacy workflow must not reference the authoritative deploy group.
+        self.assertNotIn(docs_concurrency["group"], pages_text)
+
+    def test_shared_triggers_covered_by_authoritative_workflow(self) -> None:
+        """Shared docs/** and README.md triggers must be covered by the
+        authoritative docs-site.yml push trigger."""
+        workflow = self._workflows()["docs-site.yml"]
+        push_paths = workflow.get(True, {}).get("push", {}).get("paths", [])
+        self.assertIn("docs/**", push_paths)
+        self.assertIn("README.md", push_paths)
 
 
 if __name__ == "__main__":
