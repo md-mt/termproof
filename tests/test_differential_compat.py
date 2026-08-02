@@ -277,6 +277,31 @@ class DifferentialCompatibilityTest(unittest.TestCase):
                 data.pop("command")
             self.assert_same_verdict(data, label)
 
+    def test_missing_required_nested_paths_match_legacy_exactly(self) -> None:
+        # Oracle cases for nested missing-required diagnostics. The legacy
+        # validator reported the missing property's path with no leading dot
+        # (command.argv, steps[0].action, assertions[0].type); the JSON Schema
+        # attaches these errors to the containing object, so the recovered
+        # path must be formatted with the same first-component rules as the
+        # normal formatter. Any leading dot is a public diagnostic regression.
+        cases = {
+            "command_empty_object": _base_recipe(command={}),
+            "step_empty_object": _base_recipe(steps=[{}]),
+            "assertion_empty_object": _base_recipe(assertions=[{}]),
+        }
+        for label, data in cases.items():
+            # Bidirectional coverage (the usual differential contract) plus
+            # exact path equality for this family: the frozen base reports
+            # these paths verbatim, so the consolidated validator must too.
+            self.assert_same_verdict(data, label)
+            legacy_errors = sorted(p for p, s in _legacy_verdict(data) if s == "error")
+            new_errors = sorted(p for p, s in _new_verdict(data) if s == "error")
+            self.assertEqual(
+                legacy_errors,
+                new_errors,
+                f"{label}: exact path drift legacy={legacy_errors} new={new_errors}",
+            )
+
     def test_accepted_legacy_corpus_is_still_accepted(self) -> None:
         """A representative corpus of recipes the legacy validator accepted
         (the shipped example recipes) must still be accepted with identical

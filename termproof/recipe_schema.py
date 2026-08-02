@@ -48,6 +48,25 @@ def _schema_validator() -> jsonschema.protocols.Validator:
     return validator_cls(schema)
 
 
+def _format_path(parts: list[str | int]) -> str:
+    """Render a jsonschema absolute path as a legacy-compatible dotted path.
+
+    The first string component is rendered bare, subsequent string components
+    are dot-prefixed, and integer indices use brackets (``steps[0].action``).
+    This is the single formatter for every ValidationIssue path so recovered
+    missing-required paths and ordinary error paths share the same rules.
+    """
+    rendered: list[str] = []
+    for part in parts:
+        if isinstance(part, int):
+            rendered.append(f"[{part}]")
+        elif rendered:
+            rendered.append(f".{part}")
+        else:
+            rendered.append(str(part))
+    return "".join(rendered)
+
+
 def _issue_path(error: jsonschema.ValidationError) -> str:
     # jsonschema reports missing required properties at the containing object
     # (e.g. ``$`` for a missing top-level ``command``). The legacy validator
@@ -57,20 +76,9 @@ def _issue_path(error: jsonschema.ValidationError) -> str:
         match = _REQUIRED_PROP_RE.search(error.message)
         if match:
             prop = match.group(1)
-            parent = "".join(
-                f"[{part}]" if isinstance(part, int) else f".{part}"
-                for part in error.absolute_path
-            )
+            parent = _format_path(list(error.absolute_path))
             return f"{parent}.{prop}" if parent else prop
-    parts: list[str] = []
-    for part in error.absolute_path:
-        if isinstance(part, int):
-            parts.append(f"[{part}]")
-        elif parts:
-            parts.append(f".{part}")
-        else:
-            parts.append(str(part))
-    return "".join(parts) or "$"
+    return _format_path(list(error.absolute_path)) or "$"
 
 
 # Legacy-compatibility tolerance. The pre-#93 Python validator (see

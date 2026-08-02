@@ -137,6 +137,17 @@ class RecipeSchemaStructuralTest(unittest.TestCase):
         data.pop("command")
         self.assertTrue(has_errors(validate_recipe_mapping(data, VerifierConfig.builtin())))
 
+    def test_missing_command_argv_reports_command_argv_path(self) -> None:
+        # Missing-required diagnostics inside nested objects must use the same
+        # first-component formatting as the legacy validator: no leading dot.
+        self.assertEqual(["command.argv"], self._errors(command={}))
+
+    def test_missing_step_action_reports_steps_0_action_path(self) -> None:
+        self.assertEqual(["steps[0].action"], self._errors(steps=[{}]))
+
+    def test_missing_assertion_type_reports_assertions_0_type_path(self) -> None:
+        self.assertEqual(["assertions[0].type"], self._errors(assertions=[{}]))
+
     def test_command_not_object_is_error(self) -> None:
         self.assertTrue(self._errors(command="echo"))
 
