@@ -58,26 +58,10 @@ BUILTIN_DEFAULTS: dict[str, Any] = {
         "volumes": [{"host": ".", "container": "/workspace"}],
         "env": {},
     },
-    "defaults": {
-        "timeout_seconds": 30.0,
-        "cols": 100,
-        "rows": 30,
-        "video_fps": 60,
-        "out_dir": ".termproof/runs",
-    },
 }
 
 
 # -- config model -----------------------------------------------------------
-
-@dataclass(frozen=True)
-class GlobalDefaults:
-    timeout_seconds: float = 30.0
-    cols: int = 100
-    rows: int = 30
-    video_fps: int = 60
-    out_dir: str = ".termproof/runs"
-
 
 @dataclass(frozen=True)
 class DockerBackendConfig:
@@ -100,7 +84,6 @@ class VerifierConfig:
     video_backends: dict[str, str]
     session_backend: str
     docker: DockerBackendConfig
-    defaults: GlobalDefaults
 
     @classmethod
     def builtin(cls) -> "VerifierConfig":
@@ -161,7 +144,6 @@ def load_config(
 # -- internal helpers --------------------------------------------------------
 
 def _from_mapping(data: dict[str, Any]) -> VerifierConfig:
-    defaults_raw = data.get("defaults", {})
     docker_raw = data.get("docker", {})
     docker_volumes = docker_raw.get("volumes", [{"host": ".", "container": "/workspace"}])
     return VerifierConfig(
@@ -181,13 +163,6 @@ def _from_mapping(data: dict[str, Any]) -> VerifierConfig:
                 str(key): str(value)
                 for key, value in dict(docker_raw.get("env", {})).items()
             },
-        ),
-        defaults=GlobalDefaults(
-            timeout_seconds=float(defaults_raw.get("timeout_seconds", 30.0)),
-            cols=int(defaults_raw.get("cols", 100)),
-            rows=int(defaults_raw.get("rows", 30)),
-            video_fps=int(defaults_raw.get("video_fps", 60)),
-            out_dir=str(defaults_raw.get("out_dir", ".termproof/runs")),
         ),
     )
 

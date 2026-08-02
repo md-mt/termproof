@@ -7,7 +7,6 @@ from pathlib import Path
 from termproof.config import (
     BUILTIN_DEFAULTS,
     DockerBackendConfig,
-    GlobalDefaults,
     VerifierConfig,
     load_config,
 )
@@ -21,10 +20,9 @@ class ConfigTest(unittest.TestCase):
         self.assertIn("send_text", config.steps)
         self.assertIn("output_contains", config.assertions)
         self.assertIn("exit_code", config.assertions)
-        self.assertIsInstance(config.defaults, GlobalDefaults)
         self.assertIsInstance(config.docker, DockerBackendConfig)
-        self.assertEqual(config.defaults.timeout_seconds, 30.0)
-        self.assertEqual(config.defaults.cols, 100)
+        self.assertEqual(config.docker.image, "")
+        self.assertEqual(config.docker.workdir, "/workspace")
 
     def test_load_config_returns_builtin_when_no_files_exist(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -39,16 +37,16 @@ class ConfigTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             user_yaml = tmp + "/user.yaml"
             Path(user_yaml).write_text(
-                "defaults:\n  timeout_seconds: 60\n",
+                "docker:\n  image: user-image\n",
                 encoding="utf-8",
             )
             config = load_config(
                 project_path=Path(tmp),
                 user_path=Path(user_yaml),
             )
-            self.assertEqual(config.defaults.timeout_seconds, 60.0)
-            # other defaults unchanged
-            self.assertEqual(config.defaults.cols, 100)
+            self.assertEqual(config.docker.image, "user-image")
+            # other docker settings unchanged
+            self.assertEqual(config.docker.workdir, "/workspace")
 
     def test_load_config_cascades_project_over_user_and_builtin(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -57,21 +55,23 @@ class ConfigTest(unittest.TestCase):
             config_dir = project_dir / ".termproof"
             config_dir.mkdir()
             (config_dir / "config.yaml").write_text(
-                "defaults:\n  timeout_seconds: 90\n  cols: 120\n",
+                "docker:\n  image: project-image\n  workdir: /project\n",
                 encoding="utf-8",
             )
             user_yaml = tmp + "/user.yaml"
             Path(user_yaml).write_text(
-                "defaults:\n  timeout_seconds: 60\n  rows: 40\n",
+                "docker:\n  image: user-image\n  env:\n    FROM_USER: \"1\"\n",
                 encoding="utf-8",
             )
             config = load_config(
                 project_path=project_dir,
                 user_path=Path(user_yaml),
             )
-            self.assertEqual(config.defaults.timeout_seconds, 90.0)  # project wins
-            self.assertEqual(config.defaults.cols, 120)  # project wins
-            self.assertEqual(config.defaults.rows, 40)  # user supplies, project doesn't
+            self.assertEqual(config.docker.image, "project-image")  # project wins
+            self.assertEqual(config.docker.workdir, "/project")  # project wins
+            self.assertEqual(
+                config.docker.env, {"FROM_USER": "1"}
+            )  # user supplies, project doesn't
 
     def test_custom_step_registration_in_config(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
