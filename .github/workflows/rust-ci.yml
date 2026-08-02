@@ -10,17 +10,24 @@ name: Rust CI
 #   - cargo fmt --check --all
 #   - cargo clippy --workspace --all-targets --all-features -- -D warnings
 #   - cargo test --workspace (unit + integration) and cargo doc --workspace
-#   - schema-drift gate (rust/scripts/check_schema_drift.py)
-#   - conformance gate (rust/scripts/check_conformance.py) against the real
-#     compiled binary
-#   - coverage baseline with regression rejection (cargo llvm-cov, floor 90%)
-#   - dependency/license/advisory checks (cargo-deny, rust/deny.toml)
+#   - schema-drift gate (rust/scripts/check_schema_drift.py) — canonical input
+#     docs/recipe-schema-v1.json is a path filter so schema-only PRs run it
+#   - cross-runtime conformance gate (rust/scripts/check_conformance.py):
+#     runs the SAME machine-readable M0 corpus through the Python oracle and
+#     the compiled Rust binary, writes a machine-readable difference report,
+#     fails on semantic drift (spec §6.1)
+#   - coverage non-regression gate (rust/scripts/check_coverage_regression.py)
+#     against the committed machine-readable baseline rust/coverage/baseline.json;
+#     any drop below the baseline fails (no fixed percentage floor)
+#   - dependency/license/advisory/source checks (cargo-deny, rust/deny.toml):
+#     strict, all-features, all configured categories including sources
 #   - Linux x86-64, macOS x86-64 (macos-15-intel), and macOS arm64 matrix
 #     (Tier 1 targets; macos-13 is retired, so the Intel leg uses the
 #     current macos-15-intel label)
 #
-# All third-party actions and the Rust toolchain are pinned to exact commit
-# SHAs (tag reference noted inline) so CI does not float on mutable tags.
+# All third-party actions, the Rust toolchain, and the cargo-llvm-cov /
+# cargo-deny helper tools are pinned to exact versions (actions to commit
+# SHAs, tools via install-action @version) so CI is reproducible.
 #
 # The Python oracle lint/type/version-matrix/coverage gates live in ci.yml
 # (delivered by #73/#90) and are intentionally NOT duplicated here.
@@ -30,12 +37,14 @@ on:
     paths:
       - "rust/**"
       - ".github/workflows/rust-ci.yml"
+      - "docs/recipe-schema-v1.json"
   push:
     branches:
       - main
     paths:
       - "rust/**"
       - ".github/workflows/rust-ci.yml"
+      - "docs/recipe-schema-v1.json"
   workflow_dispatch:
 
 permissions:
@@ -133,7 +142,7 @@ jobs:
         run: cargo doc --workspace --no-deps
 
   gates:
-    name: Schema-drift and conformance gates
+    name: Schema-drift and cross-runtime conformance gates
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -157,11 +166,22 @@ jobs:
       - name: Build binary for conformance gate
         working-directory: rust
         run: cargo build -p termproof-cli
-      - name: Conformance gate
-        run: uv run python rust/scripts/check_conformance.py --binary rust/target/debug/termproof --corpus rust/conformance
+      - name: Cross-runtime conformance gate (§6.1)
+        # Runs the SAME machine-readable M0 corpus (rust/conformance/corpus.json)
+        # through the explicit Python-oracle adapter and the explicit Rust-side
+        # adapter; writes a machine-readable difference report and fails on
+        # semantic drift. The report is printed so CI logs prove enforcement.
+        run: |
+          uv run python rust/scripts/check_conformance.py \
+            --corpus rust/conformance/corpus.json \
+            --binary rust/target/debug/termproof \
+            --oracle "uv run python -m termproof" \
+            --report conformance-report.json
+          echo "--- machine-readable difference report ---"
+          cat conformance-report.json
 
   coverage:
-    name: Coverage regression gate
+    name: Coverage non-regression gate
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -175,29 +195,34 @@ jobs:
         uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
         with:
           workspaces: rust
-      - name: Install cargo-llvm-cov
+      - name: Install cargo-llvm-cov (pinned)
         uses: taiki-e/install-action@67729d5c413db75907f0ad1e39bb04b9c868ff60 # v2
         with:
-          tool: cargo-llvm-cov
-      - name: Coverage with regression rejection (floor 90%)
-        # Baseline measured at RUST-003: 100% line coverage on
-        # termproof-cli and termproof-core (see PR #139 local validation).
-        # The floor is intentionally below the current baseline so small
-        # skeleton crates can land without tripping the gate, while any
-        # meaningful regression still fails.
-        run: cargo llvm-cov --workspace --fail-under-lines 90 --summary-only
+          tool: cargo-llvm-cov@0.8.7
+      - name: Coverage with regression rejection (committed baseline)
+        # The committed machine-readable baseline rust/coverage/baseline.json
+        # records the exact M0 totals (100% lines). check_coverage_regression.py
+        # fails on ANY drop below that baseline — workspace or per-crate — and
+        # on coverage-surface shrink, instead of a fixed percentage floor.
+        run: |
+          cargo llvm-cov --workspace --json --output-path coverage-current.json
+          python3 scripts/check_coverage_regression.py \
+            --baseline coverage/baseline.json \
+            --current coverage-current.json
 
   deny:
-    name: Dependency, license, and advisory checks
+    name: Dependency, license, advisory, and source checks
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: rust
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - name: Install cargo-deny
+      - name: Install cargo-deny (pinned)
         uses: taiki-e/install-action@67729d5c413db75907f0ad1e39bb04b9c868ff60 # v2
         with:
-          tool: cargo-deny
-      - name: Cargo deny licenses, advisories, bans
-        run: cargo deny check licenses advisories bans
+          tool: cargo-deny@0.20.2
+      - name: Cargo deny all configured categories
+        # Strict policy (rust/deny.toml): wildcards denied, all-features
+        # analyzed, and every configured category runs — including sources.
+        run: cargo deny check licenses advisories bans sources
