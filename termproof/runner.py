@@ -234,7 +234,13 @@ class VerificationRunner:
             if recipe.expect_exit_code is not None:
                 session.wait_for_exit(recipe.timeout_seconds)
             else:
-                session.wait_for_idle(0.5, min(3, recipe.timeout_seconds))
+                idle_cap = self.config.defaults.idle_cap_seconds
+                idle_timeout = (
+                    min(idle_cap, recipe.timeout_seconds)
+                    if idle_cap is not None
+                    else recipe.timeout_seconds
+                )
+                session.wait_for_idle(0.5, idle_timeout)
             return steps, session.raw_output, session.exit_code, session.screen
 
     def run_process(

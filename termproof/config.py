@@ -58,10 +58,20 @@ BUILTIN_DEFAULTS: dict[str, Any] = {
         "volumes": [{"host": ".", "container": "/workspace"}],
         "env": {},
     },
+    "defaults": {
+        "idle_cap_seconds": 3.0,
+    },
 }
 
 
 # -- config model -----------------------------------------------------------
+
+@dataclass(frozen=True)
+class GlobalDefaults:
+    # Cap for the post-script idle wait in PTY mode. None means wait for
+    # quiescence up to the recipe timeout instead of a fixed cap.
+    idle_cap_seconds: float | None = 3.0
+
 
 @dataclass(frozen=True)
 class DockerBackendConfig:
@@ -84,6 +94,7 @@ class VerifierConfig:
     video_backends: dict[str, str]
     session_backend: str
     docker: DockerBackendConfig
+    defaults: GlobalDefaults
 
     @classmethod
     def builtin(cls) -> VerifierConfig:
@@ -144,6 +155,7 @@ def load_config(
 # -- internal helpers --------------------------------------------------------
 
 def _from_mapping(data: dict[str, Any]) -> VerifierConfig:
+    defaults_raw = data.get("defaults", {})
     docker_raw = data.get("docker", {})
     docker_volumes = docker_raw.get("volumes", [{"host": ".", "container": "/workspace"}])
     return VerifierConfig(
@@ -163,6 +175,14 @@ def _from_mapping(data: dict[str, Any]) -> VerifierConfig:
                 str(key): str(value)
                 for key, value in dict(docker_raw.get("env", {})).items()
             },
+        ),
+        defaults=GlobalDefaults(
+            idle_cap_seconds=(
+                None
+                if "idle_cap_seconds" in defaults_raw
+                and defaults_raw["idle_cap_seconds"] is None
+                else float(defaults_raw.get("idle_cap_seconds", 3.0))
+            ),
         ),
     )
 

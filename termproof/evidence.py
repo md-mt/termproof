@@ -61,15 +61,44 @@ def render_artifacts(
         path = run_dir / name
         if path.exists():
             artifacts[name.removesuffix(".md").removesuffix(".json")] = str(path)
-    agg_path = resolve_agg()
-    if render_video and agg_path:
+    if render_video:
         mp4_path = run_dir / "session.mp4"
         if video_backend is not None:
+            # A caller-supplied backend owns its own dependency requirements;
+            # do not impose host tool checks on the plugin boundary.
             video_backend.render(cast_path, mp4_path, video_fps)
+            artifacts["video"] = str(mp4_path)
         else:
-            render_mp4(cast_path, mp4_path, video_fps)
-        artifacts["video"] = str(mp4_path)
+            missing = _missing_video_tools()
+            if missing:
+                warnings.warn(
+                    "video evidence was requested (--video) but "
+                    f"{' and '.join(missing)} could not be resolved; skipping video. "
+                    "Install the missing tool(s) or use a platform wheel that bundles agg.",
+                    stacklevel=2,
+                )
+            else:
+                render_mp4(cast_path, mp4_path, video_fps)
+                artifacts["video"] = str(mp4_path)
     return artifacts
+
+
+def _missing_video_tools() -> list[str]:
+    """Return the names of video tools that cannot be resolved on this system."""
+    missing = []
+    if not resolve_agg():
+        missing.append("agg")
+    if _resolve_ffmpeg() is None:
+        missing.append("ffmpeg")
+    return missing
+
+
+def _resolve_ffmpeg() -> str | None:
+    """Resolve ffmpeg without raising, returning None when it is unavailable."""
+    try:
+        return find_ffmpeg()
+    except Exception:
+        return None
 
 
 def _render_step_screens(

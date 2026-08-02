@@ -214,6 +214,26 @@ Existing project and user configuration remains readable without being modified.
 
 Plugin references using `tui_verifier.*:ClassName` are translated to `termproof.*:ClassName` at load time. This narrow compat path is intentionally limited to configured plugin references; the legacy CLI and import package are not shipped.
 
+## Configuration
+
+Optional configuration lives in `~/.config/termproof/config.yaml` (user) or `.termproof/config.yaml` (project). The `defaults` block mirrors the recipe defaults:
+
+```yaml
+defaults:
+  timeout_seconds: 30
+  cols: 100
+  rows: 30
+  video_fps: 60
+  out_dir: ".termproof/runs"
+  # Cap (seconds) for the post-script idle wait in PTY mode. After the last
+  # step, TermProof waits for the screen to quiesce before capturing the
+  # final state. Slow-quiescing TUIs may need a larger cap; set to null to
+  # wait up to the recipe's timeout_seconds instead of a fixed cap.
+  idle_cap_seconds: 3.0
+```
+
+`idle_cap_seconds` is the documented replacement for the former hard-coded 3-second idle cap in `runner.py`. Defaults to `3.0` to preserve existing behavior; raise it (or set `null`) for TUIs that take longer to settle.
+
 ## Packaging
 
 ```bash
