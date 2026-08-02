@@ -1,0 +1,29 @@
+{
+  "recipe_version": 1,
+  "name": "fail-step-regex",
+  "description": "Failed step regex: wait_for_regex never matches.",
+  "priority": "P2",
+  "execution": "scripted",
+  "determinism": "deterministic",
+  "command": {
+    "argv": [
+      "python3",
+      "banner.py"
+    ],
+    "cwd": "corpus/apps",
+    "pty": false
+  },
+  "expect_exit_code": 0,
+  "timeout_seconds": 10,
+  "cols": 80,
+  "rows": 24,
+  "steps": [
+    {
+      "name": "regex never",
+      "action": "wait_for_regex",
+      "pattern": "NEVER-\\d+",
+      "timeout_seconds": 1
+    }
+  ],
+  "assertions": []
+}

@@ -1,0 +1,8 @@
+{
+  "artifact_key": "video",
+  "artifact_name": "session.mp4",
+  "file_exists": true,
+  "requested_video": true,
+  "sentinel_bytes": 23,
+  "video_artifact_present": true
+}

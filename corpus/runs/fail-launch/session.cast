@@ -1,0 +1,2 @@
+{"version": 2, "width": 80, "height": 24, "timestamp": 0, "command": "", "env": {}}
+[0.0, "o", "Traceback (most recent call last):\r\n  File \"<string>\", line 1, in <module>\r\nModuleNotFoundError: No module named 'definitely_missing_module_xyz'\r\n"]

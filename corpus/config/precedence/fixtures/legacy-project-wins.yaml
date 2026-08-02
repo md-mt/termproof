@@ -3,3 +3,5 @@ defaults:
 
 defaults:
   idle_cap_seconds: 3.5
+docker:
+  image: project-legacy-img

@@ -1,0 +1,37 @@
+{
+  "artifacts": {
+    "cast": "session.cast",
+    "exit_code_file": "session.exitcode",
+    "screen_text": "final.txt",
+    "screenshot": "final.svg",
+    "step_screenshots": "steps"
+  },
+  "assertions": [
+    {
+      "detail": "contains 'TermProof'",
+      "name": "banner",
+      "passed": true
+    },
+    {
+      "detail": "expected 0, got 0",
+      "name": "exit_code",
+      "passed": true
+    }
+  ],
+  "duration_seconds": 0.0,
+  "execution": "scripted",
+  "exit_code": 0,
+  "passed": false,
+  "priority": "P2",
+  "recipe_name": "fail-step-timeout",
+  "renderer": "default",
+  "score": 1.0,
+  "steps": [
+    {
+      "detail": "timed out waiting for 'NEVER-PRESENT-12345'",
+      "name": "wait never",
+      "passed": false,
+      "screen": "TermProof Fixture App v1.2.3\nstatus: ready\nmenu: [status] [help] [quit]"
+    }
+  ]
+}

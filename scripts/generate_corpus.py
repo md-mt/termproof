@@ -21,17 +21,23 @@ before writing (see corpus/normalization-policy.md):
 - video bytes                 -> never compared; presence + warning text only
 - PNG pixels                  -> byte compare when Pillow matches oracle, else
                                  semantic (dimensions) compare
+- OS error detail text        -> canonical ``[Errno N] I/O error`` token
 
-The oracle commit is recorded in ``corpus/oracle.json``. Run the drift
-check with ``--check`` (regenerates into a temp dir and diffs against the
-committed corpus); this is what tests/test_corpus_drift.py invokes.
+The oracle commit is recorded in ``corpus/oracle.json`` together with a
+source-tree digest of ``termproof/`` (``oracle_source_sha256``) so drift
+detection fails when oracle source changes without an intentional
+oracle-commit update. Run the drift check with ``--check`` (regenerates
+into a temp dir and diffs against the committed corpus); this is what
+tests/test_corpus_drift.py invokes.
 """
 
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import io
 import json
+import math
 import os
 import re
 import shutil
@@ -39,12 +45,18 @@ import sys
 import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
+from unittest.mock import patch
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 # The Python oracle state frozen by this corpus. MUST equal the termproof/
-# tree at generation time; scripts/generate_corpus.py verifies it.
+# tree at generation time; scripts/generate_corpus.py verifies it via the
+# source-tree digest recorded in corpus/oracle.json.
 ORACLE_COMMIT = "165c367ca0b0e2a4663a8773ee18b67c2264979c"
+
+# Committed files that are intentionally NOT generated (static documentation).
+# The symmetric drift gate allowlists exactly these paths.
+STATIC_COMMITTED_FILES: frozenset[str] = frozenset({"normalization-policy.md"})
 
 # -- path helpers ------------------------------------------------------------
 
@@ -90,7 +102,18 @@ def normalize_json_value(value: object, *, key: str | None = None) -> object:
         }
     if isinstance(value, list):
         return [normalize_json_value(v, key=key) for v in value]
-    if key == "duration_seconds" and isinstance(value, (int, float)):
+    if key == "duration_seconds":
+        # Validate duration semantics BEFORE normalization: a negative, NaN,
+        # Inf, or non-numeric duration is a contract defect and must fail the
+        # gate instead of being silently mapped to 0.0.
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise ValueError(
+                f"duration_seconds must be a finite nonnegative number, got {value!r}"
+            )
+        if not math.isfinite(float(value)) or float(value) < 0:
+            raise ValueError(
+                f"duration_seconds must be a finite nonnegative number, got {value!r}"
+            )
         return 0.0
     return value
 
@@ -100,6 +123,17 @@ def canonical_json(data: object) -> str:
     return json.dumps(data, indent=2, sort_keys=True) + "\n"
 
 
+def normalize_os_error_detail(text: str) -> str:
+    """Canonicalize platform-dependent OS error text in step/assertion details.
+
+    ``[Errno 5] Input/output error`` (macOS) and ``[Errno 32] Broken pipe``
+    (Linux) describe the same public boundary (an I/O failure on a session
+    that already ended); the errno number and message vary by kernel. The
+    contract is that a send/session exception occurred, not the local errno.
+    """
+    return re.sub(r"\[Errno \d+\][^\n\]]*", "[Errno N] I/O error", text)
+
+
 def normalize_result_json(text: str, *, run_rel: str | None = None) -> str:
     data = json.loads(text)
     data = normalize_json_value(data)
@@ -107,8 +141,15 @@ def normalize_result_json(text: str, *, run_rel: str | None = None) -> str:
         data["artifacts"] = normalize_artifact_map(data["artifacts"], run_rel=run_rel)
     if isinstance(data, dict) and isinstance(data.get("steps"), list):
         for step in data["steps"]:
-            if isinstance(step, dict) and "screen" in step:
-                step["screen"] = _stable_screen(step["screen"])
+            if isinstance(step, dict):
+                if "screen" in step:
+                    step["screen"] = _stable_screen(step["screen"])
+                if isinstance(step.get("detail"), str):
+                    step["detail"] = normalize_os_error_detail(step["detail"])
+    if isinstance(data, dict) and isinstance(data.get("assertions"), list):
+        for assertion in data["assertions"]:
+            if isinstance(assertion, dict) and isinstance(assertion.get("detail"), str):
+                assertion["detail"] = normalize_os_error_detail(assertion["detail"])
     return canonical_json(data)
 
 
@@ -142,6 +183,7 @@ def normalize_report_md(text: str, *, run_rel: str | None = None) -> str:
             basename = Path(path_value).name
             if basename and basename != path_value:
                 line = f"- {marker}: `{basename}`"
+        line = normalize_os_error_detail(line)
         lines.append(line)
     return "\n".join(lines) + "\n"
 
@@ -172,8 +214,10 @@ def normalize_junit_xml(text: str) -> str:
         '<property name="git_commit" value="<oracle-commit>"',
         out,
     )
-    # system-out/failure artifact lines embed absolute run-dir paths.
+    # system-out/failure artifact lines embed absolute run-dir paths and
+    # platform-dependent OS error text.
     out = re.sub(r"(  [a-z_]+: )([^<\n]*/)([^/<\\n]+)", r"\1\3", out)
+    out = normalize_os_error_detail(out)
     return out
 
 
@@ -240,12 +284,34 @@ def normalize_png_bytes(data: bytes, *, oracle_pillow: str | None = None) -> str
 def normalize_oracle_json(text: str) -> str:
     data = json.loads(text)
     # Environment metadata of the generating/checking machine is not part of
-    # the contract; the oracle *commit* and version are. The committed record
-    # keeps these fields for provenance; drift comparison ignores them.
+    # the contract; the oracle *commit*, version, and source digest are. The
+    # committed record keeps these fields for provenance; drift comparison
+    # ignores them.
     data.pop("generated_at", None)
     data.pop("python_version", None)
     data.pop("pillow_version", None)
     return canonical_json(data)
+
+
+def compute_oracle_source_sha256() -> str:
+    """Return a content digest of the termproof/ oracle source tree.
+
+    This is the procedural provenance check: the corpus must be generated
+    from exactly this source tree. If oracle source changes without an
+    intentional oracle-commit update (which regenerates the corpus and
+    records the new digest), drift detection fails.
+    """
+    source_root = REPO_ROOT / "termproof"
+    digest = hashlib.sha256()
+    for path in sorted(source_root.rglob("*")):
+        if not path.is_file():
+            continue
+        rel = path.relative_to(source_root).as_posix()
+        digest.update(rel.encode("utf-8"))
+        digest.update(b"\x00")
+        digest.update(path.read_bytes())
+        digest.update(b"\x00")
+    return digest.hexdigest()
 
 
 # -- CLI helpers -------------------------------------------------------------
@@ -268,6 +334,37 @@ def run_cli(argv: list[str], *, cwd: Path | None = None) -> tuple[int, str, str]
     finally:
         os.chdir(previous)
     return code, stdout.getvalue(), stderr.getvalue()
+
+
+# -- sandboxed fixture execution ---------------------------------------------
+
+
+@contextlib.contextmanager
+def _sandbox_cwd(root: Path):
+    """Yield a temp cwd whose ``corpus/`` layout mirrors the generated root.
+
+    Fixture apps run with ``cwd: corpus/apps`` relative to the process cwd;
+    executing them from the real checkout would let the fixture write into
+    the committed tree. This sandbox redirects every such write into a
+    temporary directory that is removed on exit, keeping ``--check``
+    side-effect-free.
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        sandbox = Path(tmp)
+        corpus = sandbox / "corpus"
+        (corpus / "apps").mkdir(parents=True)
+        for src in sorted(apps_dir(root).iterdir()):
+            if src.is_file():
+                shutil.copy2(src, corpus / "apps" / src.name)
+        shutil.copytree(recipes_dir(root), corpus / "recipes", dirs_exist_ok=True)
+        if (root / "fixtures").exists():
+            shutil.copytree(root / "fixtures", corpus / "fixtures", dirs_exist_ok=True)
+        previous = os.getcwd()
+        os.chdir(sandbox)
+        try:
+            yield sandbox
+        finally:
+            os.chdir(previous)
 
 
 # -- app fixtures ------------------------------------------------------------
@@ -494,7 +591,9 @@ RECIPES: list[dict] = [
             "command": {"argv": ["python3", "json_app.py"], "cwd": "corpus/apps", "pty": False},
             "expect_exit_code": 0,
             "timeout_seconds": 15,
-            "cols": 80,
+            # Wide terminal so the single-line JSON payload never wraps; a
+            # wrapped payload would make raw_output platform/timing-dependent.
+            "cols": 200,
             "rows": 24,
             "steps": [
                 {"name": "wait for json output", "action": "wait_for_text", "text": "fixture", "timeout_seconds": 5},
@@ -567,6 +666,162 @@ RECIPES: list[dict] = [
             ],
         },
     },
+    # -- executable failure classes (RUST-001 requires every public failure
+    # boundary, not only exit-code mismatch) -------------------------------
+    {
+        "id": "fail-step-timeout",
+        "kind": "v1",
+        "filename": "v1/fail-step-timeout.recipe.json",
+        "content": {
+            "recipe_version": 1,
+            "name": "fail-step-timeout",
+            "description": "Failed step timeout: wait_for_text never matches.",
+            "priority": "P2",
+            "execution": "scripted",
+            "determinism": "deterministic",
+            "command": {"argv": ["python3", "banner.py"], "cwd": "corpus/apps", "pty": False},
+            "expect_exit_code": 0,
+            "timeout_seconds": 10,
+            "cols": 80,
+            "rows": 24,
+            "steps": [
+                {"name": "wait never", "action": "wait_for_text", "text": "NEVER-PRESENT-12345", "timeout_seconds": 1},
+            ],
+            "assertions": [{"name": "banner", "type": "output_contains", "value": "TermProof"}],
+        },
+    },
+    {
+        "id": "fail-step-regex",
+        "kind": "v1",
+        "filename": "v1/fail-step-regex.recipe.json",
+        "content": {
+            "recipe_version": 1,
+            "name": "fail-step-regex",
+            "description": "Failed step regex: wait_for_regex never matches.",
+            "priority": "P2",
+            "execution": "scripted",
+            "determinism": "deterministic",
+            "command": {"argv": ["python3", "banner.py"], "cwd": "corpus/apps", "pty": False},
+            "expect_exit_code": 0,
+            "timeout_seconds": 10,
+            "cols": 80,
+            "rows": 24,
+            "steps": [
+                {"name": "regex never", "action": "wait_for_regex", "pattern": "NEVER-\\d+", "timeout_seconds": 1},
+            ],
+            "assertions": [],
+        },
+    },
+    {
+        "id": "fail-step-input",
+        "kind": "v1",
+        "filename": "v1/fail-step-input.recipe.json",
+        "content": {
+            "recipe_version": 1,
+            "name": "fail-step-input",
+            "description": "Step input failure: press with an unknown key raises KeyError.",
+            "priority": "P2",
+            "execution": "scripted",
+            "determinism": "deterministic",
+            "command": {"argv": ["python3", "banner.py"], "cwd": "corpus/apps", "pty": True},
+            "expect_exit_code": 0,
+            "timeout_seconds": 10,
+            "cols": 80,
+            "rows": 24,
+            "steps": [
+                {"name": "press bad key", "action": "press", "key": "bogus-key"},
+            ],
+            "assertions": [],
+        },
+    },
+    {
+        "id": "fail-send-exception",
+        "kind": "v1",
+        "filename": "v1/fail-send-exception.recipe.json",
+        "content": {
+            "recipe_version": 1,
+            "name": "fail-send-exception",
+            "description": "Send/session exception: send_text to a session that already exited.",
+            "priority": "P2",
+            "execution": "scripted",
+            "determinism": "deterministic",
+            "command": {"argv": ["python3", "banner.py"], "cwd": "corpus/apps", "pty": True},
+            "expect_exit_code": 0,
+            "timeout_seconds": 10,
+            "cols": 80,
+            "rows": 24,
+            "steps": [
+                {"name": "wait banner", "action": "wait_for_text", "text": "TermProof Fixture App", "timeout_seconds": 5},
+                {"name": "let process exit", "action": "sleep", "seconds": 2},
+                {"name": "send after exit", "action": "send_text", "text": "hello"},
+            ],
+            "assertions": [],
+        },
+    },
+    {
+        "id": "fail-process-timeout",
+        "kind": "v1",
+        "filename": "v1/fail-process-timeout.recipe.json",
+        "content": {
+            "recipe_version": 1,
+            "name": "fail-process-timeout",
+            "description": "Process timeout: the app never exits and the recipe timeout elapses.",
+            "priority": "P2",
+            "execution": "scripted",
+            "determinism": "deterministic",
+            "command": {"argv": ["python3", "-c", "import time; time.sleep(30)"], "cwd": "corpus/apps", "pty": False},
+            "expect_exit_code": 0,
+            "timeout_seconds": 1,
+            "cols": 80,
+            "rows": 24,
+            "steps": [
+                {"name": "wait any", "action": "wait_for_text", "text": "x", "timeout_seconds": 1},
+            ],
+            "assertions": [],
+        },
+    },
+    {
+        "id": "fail-launch",
+        "kind": "v1",
+        "filename": "v1/fail-launch.recipe.json",
+        "content": {
+            "recipe_version": 1,
+            "name": "fail-launch",
+            "description": "Launch failure: the app fails to import at startup (exit 1, deterministic stderr).",
+            "priority": "P2",
+            "execution": "scripted",
+            "determinism": "deterministic",
+            "command": {"argv": ["python3", "-c", "import definitely_missing_module_xyz"], "cwd": "corpus/apps", "pty": False},
+            "expect_exit_code": 0,
+            "timeout_seconds": 10,
+            "cols": 80,
+            "rows": 24,
+            "steps": [],
+            "assertions": [],
+        },
+    },
+    {
+        "id": "fail-plugin-exception",
+        "kind": "v1",
+        "filename": "v1/fail-plugin-exception.recipe.json",
+        "content": {
+            "recipe_version": 1,
+            "name": "fail-plugin-exception",
+            "description": "Plugin exception: unknown step action raises a structured step failure.",
+            "priority": "P2",
+            "execution": "scripted",
+            "determinism": "deterministic",
+            "command": {"argv": ["python3", "banner.py"], "cwd": "corpus/apps", "pty": False},
+            "expect_exit_code": 0,
+            "timeout_seconds": 10,
+            "cols": 80,
+            "rows": 24,
+            "steps": [
+                {"name": "bogus action", "action": "no_such_action"},
+            ],
+            "assertions": [],
+        },
+    },
 ]
 
 
@@ -616,8 +871,73 @@ RUN_FLAGS = [
     "--cache-dir",
 ]
 
+
+def _extract_flags_from_help(text: str) -> list[str]:
+    """Extract the public --flags argparse exposes in its help output.
+
+    This is derived from the parser's own ``--help`` text (committed under
+    corpus/cli/help/), so the inventory can never drift from the actual
+    parser the way a generator constant can.
+    """
+    flags: list[str] = []
+    for line in text.splitlines():
+        match = re.match(r"^\s+(--[a-z0-9-]+)", line)
+        if match and match.group(1) != "--help":
+            flag = match.group(1)
+            if flag not in flags:
+                flags.append(flag)
+    return flags
+
+
+def _extract_subcommands_from_help(text: str) -> list[str]:
+    first = text.splitlines()[0] if text.splitlines() else ""
+    match = re.search(r"\{([a-z_,]+)\}", first)
+    if not match:
+        return []
+    return [part for part in match.group(1).split(",") if part]
+
+
+def write_cli_help(root: Path) -> None:
+    out_dir = cli_dir(root) / "help"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    for command, argv in PUBLIC_COMMANDS:
+        code, stdout, stderr = run_cli(argv, cwd=REPO_ROOT)
+        if code != 0 and not stdout:
+            stdout = stderr or f"(exit {code})"
+        safe = command.replace("-", "_")
+        (out_dir / f"{safe}-help.txt").write_text(stdout, encoding="utf-8")
+
+
+def write_flags_inventory(root: Path) -> None:
+    """Serialize the flag inventory derived from the actual parser help.
+
+    Every option the parser exposes appears in its ``--help`` output; parsing
+    that output gives a complete, independently-derived inventory including
+    subcommand flags such as ``plugins list --config``.
+    """
+    out_dir = cli_dir(root)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    help_dir = out_dir / "help"
+    run_flags = _extract_flags_from_help((help_dir / "run-help.txt").read_text(encoding="utf-8"))
+    other: dict[str, list[str]] = {}
+    for command, _argv in PUBLIC_COMMANDS:
+        if command in ("termproof", "run"):
+            continue
+        safe = command.replace("-", "_")
+        text = (help_dir / f"{safe}-help.txt").read_text(encoding="utf-8")
+        subcommands = _extract_subcommands_from_help(text)
+        other[safe] = subcommands if subcommands else _extract_flags_from_help(text)
+    inventory = {
+        "public_commands": [c for c, _ in PUBLIC_COMMANDS],
+        "run_flags": run_flags,
+        "other_command_flags": other,
+    }
+    (out_dir / "flags.json").write_text(canonical_json(inventory), encoding="utf-8")
+
+
 # Exit-code scenarios: (label, argv, note). Each runs against the oracle from
-# a sandbox workdir; recipe paths are repo-relative.
+# a sandbox workdir; recipe paths are repo-relative and resolve inside the
+# sandbox, so no scenario writes into the real checkout.
 EXIT_CODE_SCENARIOS: list[dict] = [
     {"label": "no-args", "argv": [], "note": "argparse requires a subcommand"},
     {"label": "unknown-command", "argv": ["frobnicate"], "note": "argparse rejects unknown subcommand"},
@@ -638,58 +958,9 @@ EXIT_CODE_SCENARIOS: list[dict] = [
 ]
 
 
-def write_cli_help(root: Path) -> None:
-    out_dir = cli_dir(root) / "help"
-    out_dir.mkdir(parents=True, exist_ok=True)
-    for command, argv in PUBLIC_COMMANDS:
-        code, stdout, stderr = run_cli(argv, cwd=REPO_ROOT)
-        if code != 0 and not stdout:
-            stdout = stderr or f"(exit {code})"
-        safe = command.replace("-", "_")
-        (out_dir / f"{safe}-help.txt").write_text(stdout, encoding="utf-8")
-
-
-def write_flags_inventory(root: Path) -> None:
-    out_dir = cli_dir(root)
-    out_dir.mkdir(parents=True, exist_ok=True)
-    inventory = {
-        "public_commands": [c for c, _ in PUBLIC_COMMANDS],
-        "run_flags": RUN_FLAGS,
-        "other_command_flags": {
-            "list": ["--priority"],
-            "validate": ["--config"],
-            "plugins": ["list", "search", "install"],
-            "plugins_search": ["--registry"],
-            "plugins_install": ["--registry", "--dry-run"],
-            "init": ["--name", "--command", "--non-pty", "--priority", "--cols", "--rows", "--force"],
-            "demo": ["--out", "--no-open", "--video", "--video-fps", "--config", "--reporter", "--xml-path", "--screen-renderer", "--video-backend"],
-        },
-    }
-    (out_dir / "flags.json").write_text(canonical_json(inventory), encoding="utf-8")
-
-
 def write_exit_codes(root: Path) -> None:
     out_dir = cli_dir(root)
     out_dir.mkdir(parents=True, exist_ok=True)
-    work = REPO_ROOT / ".termproof" / "corpus"
-    work.mkdir(parents=True, exist_ok=True)
-    exit_runs = str((work / "exit-runs").resolve())
-    # Reset stateful targets so generation is deterministic across runs.
-    for stale in ("init-target", "exit-runs"):
-        target = work / stale
-        if target.exists():
-            shutil.rmtree(target)
-    # Prepare the init-existing target and invalid recipe fixture.
-    existing = work / "init-existing"
-    if existing.exists():
-        shutil.rmtree(existing)
-    existing.mkdir(parents=True)
-    (existing / "demo-tui.recipe.json").write_text(
-        '{"name": "demo-tui", "command": {"argv": ["python3", "-c", "print(42)"]}}\n',
-        encoding="utf-8",
-    )
-    empty_dir = work / "empty-dir"
-    empty_dir.mkdir(parents=True, exist_ok=True)
     invalid_dir = recipes_dir(root) / "invalid"
     invalid_dir.mkdir(parents=True, exist_ok=True)
     (invalid_dir / "not-a-recipe.json").write_text(
@@ -705,28 +976,46 @@ def write_exit_codes(root: Path) -> None:
     )
 
     rows: list[dict] = []
-    for scenario in EXIT_CODE_SCENARIOS:
-        if scenario["label"].startswith("run-") and "--out" not in scenario["argv"]:
-            # run-* scenarios need an absolute out dir so the cast path is
-            # resolved from the runner's cwd, not the app's cwd.
-            argv = [*scenario["argv"], "--out", exit_runs]
-        else:
-            argv = scenario["argv"]
-        code, stdout, _stderr = run_cli(argv, cwd=REPO_ROOT)
-        rows.append(
-            {
-                "label": scenario["label"],
-                "argv": scenario["argv"],
-                "exit_code": code,
-                "note": scenario["note"],
-                "stdout_first_line": stdout.splitlines()[0] if stdout.splitlines() else "",
-            }
+    with _sandbox_cwd(root) as sandbox:
+        work = sandbox / ".termproof" / "corpus"
+        work.mkdir(parents=True, exist_ok=True)
+        exit_runs = str((work / "exit-runs").resolve())
+        # Reset stateful targets so generation is deterministic across runs.
+        for stale in ("init-target", "init-existing", "exit-runs", "empty-dir", "demo"):
+            target = work / stale
+            if target.exists():
+                shutil.rmtree(target)
+        # Prepare the init-existing target and the empty-dir validation fixture.
+        existing = work / "init-existing"
+        existing.mkdir(parents=True)
+        (existing / "demo-tui.recipe.json").write_text(
+            '{"name": "demo-tui", "command": {"argv": ["python3", "-c", "print(42)"]}}\n',
+            encoding="utf-8",
         )
+        (work / "empty-dir").mkdir(parents=True, exist_ok=True)
+        for scenario in EXIT_CODE_SCENARIOS:
+            if scenario["label"].startswith("run-") and "--out" not in scenario["argv"]:
+                argv = [*scenario["argv"], "--out", exit_runs]
+            else:
+                argv = scenario["argv"]
+            code, stdout, _stderr = run_cli(argv, cwd=sandbox)
+            rows.append(
+                {
+                    "label": scenario["label"],
+                    "argv": scenario["argv"],
+                    "exit_code": code,
+                    "note": scenario["note"],
+                    "stdout_first_line": stdout.splitlines()[0] if stdout.splitlines() else "",
+                }
+            )
     (out_dir / "exit-codes.json").write_text(canonical_json(rows), encoding="utf-8")
 
 
 # -- config precedence -------------------------------------------------------
 
+# Each case lays out the documented discovery locations in a fresh isolated
+# home+project pair; files use *partial* keys so the fixtures prove per-key
+# layering, not just whole-file precedence. ``explicit`` is the CLI --config.
 CONFIG_CASES: list[dict] = [
     {
         "label": "builtin-only",
@@ -737,14 +1026,14 @@ CONFIG_CASES: list[dict] = [
         "label": "legacy-user-wins",
         "note": "Legacy user config (~/.config/tui-verifier/config.yaml) overrides defaults.",
         "files": {
-            "user-legacy": "defaults:\n  idle_cap_seconds: 1.5\n",
+            "user-legacy": "defaults:\n  idle_cap_seconds: 1.5\ndocker:\n  image: legacy-img\n",
         },
     },
     {
         "label": "termproof-user-wins",
-        "note": "TermProof user config (~/.config/termproof/config.yaml) beats legacy user config.",
+        "note": "TermProof user config (~/.config/termproof/config.yaml) beats legacy user config for the keys it provides; legacy partial keys survive.",
         "files": {
-            "user-legacy": "defaults:\n  idle_cap_seconds: 1.5\n",
+            "user-legacy": "defaults:\n  idle_cap_seconds: 1.5\ndocker:\n  image: legacy-img\n",
             "user-termproof": "defaults:\n  idle_cap_seconds: 2.5\n",
         },
     },
@@ -753,15 +1042,15 @@ CONFIG_CASES: list[dict] = [
         "note": "Legacy project config (.tui-verifier/config.yaml) beats both user configs.",
         "files": {
             "user-termproof": "defaults:\n  idle_cap_seconds: 2.5\n",
-            "project-legacy": "defaults:\n  idle_cap_seconds: 3.5\n",
+            "project-legacy": "defaults:\n  idle_cap_seconds: 3.5\ndocker:\n  image: project-legacy-img\n",
         },
     },
     {
         "label": "termproof-project-wins",
         "note": "TermProof project config (.termproof/config.yaml) beats legacy project config.",
         "files": {
-            "project-legacy": "defaults:\n  idle_cap_seconds: 3.5\n",
-            "project-termproof": "defaults:\n  idle_cap_seconds: 4.5\n",
+            "project-legacy": "defaults:\n  idle_cap_seconds: 3.5\ndocker:\n  image: project-legacy-img\n",
+            "project-termproof": "defaults:\n  idle_cap_seconds: 4.5\ndocker:\n  workdir: /tp-workdir\n",
         },
     },
     {
@@ -769,14 +1058,22 @@ CONFIG_CASES: list[dict] = [
         "note": "Explicit --config beats every discovery location.",
         "files": {
             "user-termproof": "defaults:\n  idle_cap_seconds: 4.5\n",
-            "project-termproof": "defaults:\n  idle_cap_seconds: 5.5\n",
-            "explicit": "defaults:\n  idle_cap_seconds: 6.5\n",
+            "project-termproof": "defaults:\n  idle_cap_seconds: 5.5\ndocker:\n  workdir: /tp-workdir\n",
+            "explicit": "defaults:\n  idle_cap_seconds: 6.5\ndocker:\n  image: explicit-img\n",
         },
     },
 ]
 
 
 def write_config_precedence(root: Path) -> None:
+    """Generate hermetic config-precedence fixtures.
+
+    Each case is fully isolated in its own temp home+project tree and the
+    implicit-discovery cascade (legacy user -> termproof user -> legacy
+    project -> termproof project -> explicit) is exercised with the ambient
+    home patched to the isolated tree — the reviewer's real home is never
+    read.
+    """
     from termproof.config import load_config
 
     out_dir = config_dir(root) / "precedence"
@@ -784,30 +1081,28 @@ def write_config_precedence(root: Path) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     fixtures_out.mkdir(parents=True, exist_ok=True)
 
-    with tempfile.TemporaryDirectory() as tmp:
-        base = Path(tmp)
-        home_dir = base / "home"
-        project_dir = base / "project"
-        home_dir.mkdir()
-        project_dir.mkdir()
-
-        for case in CONFIG_CASES:
-            # Lay out the documented discovery locations.
-            (home_dir / ".config" / "tui-verifier").mkdir(parents=True, exist_ok=True)
-            (home_dir / ".config" / "termproof").mkdir(parents=True, exist_ok=True)
-            (project_dir / ".tui-verifier").mkdir(parents=True, exist_ok=True)
-            (project_dir / ".termproof").mkdir(parents=True, exist_ok=True)
+    for case in CONFIG_CASES:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            home_dir = base / "home"
+            project_dir = base / "project"
+            home_dir.mkdir(parents=True)
+            project_dir.mkdir(parents=True)
             for location, content in case["files"].items():
                 if location == "user-legacy":
-                    (home_dir / ".config" / "tui-verifier" / "config.yaml").write_text(content, encoding="utf-8")
+                    path = home_dir / ".config" / "tui-verifier" / "config.yaml"
                 elif location == "user-termproof":
-                    (home_dir / ".config" / "termproof" / "config.yaml").write_text(content, encoding="utf-8")
+                    path = home_dir / ".config" / "termproof" / "config.yaml"
                 elif location == "project-legacy":
-                    (project_dir / ".tui-verifier" / "config.yaml").write_text(content, encoding="utf-8")
+                    path = project_dir / ".tui-verifier" / "config.yaml"
                 elif location == "project-termproof":
-                    (project_dir / ".termproof" / "config.yaml").write_text(content, encoding="utf-8")
+                    path = project_dir / ".termproof" / "config.yaml"
                 elif location == "explicit":
-                    (base / "explicit.yaml").write_text(content, encoding="utf-8")
+                    path = base / "explicit.yaml"
+                else:  # pragma: no cover - schema guard
+                    raise ValueError(f"unknown config location {location}")
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(content, encoding="utf-8")
 
             # Preserve the resolved result under the fixture dir for inspection.
             case_fixture = fixtures_out / f"{case['label']}.yaml"
@@ -816,15 +1111,10 @@ def write_config_precedence(root: Path) -> None:
                 case_fixture.write_text(merged, encoding="utf-8")
 
             explicit = base / "explicit.yaml" if "explicit" in case["files"] else None
-            config = load_config(
-                project_path=project_dir,
-                user_path=home_dir / ".config" / "termproof" / "config.yaml"
-                if "user-termproof" in case["files"]
-                else home_dir / ".config" / "tui-verifier" / "config.yaml"
-                if "user-legacy" in case["files"]
-                else None,
-                config_path=explicit,
-            )
+            # user_path stays None: the production cascade performs implicit
+            # discovery from the patched home + project tree.
+            with patch.object(Path, "home", return_value=home_dir):
+                config = load_config(project_path=project_dir, config_path=explicit)
             resolved = {
                 "defaults": {
                     "idle_cap_seconds": config.defaults.idle_cap_seconds,
@@ -858,9 +1148,70 @@ EVIDENCE_RUNS: list[dict] = [
     {"recipe": "v1/stage-timing.recipe.json", "id": "stage-timing", "kind": "pass"},
 ]
 
+# Required executable failure classes and the partial artifacts each one must
+# preserve. Committed as corpus/failures/manifest.json so the inventory test
+# enumerates required classes rather than checking one run's passed flag.
+REQUIRED_FAILURE_CLASSES: list[dict] = [
+    {
+        "id": "fail-step-timeout",
+        "failure_class": "step-timeout",
+        "expected_diagnostic": "timed out waiting for 'NEVER-PRESENT-12345'",
+        "surviving_artifacts": ["result.json", "report.md", "final.txt", "final.svg", "session.cast", "session.exitcode", "steps"],
+    },
+    {
+        "id": "fail-step-regex",
+        "failure_class": "step-regex-timeout",
+        "expected_diagnostic": "timed out waiting for regex",
+        "surviving_artifacts": ["result.json", "report.md", "final.txt", "final.svg", "session.cast", "session.exitcode", "steps"],
+    },
+    {
+        "id": "fail-step-input",
+        "failure_class": "step-input-invalid",
+        "expected_diagnostic": "'bogus-key'",
+        "surviving_artifacts": ["result.json", "report.md", "final.txt", "final.svg", "session.cast", "session.exitcode", "steps"],
+    },
+    {
+        "id": "fail-send-exception",
+        "failure_class": "send-exception",
+        "expected_diagnostic": "[Errno N] I/O error",
+        "surviving_artifacts": ["result.json", "report.md", "final.txt", "final.svg", "session.cast", "session.exitcode", "steps"],
+    },
+    {
+        "id": "fail-process-timeout",
+        "failure_class": "process-timeout",
+        "expected_diagnostic": "expected 0, got None",
+        "surviving_artifacts": ["result.json", "report.md", "final.txt", "final.svg", "session.cast", "steps"],
+    },
+    {
+        "id": "fail-launch",
+        "failure_class": "launch-failure",
+        "expected_diagnostic": "expected 0, got 1",
+        "surviving_artifacts": ["result.json", "report.md", "final.txt", "final.svg", "session.cast", "session.exitcode"],
+    },
+    {
+        "id": "fail-plugin-exception",
+        "failure_class": "plugin-exception",
+        "expected_diagnostic": "unknown step action: no_such_action",
+        "surviving_artifacts": ["result.json", "report.md", "final.txt", "final.svg", "session.cast", "session.exitcode", "steps"],
+    },
+]
 
-def _run_recipe_to_dir(root: Path, recipe_rel: str, out_dir: Path) -> None:
-    """Run one committed recipe via the runner into *out_dir*."""
+
+def write_failure_manifest(root: Path) -> None:
+    out_dir = root / "failures"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / "manifest.json").write_text(
+        canonical_json({"required": REQUIRED_FAILURE_CLASSES}), encoding="utf-8"
+    )
+
+
+def _run_recipe_to_dir(root: Path, recipe_rel: str, out_dir: Path) -> Path:
+    """Run one committed recipe via the runner into *out_dir*.
+
+    Must be called while the process cwd is inside a corpus sandbox so the
+    recipe's relative ``cwd: corpus/apps`` resolves to the sandbox copy and
+    fixture apps can never write into the real checkout.
+    """
     from termproof.models import load_recipe
     from termproof.runner import VerificationRunner
 
@@ -868,64 +1219,64 @@ def _run_recipe_to_dir(root: Path, recipe_rel: str, out_dir: Path) -> None:
     recipe = load_recipe(recipe_path)
     runner = VerificationRunner()
     runner.run(recipe, out_dir=out_dir, render_video=False, screen_renderer_name="svg")
+    run_dirs = sorted(out_dir.glob("*-*"))
+    if not run_dirs:
+        raise RuntimeError(f"no run dir produced for {recipe_rel}")
+    return run_dirs[0]
 
 
 def write_run_evidence(root: Path) -> None:
     runs_root = runs_dir(root)
     runs_root.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory() as tmp:
-        sandbox = Path(tmp) / "out"
-        sandbox.mkdir()
-        for run in EVIDENCE_RUNS:
-            recipe_rel = run["recipe"]
-            _run_recipe_to_dir(root, recipe_rel, sandbox)
-            # Locate the generated run dir (timestamped).
-            run_dirs = sorted(sandbox.glob("*-*"))
-            if not run_dirs:
-                raise RuntimeError(f"no run dir produced for {recipe_rel}")
-            run_dir = run_dirs[0]
-            # Copy normalized evidence into the corpus.
-            dest = runs_root / run["id"]
-            dest.mkdir(parents=True, exist_ok=True)
-            for name in ("result.json", "report.md", "final.txt", "final.svg", "session.cast", "session.exitcode"):
-                src = run_dir / name
-                if not src.exists():
-                    continue
-                raw = src.read_bytes()
-                if name == "result.json":
-                    content = normalize_result_json(raw.decode("utf-8")).encode("utf-8")
-                elif name == "report.md":
-                    content = normalize_report_md(raw.decode("utf-8")).encode("utf-8")
-                elif name == "session.cast":
-                    content = normalize_cast(raw.decode("utf-8")).encode("utf-8")
-                else:
-                    content = raw
-                (dest / name).write_bytes(content)
-            steps_src = run_dir / "steps"
-            if steps_src.exists():
-                shutil.copytree(steps_src, dest / "steps", dirs_exist_ok=True)
-            # Cleanup between runs.
-            for existing in sandbox.iterdir():
-                if existing.is_dir():
-                    shutil.rmtree(existing)
-                else:
-                    existing.unlink()
-    # The json-all-assertions app writes an artifact into its cwd
-    # (corpus/apps) as part of the run; remove it so it is never committed.
-    (apps_dir(root) / "fixture-artifact.txt").unlink(missing_ok=True)
+        with _sandbox_cwd(root):
+            sandbox_out = Path(tmp) / "out"
+            sandbox_out.mkdir()
+            for run in [*EVIDENCE_RUNS, *REQUIRED_FAILURE_CLASSES]:
+                recipe_rel = run.get("recipe") or f"v1/{run['id']}.recipe.json"
+                run_dir = _run_recipe_to_dir(root, recipe_rel, sandbox_out)
+                dest = runs_root / run["id"]
+                # Clear the destination so regeneration is a clean mirror: a
+                # recipe that no longer emits a step (or emits new ones) must
+                # not leave stale committed artifacts behind.
+                if dest.exists():
+                    shutil.rmtree(dest)
+                dest.mkdir(parents=True, exist_ok=True)
+                for name in ("result.json", "report.md", "final.txt", "final.svg", "session.cast", "session.exitcode"):
+                    src = run_dir / name
+                    if not src.exists():
+                        continue
+                    raw = src.read_bytes()
+                    if name == "result.json":
+                        content = normalize_result_json(raw.decode("utf-8")).encode("utf-8")
+                    elif name == "report.md":
+                        content = normalize_report_md(raw.decode("utf-8")).encode("utf-8")
+                    elif name == "session.cast":
+                        content = normalize_cast(raw.decode("utf-8")).encode("utf-8")
+                    else:
+                        content = raw
+                    (dest / name).write_bytes(content)
+                steps_src = run_dir / "steps"
+                if steps_src.exists():
+                    shutil.copytree(steps_src, dest / "steps", dirs_exist_ok=True)
+                # Cleanup between runs.
+                for existing in sandbox_out.iterdir():
+                    if existing.is_dir():
+                        shutil.rmtree(existing)
+                    else:
+                        existing.unlink()
 
 
 def write_reports(root: Path) -> None:
     """Capture CLI-level aggregate reports (Markdown + JUnit) for a run."""
     out_dir = root / "reports"
     out_dir.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory() as tmp:
-        sandbox = Path(tmp)
+    with _sandbox_cwd(root) as sandbox:
         out_path = sandbox / "runs"
-        recipe = str((recipes_dir(root) / "v1" / "banner-basic.recipe.json").resolve())
+        recipe = "corpus/recipes/v1/banner-basic.recipe.json"
         code, stdout, _ = run_cli(
             ["run", recipe, "--out", str(out_path), "--reporter", "markdown"],
-            cwd=REPO_ROOT,
+            cwd=sandbox,
         )
         if code != 0:
             raise RuntimeError(f"markdown report run failed: {stdout}")
@@ -946,7 +1297,7 @@ def write_reports(root: Path) -> None:
         xml_path = sandbox / "junit.xml"
         code, stdout, _ = run_cli(
             ["run", recipe, "--out", str(out_path), "--xml-path", str(xml_path)],
-            cwd=REPO_ROOT,
+            cwd=sandbox,
         )
         if code != 0:
             raise RuntimeError(f"junit run failed: {stdout}")
@@ -960,14 +1311,28 @@ def write_reports(root: Path) -> None:
 # -- video, cache, diff contracts --------------------------------------------
 
 
-def write_video_contract(root: Path) -> None:
-    """Capture the deterministic missing-tools video warning and presence semantics.
+class _SentinelVideoBackend:
+    """Deterministic fake video backend that writes a sentinel mp4.
 
-    Video *bytes* are never compared (encoder/platform dependent). The frozen
-    contract is: requesting --video with tools present yields a session.mp4
-    artifact; with tools missing it emits an exact loud warning and omits the
-    artifact. We capture the warning text here and the presence contract in
-    the drift test's semantic checks.
+    The corpus never compares video *bytes* (encoder/platform dependent);
+    this backend proves the tools-present success path: render_artifacts
+    registers the artifact and the file exists.
+    """
+
+    def __init__(self) -> None:
+        self.sentinel = b"TERMPROOF-SENTINEL-MP4\n"
+
+    def render(self, cast_path: Path, mp4_path: Path, fps: int) -> None:
+        mp4_path.write_bytes(self.sentinel)
+
+
+def write_video_contract(root: Path) -> None:
+    """Capture both video paths deterministically.
+
+    - missing tools: exact loud warning + omitted artifact (committed).
+    - tools present: a deterministic fake backend writes a sentinel
+      ``session.mp4``; the returned artifact map registers the video and the
+      file exists (committed, without comparing encoder bytes).
     """
     out_dir = root / "video"
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -989,7 +1354,7 @@ def write_video_contract(root: Path) -> None:
 
             evidence._missing_video_tools = lambda: ["agg", "ffmpeg"]  # type: ignore[method-assign]
             try:
-                artifacts = render_artifacts(
+                artifacts_missing = render_artifacts(
                     run_dir,
                     render_video=True,
                     video_fps=60,
@@ -1001,7 +1366,7 @@ def write_video_contract(root: Path) -> None:
         (out_dir / "missing-tools-warning.txt").write_text(
             "\n".join(warning_texts) + "\n", encoding="utf-8"
         )
-        has_video = "video" in artifacts
+        has_video = "video" in artifacts_missing
         (out_dir / "presence-contract.json").write_text(
             canonical_json(
                 {
@@ -1013,47 +1378,168 @@ def write_video_contract(root: Path) -> None:
             encoding="utf-8",
         )
 
+    # Tools-present success path with the deterministic sentinel backend.
+    with tempfile.TemporaryDirectory() as tmp:
+        run_dir = Path(tmp)
+        (run_dir / "session.cast").write_text(
+            '{"version": 2, "width": 80, "height": 24}\n[0.1, "o", "fixture"]\n',
+            encoding="utf-8",
+        )
+        backend = _SentinelVideoBackend()
+        artifacts = render_artifacts(
+            run_dir,
+            render_video=True,
+            video_fps=60,
+            screen_renderer=SvgRenderer(),
+            video_backend=backend,
+        )
+        video_path = Path(artifacts["video"]) if "video" in artifacts else None
+        (out_dir / "tools-present-contract.json").write_text(
+            canonical_json(
+                {
+                    "requested_video": True,
+                    "video_artifact_present": video_path is not None,
+                    "artifact_key": "video",
+                    "artifact_name": video_path.name if video_path else None,
+                    "file_exists": video_path.is_file() if video_path else False,
+                    "sentinel_bytes": len(backend.sentinel),
+                }
+            ),
+            encoding="utf-8",
+        )
+
 
 def write_cache_contract(root: Path) -> None:
-    """Capture the cache key inputs and a cached-result shape."""
+    """Exercise a real cache miss followed by a hit and commit both.
+
+    The recipe runs once (miss) and is stored; a second load returns the
+    cached RunResult with the ``<cache>`` artifact marker and zeroed
+    duration. The stored cache entry and the normalized cached result are
+    committed so the Rust implementation must reproduce cache behavior, not
+    just a key hash.
+    """
     from dataclasses import replace as replace_dataclass
 
     from termproof.models import load_recipe
-    from termproof.run_cache import _cache_key
+    from termproof.run_cache import _cache_key, load_cached_result, store_cached_result
+    from termproof.runner import VerificationRunner
 
     out_dir = root / "cache"
     out_dir.mkdir(parents=True, exist_ok=True)
-    recipe_path = recipes_dir(root) / "v1" / "banner-basic.recipe.json"
-    recipe = load_recipe(recipe_path)
-    # The cache key hashes the recipe *source path*; pin it to the canonical
-    # repo-relative path so the recorded key is stable across checkouts.
-    recipe = replace_dataclass(recipe, source_path="corpus/recipes/v1/banner-basic.recipe.json")
-    key = _cache_key(
-        recipe,
-        "default",
-        [],
-        out_dir=Path(".termproof/runs"),
-        screen_renderer="svg",
-        video_backend="agg_ffmpeg",
-        render_video=False,
-        video_fps=60,
-    )
-    (out_dir / "cache-key-inputs.json").write_text(
-        canonical_json(
-            {
-                "recipe_source_path": "corpus/recipes/v1/banner-basic.recipe.json",
-                "renderer": "default",
-                "renderer_argv": [],
-                "out_dir": ".termproof/runs",
-                "screen_renderer": "svg",
-                "video_backend": "agg_ffmpeg",
-                "render_video": False,
-                "video_fps": 60,
-                "key_sha256": key,
-            }
-        ),
-        encoding="utf-8",
-    )
+    with _sandbox_cwd(root) as sandbox:
+        cache_dir = sandbox / ".cache"
+        recipe_path = recipes_dir(root) / "v1" / "banner-basic.recipe.json"
+        recipe = load_recipe(recipe_path)
+        # The cache key hashes the recipe *source path*; pin it to the
+        # canonical repo-relative path so the recorded key is stable
+        # across checkouts and sandboxes.
+        recipe = replace_dataclass(
+            recipe,
+            source_path="corpus/recipes/v1/banner-basic.recipe.json",
+        )
+        key = _cache_key(
+            recipe,
+            "default",
+            [],
+            out_dir=Path(".termproof/runs"),
+            screen_renderer="svg",
+            video_backend="agg_ffmpeg",
+            render_video=False,
+            video_fps=60,
+        )
+        (out_dir / "cache-key-inputs.json").write_text(
+            canonical_json(
+                {
+                    "recipe_source_path": "corpus/recipes/v1/banner-basic.recipe.json",
+                    "renderer": "default",
+                    "renderer_argv": [],
+                    "out_dir": ".termproof/runs",
+                    "screen_renderer": "svg",
+                    "video_backend": "agg_ffmpeg",
+                    "render_video": False,
+                    "video_fps": 60,
+                    "key_sha256": key,
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        # Miss: no cache entry yet.
+        miss = load_cached_result(
+            cache_dir,
+            recipe,
+            "default",
+            [],
+            out_dir=Path(".termproof/runs"),
+            screen_renderer="svg",
+            video_backend="agg_ffmpeg",
+            render_video=False,
+            video_fps=60,
+        )
+        # Execute the recipe with an explicit sandbox-absolute command path.
+        # The committed recipe's relative `cwd: corpus/apps` would otherwise
+        # resolve against the asciinema child's cwd, dropping the cast outside
+        # the run dir; the cache *key* hashes the committed recipe file (not
+        # the command), so the recorded key stays canonical and deterministic.
+        recipe_exec = replace_dataclass(
+            recipe,
+            command=replace_dataclass(
+                recipe.command,
+                argv=["python3", "corpus/apps/banner.py"],
+                cwd=".",
+            ),
+        )
+        runner = VerificationRunner()
+        result = runner.run(
+            recipe_exec,
+            out_dir=Path(".termproof/runs"),
+            render_video=False,
+            screen_renderer_name="svg",
+        )
+        store_cached_result(
+            cache_dir,
+            recipe,
+            "default",
+            [],
+            result,
+            out_dir=Path(".termproof/runs"),
+            screen_renderer="svg",
+            video_backend="agg_ffmpeg",
+            render_video=False,
+            video_fps=60,
+        )
+        # Hit: load returns the cached passing result with <cache> marker.
+        hit = load_cached_result(
+            cache_dir,
+            recipe,
+            "default",
+            [],
+            out_dir=Path(".termproof/runs"),
+            screen_renderer="svg",
+            video_backend="agg_ffmpeg",
+            render_video=False,
+            video_fps=60,
+        )
+        entry_path = cache_dir / "banner-basic" / "default.json"
+        entry = json.loads(entry_path.read_text(encoding="utf-8"))
+        (out_dir / "cache-entry.json").write_text(
+            canonical_json(
+                {
+                    "key": entry["key"],
+                    "result": json.loads(
+                        normalize_result_json(json.dumps(entry["result"], indent=2))
+                    ),
+                    "miss_present": miss is None,
+                    "hit_present": hit is not None,
+                }
+            ),
+            encoding="utf-8",
+        )
+        if hit is not None:
+            (out_dir / "cache-hit-result.json").write_text(
+                normalize_result_json(json.dumps(hit.to_dict(), indent=2)),
+                encoding="utf-8",
+            )
 
 
 def write_diff_contract(root: Path) -> None:
@@ -1120,6 +1606,7 @@ def write_oracle(root: Path, *, check: bool = False) -> None:
 
     oracle = {
         "oracle_commit": ORACLE_COMMIT,
+        "oracle_source_sha256": compute_oracle_source_sha256(),
         "termproof_version": getattr(termproof, "__version__", "0.2.1"),
         "python_version": ".".join(str(v) for v in sys.version_info[:3]),
         "pillow_version": PIL.__version__,
@@ -1155,6 +1642,7 @@ def generate_all(root: Path, *, check: bool = False) -> None:
     write_video_contract(root)
     write_cache_contract(root)
     write_diff_contract(root)
+    write_failure_manifest(root)
     write_oracle(root, check=check)
 
 
@@ -1180,31 +1668,40 @@ def _normalize_fixture(rel: Path, data: bytes) -> str:
 def check_drift(committed: Path) -> int:
     """Regenerate into a temp dir and diff against the committed corpus.
 
+    The comparison is *symmetric*: every generated file must exist committed
+    (MISSING IN COMMITTED otherwise) and every committed file must exist in
+    the fresh output (EXTRA IN COMMITTED otherwise), so stale committed
+    artifacts and missing optional outputs fail the gate. Intentionally
+    static files (STATIC_COMMITTED_FILES) are exempt from the committed-only
+    direction.
+
     Returns 0 when every fixture matches after normalization, 1 otherwise.
     Prints a per-file report to stdout.
     """
     with tempfile.TemporaryDirectory() as tmp:
         fresh = Path(tmp)
         generate_all(fresh, check=True)
-        # json_app writes its artifact relative to the runner cwd (the real
-        # repo, not the temp corpus); ensure it never lingers in the tree.
-        (REPO_ROOT / "corpus" / "apps" / "fixture-artifact.txt").unlink(missing_ok=True)
         committed_oracle = json.loads((committed / "oracle.json").read_text(encoding="utf-8"))
         oracle_pillow = committed_oracle.get("pillow_version")
 
+        fresh_files = {p.relative_to(fresh) for p in fresh.rglob("*") if p.is_file()}
+        committed_files = {p.relative_to(committed) for p in committed.rglob("*") if p.is_file()}
+
         mismatches: list[str] = []
         compared = 0
-        for fresh_path in sorted(fresh.rglob("*")):
-            if not fresh_path.is_file():
+
+        for rel in sorted(fresh_files - committed_files):
+            mismatches.append(f"MISSING IN COMMITTED: {rel}")
+
+        for rel in sorted(committed_files - fresh_files):
+            if rel.as_posix() in STATIC_COMMITTED_FILES:
                 continue
-            rel = fresh_path.relative_to(fresh)
-            committed_path = committed / rel
-            if not committed_path.exists():
-                mismatches.append(f"MISSING IN COMMITTED: {rel}")
-                continue
+            mismatches.append(f"EXTRA IN COMMITTED: {rel}")
+
+        for rel in sorted(fresh_files & committed_files):
             compared += 1
-            fresh_data = fresh_path.read_bytes()
-            committed_data = committed_path.read_bytes()
+            fresh_data = (fresh / rel).read_bytes()
+            committed_data = (committed / rel).read_bytes()
             if rel.suffix == ".png":
                 a = normalize_png_bytes(fresh_data, oracle_pillow=oracle_pillow)
                 b = normalize_png_bytes(committed_data, oracle_pillow=oracle_pillow)

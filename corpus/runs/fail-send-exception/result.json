@@ -1,0 +1,44 @@
+{
+  "artifacts": {
+    "cast": "session.cast",
+    "exit_code_file": "session.exitcode",
+    "screen_text": "final.txt",
+    "screenshot": "final.svg",
+    "step_screenshots": "steps"
+  },
+  "assertions": [
+    {
+      "detail": "expected 0, got 0",
+      "name": "exit_code",
+      "passed": true
+    }
+  ],
+  "duration_seconds": 0.0,
+  "execution": "scripted",
+  "exit_code": 0,
+  "passed": false,
+  "priority": "P2",
+  "recipe_name": "fail-send-exception",
+  "renderer": "default",
+  "score": 1.0,
+  "steps": [
+    {
+      "detail": "found 'TermProof Fixture App'",
+      "name": "wait banner",
+      "passed": true,
+      "screen": "TermProof Fixture App v1.2.3\nstatus: ready\nmenu: [status] [help] [quit]"
+    },
+    {
+      "detail": "slept",
+      "name": "let process exit",
+      "passed": true,
+      "screen": "TermProof Fixture App v1.2.3\nstatus: ready\nmenu: [status] [help] [quit]"
+    },
+    {
+      "detail": "[Errno N] I/O error",
+      "name": "send after exit",
+      "passed": false,
+      "screen": "TermProof Fixture App v1.2.3\nstatus: ready\nmenu: [status] [help] [quit]"
+    }
+  ]
+}

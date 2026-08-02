@@ -1,0 +1,24 @@
+{
+  "artifacts": {
+    "cast": "session.cast",
+    "exit_code_file": "session.exitcode",
+    "screen_text": "final.txt",
+    "screenshot": "final.svg"
+  },
+  "assertions": [
+    {
+      "detail": "expected 0, got 1",
+      "name": "exit_code",
+      "passed": false
+    }
+  ],
+  "duration_seconds": 0.0,
+  "execution": "scripted",
+  "exit_code": 1,
+  "passed": false,
+  "priority": "P2",
+  "recipe_name": "fail-launch",
+  "renderer": "default",
+  "score": 0.0,
+  "steps": []
+}

@@ -1,0 +1,39 @@
+{
+  "recipe_version": 1,
+  "name": "fail-send-exception",
+  "description": "Send/session exception: send_text to a session that already exited.",
+  "priority": "P2",
+  "execution": "scripted",
+  "determinism": "deterministic",
+  "command": {
+    "argv": [
+      "python3",
+      "banner.py"
+    ],
+    "cwd": "corpus/apps",
+    "pty": true
+  },
+  "expect_exit_code": 0,
+  "timeout_seconds": 10,
+  "cols": 80,
+  "rows": 24,
+  "steps": [
+    {
+      "name": "wait banner",
+      "action": "wait_for_text",
+      "text": "TermProof Fixture App",
+      "timeout_seconds": 5
+    },
+    {
+      "name": "let process exit",
+      "action": "sleep",
+      "seconds": 2
+    },
+    {
+      "name": "send after exit",
+      "action": "send_text",
+      "text": "hello"
+    }
+  ],
+  "assertions": []
+}

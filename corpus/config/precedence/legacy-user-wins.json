@@ -6,7 +6,7 @@
       "idle_cap_seconds": 1.5
     },
     "docker": {
-      "image": "",
+      "image": "legacy-img",
       "workdir": "/workspace"
     },
     "session_backend": "termproof.builtin_session:PexpectAsciinemaBackend"

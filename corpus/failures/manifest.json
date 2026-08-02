@@ -1,0 +1,100 @@
+{
+  "required": [
+    {
+      "expected_diagnostic": "timed out waiting for 'NEVER-PRESENT-12345'",
+      "failure_class": "step-timeout",
+      "id": "fail-step-timeout",
+      "surviving_artifacts": [
+        "result.json",
+        "report.md",
+        "final.txt",
+        "final.svg",
+        "session.cast",
+        "session.exitcode",
+        "steps"
+      ]
+    },
+    {
+      "expected_diagnostic": "timed out waiting for regex",
+      "failure_class": "step-regex-timeout",
+      "id": "fail-step-regex",
+      "surviving_artifacts": [
+        "result.json",
+        "report.md",
+        "final.txt",
+        "final.svg",
+        "session.cast",
+        "session.exitcode",
+        "steps"
+      ]
+    },
+    {
+      "expected_diagnostic": "'bogus-key'",
+      "failure_class": "step-input-invalid",
+      "id": "fail-step-input",
+      "surviving_artifacts": [
+        "result.json",
+        "report.md",
+        "final.txt",
+        "final.svg",
+        "session.cast",
+        "session.exitcode",
+        "steps"
+      ]
+    },
+    {
+      "expected_diagnostic": "[Errno N] I/O error",
+      "failure_class": "send-exception",
+      "id": "fail-send-exception",
+      "surviving_artifacts": [
+        "result.json",
+        "report.md",
+        "final.txt",
+        "final.svg",
+        "session.cast",
+        "session.exitcode",
+        "steps"
+      ]
+    },
+    {
+      "expected_diagnostic": "expected 0, got None",
+      "failure_class": "process-timeout",
+      "id": "fail-process-timeout",
+      "surviving_artifacts": [
+        "result.json",
+        "report.md",
+        "final.txt",
+        "final.svg",
+        "session.cast",
+        "steps"
+      ]
+    },
+    {
+      "expected_diagnostic": "expected 0, got 1",
+      "failure_class": "launch-failure",
+      "id": "fail-launch",
+      "surviving_artifacts": [
+        "result.json",
+        "report.md",
+        "final.txt",
+        "final.svg",
+        "session.cast",
+        "session.exitcode"
+      ]
+    },
+    {
+      "expected_diagnostic": "unknown step action: no_such_action",
+      "failure_class": "plugin-exception",
+      "id": "fail-plugin-exception",
+      "surviving_artifacts": [
+        "result.json",
+        "report.md",
+        "final.txt",
+        "final.svg",
+        "session.cast",
+        "session.exitcode",
+        "steps"
+      ]
+    }
+  ]
+}

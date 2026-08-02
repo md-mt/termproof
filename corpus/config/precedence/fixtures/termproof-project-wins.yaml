@@ -1,5 +1,9 @@
 defaults:
   idle_cap_seconds: 3.5
+docker:
+  image: project-legacy-img
 
 defaults:
   idle_cap_seconds: 4.5
+docker:
+  workdir: /tp-workdir

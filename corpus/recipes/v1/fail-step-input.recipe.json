@@ -1,0 +1,28 @@
+{
+  "recipe_version": 1,
+  "name": "fail-step-input",
+  "description": "Step input failure: press with an unknown key raises KeyError.",
+  "priority": "P2",
+  "execution": "scripted",
+  "determinism": "deterministic",
+  "command": {
+    "argv": [
+      "python3",
+      "banner.py"
+    ],
+    "cwd": "corpus/apps",
+    "pty": true
+  },
+  "expect_exit_code": 0,
+  "timeout_seconds": 10,
+  "cols": 80,
+  "rows": 24,
+  "steps": [
+    {
+      "name": "press bad key",
+      "action": "press",
+      "key": "bogus-key"
+    }
+  ],
+  "assertions": []
+}

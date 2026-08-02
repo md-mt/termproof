@@ -32,6 +32,9 @@
       "--registry",
       "--dry-run"
     ],
+    "plugins_list": [
+      "--config"
+    ],
     "plugins_search": [
       "--registry"
     ],

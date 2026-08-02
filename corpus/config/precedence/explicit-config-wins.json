@@ -6,8 +6,8 @@
       "idle_cap_seconds": 6.5
     },
     "docker": {
-      "image": "",
-      "workdir": "/workspace"
+      "image": "explicit-img",
+      "workdir": "/tp-workdir"
     },
     "session_backend": "termproof.builtin_session:PexpectAsciinemaBackend"
   }

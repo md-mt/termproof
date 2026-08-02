@@ -3,6 +3,10 @@ defaults:
 
 defaults:
   idle_cap_seconds: 5.5
+docker:
+  workdir: /tp-workdir
 
 defaults:
   idle_cap_seconds: 6.5
+docker:
+  image: explicit-img

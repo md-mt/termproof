@@ -66,7 +66,7 @@
       "detail": "found 'fixture'",
       "name": "wait for json output",
       "passed": true,
-      "screen": "{\"app\": \"fixture\", \"version\": \"1.2.3\", \"status\": \"ok\", \"items\": [\"alpha\", \"beta\"\n, \"gamma\"]}"
+      "screen": "{\"app\": \"fixture\", \"version\": \"1.2.3\", \"status\": \"ok\", \"items\": [\"alpha\", \"beta\", \"gamma\"]}"
     }
   ]
 }

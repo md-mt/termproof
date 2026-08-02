@@ -1,0 +1,23 @@
+{
+  "recipe_version": 1,
+  "name": "fail-launch",
+  "description": "Launch failure: the app fails to import at startup (exit 1, deterministic stderr).",
+  "priority": "P2",
+  "execution": "scripted",
+  "determinism": "deterministic",
+  "command": {
+    "argv": [
+      "python3",
+      "-c",
+      "import definitely_missing_module_xyz"
+    ],
+    "cwd": "corpus/apps",
+    "pty": false
+  },
+  "expect_exit_code": 0,
+  "timeout_seconds": 10,
+  "cols": 80,
+  "rows": 24,
+  "steps": [],
+  "assertions": []
+}

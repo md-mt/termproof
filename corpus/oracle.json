@@ -1,7 +1,8 @@
 {
-  "generated_at": "2026-08-02T07:52:11+00:00",
+  "generated_at": "2026-08-02T09:37:41+00:00",
   "generator": "scripts/generate_corpus.py",
   "oracle_commit": "165c367ca0b0e2a4663a8773ee18b67c2264979c",
+  "oracle_source_sha256": "c65a2effa0ca146b6047b354ac4a649e65190cac758d9c465f9fe996310e7430",
   "pillow_version": "12.3.0",
   "python_version": "3.12.12",
   "termproof_version": "0.2.1"

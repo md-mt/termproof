@@ -1,12 +1,12 @@
 {
   "label": "termproof-user-wins",
-  "note": "TermProof user config (~/.config/termproof/config.yaml) beats legacy user config.",
+  "note": "TermProof user config (~/.config/termproof/config.yaml) beats legacy user config for the keys it provides; legacy partial keys survive.",
   "resolved": {
     "defaults": {
       "idle_cap_seconds": 2.5
     },
     "docker": {
-      "image": "",
+      "image": "legacy-img",
       "workdir": "/workspace"
     },
     "session_backend": "termproof.builtin_session:PexpectAsciinemaBackend"

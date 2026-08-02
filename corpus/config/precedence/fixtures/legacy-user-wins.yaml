@@ -1,2 +1,4 @@
 defaults:
   idle_cap_seconds: 1.5
+docker:
+  image: legacy-img

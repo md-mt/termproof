@@ -1,0 +1,30 @@
+{
+  "recipe_version": 1,
+  "name": "fail-process-timeout",
+  "description": "Process timeout: the app never exits and the recipe timeout elapses.",
+  "priority": "P2",
+  "execution": "scripted",
+  "determinism": "deterministic",
+  "command": {
+    "argv": [
+      "python3",
+      "-c",
+      "import time; time.sleep(30)"
+    ],
+    "cwd": "corpus/apps",
+    "pty": false
+  },
+  "expect_exit_code": 0,
+  "timeout_seconds": 1,
+  "cols": 80,
+  "rows": 24,
+  "steps": [
+    {
+      "name": "wait any",
+      "action": "wait_for_text",
+      "text": "x",
+      "timeout_seconds": 1
+    }
+  ],
+  "assertions": []
+}

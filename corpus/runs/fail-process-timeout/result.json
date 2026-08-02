@@ -1,0 +1,31 @@
+{
+  "artifacts": {
+    "cast": "session.cast",
+    "screen_text": "final.txt",
+    "screenshot": "final.svg",
+    "step_screenshots": "steps"
+  },
+  "assertions": [
+    {
+      "detail": "expected 0, got None",
+      "name": "exit_code",
+      "passed": false
+    }
+  ],
+  "duration_seconds": 0.0,
+  "execution": "scripted",
+  "exit_code": null,
+  "passed": false,
+  "priority": "P2",
+  "recipe_name": "fail-process-timeout",
+  "renderer": "default",
+  "score": 0.0,
+  "steps": [
+    {
+      "detail": "timed out waiting for 'x'",
+      "name": "wait any",
+      "passed": false,
+      "screen": ""
+    }
+  ]
+}

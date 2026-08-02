@@ -1,0 +1,32 @@
+{
+  "artifacts": {
+    "cast": "session.cast",
+    "exit_code_file": "session.exitcode",
+    "screen_text": "final.txt",
+    "screenshot": "final.svg",
+    "step_screenshots": "steps"
+  },
+  "assertions": [
+    {
+      "detail": "expected 0, got 0",
+      "name": "exit_code",
+      "passed": true
+    }
+  ],
+  "duration_seconds": 0.0,
+  "execution": "scripted",
+  "exit_code": 0,
+  "passed": false,
+  "priority": "P2",
+  "recipe_name": "fail-plugin-exception",
+  "renderer": "default",
+  "score": 1.0,
+  "steps": [
+    {
+      "detail": "unknown step action: no_such_action",
+      "name": "bogus action",
+      "passed": false,
+      "screen": ""
+    }
+  ]
+}
