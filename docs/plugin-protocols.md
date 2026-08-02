@@ -19,6 +19,23 @@ TermProof exposes stable plugin protocols from `termproof.protocols`.
 
 `ScreenRenderer` plugins can optionally set `extension = "png"` (or another file extension) so evidence artifacts use that screenshot filename suffix.
 
+## ExecutionMode runner surface
+
+An `ExecutionMode.execute` implementation receives a `VerificationRunner` and
+should only call its stable public methods rather than any underscore-prefixed
+internals:
+
+| Method | Purpose |
+| --- | --- |
+| `run_pty(recipe, run_dir) -> tuple[list[StepResult], str, int | None, str]` | Run scripted steps interactively over a PTY session. |
+| `run_process(recipe, run_dir) -> tuple[list[StepResult], str, int | None, str]` | Run the command to completion, then replay the cast. |
+| `run_agent_driven(recipe, run_dir) -> tuple[list[StepResult], list[AssertionResult], str, int | None, str]` | Delegate execution to the configured agent runner. |
+| `evaluate_assertions(recipe, screen, raw_output, exit_code) -> list[AssertionResult]` | Evaluate a recipe's assertions against captured output. |
+
+The former private methods (`_run_pty`, `_run_process`, `_run_agent_driven`,
+`_evaluate_assertions`) remain as deprecated aliases that delegate to the public
+methods, but new execution modes should use the public surface above.
+
 ## Import policy
 
 New plugins should import protocols from `termproof.protocols`:
