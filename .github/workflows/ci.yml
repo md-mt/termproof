@@ -52,6 +52,9 @@ jobs:
       - name: Run unit tests
         run: uv run python -m unittest discover -s tests
 
+      - name: Run community-health validation harness
+        run: uv run python scripts/validate_community_health.py
+
       - name: Run plugin-template unit tests
         run: |
           PYTHONPATH=plugin-template/src uv run --no-project --with . --with pytest --with pyyaml \

@@ -10,7 +10,7 @@ TermProof public launch touchpoints:
 1. **HN Show** — high visibility, technical audience, rapid comments
 2. **X/Twitter + Mastodon + Bluesky** — announcement threads, retweets, replies
 3. **Framework maintainer DMs** — Textual, Bubble Tea, Ratatui, Ink — one per day
-4. **GitHub repo** — stars, issues, PRs, discussions
+4. **GitHub repo** — stars, issues, PRs
 
 Goal: respond with technical depth, capture feedback, convert "tried it" into guides or plugins, avoid spam.
 
@@ -172,7 +172,7 @@ Record in `docs/launch/checklist.md` final section or swarm ledger — do not em
 ## After Week 1 — Transition to Normal Operations
 
 - Convert this runbook into lightweight `docs/community.md` or integrate into `docs/recipe-packs.md` + `docs/plugins.md`
-- Archive launch kit thread to GitHub Discussion "TermProof v0.2 Launch Retrospective" — capture what worked, what was missed
+- Open a labeled GitHub issue for the retrospective (e.g. title "TermProof v0.2 Launch Retrospective", label `launch-retrospective`) — capture what worked, what was missed
 - Update `docs/launch/README.md` canonical links after Pages demo live (#16)
 - Open follow-up tasks: actual social handle URLs, guide co-authoring, badge adoptions
 
