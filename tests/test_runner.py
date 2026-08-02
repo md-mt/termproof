@@ -106,6 +106,58 @@ class RunnerTest(unittest.TestCase):
         backend = runner.video_backend_registry.get("agg_ffmpeg")
         self.assertIsNotNone(backend)
 
+    def test_run_pty_converts_step_exception_to_failed_result(self) -> None:
+        """A PTY step that raises yields a failed StepResult, not an abort.
+
+        Mirrors the process-mode behavior. Uses a fake session backend so the
+        test does not need asciinema/ffmpeg to exercise the error-wrapping path.
+        """
+
+        class _FakeSession:
+            screen = "screen-snapshot"
+            raw_output = "raw"
+            exit_code = 0
+
+            def __enter__(self) -> "_FakeSession":
+                return self
+
+            def __exit__(self, *exc: object) -> bool:
+                return False
+
+            def press(self, key: str) -> None:
+                # Mirror the real session: unknown key raises KeyError.
+                raise KeyError(key.lower())
+
+            def wait_for_exit(self, timeout_seconds: float) -> None:
+                return None
+
+            def wait_for_idle(self, stable: float, timeout: float) -> bool:
+                return True
+
+        class _FakeBackend:
+            def create_session(self, *args: object, **kwargs: object) -> "_FakeSession":
+                return _FakeSession()
+
+        with tempfile.TemporaryDirectory() as tmp:
+            runner = VerificationRunner()
+            runner.session_backend = _FakeBackend()
+            recipe = Recipe(
+                name="pty-error",
+                command=CommandSpec(
+                    argv=[sys.executable, "-c", "pass"],
+                    pty=True,
+                ),
+                steps=[{"action": "press", "key": "not-a-real-key"}],
+                expect_exit_code=None,
+            )
+            steps, raw_output, exit_code, screen = runner._run_pty(
+                recipe, Path(tmp)
+            )
+            self.assertEqual(len(steps), 1)
+            self.assertFalse(steps[0].passed)
+            self.assertIn("not-a-real-key", steps[0].detail)
+            self.assertEqual(steps[0].screen, "screen-snapshot")
+
     def test_runner_run_uses_video_backend(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             recipe = Recipe(
