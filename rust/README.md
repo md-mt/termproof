@@ -8,7 +8,7 @@ level until the parity gates in `docs/rust-reimplementation-spec.md` pass.
 ## Layout
 
 - `Cargo.toml` — workspace manifest with shared lint and dependency policy.
-- `rust-toolchain.toml` — pinned stable toolchain (`stable`, minimal profile).
+- `rust-toolchain.toml` — pinned toolchain (`1.96.0`, minimal profile).
 - `docs/engineering-baseline.md` — formatting, lint, error, tracing,
   dependency, feature, and unsafe-code policies (RUST-002 deliverable).
 - `crates/` — five workspace crates:

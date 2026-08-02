@@ -11,12 +11,16 @@ specification wins and this document is updated.
 
 ## 1. Toolchain and MSRV
 
-- The workspace pins a stable Rust toolchain via `rust/rust-toolchain.toml`
-  (`channel = "stable"`, `profile = "minimal"`, components `rustfmt` and
-  `clippy`). CI and developers using `rustup` pick this up automatically.
+- The workspace pins an exact Rust toolchain via `rust/rust-toolchain.toml`
+  (`channel = "1.96.0"`, `profile = "minimal"`, components `rustfmt` and
+  `clippy`). The pin is deliberately an exact stable release, not the moving
+  `stable` alias, so a fresh environment reproduces the same compiler. CI and
+  developers using `rustup` pick this up automatically; Homebrew/manual
+  installs must install the same exact channel.
 - The minimum supported Rust version (MSRV) is declared as
-  `rust-version = "1.96"` in `rust/Cargo.toml` (`[workspace.package]`). Code
-  must compile on the MSRV with no warnings.
+  `rust-version = "1.96"` in `rust/Cargo.toml` (`[workspace.package]`). The
+  pinned toolchain matches the MSRV, so development and CI run on the declared
+  minimum. Code must compile on the MSRV with no warnings.
 - No nightly-only production features are used. Nightly is allowed only for
   local experimentation and never in committed code or CI.
 - Target support policy (Tier 1 at cutover, per spec section 3):
@@ -108,12 +112,17 @@ specification wins and this document is updated.
 
 - `unsafe_code = "forbid"` is enforced workspace-wide by lint; there is no
   `unsafe` in the baseline and none is expected.
-- If a future milestone proves a genuine need for `unsafe` (for example a
-  narrow FFI shim), it must:
-  1. Be isolated in the smallest possible module with a safety contract
-     documented in a `// SAFETY:` comment on every `unsafe` block;
-  2. Be justified in the implementing issue with a soundness argument;
-  3. Opt out of the workspace lint at the module level only, never crate-wide.
+- Rust's `forbid` level cannot be lowered by a nested `#[allow(unsafe_code)]`,
+  so a scoped exception is not possible without changing the lint itself. If a
+  future milestone proves a genuine need for `unsafe` (for example a narrow
+  FFI shim), it requires a reviewed workspace-policy change that:
+  1. Justifies the need in the implementing issue with a soundness argument;
+  2. Relaxes the workspace lint from `forbid` to `deny` in the same reviewed
+     change (documented here), so a narrow override becomes possible at all;
+  3. Isolates every `unsafe` block in the smallest possible module with a
+     safety contract documented in a `// SAFETY:` comment on every block;
+  4. Scopes any `#[allow(unsafe_code)]` to the item or module only, never
+     crate-wide — `deny` remains the workspace default.
 - ABI-stable dynamic libraries are explicitly a non-goal (spec section 4.5);
   `unsafe` for plugin FFI is not a planned use.
 
@@ -122,7 +131,7 @@ specification wins and this document is updated.
 ```
 rust/
 ├── Cargo.toml                  # workspace manifest + shared lints/deps
-├── rust-toolchain.toml         # pinned stable toolchain
+├── rust-toolchain.toml         # pinned toolchain 1.96.0 (exact stable release)
 ├── Cargo.lock                  # pinned dependency graph (committed)
 ├── README.md                   # quickstart for the Rust workspace
 ├── docs/

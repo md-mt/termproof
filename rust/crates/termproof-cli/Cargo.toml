@@ -17,4 +17,4 @@ name = "termproof"
 path = "src/main.rs"
 
 [dependencies]
-termproof-core = { path = "../termproof-core" }
+termproof-core.workspace = true

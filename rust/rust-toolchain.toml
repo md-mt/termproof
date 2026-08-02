@@ -2,10 +2,12 @@
 #
 # `rustup` (used by CI and most developers) reads this file and installs the
 # pinned channel automatically. Homebrew/manual installs should install the
-# same stable channel. MSRV is documented in rust/docs/engineering-baseline.md
-# and reflected in `rust-version` in Cargo.toml.
+# same exact channel. The pin is the exact stable release that matches the MSRV
+# declared as `rust-version = "1.96"` in rust/Cargo.toml; a moving alias like
+# `stable` would not give the reproducibility documented in
+# rust/docs/engineering-baseline.md.
 
 [toolchain]
-channel = "stable"
+channel = "1.96.0"
 components = ["rustfmt", "clippy"]
 profile = "minimal"
