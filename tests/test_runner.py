@@ -118,7 +118,7 @@ class RunnerTest(unittest.TestCase):
             raw_output = "raw"
             exit_code = 0
 
-            def __enter__(self) -> "_FakeSession":
+            def __enter__(self) -> _FakeSession:
                 return self
 
             def __exit__(self, *exc: object) -> bool:
@@ -135,7 +135,7 @@ class RunnerTest(unittest.TestCase):
                 return True
 
         class _FakeBackend:
-            def create_session(self, *args: object, **kwargs: object) -> "_FakeSession":
+            def create_session(self, *args: object, **kwargs: object) -> _FakeSession:
                 return _FakeSession()
 
         with tempfile.TemporaryDirectory() as tmp:

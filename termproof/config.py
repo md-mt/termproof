@@ -86,7 +86,7 @@ class VerifierConfig:
     docker: DockerBackendConfig
 
     @classmethod
-    def builtin(cls) -> "VerifierConfig":
+    def builtin(cls) -> VerifierConfig:
         """Return a config populated entirely from BUILTIN_DEFAULTS."""
         return _from_mapping(BUILTIN_DEFAULTS)
 

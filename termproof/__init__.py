@@ -1,7 +1,7 @@
 """Evidence-first verification for terminal and TUI applications."""
 
 from .config import VerifierConfig, load_config
-from .models import AssertionResult, Recipe, RunResult, StepResult
+from .models import AssertionResult, Recipe, RunResult, StepResult, load_recipe
 from .protocols import (
     AgentRunner,
     AssertionType,
@@ -14,7 +14,7 @@ from .protocols import (
 )
 from .registry import Registry
 from .report import ReportGenerator
-from .runner import VerificationRunner, load_recipe
+from .runner import VerificationRunner
 
 __all__ = [
     "AgentRunner",

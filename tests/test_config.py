@@ -5,7 +5,6 @@ import unittest
 from pathlib import Path
 
 from termproof.config import (
-    BUILTIN_DEFAULTS,
     DockerBackendConfig,
     VerifierConfig,
     load_config,
