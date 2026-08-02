@@ -66,6 +66,62 @@ class ConfigTest(unittest.TestCase):
             )
             self.assertIsNone(config.defaults.idle_cap_seconds)
 
+    def test_load_config_rejects_negative_idle_cap(self) -> None:
+        """A negative idle cap would silently eliminate idle waiting; reject it."""
+        with tempfile.TemporaryDirectory() as tmp:
+            user_yaml = tmp + "/user.yaml"
+            Path(user_yaml).write_text(
+                "defaults:\n  idle_cap_seconds: -1\n",
+                encoding="utf-8",
+            )
+            with self.assertRaises(ValueError):
+                load_config(
+                    project_path=Path(tmp),
+                    user_path=Path(user_yaml),
+                )
+
+    def test_load_config_rejects_nan_idle_cap(self) -> None:
+        """NaN is not a finite number of seconds; reject it."""
+        with tempfile.TemporaryDirectory() as tmp:
+            user_yaml = tmp + "/user.yaml"
+            Path(user_yaml).write_text(
+                "defaults:\n  idle_cap_seconds: .nan\n",
+                encoding="utf-8",
+            )
+            with self.assertRaises(ValueError):
+                load_config(
+                    project_path=Path(tmp),
+                    user_path=Path(user_yaml),
+                )
+
+    def test_load_config_rejects_infinite_idle_cap(self) -> None:
+        """Infinity is not a finite number of seconds; reject it."""
+        with tempfile.TemporaryDirectory() as tmp:
+            user_yaml = tmp + "/user.yaml"
+            Path(user_yaml).write_text(
+                "defaults:\n  idle_cap_seconds: .inf\n",
+                encoding="utf-8",
+            )
+            with self.assertRaises(ValueError):
+                load_config(
+                    project_path=Path(tmp),
+                    user_path=Path(user_yaml),
+                )
+
+    def test_load_config_accepts_zero_idle_cap(self) -> None:
+        """A zero idle cap is finite and nonnegative; it is a valid explicit choice."""
+        with tempfile.TemporaryDirectory() as tmp:
+            user_yaml = tmp + "/user.yaml"
+            Path(user_yaml).write_text(
+                "defaults:\n  idle_cap_seconds: 0\n",
+                encoding="utf-8",
+            )
+            config = load_config(
+                project_path=Path(tmp),
+                user_path=Path(user_yaml),
+            )
+            self.assertEqual(config.defaults.idle_cap_seconds, 0.0)
+
     def test_load_config_preserves_idle_cap_when_key_absent(self) -> None:
         """A defaults block that omits idle_cap_seconds keeps the builtin cap."""
         with tempfile.TemporaryDirectory() as tmp:

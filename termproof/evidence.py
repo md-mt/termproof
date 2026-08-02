@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from .agg_bundle import resolve_agg
+from .builtin_video import AggFfmpegBackend
 from .models import RunResult, StepResult
 from .screen import render_svg, replay_cast
 
@@ -63,12 +64,16 @@ def render_artifacts(
             artifacts[name.removesuffix(".md").removesuffix(".json")] = str(path)
     if render_video:
         mp4_path = run_dir / "session.mp4"
-        if video_backend is not None:
-            # A caller-supplied backend owns its own dependency requirements;
-            # do not impose host tool checks on the plugin boundary.
+        if video_backend is not None and not isinstance(video_backend, AggFfmpegBackend):
+            # A caller-supplied custom backend owns its own dependency
+            # requirements; do not impose host tool checks on the plugin
+            # boundary.
             video_backend.render(cast_path, mp4_path, video_fps)
             artifacts["video"] = str(mp4_path)
         else:
+            # The built-in agg_ffmpeg backend (or no backend at all) cannot
+            # satisfy a --video request without the host tools; warn loudly
+            # and omit the artifact instead of recording a nonexistent file.
             missing = _missing_video_tools()
             if missing:
                 warnings.warn(
@@ -78,7 +83,10 @@ def render_artifacts(
                     stacklevel=2,
                 )
             else:
-                render_mp4(cast_path, mp4_path, video_fps)
+                if video_backend is not None:
+                    video_backend.render(cast_path, mp4_path, video_fps)
+                else:
+                    render_mp4(cast_path, mp4_path, video_fps)
                 artifacts["video"] = str(mp4_path)
     return artifacts
 

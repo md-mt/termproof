@@ -108,6 +108,53 @@ class ResolveAggFallbackTests(unittest.TestCase):
         backend.render.assert_called_once()
         self.assertIn("video", artifacts)
 
+    # -- built-in backend distinction regression tests -----------------------
+
+    @patch("termproof.evidence._resolve_ffmpeg", return_value=None)
+    @patch("termproof.evidence.resolve_agg", return_value=None)
+    def test_builtin_backend_warns_and_omits_when_tools_missing(
+        self, resolve_agg, resolve_ffmpeg
+    ) -> None:
+        """The built-in agg_ffmpeg backend must warn + omit when tools are absent.
+
+        Unlike a caller-supplied custom plugin, the built-in backend cannot
+        satisfy a --video request on a host without agg/ffmpeg; it must not
+        record a nonexistent video artifact.
+        """
+        from termproof.builtin_video import AggFfmpegBackend
+
+        backend = AggFfmpegBackend()
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp) / "run"
+            self._write_cast(run_dir)
+            with self.assertWarns(UserWarning) as caught:
+                artifacts = evidence.render_artifacts(
+                    run_dir, render_video=True, video_fps=60, video_backend=backend
+                )
+        self.assertNotIn("video", artifacts)
+        message = str(caught.warning)
+        self.assertIn("agg", message)
+        self.assertIn("--video", message)
+
+    @patch("termproof.evidence.find_ffmpeg", return_value="ffmpeg")
+    @patch("termproof.evidence.subprocess.run")
+    @patch("termproof.evidence.resolve_agg", return_value="/wheel/agg")
+    def test_builtin_backend_renders_when_tools_present(
+        self, resolve_agg, subprocess_run, find_ffmpeg
+    ) -> None:
+        """The built-in agg_ffmpeg backend still records video when tools exist."""
+        from termproof.builtin_video import AggFfmpegBackend
+
+        backend = AggFfmpegBackend()
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp) / "run"
+            self._write_cast(run_dir)
+            artifacts = evidence.render_artifacts(
+                run_dir, render_video=True, video_fps=60, video_backend=backend
+            )
+        self.assertIn("video", artifacts)
+        self.assertTrue(subprocess_run.called)
+
     # -- helper unit tests --------------------------------------------------
 
     @patch("termproof.evidence._resolve_ffmpeg", return_value=None)

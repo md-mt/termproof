@@ -4,6 +4,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from termproof.config import VerifierConfig, load_config
 from termproof.models import CommandSpec, Recipe
@@ -176,6 +177,37 @@ class RunnerTest(unittest.TestCase):
                 video_backend_name="agg_ffmpeg",
             )
             self.assertTrue(result.passed)
+
+    @patch("termproof.evidence._resolve_ffmpeg", return_value=None)
+    @patch("termproof.evidence.resolve_agg", return_value=None)
+    def test_run_render_video_default_backend_warns_and_omits_when_tools_missing(
+        self, resolve_agg, resolve_ffmpeg
+    ) -> None:
+        """Runner-level regression: a normal --video run through the built-in
+        agg_ffmpeg backend must warn and omit the video artifact when the host
+        lacks agg/ffmpeg, instead of recording a nonexistent artifact."""
+        with tempfile.TemporaryDirectory() as tmp:
+            recipe = Recipe(
+                name="video-warn",
+                command=CommandSpec(
+                    argv=[sys.executable, "-c", "print('ok')"],
+                    pty=False,
+                ),
+                steps=[{"action": "wait_for_text", "text": "ok"}],
+                assertions=[{"type": "output_contains", "value": "ok"}],
+            )
+            with self.assertWarns(UserWarning) as caught:
+                result = VerificationRunner().run(
+                    recipe,
+                    Path(tmp),
+                    render_video=True,
+                    video_backend_name="agg_ffmpeg",
+                )
+            self.assertTrue(result.passed)
+            self.assertNotIn("video", result.artifacts)
+            message = str(caught.warning)
+            self.assertIn("agg", message)
+            self.assertIn("--video", message)
 
 
 class IdleCapWiringTest(unittest.TestCase):
