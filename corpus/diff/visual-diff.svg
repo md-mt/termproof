@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="620" viewBox="0 0 1200 620">
+<rect width="100%" height="100%" fill="#f6f8fa"/>
+<style>text{font:16px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;fill:#24292f}</style>
+<text x="24" y="32">baseline</text>
+<text x="616" y="32">actual</text>
+<image href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI3NTYiIGhlaWdodD0iNTE2IiB2aWV3Qm94PSIwIDAgNzU2IDUxNiI+CjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9IiMxMDE0MTgiLz4KPHN0eWxlPnRleHR7Zm9udDoxNHB4IHVpLW1vbm9zcGFjZSxTRk1vbm8tUmVndWxhcixNZW5sbyxDb25zb2xhcyxtb25vc3BhY2U7ZmlsbDojZTZlZGYzO3doaXRlLXNwYWNlOnByZX08L3N0eWxlPgo8dGV4dCB4PSIxOCIgeT0iMzgiPmFscGhhPC90ZXh0Pgo8dGV4dCB4PSIxOCIgeT0iNTgiPmJldGE8L3RleHQ+Cjwvc3ZnPgo=" x="24" y="56" width="560" height="520" preserveAspectRatio="xMinYMin meet"/>
+<image href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI3NTYiIGhlaWdodD0iNTE2IiB2aWV3Qm94PSIwIDAgNzU2IDUxNiI+CjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9IiMxMDE0MTgiLz4KPHN0eWxlPnRleHR7Zm9udDoxNHB4IHVpLW1vbm9zcGFjZSxTRk1vbm8tUmVndWxhcixNZW5sbyxDb25zb2xhcyxtb25vc3BhY2U7ZmlsbDojZTZlZGYzO3doaXRlLXNwYWNlOnByZX08L3N0eWxlPgo8dGV4dCB4PSIxOCIgeT0iMzgiPmFscGhhPC90ZXh0Pgo8dGV4dCB4PSIxOCIgeT0iNTgiPkJFVEEtQ0hBTkdFRDwvdGV4dD4KPC9zdmc+Cg==" x="616" y="56" width="560" height="520" preserveAspectRatio="xMinYMin meet"/>
+</svg>

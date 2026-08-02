@@ -1,0 +1,14 @@
+{
+  "label": "legacy-project-wins",
+  "note": "Legacy project config (.tui-verifier/config.yaml) beats both user configs.",
+  "resolved": {
+    "defaults": {
+      "idle_cap_seconds": 3.5
+    },
+    "docker": {
+      "image": "",
+      "workdir": "/workspace"
+    },
+    "session_backend": "termproof.builtin_session:PexpectAsciinemaBackend"
+  }
+}

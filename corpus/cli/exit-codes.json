@@ -1,0 +1,181 @@
+[
+  {
+    "argv": [],
+    "exit_code": 2,
+    "label": "no-args",
+    "note": "argparse requires a subcommand",
+    "stdout_first_line": ""
+  },
+  {
+    "argv": [
+      "frobnicate"
+    ],
+    "exit_code": 2,
+    "label": "unknown-command",
+    "note": "argparse rejects unknown subcommand",
+    "stdout_first_line": ""
+  },
+  {
+    "argv": [
+      "run",
+      "corpus/recipes/v1/banner-basic.recipe.json"
+    ],
+    "exit_code": 0,
+    "label": "run-pass",
+    "note": "passing recipe exits 0",
+    "stdout_first_line": "1/1 passed"
+  },
+  {
+    "argv": [
+      "run",
+      "corpus/recipes/v1/fail-exit-code.recipe.json"
+    ],
+    "exit_code": 1,
+    "label": "run-fail",
+    "note": "failing recipe exits 1",
+    "stdout_first_line": "0/1 passed"
+  },
+  {
+    "argv": [
+      "run",
+      "corpus/recipes/v1/banner-basic.recipe.json",
+      "--parallel",
+      "0"
+    ],
+    "exit_code": 2,
+    "label": "run-parallel-zero",
+    "note": "--parallel must be >= 1",
+    "stdout_first_line": "--parallel must be >= 1"
+  },
+  {
+    "argv": [
+      "run",
+      "corpus/recipes/v1/banner-basic.recipe.json",
+      "--skip-unchanged",
+      "--diff"
+    ],
+    "exit_code": 2,
+    "label": "run-skip-diff-conflict",
+    "note": "--skip-unchanged cannot combine with --diff",
+    "stdout_first_line": "--skip-unchanged cannot be combined with --diff or --update-baselines"
+  },
+  {
+    "argv": [
+      "list",
+      "corpus/recipes/v1/banner-basic.recipe.json"
+    ],
+    "exit_code": 0,
+    "label": "list",
+    "note": "list succeeds",
+    "stdout_first_line": "banner-basic\tP2\tscripted\tRepresentative v1 recipe: fixed banner app, PTY mode."
+  },
+  {
+    "argv": [
+      "validate",
+      "corpus/recipes/v1/banner-basic.recipe.json"
+    ],
+    "exit_code": 0,
+    "label": "validate-pass",
+    "note": "valid recipe",
+    "stdout_first_line": "PASS corpus/recipes/v1/banner-basic.recipe.json"
+  },
+  {
+    "argv": [
+      "validate",
+      "corpus/recipes/invalid/not-a-recipe.json"
+    ],
+    "exit_code": 1,
+    "label": "validate-invalid",
+    "note": "invalid recipe exits 1",
+    "stdout_first_line": "ERROR corpus/recipes/invalid/not-a-recipe.json:command: 'command' is a required property"
+  },
+  {
+    "argv": [
+      "validate",
+      ".termproof/corpus/empty-dir"
+    ],
+    "exit_code": 1,
+    "label": "validate-missing",
+    "note": "no recipe files found exits 1",
+    "stdout_first_line": "no recipe files found"
+  },
+  {
+    "argv": [
+      "plugins",
+      "list"
+    ],
+    "exit_code": 0,
+    "label": "plugins-list",
+    "note": "plugin list succeeds",
+    "stdout_first_line": "steps\tpress\ttermproof.builtin_steps:Press"
+  },
+  {
+    "argv": [
+      "plugins",
+      "search",
+      "no-such-plugin-xyz",
+      "--registry",
+      "corpus/fixtures/plugins.md"
+    ],
+    "exit_code": 0,
+    "label": "plugins-search-nomatch",
+    "note": "search with no matches exits 0",
+    "stdout_first_line": "no plugins found"
+  },
+  {
+    "argv": [
+      "plugins",
+      "install",
+      "no-such-plugin-xyz",
+      "--registry",
+      "corpus/fixtures/plugins.md",
+      "--dry-run"
+    ],
+    "exit_code": 1,
+    "label": "plugins-install-unknown",
+    "note": "unknown plugin exits 1",
+    "stdout_first_line": "unknown plugin: no-such-plugin-xyz"
+  },
+  {
+    "argv": [
+      "init",
+      ".termproof/corpus/init-target",
+      "--name",
+      "demo-tui",
+      "--command",
+      "python3 -c 'print(42)'",
+      "--non-pty"
+    ],
+    "exit_code": 0,
+    "label": "init-new",
+    "note": "creates a recipe pack",
+    "stdout_first_line": "created recipe: .termproof/corpus/init-target/demo-tui.recipe.json"
+  },
+  {
+    "argv": [
+      "init",
+      ".termproof/corpus/init-existing",
+      "--name",
+      "demo-tui",
+      "--command",
+      "python3 -c 'print(42)'",
+      "--non-pty"
+    ],
+    "exit_code": 1,
+    "label": "init-existing",
+    "note": "existing recipe exits 1",
+    "stdout_first_line": "recipe already exists: .termproof/corpus/init-existing/demo-tui.recipe.json"
+  },
+  {
+    "argv": [
+      "demo",
+      "--out",
+      ".termproof/corpus/demo",
+      "--no-open"
+    ],
+    "exit_code": 0,
+    "label": "demo",
+    "note": "demo succeeds (exit 0)",
+    "stdout_first_line": "Running TermProof demo TUI..."
+  }
+]

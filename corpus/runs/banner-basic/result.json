@@ -1,0 +1,48 @@
+{
+  "artifacts": {
+    "cast": "session.cast",
+    "exit_code_file": "session.exitcode",
+    "screen_text": "final.txt",
+    "screenshot": "final.svg",
+    "step_screenshots": "steps"
+  },
+  "assertions": [
+    {
+      "detail": "contains 'TermProof Fixture App'",
+      "name": "output has fixture title",
+      "passed": true
+    },
+    {
+      "detail": "contains 'menu:'",
+      "name": "screen has menu",
+      "passed": true
+    },
+    {
+      "detail": "expected 0, got 0",
+      "name": "exit_code",
+      "passed": true
+    }
+  ],
+  "duration_seconds": 0.0,
+  "execution": "scripted",
+  "exit_code": 0,
+  "passed": true,
+  "priority": "P2",
+  "recipe_name": "banner-basic",
+  "renderer": "default",
+  "score": 1.0,
+  "steps": [
+    {
+      "detail": "found 'TermProof Fixture App'",
+      "name": "wait for banner title",
+      "passed": true,
+      "screen": "TermProof Fixture App v1.2.3\nstatus: ready\nmenu: [status] [help] [quit]"
+    },
+    {
+      "detail": "found 'status: ready'",
+      "name": "wait for ready status",
+      "passed": true,
+      "screen": "TermProof Fixture App v1.2.3\nstatus: ready\nmenu: [status] [help] [quit]"
+    }
+  ]
+}

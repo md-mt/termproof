@@ -1,0 +1,14 @@
+{
+  "label": "builtin-only",
+  "note": "No config files; resolved config equals builtin defaults.",
+  "resolved": {
+    "defaults": {
+      "idle_cap_seconds": 3.0
+    },
+    "docker": {
+      "image": "",
+      "workdir": "/workspace"
+    },
+    "session_backend": "termproof.builtin_session:PexpectAsciinemaBackend"
+  }
+}

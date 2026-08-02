@@ -1,0 +1,49 @@
+{
+  "artifacts": {
+    "cast": "session.cast",
+    "exit_code_file": "session.exitcode",
+    "screen_text": "final.txt",
+    "screenshot": "final.svg",
+    "step_screenshots": "steps"
+  },
+  "assertions": [
+    {
+      "detail": "contains 'stage two complete'",
+      "name": "stage output present",
+      "passed": true
+    },
+    {
+      "detail": "expected 0, got 0",
+      "name": "exit_code",
+      "passed": true
+    }
+  ],
+  "duration_seconds": 0.0,
+  "execution": "scripted",
+  "exit_code": 0,
+  "passed": true,
+  "priority": "P3",
+  "recipe_name": "stage-timing",
+  "renderer": "default",
+  "score": 1.0,
+  "steps": [
+    {
+      "detail": "found 'stage one'",
+      "name": "wait for stage one",
+      "passed": true,
+      "screen": "stage one"
+    },
+    {
+      "detail": "found 'stage two complete'",
+      "name": "wait for stage two",
+      "passed": true,
+      "screen": "stage one\nstage two complete"
+    },
+    {
+      "detail": "matched 'stage (two) complete' -> groups=('two',) (full: 'stage two complete')",
+      "name": "capture completion via regex",
+      "passed": true,
+      "screen": "stage one\nstage two complete"
+    }
+  ]
+}

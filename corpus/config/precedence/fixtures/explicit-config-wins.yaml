@@ -1,0 +1,8 @@
+defaults:
+  idle_cap_seconds: 4.5
+
+defaults:
+  idle_cap_seconds: 5.5
+
+defaults:
+  idle_cap_seconds: 6.5

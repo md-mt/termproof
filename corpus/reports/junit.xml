@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="termproof" tests="1" failures="0" errors="0" time="0.000" timestamp="1970-01-01T00:00:00+00:00" hostname="localhost"><testsuite name="termproof-installed" tests="1" failures="0" errors="0" skipped="0" time="0.000"><properties><property name="mode" value="installed" /><property name="command" value="python3 banner.py" /><property name="version" value="Python 3.12.12" /><property name="git_commit" value="165c367ca0b0e2a4663a8773ee18b67c2264979c" /></properties><testcase classname="scripted" name="banner-basic" time="0.000"><system-out>Steps:
+  PASS wait for banner title: found 'TermProof Fixture App'
+  PASS wait for ready status: found 'status: ready'
+
+Assertions:
+  PASS output has fixture title: contains 'TermProof Fixture App'
+  PASS screen has menu: contains 'menu:'
+  PASS exit_code: expected 0, got 0
+
+Artifacts:
+  cast: session.cast
+  screenshot: final.svg
+  screen_text: final.txt
+  exit_code_file: session.exitcode
+  step_screenshots: steps</system-out></testcase></testsuite></testsuites>

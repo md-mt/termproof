@@ -1,0 +1,36 @@
+{
+  "artifacts": {
+    "cast": "session.cast",
+    "screenshot": "final.svg",
+    "visual_baseline": "final.svg",
+    "visual_diff": "visual-diff.svg"
+  },
+  "assertions": [
+    {
+      "detail": "contains alpha",
+      "name": "output_contains",
+      "passed": true
+    },
+    {
+      "detail": "visual regression: baseline=<baseline>/recipe-a/default/final.svg actual=<tmp>/final.svg diff=<tmp>/visual-diff.svg",
+      "name": "visual_diff",
+      "passed": false
+    }
+  ],
+  "duration_seconds": 0.0,
+  "execution": "scripted",
+  "exit_code": 0,
+  "passed": false,
+  "priority": "P2",
+  "recipe_name": "recipe-a",
+  "renderer": "default",
+  "score": 0.5,
+  "steps": [
+    {
+      "detail": "ok",
+      "name": "step",
+      "passed": true,
+      "screen": "alpha\nBETA-CHANGED"
+    }
+  ]
+}

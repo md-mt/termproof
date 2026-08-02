@@ -1,0 +1,8 @@
+usage: termproof plugins search [-h] [--registry REGISTRY] query
+
+positional arguments:
+  query
+
+options:
+  -h, --help           show this help message and exit
+  --registry REGISTRY

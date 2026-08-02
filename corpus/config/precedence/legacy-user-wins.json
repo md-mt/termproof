@@ -1,0 +1,14 @@
+{
+  "label": "legacy-user-wins",
+  "note": "Legacy user config (~/.config/tui-verifier/config.yaml) overrides defaults.",
+  "resolved": {
+    "defaults": {
+      "idle_cap_seconds": 1.5
+    },
+    "docker": {
+      "image": "",
+      "workdir": "/workspace"
+    },
+    "session_backend": "termproof.builtin_session:PexpectAsciinemaBackend"
+  }
+}

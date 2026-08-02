@@ -1,0 +1,6 @@
+version: 1.2.3
+demo> status
+STATUS: ok
+demo> help
+HELP: available
+demo>

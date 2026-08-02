@@ -1,0 +1,26 @@
+{
+  "name": "banner-legacy",
+  "description": "Representative legacy recipe (no recipe_version key): fixed banner app, process mode.",
+  "priority": "P1",
+  "execution": "scripted",
+  "determinism": "deterministic",
+  "command": {
+    "argv": [
+      "python3",
+      "banner.py"
+    ],
+    "cwd": "corpus/apps",
+    "pty": false
+  },
+  "expect_exit_code": 0,
+  "timeout_seconds": 15,
+  "cols": 80,
+  "rows": 24,
+  "assertions": [
+    {
+      "name": "legacy output contains title",
+      "type": "output_contains",
+      "value": "TermProof Fixture App"
+    }
+  ]
+}

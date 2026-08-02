@@ -1,0 +1,27 @@
+{
+  "recipe_version": 1,
+  "name": "fail-exit-code",
+  "description": "Deterministic failing recipe: app exits 3 but recipe expects 0.",
+  "priority": "P2",
+  "execution": "scripted",
+  "determinism": "deterministic",
+  "command": {
+    "argv": [
+      "python3",
+      "fail_app.py"
+    ],
+    "cwd": "corpus/apps",
+    "pty": false
+  },
+  "expect_exit_code": 0,
+  "timeout_seconds": 15,
+  "cols": 80,
+  "rows": 24,
+  "assertions": [
+    {
+      "name": "failure prefix appears",
+      "type": "output_contains",
+      "value": "fixture failure app"
+    }
+  ]
+}

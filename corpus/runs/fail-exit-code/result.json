@@ -1,0 +1,29 @@
+{
+  "artifacts": {
+    "cast": "session.cast",
+    "exit_code_file": "session.exitcode",
+    "screen_text": "final.txt",
+    "screenshot": "final.svg"
+  },
+  "assertions": [
+    {
+      "detail": "contains 'fixture failure app'",
+      "name": "failure prefix appears",
+      "passed": true
+    },
+    {
+      "detail": "expected 0, got 3",
+      "name": "exit_code",
+      "passed": false
+    }
+  ],
+  "duration_seconds": 0.0,
+  "execution": "scripted",
+  "exit_code": 3,
+  "passed": false,
+  "priority": "P2",
+  "recipe_name": "fail-exit-code",
+  "renderer": "default",
+  "score": 0.5,
+  "steps": []
+}

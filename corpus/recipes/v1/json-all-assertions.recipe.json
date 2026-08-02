@@ -1,0 +1,95 @@
+{
+  "recipe_version": 1,
+  "name": "json-all-assertions",
+  "description": "Exercises all eight built-in assertions against the deterministic JSON app.",
+  "priority": "P0",
+  "execution": "scripted",
+  "determinism": "deterministic",
+  "command": {
+    "argv": [
+      "python3",
+      "json_app.py"
+    ],
+    "cwd": "corpus/apps",
+    "pty": false
+  },
+  "expect_exit_code": 0,
+  "timeout_seconds": 15,
+  "cols": 80,
+  "rows": 24,
+  "steps": [
+    {
+      "name": "wait for json output",
+      "action": "wait_for_text",
+      "text": "fixture",
+      "timeout_seconds": 5
+    }
+  ],
+  "assertions": [
+    {
+      "name": "output contains app name",
+      "type": "output_contains",
+      "value": "fixture"
+    },
+    {
+      "name": "output does not contain absent marker",
+      "type": "output_not_contains",
+      "value": "not-present-marker"
+    },
+    {
+      "name": "screen contains status",
+      "type": "screen_contains",
+      "value": "ok"
+    },
+    {
+      "name": "screen does not contain absent marker",
+      "type": "screen_not_contains",
+      "value": "not-present-marker"
+    },
+    {
+      "name": "exit code is zero",
+      "type": "exit_code",
+      "value": 0
+    },
+    {
+      "name": "artifact file exists",
+      "type": "file_exists",
+      "value": "fixture-artifact.txt"
+    },
+    {
+      "name": "artifact file contains content",
+      "type": "file_contains",
+      "path": "fixture-artifact.txt",
+      "value": "fixture artifact content"
+    },
+    {
+      "name": "output matches json schema",
+      "type": "json_schema",
+      "schema": {
+        "type": "object",
+        "required": [
+          "app",
+          "status",
+          "items"
+        ],
+        "properties": {
+          "app": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,47 @@
+{
+  "recipe_version": 1,
+  "name": "stage-timing",
+  "description": "Two-stage app used to freeze wait_for_idle / wait_for_regex semantics.",
+  "priority": "P3",
+  "execution": "scripted",
+  "determinism": "deterministic",
+  "command": {
+    "argv": [
+      "python3",
+      "stage_app.py"
+    ],
+    "cwd": "corpus/apps",
+    "pty": false
+  },
+  "expect_exit_code": 0,
+  "timeout_seconds": 15,
+  "cols": 80,
+  "rows": 24,
+  "steps": [
+    {
+      "name": "wait for stage one",
+      "action": "wait_for_text",
+      "text": "stage one",
+      "timeout_seconds": 5
+    },
+    {
+      "name": "wait for stage two",
+      "action": "wait_for_text",
+      "text": "stage two complete",
+      "timeout_seconds": 5
+    },
+    {
+      "name": "capture completion via regex",
+      "action": "wait_for_regex",
+      "pattern": "stage (two) complete",
+      "timeout_seconds": 3
+    }
+  ],
+  "assertions": [
+    {
+      "name": "stage output present",
+      "type": "output_contains",
+      "value": "stage two complete"
+    }
+  ]
+}

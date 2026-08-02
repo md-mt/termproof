@@ -1,0 +1,75 @@
+{
+  "other_command_flags": {
+    "demo": [
+      "--out",
+      "--no-open",
+      "--video",
+      "--video-fps",
+      "--config",
+      "--reporter",
+      "--xml-path",
+      "--screen-renderer",
+      "--video-backend"
+    ],
+    "init": [
+      "--name",
+      "--command",
+      "--non-pty",
+      "--priority",
+      "--cols",
+      "--rows",
+      "--force"
+    ],
+    "list": [
+      "--priority"
+    ],
+    "plugins": [
+      "list",
+      "search",
+      "install"
+    ],
+    "plugins_install": [
+      "--registry",
+      "--dry-run"
+    ],
+    "plugins_search": [
+      "--registry"
+    ],
+    "validate": [
+      "--config"
+    ]
+  },
+  "public_commands": [
+    "termproof",
+    "run",
+    "list",
+    "validate",
+    "plugins",
+    "plugins-list",
+    "plugins-search",
+    "plugins-install",
+    "init",
+    "demo"
+  ],
+  "run_flags": [
+    "--out",
+    "--video",
+    "--no-video",
+    "--video-fps",
+    "--priority",
+    "--recipe-name",
+    "--parallel",
+    "--renderer",
+    "--operator-command",
+    "--config",
+    "--reporter",
+    "--xml-path",
+    "--screen-renderer",
+    "--video-backend",
+    "--diff",
+    "--baseline-dir",
+    "--update-baselines",
+    "--skip-unchanged",
+    "--cache-dir"
+  ]
+}

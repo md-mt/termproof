@@ -1,0 +1,41 @@
+usage: termproof run [-h] [--out OUT] [--video] [--no-video]
+                     [--video-fps VIDEO_FPS] [--priority PRIORITY]
+                     [--recipe-name RECIPE_NAMES] [--parallel PARALLEL]
+                     [--renderer RENDERER]
+                     [--operator-command OPERATOR_COMMAND] [--config CONFIG]
+                     [--reporter REPORTER] [--xml-path XML_PATH]
+                     [--screen-renderer SCREEN_RENDERER]
+                     [--video-backend VIDEO_BACKEND] [--diff]
+                     [--baseline-dir BASELINE_DIR] [--update-baselines]
+                     [--skip-unchanged] [--cache-dir CACHE_DIR]
+                     recipes [recipes ...]
+
+positional arguments:
+  recipes
+
+options:
+  -h, --help            show this help message and exit
+  --out OUT
+  --video
+  --no-video
+  --video-fps VIDEO_FPS
+  --priority PRIORITY
+  --recipe-name RECIPE_NAMES
+  --parallel PARALLEL   number of recipes to run concurrently
+  --renderer RENDERER
+  --operator-command OPERATOR_COMMAND
+  --config CONFIG       path to a termproof config YAML file
+  --reporter REPORTER   reporter to use (default: markdown)
+  --xml-path XML_PATH   write JUnit XML report to this path (implies
+                        --reporter junit_xml)
+  --screen-renderer SCREEN_RENDERER
+                        screen renderer to use (default: svg)
+  --video-backend VIDEO_BACKEND
+                        video backend to use (default: agg_ffmpeg)
+  --diff                compare final screenshots against baselines
+  --baseline-dir BASELINE_DIR
+                        baseline root for --diff
+  --update-baselines    write current final screenshots as visual baselines
+  --skip-unchanged      reuse cached passing results for unchanged recipes
+  --cache-dir CACHE_DIR
+                        cache root for --skip-unchanged

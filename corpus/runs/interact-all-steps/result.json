@@ -1,0 +1,107 @@
+{
+  "artifacts": {
+    "cast": "session.cast",
+    "exit_code_file": "session.exitcode",
+    "screen_text": "final.txt",
+    "screenshot": "final.svg",
+    "step_screenshots": "steps"
+  },
+  "assertions": [
+    {
+      "detail": "contains 'STATUS: ok'",
+      "name": "interaction output present",
+      "passed": true
+    },
+    {
+      "detail": "contains 'HELP: available'",
+      "name": "help text on screen",
+      "passed": true
+    },
+    {
+      "detail": "expected 0, got 0",
+      "name": "clean exit",
+      "passed": true
+    },
+    {
+      "detail": "expected 0, got 0",
+      "name": "exit_code",
+      "passed": true
+    }
+  ],
+  "duration_seconds": 0.0,
+  "execution": "scripted",
+  "exit_code": 0,
+  "passed": true,
+  "priority": "P0",
+  "recipe_name": "interact-all-steps",
+  "renderer": "default",
+  "score": 1.0,
+  "steps": [
+    {
+      "detail": "found 'version: 1.2.3'",
+      "name": "wait for version banner",
+      "passed": true,
+      "screen": "version: 1.2.3\ndemo>"
+    },
+    {
+      "detail": "stable for 0.3s",
+      "name": "wait for idle prompt",
+      "passed": true,
+      "screen": "version: 1.2.3\ndemo>"
+    },
+    {
+      "detail": "sent text",
+      "name": "type status without newline",
+      "passed": true,
+      "screen": "version: 1.2.3\ndemo>"
+    },
+    {
+      "detail": "pressed enter",
+      "name": "press enter to submit",
+      "passed": true,
+      "screen": "version: 1.2.3\ndemo>"
+    },
+    {
+      "detail": "found 'STATUS: ok'",
+      "name": "wait for status result",
+      "passed": true,
+      "screen": "version: 1.2.3\ndemo> status\nSTATUS: ok\ndemo>"
+    },
+    {
+      "detail": "matched 'STATUS: (?P<state>\\\\w+)' -> state='ok'; groups=('ok',) (full: 'STATUS: ok')",
+      "name": "capture status via regex",
+      "passed": true,
+      "screen": "version: 1.2.3\ndemo> status\nSTATUS: ok\ndemo>"
+    },
+    {
+      "detail": "sent line",
+      "name": "send help line",
+      "passed": true,
+      "screen": "version: 1.2.3\ndemo> status\nSTATUS: ok\ndemo>"
+    },
+    {
+      "detail": "found 'HELP: available'",
+      "name": "wait for help result",
+      "passed": true,
+      "screen": "version: 1.2.3\ndemo> status\nSTATUS: ok\ndemo> help\nHELP: available\ndemo>"
+    },
+    {
+      "detail": "slept",
+      "name": "brief sleep",
+      "passed": true,
+      "screen": "version: 1.2.3\ndemo> status\nSTATUS: ok\ndemo> help\nHELP: available\ndemo>"
+    },
+    {
+      "detail": "sent line",
+      "name": "quit cleanly",
+      "passed": true,
+      "screen": "version: 1.2.3\ndemo> status\nSTATUS: ok\ndemo> help\nHELP: available\ndemo>"
+    },
+    {
+      "detail": "found 'bye'",
+      "name": "wait for bye",
+      "passed": true,
+      "screen": "version: 1.2.3\ndemo> status\nSTATUS: ok\ndemo> help\nHELP: available\ndemo> quit\nbye"
+    }
+  ]
+}

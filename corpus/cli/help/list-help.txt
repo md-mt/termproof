@@ -1,0 +1,8 @@
+usage: termproof list [-h] [--priority PRIORITY] recipes [recipes ...]
+
+positional arguments:
+  recipes
+
+options:
+  -h, --help           show this help message and exit
+  --priority PRIORITY

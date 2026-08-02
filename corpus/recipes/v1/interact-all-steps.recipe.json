@@ -1,0 +1,100 @@
+{
+  "recipe_version": 1,
+  "name": "interact-all-steps",
+  "description": "Exercises all seven built-in steps against the deterministic interactive app.",
+  "priority": "P0",
+  "execution": "scripted",
+  "determinism": "deterministic",
+  "command": {
+    "argv": [
+      "python3",
+      "interact.py"
+    ],
+    "cwd": "corpus/apps",
+    "pty": true
+  },
+  "expect_exit_code": 0,
+  "timeout_seconds": 20,
+  "cols": 100,
+  "rows": 30,
+  "steps": [
+    {
+      "name": "wait for version banner",
+      "action": "wait_for_text",
+      "text": "version: 1.2.3",
+      "timeout_seconds": 5
+    },
+    {
+      "name": "wait for idle prompt",
+      "action": "wait_for_idle",
+      "stable_seconds": 0.3,
+      "timeout_seconds": 3
+    },
+    {
+      "name": "type status without newline",
+      "action": "send_text",
+      "text": "status"
+    },
+    {
+      "name": "press enter to submit",
+      "action": "press",
+      "key": "enter"
+    },
+    {
+      "name": "wait for status result",
+      "action": "wait_for_text",
+      "text": "STATUS: ok",
+      "timeout_seconds": 5
+    },
+    {
+      "name": "capture status via regex",
+      "action": "wait_for_regex",
+      "pattern": "STATUS: (?P<state>\\w+)",
+      "timeout_seconds": 3
+    },
+    {
+      "name": "send help line",
+      "action": "send_line",
+      "text": "help"
+    },
+    {
+      "name": "wait for help result",
+      "action": "wait_for_text",
+      "text": "HELP: available",
+      "timeout_seconds": 5
+    },
+    {
+      "name": "brief sleep",
+      "action": "sleep",
+      "seconds": 0.2
+    },
+    {
+      "name": "quit cleanly",
+      "action": "send_line",
+      "text": "quit"
+    },
+    {
+      "name": "wait for bye",
+      "action": "wait_for_text",
+      "text": "bye",
+      "timeout_seconds": 5
+    }
+  ],
+  "assertions": [
+    {
+      "name": "interaction output present",
+      "type": "output_contains",
+      "value": "STATUS: ok"
+    },
+    {
+      "name": "help text on screen",
+      "type": "screen_contains",
+      "value": "HELP: available"
+    },
+    {
+      "name": "clean exit",
+      "type": "exit_code",
+      "value": 0
+    }
+  ]
+}

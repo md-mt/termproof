@@ -1,0 +1,13 @@
+usage: termproof [-h] {run,list,validate,plugins,init,demo} ...
+
+positional arguments:
+  {run,list,validate,plugins,init,demo}
+    run                 run a verification recipe
+    list                list recipes
+    validate            validate recipe files
+    plugins             manage TermProof plugins
+    init                create a reusable recipe pack
+    demo                run a self-contained demo exercising all features
+
+options:
+  -h, --help            show this help message and exit

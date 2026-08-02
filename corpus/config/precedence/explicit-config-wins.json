@@ -1,0 +1,14 @@
+{
+  "label": "explicit-config-wins",
+  "note": "Explicit --config beats every discovery location.",
+  "resolved": {
+    "defaults": {
+      "idle_cap_seconds": 6.5
+    },
+    "docker": {
+      "image": "",
+      "workdir": "/workspace"
+    },
+    "session_backend": "termproof.builtin_session:PexpectAsciinemaBackend"
+  }
+}

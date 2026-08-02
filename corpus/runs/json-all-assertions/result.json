@@ -1,0 +1,72 @@
+{
+  "artifacts": {
+    "cast": "session.cast",
+    "exit_code_file": "session.exitcode",
+    "screen_text": "final.txt",
+    "screenshot": "final.svg",
+    "step_screenshots": "steps"
+  },
+  "assertions": [
+    {
+      "detail": "contains 'fixture'",
+      "name": "output contains app name",
+      "passed": true
+    },
+    {
+      "detail": "does not contain 'not-present-marker'",
+      "name": "output does not contain absent marker",
+      "passed": true
+    },
+    {
+      "detail": "contains 'ok'",
+      "name": "screen contains status",
+      "passed": true
+    },
+    {
+      "detail": "does not contain 'not-present-marker'",
+      "name": "screen does not contain absent marker",
+      "passed": true
+    },
+    {
+      "detail": "expected 0, got 0",
+      "name": "exit code is zero",
+      "passed": true
+    },
+    {
+      "detail": "corpus/apps/fixture-artifact.txt",
+      "name": "artifact file exists",
+      "passed": true
+    },
+    {
+      "detail": "contains 'fixture artifact content'",
+      "name": "artifact file contains content",
+      "passed": true
+    },
+    {
+      "detail": "matches JSON schema",
+      "name": "output matches json schema",
+      "passed": true
+    },
+    {
+      "detail": "expected 0, got 0",
+      "name": "exit_code",
+      "passed": true
+    }
+  ],
+  "duration_seconds": 0.0,
+  "execution": "scripted",
+  "exit_code": 0,
+  "passed": true,
+  "priority": "P0",
+  "recipe_name": "json-all-assertions",
+  "renderer": "default",
+  "score": 1.0,
+  "steps": [
+    {
+      "detail": "found 'fixture'",
+      "name": "wait for json output",
+      "passed": true,
+      "screen": "{\"app\": \"fixture\", \"version\": \"1.2.3\", \"status\": \"ok\", \"items\": [\"alpha\", \"beta\"\n, \"gamma\"]}"
+    }
+  ]
+}

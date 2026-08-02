@@ -1,0 +1,14 @@
+{
+  "label": "termproof-project-wins",
+  "note": "TermProof project config (.termproof/config.yaml) beats legacy project config.",
+  "resolved": {
+    "defaults": {
+      "idle_cap_seconds": 4.5
+    },
+    "docker": {
+      "image": "",
+      "workdir": "/workspace"
+    },
+    "session_backend": "termproof.builtin_session:PexpectAsciinemaBackend"
+  }
+}

@@ -1,0 +1,10 @@
+usage: termproof plugins [-h] {list,search,install} ...
+
+positional arguments:
+  {list,search,install}
+    list                list configured plugins
+    search              search community plugins
+    install             install a community plugin
+
+options:
+  -h, --help            show this help message and exit

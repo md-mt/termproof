@@ -1,0 +1,46 @@
+{
+  "recipe_version": 1,
+  "name": "banner-basic",
+  "description": "Representative v1 recipe: fixed banner app, PTY mode.",
+  "priority": "P2",
+  "execution": "scripted",
+  "determinism": "deterministic",
+  "command": {
+    "argv": [
+      "python3",
+      "banner.py"
+    ],
+    "cwd": "corpus/apps",
+    "pty": true
+  },
+  "expect_exit_code": 0,
+  "timeout_seconds": 15,
+  "cols": 100,
+  "rows": 30,
+  "steps": [
+    {
+      "name": "wait for banner title",
+      "action": "wait_for_text",
+      "text": "TermProof Fixture App",
+      "timeout_seconds": 5
+    },
+    {
+      "name": "wait for ready status",
+      "action": "wait_for_text",
+      "text": "status: ready",
+      "timeout_seconds": 5
+    }
+  ],
+  "assertions": [
+    {
+      "name": "output has fixture title",
+      "type": "output_contains",
+      "value": "TermProof Fixture App"
+    },
+    {
+      "name": "screen has menu",
+      "type": "screen_contains",
+      "value": "menu:"
+    }
+  ]
+}

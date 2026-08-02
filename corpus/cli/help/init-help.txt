@@ -1,0 +1,17 @@
+usage: termproof init [-h] --name NAME --command TARGET_COMMAND [--non-pty]
+                      [--priority PRIORITY] [--cols COLS] [--rows ROWS]
+                      [--force]
+                      path
+
+positional arguments:
+  path
+
+options:
+  -h, --help            show this help message and exit
+  --name NAME
+  --command TARGET_COMMAND
+  --non-pty
+  --priority PRIORITY
+  --cols COLS
+  --rows ROWS
+  --force

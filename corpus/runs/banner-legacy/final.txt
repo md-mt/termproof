@@ -1,0 +1,3 @@
+TermProof Fixture App v1.2.3
+status: ready
+menu: [status] [help] [quit]

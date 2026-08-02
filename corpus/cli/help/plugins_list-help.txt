@@ -1,0 +1,5 @@
+usage: termproof plugins list [-h] [--config CONFIG]
+
+options:
+  -h, --help       show this help message and exit
+  --config CONFIG  path to a termproof config YAML file

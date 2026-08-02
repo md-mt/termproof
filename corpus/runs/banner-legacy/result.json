@@ -1,0 +1,29 @@
+{
+  "artifacts": {
+    "cast": "session.cast",
+    "exit_code_file": "session.exitcode",
+    "screen_text": "final.txt",
+    "screenshot": "final.svg"
+  },
+  "assertions": [
+    {
+      "detail": "contains 'TermProof Fixture App'",
+      "name": "legacy output contains title",
+      "passed": true
+    },
+    {
+      "detail": "expected 0, got 0",
+      "name": "exit_code",
+      "passed": true
+    }
+  ],
+  "duration_seconds": 0.0,
+  "execution": "scripted",
+  "exit_code": 0,
+  "passed": true,
+  "priority": "P1",
+  "recipe_name": "banner-legacy",
+  "renderer": "default",
+  "score": 1.0,
+  "steps": []
+}

@@ -1,0 +1,11 @@
+{
+  "key_sha256": "4a1ca635032ed626b01882a7baef856d4c466c529c203a6b36119242ee06a7a1",
+  "out_dir": ".termproof/runs",
+  "recipe_source_path": "corpus/recipes/v1/banner-basic.recipe.json",
+  "render_video": false,
+  "renderer": "default",
+  "renderer_argv": [],
+  "screen_renderer": "svg",
+  "video_backend": "agg_ffmpeg",
+  "video_fps": 60
+}

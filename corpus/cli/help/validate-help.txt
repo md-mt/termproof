@@ -1,0 +1,8 @@
+usage: termproof validate [-h] [--config CONFIG] recipes [recipes ...]
+
+positional arguments:
+  recipes
+
+options:
+  -h, --help       show this help message and exit
+  --config CONFIG  path to a termproof config YAML file
