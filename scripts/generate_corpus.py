@@ -164,8 +164,16 @@ def normalize_junit_xml(text: str) -> str:
     out = re.sub(r'timestamp="[^"]*"', 'timestamp="1970-01-01T00:00:00+00:00"', text)
     out = re.sub(r'hostname="[^"]*"', 'hostname="localhost"', out)
     out = re.sub(r' time="[^"]*"', ' time="0.000"', out)
+    # Build provenance properties embed interpreter/commit of the generating
+    # environment; normalize to the same tokens as latest-report.md.
+    out = re.sub(r'<property name="version" value="[^"]*"', '<property name="version" value="Python 3.x"', out)
+    out = re.sub(
+        r'<property name="git_commit" value="[^"]*"',
+        '<property name="git_commit" value="<oracle-commit>"',
+        out,
+    )
     # system-out/failure artifact lines embed absolute run-dir paths.
-    out = re.sub(r"(  [a-z_]+: )([^<\n]*/)([^/<\n]+)", r"\1\3", out)
+    out = re.sub(r"(  [a-z_]+: )([^<\n]*/)([^/<\\n]+)", r"\1\3", out)
     return out
 
 
@@ -231,7 +239,12 @@ def normalize_png_bytes(data: bytes, *, oracle_pillow: str | None = None) -> str
 
 def normalize_oracle_json(text: str) -> str:
     data = json.loads(text)
+    # Environment metadata of the generating/checking machine is not part of
+    # the contract; the oracle *commit* and version are. The committed record
+    # keeps these fields for provenance; drift comparison ignores them.
     data.pop("generated_at", None)
+    data.pop("python_version", None)
+    data.pop("pillow_version", None)
     return canonical_json(data)
 
 

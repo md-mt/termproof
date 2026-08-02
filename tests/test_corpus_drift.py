@@ -114,6 +114,64 @@ class CorpusInventoryTest(unittest.TestCase):
         self.assertIn("python_version", oracle)
         self.assertIn("pillow_version", oracle)
 
+    def test_junit_normalizes_build_provenance(self) -> None:
+        """JUnit build-provenance properties must not depend on the machine
+        that regenerated the corpus (this is what CI caught on py3.11/3.13)."""
+        oracle_env = (
+            '<?xml version="1.0"?><testsuites name="termproof" tests="1" time="1.234" '
+            'timestamp="2026-08-02T07:00:00+00:00" hostname="ci-runner">'
+            '<testsuite name="termproof-installed" tests="1" time="1.234">'
+            '<properties><property name="version" value="Python 3.12.12" />'
+            '<property name="git_commit" value="165c367ca0b0e2a4663a8773ee18b67c2264979c" />'
+            "</properties><testcase classname=\"scripted\" name=\"banner-basic\" time=\"1.234\">"
+            "<system-out>Steps:\n  PASS wait: found 'x'\n</system-out></testcase></testsuite></testsuites>"
+        )
+        other_env = oracle_env.replace(
+            'value="Python 3.12.12"', 'value="Python 3.13.0"'
+        ).replace(
+            'value="165c367ca0b0e2a4663a8773ee18b67c2264979c"',
+            'value="51c3a7bbc2266f974ffb798aece7c0f51fcdab61"',
+        )
+        self.assertEqual(
+            generate_corpus.normalize_junit_xml(oracle_env),
+            generate_corpus.normalize_junit_xml(other_env),
+        )
+        normalized = generate_corpus.normalize_junit_xml(oracle_env)
+        self.assertIn('value="Python 3.x"', normalized)
+        self.assertIn('value="<oracle-commit>"', normalized)
+        self.assertIn('timestamp="1970-01-01T00:00:00+00:00"', normalized)
+        self.assertIn('hostname="localhost"', normalized)
+
+    def test_oracle_record_normalizes_environment_metadata(self) -> None:
+        """python_version/pillow_version describe the machine that generated
+        the corpus; the drift comparison must ignore them so CI on any
+        supported Python can verify the committed fixtures."""
+        oracle_env = json.dumps(
+            {
+                "oracle_commit": "165c367ca0b0e2a4663a8773ee18b67c2264979c",
+                "termproof_version": "0.2.1",
+                "generator": "scripts/generate_corpus.py",
+                "python_version": "3.12.12",
+                "pillow_version": "12.3.0",
+                "generated_at": "2026-08-02T07:34:24+00:00",
+            }
+        )
+        other_env = json.dumps(
+            {
+                "oracle_commit": "165c367ca0b0e2a4663a8773ee18b67c2264979c",
+                "termproof_version": "0.2.1",
+                "generator": "scripts/generate_corpus.py",
+                "python_version": "3.13.0",
+                "pillow_version": "11.0.0",
+                "generated_at": "2026-08-02T09:00:00+00:00",
+            }
+        )
+        self.assertEqual(
+            generate_corpus.normalize_oracle_json(oracle_env),
+            generate_corpus.normalize_oracle_json(other_env),
+        )
+        self.assertIn('"oracle_commit"', generate_corpus.normalize_oracle_json(oracle_env))
+
 
 class CorpusDriftTest(unittest.TestCase):
     """Regenerating the corpus from the oracle must reproduce the committed

@@ -95,7 +95,7 @@ and preserves everything else.
   sections exist and are populated, not their exact environment-specific
   values. The pinned oracle commit is recorded in `corpus/oracle.json`.
 
-### 2.6 JUnit XML: timestamp, hostname, and time tokens
+### 2.6 JUnit XML: timestamp, hostname, time, and build-provenance tokens
 
 - **Where:** `normalize_junit_xml` in the generator; applies to
   `corpus/reports/junit.xml`.
@@ -103,11 +103,16 @@ and preserves everything else.
   - `timestamp="..."` → `timestamp="1970-01-01T00:00:00+00:00"`
   - `hostname="..."` → `hostname="localhost"`
   - ` time="..."` → ` time="0.000"`
+  - `<property name="version" value="...">` → `value="Python 3.x"`
+  - `<property name="git_commit" value="...">` → `value="<oracle-commit>"`
   - Inside `system-out`/`failure` text, any `<label>: <abs-path>/<file>` is
     reduced to `<label>: <file>`.
 - **Why:** timestamps and hostnames are wall-clock/host values; duration tokens
-  are timing values. The XML *structure*, test names, pass/fail counts, and
-  message text are preserved verbatim.
+  are timing values; the `version`/`git_commit` properties embed the
+  interpreter and checkout commit of whichever machine generated the XML (CI
+  runs the corpus on Python 3.11/3.12/3.13 at the PR head — different from the
+  oracle's 3.12.12 at the oracle commit). The XML *structure*, test names,
+  pass/fail counts, and message text are preserved verbatim.
 
 ### 2.7 Cast (asciinema): canonical header + merged output events
 
@@ -140,14 +145,20 @@ and preserves everything else.
   screen renderer for screenshot fixtures; this rule guards PNG renders used
   by `--screen-renderer png` and the visual-diff flow.)
 
-### 2.9 Oracle record: `generated_at` excluded from comparison
+### 2.9 Oracle record: environment metadata excluded from comparison
 
 - **Where:** `normalize_oracle_json` + `write_oracle(check=True)`.
-- **Rule:** `corpus/oracle.json` records `generated_at`, but drift comparison
-  ignores it; the committed file's timestamp is preserved during `--check`.
-- **Why:** the generation timestamp is metadata, not contract. All other
-  oracle fields (`oracle_commit`, `termproof_version`, `python_version`,
-  `pillow_version`, `generator`) are compared byte-for-byte.
+- **Rule:** `corpus/oracle.json` records `generated_at`, `python_version`, and
+  `pillow_version`, but drift comparison ignores all three; the committed
+  file's values are preserved during `--check`.
+- **Why:** `generated_at` is generation metadata; `python_version` /
+  `pillow_version` describe the machine that produced the committed fixtures.
+  CI regenerates the corpus on any supported Python (3.11/3.12/3.13) with a
+  potentially different Pillow, so comparing those fields would fail on every
+  machine but the oracle's. The contract fields — `oracle_commit`,
+  `termproof_version`, `generator` — are compared byte-for-byte. PNG
+  byte-comparison still keys off the *committed* `pillow_version` (rule 2.8),
+  so the recorded value remains load-bearing even though drift ignores it.
 
 ### 2.10 Diff contract: absolute paths tokenized
 
