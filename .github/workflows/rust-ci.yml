@@ -1,0 +1,203 @@
+name: Rust CI
+
+# Quality gates for the Rust reimplementation workspace (RUST-003, issue #96).
+# The workspace manifest lives at rust/Cargo.toml; every cargo command runs
+# from the rust/ directory so paths stay explicit and independent of the
+# Python tooling at the repository root.
+#
+# Gates (mirroring docs/rust-reimplementation-spec.md section 6.2 and
+# rust/docs/engineering-baseline.md):
+#   - cargo fmt --check --all
+#   - cargo clippy --workspace --all-targets --all-features -- -D warnings
+#   - cargo test --workspace (unit + integration) and cargo doc --workspace
+#   - schema-drift gate (rust/scripts/check_schema_drift.py)
+#   - conformance gate (rust/scripts/check_conformance.py) against the real
+#     compiled binary
+#   - coverage baseline with regression rejection (cargo llvm-cov, floor 90%)
+#   - dependency/license/advisory checks (cargo-deny, rust/deny.toml)
+#   - Linux x86-64, macOS x86-64 (macos-15-intel), and macOS arm64 matrix
+#     (Tier 1 targets; macos-13 is retired, so the Intel leg uses the
+#     current macos-15-intel label)
+#
+# All third-party actions and the Rust toolchain are pinned to exact commit
+# SHAs (tag reference noted inline) so CI does not float on mutable tags.
+#
+# The Python oracle lint/type/version-matrix/coverage gates live in ci.yml
+# (delivered by #73/#90) and are intentionally NOT duplicated here.
+
+on:
+  pull_request:
+    paths:
+      - "rust/**"
+      - ".github/workflows/rust-ci.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "rust/**"
+      - ".github/workflows/rust-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rust-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  fmt:
+    name: cargo fmt --check
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: rust
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@191af2e1955bbe165f9bbacff2d2438002dff4d4 # 1.96.0
+        with:
+          components: rustfmt
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        with:
+          workspaces: rust
+      - name: Format check
+        run: cargo fmt --check --all
+
+  clippy:
+    name: cargo clippy (warnings denied)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: rust
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@191af2e1955bbe165f9bbacff2d2438002dff4d4 # 1.96.0
+        with:
+          components: clippy
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        with:
+          workspaces: rust
+      - name: Clippy workspace with warnings denied
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+
+  test:
+    name: cargo test (${{ matrix.label }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: linux-x86_64
+            os: ubuntu-latest
+          - label: macos-x86_64
+            os: macos-15-intel
+          - label: macos-arm64
+            os: macos-14
+    defaults:
+      run:
+        working-directory: rust
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@191af2e1955bbe165f9bbacff2d2438002dff4d4 # 1.96.0
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        with:
+          workspaces: rust
+      - name: Unit and integration tests
+        run: cargo test --workspace
+      - name: Documentation tests
+        run: cargo test --workspace --doc
+
+  doc:
+    name: cargo doc --workspace
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: rust
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@191af2e1955bbe165f9bbacff2d2438002dff4d4 # 1.96.0
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        with:
+          workspaces: rust
+      - name: Build documentation (no deps)
+        # The engineering baseline sets missing_docs = "warn"; the doc gate
+        # ensures the workspace docs build cleanly (rustdoc warnings remain
+        # visible but do not fail, matching the baseline's warn level).
+        run: cargo doc --workspace --no-deps
+
+  gates:
+    name: Schema-drift and conformance gates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@191af2e1955bbe165f9bbacff2d2438002dff4d4 # 1.96.0
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        with:
+          workspaces: rust
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+      - name: Set up uv
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
+      - name: Install Python dependencies
+        run: uv sync --frozen
+      - name: Gate script unit tests
+        run: uv run python -m unittest discover -s rust/scripts/tests -v
+      - name: Schema-drift gate
+        run: uv run python rust/scripts/check_schema_drift.py --canonical docs/recipe-schema-v1.json --rust-root rust
+      - name: Build binary for conformance gate
+        working-directory: rust
+        run: cargo build -p termproof-cli
+      - name: Conformance gate
+        run: uv run python rust/scripts/check_conformance.py --binary rust/target/debug/termproof --corpus rust/conformance
+
+  coverage:
+    name: Coverage regression gate
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: rust
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@191af2e1955bbe165f9bbacff2d2438002dff4d4 # 1.96.0
+        with:
+          components: llvm-tools-preview
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        with:
+          workspaces: rust
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@67729d5c413db75907f0ad1e39bb04b9c868ff60 # v2
+        with:
+          tool: cargo-llvm-cov
+      - name: Coverage with regression rejection (floor 90%)
+        # Baseline measured at RUST-003: 100% line coverage on
+        # termproof-cli and termproof-core (see PR #139 local validation).
+        # The floor is intentionally below the current baseline so small
+        # skeleton crates can land without tripping the gate, while any
+        # meaningful regression still fails.
+        run: cargo llvm-cov --workspace --fail-under-lines 90 --summary-only
+
+  deny:
+    name: Dependency, license, and advisory checks
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: rust
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Install cargo-deny
+        uses: taiki-e/install-action@67729d5c413db75907f0ad1e39bb04b9c868ff60 # v2
+        with:
+          tool: cargo-deny
+      - name: Cargo deny licenses, advisories, bans
+        run: cargo deny check licenses advisories bans
