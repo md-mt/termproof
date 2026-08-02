@@ -12,10 +12,14 @@ Run: uv run python -m unittest tests.test_community_health -v
 from __future__ import annotations
 
 import json
+import os
 import re
+import subprocess
+import sys
 import unittest
 from pathlib import Path
 
+import jsonschema
 import yaml
 
 from termproof.config import VerifierConfig
@@ -122,15 +126,90 @@ class TemplateFrontmatterTest(unittest.TestCase):
 
 
 class GitHubYamlParseTest(unittest.TestCase):
-    def test_every_github_yaml_file_parses(self) -> None:
+    def test_every_github_yaml_file_parses_to_mapping(self) -> None:
         self.assertTrue(GITHUB_YAML_FILES, "expected .github YAML files")
         for path in GITHUB_YAML_FILES:
             with self.subTest(file=str(path.relative_to(ROOT))):
                 data = _load_yaml(path)  # raises on syntax error
-                self.assertTrue(
-                    data is None or isinstance(data, dict),
-                    f"{path.name} must be a mapping or empty (got {type(data).__name__})",
+                self.assertIsInstance(
+                    data,
+                    dict,
+                    f"{path.name} must be a mapping (got {type(data).__name__}); "
+                    "comments-only YAML parses to None and is not a valid config",
                 )
+
+
+class FundingConfigTest(unittest.TestCase):
+    """FUNDING.yml must be a valid GitHub funding mapping (SchemaStore)."""
+
+    FUNDING_YML = ROOT / ".github" / "FUNDING.yml"
+    FUNDING_SCHEMA = ROOT / "scripts" / "schemas" / "github-funding.json"
+
+    def setUp(self) -> None:
+        self.funding = _load_yaml(self.FUNDING_YML)
+
+    def test_funding_yml_is_a_mapping(self) -> None:
+        self.assertIsInstance(
+            self.funding,
+            dict,
+            "FUNDING.yml must be a mapping ({} while no sponsor is configured), "
+            "not comments-only (which parses to None and fails the Funding schema)",
+        )
+
+    def test_funding_yml_validates_against_funding_schema(self) -> None:
+        schema_path = self.FUNDING_SCHEMA
+        self.assertTrue(
+            schema_path.is_file(),
+            f"funding schema must be vendored in-repo at {schema_path}",
+        )
+        schema = json.loads(schema_path.read_text(encoding="utf-8"))
+        jsonschema.validate(instance=self.funding, schema=schema)
+
+
+class ValidationHarnessTest(unittest.TestCase):
+    """scripts/validate_community_health.py must be hermetic and fail cleanly."""
+
+    SCRIPT = ROOT / "scripts" / "validate_community_health.py"
+
+    def _run(self, *args: str) -> subprocess.CompletedProcess[str]:
+        env = dict(os.environ)
+        # No pre-seeded /tmp schema and no schema-related env leakage: the
+        # harness must work on a fresh checkout with nothing but the repo.
+        env.pop("TERMPROOF_ISSUE_CONFIG_SCHEMA", None)
+        env.pop("TERMPROOF_FUNDING_SCHEMA", None)
+        return subprocess.run(
+            [sys.executable, str(self.SCRIPT), *args],
+            capture_output=True,
+            text=True,
+            cwd=ROOT,
+            env=env,
+            timeout=180,
+        )
+
+    def test_harness_does_not_hardcode_tmp_schema(self) -> None:
+        source = self.SCRIPT.read_text(encoding="utf-8")
+        self.assertNotIn(
+            "/tmp/",
+            source,
+            "harness must use an in-repo vendored schema, not a /tmp path",
+        )
+
+    def test_harness_passes_hermetically_on_fresh_checkout(self) -> None:
+        proc = self._run()
+        self.assertEqual(
+            proc.returncode,
+            0,
+            f"harness should pass with only vendored schemas:\n{proc.stdout}\n{proc.stderr}",
+        )
+        self.assertIn("ALL VALIDATION CHECKS PASSED", proc.stdout)
+
+    def test_harness_missing_schema_is_clean_failure(self) -> None:
+        proc = self._run("--issue-config-schema", "/nonexistent/schema.json")
+        self.assertNotEqual(proc.returncode, 0, "missing schema must fail validation")
+        self.assertNotIn(
+            "Traceback", proc.stderr, "missing schema must be a clean failure, not a traceback"
+        )
+        self.assertIn("FAIL", proc.stdout)
 
 
 class SupportRoutingTest(unittest.TestCase):

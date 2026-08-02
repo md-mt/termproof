@@ -142,4 +142,4 @@ By contributing, you agree that your contributions will be licensed under the MI
 
 ## Questions?
 
-Open a discussion or draft PR — maintainers respond faster to concrete code than abstract questions.
+Open an issue or draft PR — maintainers respond faster to concrete code than abstract questions.
