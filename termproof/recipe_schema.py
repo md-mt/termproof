@@ -148,6 +148,41 @@ def _is_legacy_tolerated(data: dict[str, Any], error: jsonschema.ValidationError
     return False
 
 
+# Paths whose integer validation is owned by the explicit legacy compatibility
+# checks in _validate_legacy_int_fields. JSON Schema draft 2020-12 (and
+# jsonschema) treats integral-valued floats (1.0, 0.0, -1.0) as `integer`, but
+# the frozen base validator required actual Python `int` for cols, rows, and
+# expect_exit_code. The schema errors at these paths are suppressed and the
+# explicit checks below report the legacy verdict instead, so behavior stays
+# rejection-preserving.
+_LEGACY_INT_OWNED_PATHS = frozenset(
+    {("cols",), ("rows",), ("expect_exit_code",)}
+)
+
+
+def _validate_legacy_int_fields(
+    data: dict[str, Any],
+    issues: list[ValidationIssue],
+) -> None:
+    """Mirror the frozen base validator's integer checks verbatim.
+
+    The base (0da8f5f) used _validate_positive_int for cols/rows and
+    _validate_expect_exit_code for expect_exit_code — both required a real
+    Python int (not bool, and for cols/rows also > 0). The canonical JSON
+    schema would accept integral floats, so these explicit checks restore the
+    legacy rejection exactly.
+    """
+    for key in ("cols", "rows"):
+        value = data.get(key)
+        if value is not None and (
+            not isinstance(value, int) or isinstance(value, bool) or value <= 0
+        ):
+            issues.append(ValidationIssue(key, "must be a positive integer"))
+    value = data.get("expect_exit_code")
+    if value is not None and (not isinstance(value, int) or isinstance(value, bool)):
+        issues.append(ValidationIssue("expect_exit_code", "must be an integer or null"))
+
+
 def validate_recipe_file(path: Path, config: VerifierConfig) -> list[ValidationIssue]:
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
@@ -169,12 +204,20 @@ def validate_recipe_mapping(
         # express, so it is handled entirely by _validate_recipe_version above.
         if list(error.absolute_path) == ["recipe_version"]:
             continue
+        # The integer-typed fields are owned by the explicit legacy
+        # compatibility checks in _validate_legacy_int_fields (JSON Schema
+        # would accept integral floats like 1.0; the frozen base required
+        # actual Python int), so suppress their schema errors to avoid
+        # duplicate reports at the same path.
+        if tuple(error.absolute_path) in _LEGACY_INT_OWNED_PATHS:
+            continue
         # Legacy compatibility: inputs the legacy validator accepted (null
         # optional fields, free-form description/intent, unchecked nested
         # names) must not become new errors in a behavior-preserving refactor.
         if _is_legacy_tolerated(data, error):
             continue
         issues.append(ValidationIssue(_issue_path(error), error.message))
+    _validate_legacy_int_fields(data, issues)
     _validate_plugin_names(data, config, issues)
     return issues
 

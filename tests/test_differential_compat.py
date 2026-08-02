@@ -198,6 +198,34 @@ class DifferentialCompatibilityTest(unittest.TestCase):
         for label, data in cases.items():
             self.assert_same_verdict(data, label)
 
+    def test_integral_float_values_are_rejected_like_legacy(self) -> None:
+        # JSON Schema draft 2020-12 (via jsonschema) treats integral-valued
+        # floats as `integer`, so `cols: 1.0` would otherwise slip through the
+        # canonical schema. The frozen base validator required actual Python
+        # `int`, so these must stay errors (behavior-preserving rejection).
+        # Oracle cases for the boundary values 1.0, 0.0, -1.0 on every
+        # affected field: cols, rows, expect_exit_code.
+        cases = {
+            "cols_one_point_zero": _base_recipe(cols=1.0),
+            "cols_zero_point_zero": _base_recipe(cols=0.0),
+            "cols_negative_one_point_zero": _base_recipe(cols=-1.0),
+            "rows_one_point_zero": _base_recipe(rows=1.0),
+            "rows_zero_point_zero": _base_recipe(rows=0.0),
+            "rows_negative_one_point_zero": _base_recipe(rows=-1.0),
+            "expect_exit_code_one_point_zero": _base_recipe(expect_exit_code=1.0),
+            "expect_exit_code_zero_point_zero": _base_recipe(expect_exit_code=0.0),
+            "expect_exit_code_negative_one_point_zero": _base_recipe(
+                expect_exit_code=-1.0
+            ),
+            # Plain integral ints stay accepted (positive ints for cols/rows,
+            # any int for expect_exit_code) — no regression there.
+            "cols_int_accepted": _base_recipe(cols=1),
+            "rows_int_accepted": _base_recipe(rows=30),
+            "expect_exit_code_int_accepted": _base_recipe(expect_exit_code=0),
+        }
+        for label, data in cases.items():
+            self.assert_same_verdict(data, label)
+
     def test_step_and_assertion_extra_fields_are_tolerated_like_legacy(self) -> None:
         # Legacy only checked action/type (+ timeout) inside steps/assertions;
         # arbitrary extra fields and non-string names were not validated.
