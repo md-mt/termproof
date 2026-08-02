@@ -12,8 +12,8 @@
 The schemas are vendored in-repo so the harness is hermetic on a fresh
 checkout. To validate against a different copy (e.g. the live SchemaStore
 version), pass --issue-config-schema <url-or-path> and/or
---funding-schema <url-or-path>. A schema that cannot be read is a clean
-validation failure, never a traceback.
+--funding-schema <url-or-path>. A schema that cannot be read, or that is not
+itself a valid JSON Schema, is a clean validation failure, never a traceback.
 """
 from __future__ import annotations
 
@@ -73,7 +73,7 @@ def validate_against_schema(name: str, instance: object, location: str) -> None:
     try:
         jsonschema.validate(instance=instance, schema=schema)
         check(f"{name} validates against SchemaStore schema", True)
-    except jsonschema.ValidationError as error:
+    except (jsonschema.ValidationError, jsonschema.SchemaError) as error:
         check(f"{name} validates against SchemaStore schema", False, str(error)[:300])
 
 

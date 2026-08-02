@@ -16,6 +16,7 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -211,9 +212,73 @@ class ValidationHarnessTest(unittest.TestCase):
         )
         self.assertIn("FAIL", proc.stdout)
 
+    def test_harness_missing_funding_schema_is_clean_failure(self) -> None:
+        proc = self._run("--funding-schema", "/nonexistent/schema.json")
+        self.assertNotEqual(proc.returncode, 0, "missing funding schema must fail validation")
+        self.assertNotIn(
+            "Traceback",
+            proc.stderr,
+            "missing funding schema must be a clean failure, not a traceback",
+        )
+        self.assertIn("FAIL", proc.stdout)
+
+    def _malformed_schema_file(self) -> Path:
+        """A valid JSON document that is not a valid JSON Schema.
+
+        ``{"type": 12}`` is readable JSON but an invalid schema: jsonschema
+        raises ``SchemaError`` (not ``ValidationError``) when it is used.
+        """
+        tmp = Path(tempfile.mkdtemp(prefix="termproof-bad-schema-"))
+        path = tmp / "malformed-schema.json"
+        path.write_text('{"type": 12}', encoding="utf-8")
+        return path
+
+    def test_harness_malformed_issue_schema_is_clean_failure(self) -> None:
+        proc = self._run("--issue-config-schema", str(self._malformed_schema_file()))
+        self.assertNotEqual(
+            proc.returncode, 0, "malformed issue schema must fail validation"
+        )
+        self.assertNotIn(
+            "Traceback",
+            proc.stderr,
+            "malformed issue schema must be a clean failure, not a traceback",
+        )
+        self.assertIn("FAIL", proc.stdout)
+
+    def test_harness_malformed_funding_schema_is_clean_failure(self) -> None:
+        proc = self._run("--funding-schema", str(self._malformed_schema_file()))
+        self.assertNotEqual(
+            proc.returncode, 0, "malformed funding schema must fail validation"
+        )
+        self.assertNotIn(
+            "Traceback",
+            proc.stderr,
+            "malformed funding schema must be a clean failure, not a traceback",
+        )
+        self.assertIn("FAIL", proc.stdout)
+
 
 class SupportRoutingTest(unittest.TestCase):
-    """SUPPORT.md and config.yml must not route users to disabled Discussions."""
+    """Routing docs must not send users to TermProof's own disabled Discussions.
+
+    External projects' Discussion channels (Textualize, Bubble Tea, Ratatui,
+    Ink) are legitimate and must not be flagged; only ``md-mt/termproof``'s own
+    Discussions (feature disabled) are banned.
+    """
+
+    OWN_REPO = "md-mt/termproof"
+    OWN_DISCUSSIONS_URL = "github.com/md-mt/termproof/discussions"
+    RUNBOOK = ROOT / "docs" / "launch" / "runbook.md"
+
+    # External projects' Discussion channels are legitimate outreach targets
+    # and must never be flagged; only md-mt/termproof's own (disabled)
+    # Discussions are banned. A line is external when it names one of the
+    # framework projects or contains any URL (an own-repo route would be
+    # caught by OWN_DISCUSSIONS_URL first).
+    EXTERNAL_PROJECT_RE = re.compile(
+        r"\b(textual(?:ize)?|bubble tea|ratatui|ink)\b", re.IGNORECASE
+    )
+    URL_RE = re.compile(r"https?://")
 
     def test_support_md_has_no_discussions_link(self) -> None:
         support = (ROOT / "SUPPORT.md").read_text(encoding="utf-8")
@@ -223,6 +288,48 @@ class SupportRoutingTest(unittest.TestCase):
         config = _load_yaml(ISSUE_TEMPLATE_DIR / "config.yml")
         for link in config.get("contact_links", []):
             self.assertNotIn("discussions", link.get("url", "").lower())
+
+    def test_no_own_repo_discussions_url_repository_wide(self) -> None:
+        """No tracked document may link to md-mt/termproof's own Discussions."""
+        tracked = subprocess.run(
+            ["git", "ls-files", "*.md", "*.yml", "*.yaml"],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.splitlines()
+        self.assertTrue(tracked, "expected tracked markdown/yaml documents")
+        for rel in tracked:
+            path = ROOT / rel
+            with self.subTest(file=rel):
+                text = path.read_text(encoding="utf-8", errors="replace").lower()
+                self.assertNotIn(
+                    self.OWN_DISCUSSIONS_URL,
+                    text,
+                    f"{rel} must not route to TermProof's own disabled Discussions",
+                )
+
+    def test_runbook_has_no_own_repo_discussions_routing(self) -> None:
+        """The runbook must not list or instruct TermProof's own Discussions.
+
+        External projects' Discussion channels (Textualize, Bubble Tea,
+        Ratatui, Ink) are legitimate and preserved; only routing that points
+        at md-mt/termproof's own (disabled) Discussions is banned.
+        """
+        runbook = self.RUNBOOK.read_text(encoding="utf-8")
+        for line in runbook.splitlines():
+            lowered = line.lower()
+            self.assertNotIn(self.OWN_DISCUSSIONS_URL, lowered)
+            if "discussion" not in lowered:
+                continue
+            is_external = bool(
+                self.EXTERNAL_PROJECT_RE.search(lowered)
+            ) or bool(self.URL_RE.search(lowered))
+            if not is_external:
+                self.fail(
+                    "runbook routes TermProof content to its own disabled "
+                    f"Discussions: {line!r}"
+                )
 
 
 class SecurityPolicyTest(unittest.TestCase):
