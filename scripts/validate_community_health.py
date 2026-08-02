@@ -12,8 +12,12 @@
 The schemas are vendored in-repo so the harness is hermetic on a fresh
 checkout. To validate against a different copy (e.g. the live SchemaStore
 version), pass --issue-config-schema <url-or-path> and/or
---funding-schema <url-or-path>. A schema that cannot be read, or that is not
-itself a valid JSON Schema, is a clean validation failure, never a traceback.
+--funding-schema <url-or-path>.
+
+The accepted schema root contract is a JSON object (mapping). A schema that
+cannot be read, cannot be decoded as UTF-8, is not valid JSON, or whose root
+is not an object (number, string, array, null, boolean) is a clean validation
+failure ([FAIL], exit 1, zero stderr), never a traceback.
 """
 from __future__ import annotations
 
@@ -48,21 +52,35 @@ def check(name: str, ok: bool, detail: str = "") -> None:
 
 
 def load_schema(location: str) -> dict | None:
-    """Load a schema from a local path or URL; None on any failure."""
+    """Load a schema from a local path or URL; None on any failure.
+
+    The accepted schema root contract is a JSON object (mapping). A schema
+    file that cannot be read (missing file, permission, network error),
+    cannot be decoded as UTF-8, is not valid JSON, or whose root is not an
+    object is a clean failure: ``None`` is returned and a reason is printed.
+    Callers treat ``None`` as a ``[FAIL]`` check — never a traceback.
+    """
     try:
         if re.match(r"^https?://", location):
             with urllib.request.urlopen(location, timeout=30) as response:
                 raw = response.read().decode("utf-8")
         else:
             raw = Path(location).read_text(encoding="utf-8")
-    except (OSError, urllib.error.URLError) as error:
+    except (OSError, urllib.error.URLError, UnicodeDecodeError) as error:
         print(f"  could not read schema {location}: {error}")
         return None
     try:
-        return json.loads(raw)
+        schema = json.loads(raw)
     except json.JSONDecodeError as error:
         print(f"  schema {location} is not valid JSON: {error}")
         return None
+    if not isinstance(schema, dict):
+        print(
+            f"  schema {location} root must be a JSON object (mapping), "
+            f"got {type(schema).__name__}"
+        )
+        return None
+    return schema
 
 
 def validate_against_schema(name: str, instance: object, location: str) -> None:

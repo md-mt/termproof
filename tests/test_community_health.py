@@ -204,23 +204,35 @@ class ValidationHarnessTest(unittest.TestCase):
         )
         self.assertIn("ALL VALIDATION CHECKS PASSED", proc.stdout)
 
+    def _schema_file(self, content: str | bytes) -> Path:
+        """Write arbitrary schema content (text or raw bytes) to a temp file."""
+        tmp = Path(tempfile.mkdtemp(prefix="termproof-bad-schema-"))
+        path = tmp / "bad-schema.json"
+        if isinstance(content, bytes):
+            path.write_bytes(content)
+        else:
+            path.write_text(content, encoding="utf-8")
+        return path
+
+    def _assert_clean_failure(
+        self, proc: subprocess.CompletedProcess[str], label: str
+    ) -> None:
+        """The override contract: exit != 0, [FAIL], zero stderr, no traceback."""
+        self.assertNotEqual(proc.returncode, 0, f"{label} must fail validation")
+        self.assertIn("FAIL", proc.stdout, f"{label} must print [FAIL]")
+        self.assertEqual(
+            proc.stderr,
+            "",
+            f"{label} must produce zero stderr (no traceback): {proc.stderr!r}",
+        )
+
     def test_harness_missing_schema_is_clean_failure(self) -> None:
         proc = self._run("--issue-config-schema", "/nonexistent/schema.json")
-        self.assertNotEqual(proc.returncode, 0, "missing schema must fail validation")
-        self.assertNotIn(
-            "Traceback", proc.stderr, "missing schema must be a clean failure, not a traceback"
-        )
-        self.assertIn("FAIL", proc.stdout)
+        self._assert_clean_failure(proc, "missing schema")
 
     def test_harness_missing_funding_schema_is_clean_failure(self) -> None:
         proc = self._run("--funding-schema", "/nonexistent/schema.json")
-        self.assertNotEqual(proc.returncode, 0, "missing funding schema must fail validation")
-        self.assertNotIn(
-            "Traceback",
-            proc.stderr,
-            "missing funding schema must be a clean failure, not a traceback",
-        )
-        self.assertIn("FAIL", proc.stdout)
+        self._assert_clean_failure(proc, "missing funding schema")
 
     def _malformed_schema_file(self) -> Path:
         """A valid JSON document that is not a valid JSON Schema.
@@ -228,34 +240,62 @@ class ValidationHarnessTest(unittest.TestCase):
         ``{"type": 12}`` is readable JSON but an invalid schema: jsonschema
         raises ``SchemaError`` (not ``ValidationError``) when it is used.
         """
-        tmp = Path(tempfile.mkdtemp(prefix="termproof-bad-schema-"))
-        path = tmp / "malformed-schema.json"
-        path.write_text('{"type": 12}', encoding="utf-8")
-        return path
+        return self._schema_file('{"type": 12}')
 
     def test_harness_malformed_issue_schema_is_clean_failure(self) -> None:
         proc = self._run("--issue-config-schema", str(self._malformed_schema_file()))
-        self.assertNotEqual(
-            proc.returncode, 0, "malformed issue schema must fail validation"
-        )
-        self.assertNotIn(
-            "Traceback",
-            proc.stderr,
-            "malformed issue schema must be a clean failure, not a traceback",
-        )
-        self.assertIn("FAIL", proc.stdout)
+        self._assert_clean_failure(proc, "malformed issue schema")
 
     def test_harness_malformed_funding_schema_is_clean_failure(self) -> None:
         proc = self._run("--funding-schema", str(self._malformed_schema_file()))
-        self.assertNotEqual(
-            proc.returncode, 0, "malformed funding schema must fail validation"
+        self._assert_clean_failure(proc, "malformed funding schema")
+
+    def test_harness_numeric_root_issue_schema_is_clean_failure(self) -> None:
+        proc = self._run("--issue-config-schema", str(self._schema_file("42")))
+        self._assert_clean_failure(proc, "numeric-root issue schema")
+
+    def test_harness_numeric_root_funding_schema_is_clean_failure(self) -> None:
+        proc = self._run("--funding-schema", str(self._schema_file("42")))
+        self._assert_clean_failure(proc, "numeric-root funding schema")
+
+    def test_harness_array_root_issue_schema_is_clean_failure(self) -> None:
+        proc = self._run("--issue-config-schema", str(self._schema_file("[]")))
+        self._assert_clean_failure(proc, "array-root issue schema")
+
+    def test_harness_array_root_funding_schema_is_clean_failure(self) -> None:
+        proc = self._run("--funding-schema", str(self._schema_file("[]")))
+        self._assert_clean_failure(proc, "array-root funding schema")
+
+    def test_harness_scalar_root_issue_schema_is_clean_failure(self) -> None:
+        proc = self._run("--issue-config-schema", str(self._schema_file('"scalar"')))
+        self._assert_clean_failure(proc, "scalar-root issue schema")
+
+    def test_harness_scalar_root_funding_schema_is_clean_failure(self) -> None:
+        proc = self._run("--funding-schema", str(self._schema_file('"scalar"')))
+        self._assert_clean_failure(proc, "scalar-root funding schema")
+
+    def test_harness_non_utf8_issue_schema_is_clean_failure(self) -> None:
+        proc = self._run(
+            "--issue-config-schema", str(self._schema_file(b'{"type": "\xff\xfe"}'))
         )
-        self.assertNotIn(
-            "Traceback",
-            proc.stderr,
-            "malformed funding schema must be a clean failure, not a traceback",
+        self._assert_clean_failure(proc, "non-UTF-8 issue schema")
+
+    def test_harness_non_utf8_funding_schema_is_clean_failure(self) -> None:
+        proc = self._run(
+            "--funding-schema", str(self._schema_file(b'{"type": "\xff\xfe"}'))
         )
-        self.assertIn("FAIL", proc.stdout)
+        self._assert_clean_failure(proc, "non-UTF-8 funding schema")
+
+    def test_schema_root_contract_rejects_non_mapping_roots_in_source(self) -> None:
+        """The accepted schema root contract is an object/mapping.
+
+        The harness source must state the contract and reject non-dict roots
+        (number, string, array, null, boolean) as a clean failure instead of
+        letting them reach jsonschema, where they raise TypeError/SchemaError.
+        """
+        source = self.SCRIPT.read_text(encoding="utf-8")
+        self.assertIn("isinstance(schema, dict)", source)
+        self.assertIn("JSON object", source)
 
 
 class SupportRoutingTest(unittest.TestCase):
