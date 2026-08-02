@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="936" height="516" viewBox="0 0 936 516">
+<rect width="100%" height="100%" fill="#101418"/>
+<style>text{font:14px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;fill:#e6edf3;white-space:pre}</style>
+<text x="18" y="38">Generic TUI demo</text>
+<text x="18" y="58">Use commands: open dashboard, filter errors, export report, exit</text>
+<text x="18" y="78"></text>
+<text x="18" y="98">demo&gt; open dashboard</text>
+<text x="18" y="118">demo&gt; loading dashboard</text>
+<text x="18" y="138">demo&gt; widgets rendered</text>
+<text x="18" y="158">DASHBOARD READY</text>
+<text x="18" y="178">filter errors</text>
+<text x="18" y="198"></text>
+<text x="18" y="218">demo&gt; demo&gt; applying status:error filter</text>
+<text x="18" y="238">demo&gt; 3 rows visible</text>
+<text x="18" y="258">FILTER READY</text>
+<text x="18" y="278">export report</text>
+<text x="18" y="298"></text>
+<text x="18" y="318">demo&gt; demo&gt; writing verification summary</text>
+<text x="18" y="338">demo&gt; report artifact linked</text>
+<text x="18" y="358">EXPORT READY</text>
+<text x="18" y="378">exit</text>
+<text x="18" y="398"></text>
+<text x="18" y="418">demo&gt; demo&gt; closing session</text>
+<text x="18" y="438">GENERIC TUI COMPLETE</text>
+</svg>
