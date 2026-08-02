@@ -41,6 +41,7 @@ import math
 import os
 import re
 import shutil
+import subprocess
 import sys
 import tempfile
 from datetime import UTC, datetime
@@ -132,6 +133,89 @@ def normalize_os_error_detail(text: str) -> str:
     contract is that a send/session exception occurred, not the local errno.
     """
     return re.sub(r"\[Errno \d+\][^\n\]]*", "[Errno N] I/O error", text)
+
+
+_ANSI_SGR_RE = re.compile(r"\x1b\[[0-9;]*m")
+
+
+def strip_ansi_sgr(text: str) -> str:
+    """Remove ANSI SGR (color/style) escape sequences.
+
+    CPython 3.13+ colorizes tracebacks when stderr is a terminal (PTY);
+    3.11/3.12 do not. Colors are presentation, not content: pyte ignores them
+    when replaying the cast into final.txt/final.svg, so the raw cast payload
+    must strip them for the fixture to be interpreter-independent. Only SGR
+    ``\\x1b[...m`` sequences are removed; cursor movement and other control
+    sequences are preserved so meaningful terminal behavior stays visible.
+    """
+    return _ANSI_SGR_RE.sub("", text)
+
+
+def normalize_traceback_source_echo(text: str) -> str:
+    """Canonicalize the CPython 3.13+ source echo in ``-c`` tracebacks.
+
+    When a recipe command fails at launch (``python3 -c "import ..."``),
+    Python 3.11/3.12 print::
+
+        Traceback (most recent call last):
+          File "<string>", line 1, in <module>
+        ModuleNotFoundError: No module named 'x'
+
+    CPython 3.13+ additionally echoes the failing source statement after the
+    ``<string>`` frame::
+
+        Traceback (most recent call last):
+          File "<string>", line 1, in <module>
+            import definitely_missing_module_xyz
+        ModuleNotFoundError: No module named 'x'
+
+    The echoed source line is a rendering detail of the interpreter, not part
+    of the frozen contract: the frame, exception type, and message are all
+    preserved. Only the indented echo that directly follows a ``<string>``
+    frame is dropped. Real-file frames (whose source echo exists on every
+    supported Python) and unrelated text are untouched.
+    """
+    lines = text.splitlines(keepends=True)
+    out: list[str] = []
+    i = 0
+    while i < len(lines):
+        out.append(lines[i])
+        if re.match(r'^  File "<string>", line \d+, in <module>\r?$', lines[i].rstrip("\r\n")):
+            if i + 1 < len(lines) and re.match(r"^    \S", lines[i + 1]):
+                i += 1  # drop the interpreter's source-echo line
+        i += 1
+    return "".join(out)
+
+
+def normalize_svg_traceback(text: str) -> str:
+    """Canonicalize an SVG-rendered ``-c`` traceback echo (CPython 3.13+).
+
+    The SVG renderer emits one ``<text>`` element per screen line. On 3.13+
+    a ``-c`` traceback gains an echoed source line, which both adds a
+    ``<text>`` element and shifts every later line's ``y`` coordinate down by
+    one line height. Removing the echo element and renumbering the ``y`` of
+    the following elements reproduces the 3.11/3.12 rendering exactly.
+    """
+    lines = text.splitlines()
+    text_idx = [i for i, line in enumerate(lines) if "<text" in line and "</text>" in line]
+    drop: int | None = None
+    for pos, line_idx in enumerate(text_idx[:-1]):
+        if re.search(r"File &quot;&lt;string&gt;&quot;, line \d+, in &lt;module&gt;", lines[line_idx]):
+            nxt = lines[text_idx[pos + 1]]
+            match = re.search(r"<text x=\"18\" y=\"(\d+)\">(.*?)</text>", nxt)
+            if match and match.group(2).startswith("    ") and match.group(2).strip():
+                drop = text_idx[pos + 1]
+                break
+    if drop is None:
+        return text
+    out: list[str] = []
+    for i, line in enumerate(lines):
+        if i == drop:
+            continue
+        if i > drop:
+            line = re.sub(r'y="(\d+)"', lambda m: f'y="{int(m.group(1)) - 20}"', line)
+        out.append(line)
+    return "\n".join(out) + "\n"
 
 
 def normalize_result_json(text: str, *, run_rel: str | None = None) -> str:
@@ -252,6 +336,14 @@ def normalize_cast(text: str) -> str:
         "env": {},
     }
     merged = "".join(payload)
+    # CPython 3.13+ colorizes tracebacks (ANSI SGR) and echoes the failing
+    # source statement after a `-c` (`<string>`) traceback frame; 3.11/3.12
+    # do neither. Both are rendering details of the interpreter, not part of
+    # the contract: strip colors first (the echo regex cannot match a frame
+    # line with embedded escape sequences), then canonicalize the echo, so
+    # the cast fixture is interpreter-independent.
+    merged = strip_ansi_sgr(merged)
+    merged = normalize_traceback_source_echo(merged)
     body = [json.dumps(canonical)]
     if merged:
         body.append(json.dumps([0.0, "o", merged]))
@@ -293,20 +385,50 @@ def normalize_oracle_json(text: str) -> str:
     return canonical_json(data)
 
 
+def _oracle_source_files() -> list[Path]:
+    """Return the explicit oracle source inventory: git-tracked files under
+    ``termproof/`` only.
+
+    Oracle provenance must be interpreter-independent. Generated/runtime
+    files (``__pycache__/*.pyc``, ``.coverage``, build artifacts) differ per
+    interpreter and per checkout; hashing them made the source digest
+    nondeterministic across CI's 3.11/3.12/3.13 matrix. The authoritative
+    "tracked source files" inventory comes from ``git ls-files``; when git is
+    unavailable (e.g. an sdist extraction) it falls back to the same explicit
+    list recorded at generation time.
+    """
+    try:
+        proc = subprocess.run(
+            ["git", "-C", str(REPO_ROOT), "ls-files", "--", "termproof"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        tracked = sorted(
+            line.strip()
+            for line in proc.stdout.splitlines()
+            if line.strip().startswith("termproof/")
+        )
+        if tracked:
+            return [REPO_ROOT / rel for rel in tracked]
+    except (OSError, subprocess.CalledProcessError):
+        pass
+    return sorted((REPO_ROOT / "termproof").glob("*.py"))
+
+
 def compute_oracle_source_sha256() -> str:
     """Return a content digest of the termproof/ oracle source tree.
 
     This is the procedural provenance check: the corpus must be generated
-    from exactly this source tree. If oracle source changes without an
-    intentional oracle-commit update (which regenerates the corpus and
-    records the new digest), drift detection fails.
+    from exactly this source tree. The inventory is explicitly the
+    git-tracked source files (see ``_oracle_source_files``) — never generated
+    artifacts like ``__pycache__/*.pyc``, which differ per interpreter and
+    made the digest nondeterministic across CI's Python matrix. Path and
+    content are hashed in a deterministic, sorted, null-delimited form.
     """
-    source_root = REPO_ROOT / "termproof"
     digest = hashlib.sha256()
-    for path in sorted(source_root.rglob("*")):
-        if not path.is_file():
-            continue
-        rel = path.relative_to(source_root).as_posix()
+    for path in _oracle_source_files():
+        rel = path.relative_to(REPO_ROOT).as_posix()
         digest.update(rel.encode("utf-8"))
         digest.update(b"\x00")
         digest.update(path.read_bytes())
@@ -1253,6 +1375,12 @@ def write_run_evidence(root: Path) -> None:
                         content = normalize_report_md(raw.decode("utf-8")).encode("utf-8")
                     elif name == "session.cast":
                         content = normalize_cast(raw.decode("utf-8")).encode("utf-8")
+                    elif name == "final.txt":
+                        content = normalize_traceback_source_echo(
+                            raw.decode("utf-8")
+                        ).encode("utf-8")
+                    elif name == "final.svg":
+                        content = normalize_svg_traceback(raw.decode("utf-8")).encode("utf-8")
                     else:
                         content = raw
                     (dest / name).write_bytes(content)
@@ -1658,6 +1786,10 @@ def _normalize_fixture(rel: Path, data: bytes) -> str:
         return normalize_junit_xml(text)
     if rel.name == "session.cast":
         return normalize_cast(text)
+    if rel.name == "final.txt":
+        return normalize_traceback_source_echo(text)
+    if rel.name == "final.svg":
+        return normalize_svg_traceback(text)
     if rel.name == "oracle.json":
         return normalize_oracle_json(text)
     if rel.suffix == ".png":

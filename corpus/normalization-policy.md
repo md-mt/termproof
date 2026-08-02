@@ -172,6 +172,38 @@ and preserves everything else.
   produces a detected difference with the expected fields), not the absolute
   path string.
 
+### 2.11 Launch-failure traceback: canonicalize the CPython 3.13+ source echo
+
+- **Where:** `normalize_traceback_source_echo` in the generator; applies to
+  `corpus/runs/fail-launch/final.txt`, `final.svg`, and the merged `o` payload
+  of `session.cast` (the same rule runs inside `normalize_cast`).
+- **Rule:** when a traceback frame is `File "<string>", line N, in <module>`
+  (a `python -c` command), the indented source-echo line that CPython 3.13+
+  prints after the frame is removed. The frame line, exception type, and
+  message are preserved verbatim. Real-file frames (whose source echo exists
+  on every supported Python) are untouched.
+- **Why:** Python 3.11/3.12 print `-c` tracebacks without echoing the source
+  statement; CPython 3.13+ added the echo. The echoed line is a rendering
+  detail of the interpreter, not part of the frozen launch-failure contract
+  (the exception and its message are). Removing only the version-specific
+  echo keeps the fixture byte-identical across the 3.11/3.12/3.13 matrix
+  without hiding semantic drift: a change in the exception type or message
+  still fails the gate.
+
+### 2.12 Launch-failure traceback: strip ANSI SGR color codes
+
+- **Where:** `strip_ansi_sgr` in the generator; applied to the merged `o`
+  payload of `session.cast` inside `normalize_cast`.
+- **Rule:** ANSI SGR escape sequences (`\x1b[...m`) are removed from the cast
+  payload. Cursor-movement and other control sequences are preserved.
+- **Why:** CPython 3.13+ colorizes tracebacks when stderr is a terminal (PTY);
+  3.11/3.12 do not. Colors are presentation, not content — the terminal emulator
+  (pyte) already ignores them when replaying the cast into `final.txt` /
+  `final.svg`, so stripping them from the raw payload makes the cast fixture
+  consistent with the other artifacts and interpreter-independent. Only the
+  color/style codes are removed; meaningful terminal control sequences remain
+  visible.
+
 ---
 
 ## 3. Values that are NEVER normalized
