@@ -21,7 +21,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.1.0"
+version = "0.2.1"
 edition = "2021"
 rust-version = "1.96"
 license = "MIT"
@@ -41,5 +41,20 @@ all = "warn"
 
 # Shared dependency pins. Crates opt in via `foo.workspace = true`.
 # No dependency may be added without a documented reason in engineering-baseline.md.
+# Release profiles (RUST-021): optimized binaries for distribution.
+# `release` is the default optimized profile; `dist` is for fully-stripped
+# release archives with LTO and panic=abort for minimal size.
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
+
+[profile.dist]
+inherits = "release"
+lto = true
+opt-level = "z"
+
 [workspace.dependencies]
 termproof-core = { path = "crates/termproof-core" }
+clap = { version = "4.5" }
