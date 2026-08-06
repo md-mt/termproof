@@ -51,6 +51,21 @@ impl InMemorySession {
         self.exit_code = Some(code);
         self.alive = false;
     }
+
+    /// Directly overwrite screen (test helper — replaces contents).
+    pub fn set_screen(&mut self, s: impl Into<String>) {
+        self.screen = s.into();
+    }
+
+    /// Directly overwrite raw buffer (test helper — replaces contents).
+    pub fn set_raw(&mut self, r: impl Into<String>) {
+        self.raw_output = r.into();
+    }
+
+    /// Set alive flag (test helper — simulates process exit / restart).
+    pub fn set_alive(&mut self, alive: bool) {
+        self.alive = alive;
+    }
 }
 
 impl Session for InMemorySession {
@@ -70,6 +85,29 @@ impl Session for InMemorySession {
     }
 
     fn press(&mut self, key: &str) -> Result<(), SessionError> {
+        // Validate against the frozen key contract (same surface as PtySession).
+        // Keep InMemorySession usable without the real PTY but fail closed on
+        // unknown keys so `press` step failures are observable in tests.
+        const KEY_MAP: &[&str] = &[
+            "enter",
+            "escape",
+            "tab",
+            "backspace",
+            "up",
+            "down",
+            "right",
+            "left",
+        ];
+        let normalized = key.to_ascii_lowercase();
+        let valid = if let Some(suffix) = normalized.strip_prefix("ctrl-") {
+            let mut chars = suffix.chars();
+            matches!((chars.next(), chars.next()), (Some(c), None) if c.is_ascii_alphabetic())
+        } else {
+            KEY_MAP.contains(&normalized.as_str())
+        };
+        if !valid {
+            return Err(SessionError::Config(format!("unknown key: {key}")));
+        }
         self.log.push(format!("press:{key}"));
         Ok(())
     }
