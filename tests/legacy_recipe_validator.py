@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 """Frozen snapshot of the pre-#93 recipe validator.
 
 This is a verbatim copy of ``termproof/recipe_schema.py`` at commit
@@ -15,6 +13,8 @@ the future, remove the affected cases from the differential corpus with an
 explicit, documented behaviour change (never smuggle one into a
 behaviour-preserving refactor).
 """
+
+from __future__ import annotations
 
 import json
 from dataclasses import dataclass

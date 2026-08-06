@@ -7,7 +7,7 @@ from typing import Any
 import jsonschema
 
 from .models import AssertionResult, Recipe
-from .protocols import AssertionType
+from .protocols import AssertionType as AssertionType
 
 
 def _contains(

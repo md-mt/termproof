@@ -10,7 +10,6 @@ import shutil
 import urllib.request
 from pathlib import Path
 
-
 VERSION = "v1.9.0"
 BASE_URL = f"https://github.com/asciinema/agg/releases/download/{VERSION}"
 ASSETS = {
