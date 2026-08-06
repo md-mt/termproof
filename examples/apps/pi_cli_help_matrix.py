@@ -4,7 +4,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-
 PI = Path(__file__).resolve().parents[1] / "bin" / "pi-clean"
 
 COMMANDS = {

@@ -12,8 +12,8 @@ from .evidence import write_result_files
 from .recipe_schema import has_errors, validate_recipe_file
 from .registry import find_recipe_files, load_recipes, select_recipes
 from .renderer import selected_renderers
-from .runner import VerificationRunner
 from .run_cache import load_cached_result, store_cached_result
+from .runner import VerificationRunner
 from .scaffold import write_recipe_pack
 from .visual_diff import apply_visual_diff
 
@@ -213,9 +213,9 @@ def main(argv: list[str] | None = None) -> int:
             if not matches:
                 print("no plugins found")
                 return 0
-            for plugin in matches:
+            for match in matches:
                 print(
-                    f"{plugin.name}\t{plugin.description}\t{plugin.install}\t{plugin.author}"
+                    f"{match.name}\t{match.description}\t{match.install}\t{match.author}"
                 )
             return 0
         if args.plugins_command == "install":

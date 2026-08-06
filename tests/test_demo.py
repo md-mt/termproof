@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import contextlib
+import io
 import tempfile
 import unittest
 from pathlib import Path
 
 from termproof.cli import main
-import contextlib, io
 
 
 class DemoCommandTest(unittest.TestCase):

@@ -20,6 +20,13 @@ on:
 permissions:
   contents: read
 
+# Allow only one concurrent deployment, skipping runs queued between the run
+# in-progress and latest queued. Do not cancel in-progress runs so a deploy
+# finishes cleanly.
+concurrency:
+  group: "docs-site-pages"
+  cancel-in-progress: false
+
 jobs:
   build:
     name: Build VitePress docs
@@ -34,8 +41,17 @@ jobs:
         with:
           node-version: "22"
 
+      # Pages-specific steps are gated on BOTH a non-PR event and
+      # ENABLE_PAGES == 'true': configure-pages calls the Pages API and throws
+      # on repositories without a Pages site, which would otherwise fail a
+      # main push before the deploy-skipped notice can run. The generic
+      # preview artifact below stays unconditional.
+      - name: Configure Pages
+        if: github.event_name != 'pull_request' && vars.ENABLE_PAGES == 'true'
+        uses: actions/configure-pages@v5
+
       - name: Install docs dependencies
-        run: npm install --prefix docs-site --no-package-lock
+        run: npm ci --prefix docs-site
 
       - name: Build docs site
         run: npm run --prefix docs-site docs:build
@@ -46,3 +62,54 @@ jobs:
           name: termproof-docs-site
           path: docs-site/.vitepress/dist
           if-no-files-found: error
+
+      - name: Upload Pages artifact
+        if: github.event_name != 'pull_request' && vars.ENABLE_PAGES == 'true'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs-site/.vitepress/dist
+
+  # Deployment is explicitly opt-in so repos without Pages enabled do not fail CI.
+  # Set repository variable ENABLE_PAGES=true and enable Pages
+  # in Settings > Pages (source: GitHub Actions) to deploy.
+  #
+  # This deploy job is the SINGLE authoritative github-pages deployer for the
+  # shared docs/** and README.md triggers. pages.yml is build-validation only
+  # and must never deploy, so an ENABLE_PAGES=true push can produce at most
+  # one deployment to the github-pages environment.
+  deploy:
+    name: Deploy docs to GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    if: |
+      vars.ENABLE_PAGES == 'true' &&
+      ((github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+        github.event_name == 'workflow_dispatch')
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+  # Keep a separate notification that deploy was skipped — informative only.
+  deploy-skipped:
+    name: Docs Pages deploy skipped (ENABLE_PAGES not true)
+    needs: build
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/main' &&
+      vars.ENABLE_PAGES != 'true'
+    steps:
+      - run: |
+          echo "Docs Pages deploy skipped — ENABLE_PAGES is not 'true'."
+          echo "To enable Pages deploys, set repository variable ENABLE_PAGES=true"
+          echo "in Settings > Secrets and variables > Actions > Variables, and enable Pages"
+          echo "in Settings > Pages (source: GitHub Actions)."
+          echo "Artifact 'termproof-docs-site' contains the built site preview."

@@ -3,11 +3,11 @@ from __future__ import annotations
 import json
 import unittest
 
-from termproof.before_after import BeforeAfterResult, BehaviorDelta
+from termproof_my_plugin.reporters import JsonSummaryReporter
+
+from termproof.before_after import BeforeAfterResult
 from termproof.build_info import BuildInfo
 from termproof.models import AssertionResult, RunResult, StepResult
-
-from termproof_my_plugin.reporters import JsonSummaryReporter
 
 
 class JsonSummaryReporterTest(unittest.TestCase):

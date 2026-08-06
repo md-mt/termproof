@@ -12,7 +12,6 @@ from termproof import ci_evidence
 from termproof.ci_evidence import compose_pr_comment, load_receipt, run_target
 from termproof.evidence_publish import prepare_screenshot_evidence, rewrite_screenshot_links
 
-
 ROOT = Path(__file__).resolve().parents[1]
 RECEIPT = ROOT / "docs" / "ci" / "evidence-receipt.json"
 

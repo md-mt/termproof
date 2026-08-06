@@ -24,7 +24,7 @@ import jsonschema
 import yaml
 
 from termproof.config import VerifierConfig
-from termproof.recipe_schema import has_errors, validate_recipe_mapping
+from termproof.recipe_schema import validate_recipe_mapping
 
 ROOT = Path(__file__).resolve().parent.parent
 ISSUE_TEMPLATE_DIR = ROOT / ".github" / "ISSUE_TEMPLATE"
