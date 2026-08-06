@@ -49,10 +49,20 @@ all = "warn"
 # - thiserror — typed internal errors converted at boundaries.
 [workspace.dependencies]
 termproof-core = { path = "crates/termproof-core" }
+termproof-terminal = { path = "crates/termproof-terminal" }
+termproof-evidence = { path = "crates/termproof-evidence" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 serde_yaml = "0.9"
 schemars = { version = "0.8", features = ["preserve_order"] }
 jsonschema = { version = "0.33" }
+vt100 = "0.15"
+quick-junit = "0.4"
+image = { version = "0.25", default-features = false, features = ["png"] }
+sha2 = "0.10"
+tempfile = "3.10"
 thiserror = "2.0"
-# RUST-006: portable-pty 0.9, vt100 0.15 (stubbed offline, wired when deps available)
+chrono = "0.4"
+ab_glyph = "0.2"
+# RUST-006: portable-pty 0.9, vt100 0.15 (wired via vt100, portable-pty stubbed offline)
+
