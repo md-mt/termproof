@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -58,10 +59,20 @@ BUILTIN_DEFAULTS: dict[str, Any] = {
         "volumes": [{"host": ".", "container": "/workspace"}],
         "env": {},
     },
+    "defaults": {
+        "idle_cap_seconds": 3.0,
+    },
 }
 
 
 # -- config model -----------------------------------------------------------
+
+@dataclass(frozen=True)
+class GlobalDefaults:
+    # Cap for the post-script idle wait in PTY mode. None means wait for
+    # quiescence up to the recipe timeout instead of a fixed cap.
+    idle_cap_seconds: float | None = 3.0
+
 
 @dataclass(frozen=True)
 class DockerBackendConfig:
@@ -84,6 +95,7 @@ class VerifierConfig:
     video_backends: dict[str, str]
     session_backend: str
     docker: DockerBackendConfig
+    defaults: GlobalDefaults
 
     @classmethod
     def builtin(cls) -> VerifierConfig:
@@ -143,7 +155,30 @@ def load_config(
 
 # -- internal helpers --------------------------------------------------------
 
+def _parse_idle_cap_seconds(value: Any) -> float | None:
+    """Parse ``idle_cap_seconds``, rejecting non-finite or negative values.
+
+    A negative or NaN/Inf value would silently eliminate idle waiting (a
+    ``min()`` cap of ``-1`` or ``nan`` never waits), so config loading must
+    refuse it instead of degrading behavior invisibly.
+    """
+    if value is None:
+        return None
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError) as error:
+        raise ValueError(
+            f"idle_cap_seconds must be a finite nonnegative number, got {value!r}"
+        ) from error
+    if not math.isfinite(parsed) or parsed < 0:
+        raise ValueError(
+            f"idle_cap_seconds must be a finite nonnegative number, got {value!r}"
+        )
+    return parsed
+
+
 def _from_mapping(data: dict[str, Any]) -> VerifierConfig:
+    defaults_raw = data.get("defaults", {})
     docker_raw = data.get("docker", {})
     docker_volumes = docker_raw.get("volumes", [{"host": ".", "container": "/workspace"}])
     return VerifierConfig(
@@ -163,6 +198,11 @@ def _from_mapping(data: dict[str, Any]) -> VerifierConfig:
                 str(key): str(value)
                 for key, value in dict(docker_raw.get("env", {})).items()
             },
+        ),
+        defaults=GlobalDefaults(
+            idle_cap_seconds=_parse_idle_cap_seconds(
+                defaults_raw.get("idle_cap_seconds", 3.0)
+            ),
         ),
     )
 
