@@ -18,16 +18,15 @@ pub use config::VerifierConfig;
 pub use recipe::{Assertion, CommandSpec as RecipeCommandSpec, Recipe, Step, RECIPE_VERSION};
 pub use validation::{has_errors, Severity, ValidationIssue};
 
-// Re-exports: models/result/store (RUST-010)
-pub use models::{
-    CommandSpec as ModelCommandSpec, RunResult as ModelRunResult, StepResult as ModelStepResult,
-};
-// Recipe from recipe.rs is canonical (serde+schemars); models::Recipe is legacy alias
+// Re-exports: models/result/store (RUST-010) — models is legacy, result is canonical
+// Canonical Recipe is from recipe.rs (serde+schemars); models::Recipe retained as ModelRecipe for back-compat
 pub use models::Recipe as ModelRecipe;
-// Canonical RunResult is from result.rs (has score_from_assertions, artifacts as BTreeMap)
+pub use models::{
+    AssertionResult as ModelAssertionResult, CommandSpec as ModelCommandSpec,
+    RunResult as ModelRunResult, StepResult as ModelStepResult,
+};
+// Canonical RunResult/AssertionResult/StepResult from result.rs (score_from_assertions, BTreeMap artifacts)
 pub use result::{AssertionResult, RunResult, StepResult};
-// Keep Model aliases for compatibility
-pub use models::AssertionResult as ModelAssertionResult;
 pub use store::{
     atomic_write, atomic_write_text, ensure_within_base, new_run_dir, sanitize_component,
 };
