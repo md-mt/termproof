@@ -21,7 +21,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.1.0"
+version = "0.2.1"
 edition = "2021"
 rust-version = "1.96"
 license = "MIT"
@@ -41,5 +41,29 @@ all = "warn"
 
 # Shared dependency pins. Crates opt in via `foo.workspace = true`.
 # No dependency may be added without a documented reason in engineering-baseline.md.
+# Reasons (spec §5.3, RUST-004):
+# - serde / serde_json — typed data, stable JSON serialization.
+# - serde_yaml — YAML recipe/config loading (JSON+YAML inputs).
+# - schemars — source-to-schema generator, Draft 2020-12.
+# - jsonschema — Draft 2020-12 validation.
+# - thiserror — typed internal errors converted at boundaries.
 [workspace.dependencies]
 termproof-core = { path = "crates/termproof-core" }
+termproof-terminal = { path = "crates/termproof-terminal" }
+termproof-evidence = { path = "crates/termproof-evidence" }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+serde_yaml = "0.9"
+schemars = { version = "0.8", features = ["preserve_order"] }
+jsonschema = { version = "0.33" }
+vt100 = "0.15"
+quick-junit = "0.4"
+image = { version = "0.25", default-features = false, features = ["png"] }
+sha2 = "0.10"
+tempfile = "3.10"
+thiserror = "2.0"
+chrono = "0.4"
+ab_glyph = "0.2"
+clap = { version = "4.5", features = ["derive"] }
+# RUST-006: portable-pty 0.9, vt100 0.15 (wired via vt100, portable-pty stubbed offline)
+termproof-plugin-protocol = { path = "crates/termproof-plugin-protocol" }
