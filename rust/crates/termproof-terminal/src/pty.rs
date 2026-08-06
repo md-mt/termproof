@@ -194,8 +194,7 @@ impl PtySession {
             return Ok(());
         }
         if let Some(path) = self.config.cast_path.clone() {
-            if let Ok(rec) = CastRecorder::new(path, self.cols, self.rows, self.config.argv.clone())
-            {
+            if let Ok(rec) = CastRecorder::new(path, self.cols, self.rows, self.config.argv.clone()) {
                 self.cast = Some(Arc::new(Mutex::new(rec)));
             }
         }

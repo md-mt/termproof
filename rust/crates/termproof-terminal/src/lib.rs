@@ -17,6 +17,6 @@ pub mod process;
 
 pub use pty::{PtyConfig, PtyError, PtySession};
 pub use cast::{CastRecorder, ActivityClock, CastHeader, replay_cast};
-pub use screen::{TerminalScreen, parser_screen_text};
+pub use screen::TerminalScreen;
 pub use idle::{wait_for_idle, IdleTracker};
 pub use process::{ProcessConfig, ProcessError, ProcessOutput, ProcessSession, ProcessWaitResult};
