@@ -41,5 +41,17 @@ all = "warn"
 
 # Shared dependency pins. Crates opt in via `foo.workspace = true`.
 # No dependency may be added without a documented reason in engineering-baseline.md.
+# Reasons (spec §5.3, RUST-004):
+# - serde / serde_json — typed data, stable JSON serialization.
+# - serde_yaml — YAML recipe/config loading (JSON+YAML inputs).
+# - schemars — source-to-schema generator, Draft 2020-12.
+# - jsonschema — Draft 2020-12 validation.
+# - thiserror — typed internal errors converted at boundaries.
 [workspace.dependencies]
 termproof-core = { path = "crates/termproof-core" }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+serde_yaml = "0.9"
+schemars = { version = "0.8", features = ["preserve_order"] }
+jsonschema = { version = "0.33" }
+thiserror = "2.0"
