@@ -7,11 +7,15 @@
 //! `termproof-core` execution modes depend only on public operations.
 
 pub mod backend;
+pub mod custom;
+pub mod docker;
 pub mod error;
 pub mod inmemory;
 pub mod session;
 
 pub use backend::SessionBackend;
+pub use custom::PluginSessionBackend;
+pub use docker::{DockerBackendConfig, DockerSessionBackend};
 pub use error::SessionError;
 pub use inmemory::InMemorySession;
 pub use session::Session;
