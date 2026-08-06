@@ -13,3 +13,10 @@ publish = false
 workspace = true
 
 [dependencies]
+# Intended RUST-006 deps (see workspace Cargo.toml comment):
+#   portable-pty.workspace = true  # 0.9 — platform PTY abstraction
+#   vt100.workspace = true         # 0.15 — in-memory terminal screen
+# Offline stub: only serde is needed for cast JSON; PTY/vt100 are
+# implemented as faithful local stubs that preserve the same API.
+serde.workspace = true
+serde_json.workspace = true
