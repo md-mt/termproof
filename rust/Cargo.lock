@@ -1379,6 +1379,7 @@ dependencies = [
  "serde_yaml",
  "sha2",
  "tempfile",
+ "termproof-terminal",
  "thiserror 2.0.19",
 ]
 
@@ -1401,6 +1402,13 @@ dependencies = [
 [[package]]
 name = "termproof-plugin-protocol"
 version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "termproof-core",
+ "termproof-terminal",
+ "thiserror 2.0.19",
+]
 
 [[package]]
 name = "termproof-terminal"

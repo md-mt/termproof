@@ -1,22 +1,21 @@
-//! TermProof terminal: PTY + process sessions, terminal screen, cast recording, idle tracking (RUST-005/006 + RUST-012 idle semantics).
+//! TermProof terminal sessions: PTY/process ownership, terminal screen state,
+//! and asciinema cast recording.
+//!
+//! The public surface for RUST-016 is the [`Session`] and [`SessionBackend`]
+//! traits. Production PTY/process implementations are behind `portable-pty`
+//! (future work, RUST-005/006) but the trait surface is frozen here so
+//! `termproof-core` execution modes depend only on public operations.
 
-/// PTY sessions (RUST-006).
-pub mod pty;
+pub mod backend;
+pub mod custom;
+pub mod docker;
+pub mod error;
+pub mod inmemory;
+pub mod session;
 
-/// Terminal screen emulation via vt100 (RUST-006).
-pub mod screen;
-
-/// Asciinema cast recording and activity clock (RUST-006).
-pub mod cast;
-
-/// Idle tracking for wait_for_idle (RUST-012).
-pub mod idle;
-
-/// Non-PTY process sessions (RUST-005).
-pub mod process;
-
-pub use pty::{PtyConfig, PtyError, PtySession};
-pub use cast::{CastRecorder, ActivityClock, CastHeader, replay_cast};
-pub use screen::TerminalScreen;
-pub use idle::{wait_for_idle, IdleTracker};
-pub use process::{ProcessConfig, ProcessError, ProcessOutput, ProcessSession, ProcessWaitResult};
+pub use backend::SessionBackend;
+pub use custom::PluginSessionBackend;
+pub use docker::{DockerBackendConfig, DockerSessionBackend};
+pub use error::SessionError;
+pub use inmemory::InMemorySession;
+pub use session::Session;
