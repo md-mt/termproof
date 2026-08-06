@@ -18,7 +18,7 @@ class BuildInfo:
     timestamp: str
 
     @classmethod
-    def from_command(cls, command: list[str], cwd: str | None = None) -> "BuildInfo":
+    def from_command(cls, command: list[str], cwd: str | None = None) -> BuildInfo:
         binary_path = shutil.which(command[0]) if command else None
         return cls(
             mode="installed",

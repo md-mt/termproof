@@ -16,7 +16,7 @@ class CastRecorder:
         self._start = time.monotonic()
         self._file: TextIO | None = None
 
-    def __enter__(self) -> "CastRecorder":
+    def __enter__(self) -> CastRecorder:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._file = self.path.open("w", encoding="utf-8")
         header = {

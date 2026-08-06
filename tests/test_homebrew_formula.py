@@ -3,7 +3,6 @@ from __future__ import annotations
 import unittest
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 FORMULA = ROOT / "Formula" / "termproof.rb"
 DOCS = ROOT / "docs" / "install" / "homebrew.md"

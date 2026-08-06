@@ -28,10 +28,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tests"))
 
+from legacy_recipe_validator import validate_recipe_mapping as legacy_validate
+
 from termproof.config import VerifierConfig
 from termproof.recipe_schema import validate_recipe_mapping
-
-from legacy_recipe_validator import validate_recipe_mapping as legacy_validate
 
 CONFIG = VerifierConfig.builtin()
 
