@@ -19,19 +19,29 @@ pub use recipe::{Assertion, CommandSpec as RecipeCommandSpec, Recipe, Step, RECI
 pub use validation::{has_errors, Severity, ValidationIssue};
 
 // Re-exports: models/result/store (RUST-010)
-pub use models::{CommandSpec as ModelCommandSpec, RunResult as ModelRunResult, StepResult as ModelStepResult};
+pub use models::{
+    CommandSpec as ModelCommandSpec, RunResult as ModelRunResult, StepResult as ModelStepResult,
+};
 // Recipe from recipe.rs is canonical (serde+schemars); models::Recipe is legacy alias
 pub use models::Recipe as ModelRecipe;
 // Canonical RunResult is from result.rs (has score_from_assertions, artifacts as BTreeMap)
 pub use result::{AssertionResult, RunResult, StepResult};
 // Keep Model aliases for compatibility
-pub use models::{AssertionResult as ModelAssertionResult};
-pub use store::{atomic_write, atomic_write_text, ensure_within_base, new_run_dir, sanitize_component};
+pub use models::AssertionResult as ModelAssertionResult;
+pub use store::{
+    atomic_write, atomic_write_text, ensure_within_base, new_run_dir, sanitize_component,
+};
 
 // Re-exports: execution/agent (RUST-016/017)
-pub use agent::{build_agent_prompt, parse_agent_output, ParsedAgentOutput, MAX_AGENT_OUTPUT_BYTES, MAX_PROMPT_CONTEXT_CHARS};
+pub use agent::{
+    build_agent_prompt, parse_agent_output, ParsedAgentOutput, MAX_AGENT_OUTPUT_BYTES,
+    MAX_PROMPT_CONTEXT_CHARS,
+};
 pub use error::CoreError;
-pub use execution::{AgentDrivenMode, ExecutionContext, ExecutionError, ExecutionMode, ExecutionResult, ScriptedProcessMode, ScriptedPtyMode};
+pub use execution::{
+    AgentDrivenMode, ExecutionContext, ExecutionError, ExecutionMode, ExecutionResult,
+    ScriptedProcessMode, ScriptedPtyMode,
+};
 
 /// Canonical product name used by the CLI and diagnostics.
 pub const NAME: &str = "termproof";
