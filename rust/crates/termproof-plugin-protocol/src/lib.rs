@@ -8,6 +8,7 @@ pub mod client;
 pub mod error;
 pub mod host;
 pub mod protocol;
+pub mod python_bridge;
 
 pub use client::PluginClient;
 pub use error::ProtocolError;
@@ -16,6 +17,7 @@ pub use protocol::{
     Capability, Hello, Ready, Request, Response, Shutdown, DEFAULT_TIMEOUT_MS, MAX_MESSAGE_BYTES,
     PROTOCOL_VERSION,
 };
+pub use python_bridge::{remap_legacy_import, PythonBridge, PythonBridgeConfig};
 
 /// Conformance kit: run a minimal in-memory handshake + echo check.
 ///
@@ -52,7 +54,11 @@ pub fn conformance_roundtrip() -> Result<(), ProtocolError> {
         v.push(b'\n');
         v.extend_from_slice(serde_json::to_string(&req).unwrap().as_bytes());
         v.push(b'\n');
-        v.extend_from_slice(serde_json::to_string(&protocol::Shutdown::new()).unwrap().as_bytes());
+        v.extend_from_slice(
+            serde_json::to_string(&protocol::Shutdown::new())
+                .unwrap()
+                .as_bytes(),
+        );
         v.push(b'\n');
         v
     });
