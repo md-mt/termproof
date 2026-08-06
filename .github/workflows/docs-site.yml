@@ -65,7 +65,7 @@ jobs:
 
       - name: Upload Pages artifact
         if: github.event_name != 'pull_request' && vars.ENABLE_PAGES == 'true'
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: docs-site/.vitepress/dist
 
@@ -95,7 +95,7 @@ jobs:
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
 
   # Keep a separate notification that deploy was skipped — informative only.
   deploy-skipped:
