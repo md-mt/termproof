@@ -172,29 +172,29 @@ class PagesWorkflowTest(unittest.TestCase):
         self.assertIn("pull_request:", yml,
                       "pages.yml must trigger on pull_request for validation")
 
-    def test_deploy_not_on_pr(self) -> None:
+    def test_no_deploy_job_in_legacy_pages_workflow(self) -> None:
+        """BLOCKING regression (PR #128 dual-deployer race): pages.yml must not
+        deploy to Pages at all.  docs-site.yml is the single authoritative
+        github-pages deployer, so the legacy workflow must contain no deploy
+        job, no Pages deploy action, and no github-pages environment."""
         yml = _read(ROOT / ".github/workflows/pages.yml")
-        # The deploy job must check github.event_name == 'push'
-        deploy_section = yml.split("name: Deploy to Pages")[1].split("environment:")[0] \
-            if "name: Deploy to Pages" in yml else ""
-        self.assertIn("github.event_name", deploy_section,
-                      "pages.yml deploy job must check github.event_name to avoid running on PRs")
+        self.assertNotIn("actions/deploy-pages@", yml,
+                         "pages.yml must not deploy to Pages (docs-site.yml is "
+                         "the single authoritative deployer)")
+        self.assertNotIn("name: github-pages", yml,
+                         "pages.yml must not reference the github-pages environment")
+        self.assertNotIn("actions/upload-pages-artifact@", yml,
+                         "pages.yml must not upload a Pages artifact")
 
-    def test_deploy_requires_enable_pages_variable(self) -> None:
+    def test_legacy_pages_workflow_keeps_build_validation(self) -> None:
+        """pages.yml remains a build-validation workflow: it must still build
+        the site preview, validate relative links, and upload a generic preview
+        artifact, but must not run a deploy job."""
         yml = _read(ROOT / ".github/workflows/pages.yml")
-        deploy_section = yml.split("name: Deploy to Pages")[1].split("environment:")[0] \
-            if "name: Deploy to Pages" in yml else ""
-
-        self.assertIn("vars.ENABLE_PAGES == 'true'", deploy_section)
-        self.assertNotIn("github.event.repository.visibility == 'public'", deploy_section)
-
-    def test_skipped_job_runs_when_enable_pages_is_not_true(self) -> None:
-        yml = _read(ROOT / ".github/workflows/pages.yml")
-        skipped_section = yml.split("name: Pages deploy skipped")[1] \
-            if "name: Pages deploy skipped" in yml else ""
-
-        self.assertIn("vars.ENABLE_PAGES != 'true'", skipped_section)
-        self.assertIn("Artifact 'termproof-pages-preview' contains the site preview.", skipped_section)
+        self.assertIn("Build site preview", yml)
+        self.assertIn("Validate relative links", yml)
+        self.assertIn("actions/upload-artifact@", yml,
+                      "generic preview artifact upload must remain")
 
 
 class GenericTuiArtifactsTest(unittest.TestCase):
@@ -227,7 +227,7 @@ class CuratedSiteArtifactsTest(unittest.TestCase):
     def test_site_artifacts_exist(self) -> None:
         base = ROOT / "site/artifacts"
         self.assertTrue(base.is_dir(),
-                        f"site/artifacts/ must exist as curated evidence for Pages")
+                        "site/artifacts/ must exist as curated evidence for Pages")
         # Generic TUI
         self.assertTrue((base / "generic-tui-workflow/final.svg").is_file(),
                         "site/artifacts/generic-tui-workflow/final.svg must exist")
@@ -249,7 +249,6 @@ class BuiltSiteLinkTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         # Build _site locally to validate links
-        import subprocess
         import shutil
         cls._site = ROOT / "_site"
         # Clean previous build

@@ -1,13 +1,18 @@
 from __future__ import annotations
 
 from pathlib import Path
-from .protocols import VideoBackend
+
+from .protocols import VideoBackend as VideoBackend
 
 
 class AggFfmpegBackend:
     """agg + ffmpeg video backend (current behavior)."""
 
     name = "agg_ffmpeg"
+    # Distinguishes the built-in backend from caller-supplied custom
+    # VideoBackend plugins: the built-in path is gated on host tools
+    # (agg/ffmpeg), while custom plugin dispatch remains ungated.
+    builtin = True
 
     def render(
         self,

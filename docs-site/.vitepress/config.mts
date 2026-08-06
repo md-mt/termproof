@@ -3,6 +3,7 @@ import { defineConfig } from "vitepress";
 export default defineConfig({
   title: "TermProof",
   description: "Evidence-first verification for terminal and TUI applications.",
+  base: "/termproof/",
   cleanUrls: true,
   themeConfig: {
     nav: [
@@ -36,7 +37,17 @@ export default defineConfig({
         items: [
           { text: "API Reference", link: "/api/" },
           { text: "Plugins", link: "/plugins" },
-          { text: "CI Integration", link: "/ci/" }
+          { text: "CI Integration", link: "/ci/" },
+          { text: "Rust Migration", link: "/rust/migration" }
+        ]
+      },
+      {
+        text: "Rust (RUST-024)",
+        items: [
+          { text: "Rust Install", link: "/rust/install" },
+          { text: "Migration Guide", link: "/rust/migration" },
+          { text: "Plugin Protocol", link: "/rust/plugin-protocol" },
+          { text: "Evidence Hosting", link: "/rust/evidence-hosting" }
         ]
       }
     ],
