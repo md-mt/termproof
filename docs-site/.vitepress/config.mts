@@ -11,6 +11,7 @@ export default defineConfig({
       { text: "API", link: "/api/" },
       { text: "Plugins", link: "/plugins" },
       { text: "CI", link: "/ci/" },
+      { text: "Case Studies", link: "/case-studies/" },
       { text: "GitHub", link: "https://github.com/md-mt/termproof" }
     ],
     sidebar: [
@@ -39,6 +40,15 @@ export default defineConfig({
           { text: "Plugins", link: "/plugins" },
           { text: "CI Integration", link: "/ci/" },
           { text: "Rust Migration", link: "/rust/migration" }
+        ]
+      },
+      {
+        text: "Case Studies",
+        items: [
+          { text: "Overview", link: "/case-studies/" },
+          { text: "TUI Framework (draft)", link: "/case-studies/placeholder-tui-framework" },
+          { text: "Terminal App (draft)", link: "/case-studies/placeholder-terminal-app" },
+          { text: "CLI Tool (draft)", link: "/case-studies/placeholder-cli-tool" }
         ]
       },
       {

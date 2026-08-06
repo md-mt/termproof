@@ -20,6 +20,20 @@ class ReleaseDocsTest(unittest.TestCase):
         self.assertIn("Environment: `pypi`", text)
         self.assertIn("ENABLE_PYPI", text)
         self.assertIn("invalid-publisher", text)
+        self.assertIn("smoke-install.sh", text)
+
+    def test_release_workflow_retains_trusted_publisher_claims(self) -> None:
+        workflow = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
+        self.assertEqual("write", workflow["permissions"]["id-token"])
+        self.assertEqual("pypi", workflow["jobs"]["release"]["environment"])
+
+    def test_smoke_install_script_exists_and_is_executable(self) -> None:
+        script = ROOT / "scripts" / "smoke-install.sh"
+        self.assertTrue(script.exists(), f"missing {script}")
+        self.assertTrue(bool(script.stat().st_mode & 0o111), "smoke-install.sh must be executable")
+        text = script.read_text(encoding="utf-8")
+        self.assertIn("termproof --help", text)
+        self.assertIn("import termproof", text)
 
     def test_pypi_publish_is_opt_in(self) -> None:
         workflow = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
