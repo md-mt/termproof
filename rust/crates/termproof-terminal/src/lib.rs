@@ -13,6 +13,7 @@ pub mod custom;
 pub mod docker;
 pub mod error;
 pub mod inmemory;
+pub mod keys;
 pub mod session;
 
 pub use cast::{replay_cast, ActivityClock, CastHeader, CastRecorder};
@@ -26,4 +27,5 @@ pub use custom::PluginSessionBackend;
 pub use docker::{DockerBackendConfig, DockerSessionBackend};
 pub use error::SessionError;
 pub use inmemory::InMemorySession;
+pub use keys::{normalize_key, press_sequence, PressAction, PressError, KEYS};
 pub use session::Session;
