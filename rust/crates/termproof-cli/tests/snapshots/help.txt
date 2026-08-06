@@ -1,0 +1,16 @@
+Evidence-first verification for terminal and TUI applications
+
+Usage: termproof <COMMAND>
+
+Commands:
+  run       run a verification recipe
+  list      list recipes
+  validate  validate recipe files
+  plugins   manage TermProof plugins
+  init      create a reusable recipe pack
+  demo      run a self-contained demo exercising all features
+  help      Print this message or the help of the given subcommand(s)
+
+Options:
+  -h, --help     Print help
+  -V, --version  Print version
