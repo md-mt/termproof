@@ -25,6 +25,10 @@ _NEW_TEST_PATHS = {
     "tests/fixtures/base_sdist_paths.txt",
     "tests/fixtures/base_wheel_paths.txt",
     "docs/rust-gates.md",
+    "docs/case-studies/CONSENT.md",
+    "docs/case-studies/README.md",
+    "docs/case-studies/TEMPLATE.md",
+    "docs/case-studies/_meta.json",
 }
 
 
