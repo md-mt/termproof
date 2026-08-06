@@ -1,0 +1,69 @@
+# TermProof Rust workspace manifest.
+#
+# The entire Rust implementation lives in this dedicated `rust/` directory so
+# the Cargo metadata never collides with the Python package at the repository
+# root. The Python implementation, packaging, and docs remain at the top level
+# and are the executable default until the parity gates in
+# docs/rust-reimplementation-spec.md (section 11) pass.
+#
+# Policies that govern this workspace (formatting, linting, errors, tracing,
+# dependencies, features, unsafe code) are documented in
+# rust/docs/engineering-baseline.md.
+
+[workspace]
+resolver = "2"
+members = [
+    "crates/termproof-cli",
+    "crates/termproof-core",
+    "crates/termproof-terminal",
+    "crates/termproof-evidence",
+    "crates/termproof-plugin-protocol",
+]
+
+[workspace.package]
+version = "0.2.1"
+edition = "2021"
+rust-version = "1.96"
+license = "MIT"
+repository = "https://github.com/md-mt/termproof"
+authors = ["TermProof maintainers"]
+description = "Evidence-first verification for TUI and terminal applications (Rust reimplementation)"
+
+# Workspace-wide lint policy. Every crate inherits these via `[lints] workspace = true`.
+# CI enforces `cargo clippy --all-targets --all-features -- -D warnings`, so warnings
+# here are effectively denied at the gate. See rust/docs/engineering-baseline.md.
+[workspace.lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"
+
+[workspace.lints.clippy]
+all = "warn"
+
+# Shared dependency pins. Crates opt in via `foo.workspace = true`.
+# No dependency may be added without a documented reason in engineering-baseline.md.
+# Reasons (spec §5.3, RUST-004):
+# - serde / serde_json — typed data, stable JSON serialization.
+# - serde_yaml — YAML recipe/config loading (JSON+YAML inputs).
+# - schemars — source-to-schema generator, Draft 2020-12.
+# - jsonschema — Draft 2020-12 validation.
+# - thiserror — typed internal errors converted at boundaries.
+[workspace.dependencies]
+termproof-core = { path = "crates/termproof-core" }
+termproof-terminal = { path = "crates/termproof-terminal" }
+termproof-evidence = { path = "crates/termproof-evidence" }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+serde_yaml = "0.9"
+schemars = { version = "0.8", features = ["preserve_order"] }
+jsonschema = { version = "0.33" }
+vt100 = "0.15"
+quick-junit = "0.4"
+image = { version = "0.25", default-features = false, features = ["png"] }
+sha2 = "0.10"
+tempfile = "3.10"
+thiserror = "2.0"
+chrono = "0.4"
+ab_glyph = "0.2"
+clap = { version = "4.5", features = ["derive"] }
+# RUST-006: portable-pty 0.9, vt100 0.15 (wired via vt100, portable-pty stubbed offline)
+termproof-plugin-protocol = { path = "crates/termproof-plugin-protocol" }
