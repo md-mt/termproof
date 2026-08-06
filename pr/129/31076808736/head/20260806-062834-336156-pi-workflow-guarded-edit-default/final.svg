@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1026" height="636" viewBox="0 0 1026 636">
+<rect width="100%" height="100%" fill="#101418"/>
+<style>text{font:14px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;fill:#e6edf3;white-space:pre}</style>
+<text x="18" y="38">user&gt; propose change</text>
+<text x="18" y="58">assistant&gt; Reading target files before editing.</text>
+<text x="18" y="78">assistant&gt; tool allowlist: read,bash,edit,write.</text>
+<text x="18" y="98">assistant&gt; proposing a small patch with isolated behavior.</text>
+<text x="18" y="118">assistant&gt; GUARDED EDIT PLAN READY</text>
+<text x="18" y="138">apply patch</text>
+<text x="18" y="158"></text>
+<text x="18" y="178">pi&gt; user&gt; apply patch</text>
+<text x="18" y="198">assistant&gt; edit tool: applying patch.</text>
+<text x="18" y="218">assistant&gt; changed files: recipe plus focused implementation.</text>
+<text x="18" y="238">assistant&gt; patch applied.</text>
+<text x="18" y="258">assistant&gt; GUARDED PATCH APPLIED</text>
+<text x="18" y="278">validate tests</text>
+<text x="18" y="298"></text>
+<text x="18" y="318">pi&gt; user&gt; validate tests</text>
+<text x="18" y="338">assistant&gt; bash&gt; uv run python -m unittest discover -s tests</text>
+<text x="18" y="358">assistant&gt; 12 tests passed.</text>
+<text x="18" y="378">assistant&gt; diff reviewed before final summary.</text>
+<text x="18" y="398">assistant&gt; GUARDED VALIDATION COMPLETE</text>
+<text x="18" y="418">summarize diff</text>
+<text x="18" y="438"></text>
+<text x="18" y="458">pi&gt; user&gt; summarize diff</text>
+<text x="18" y="478">assistant&gt; Summary: implemented requested behavior and evidence checks.</text>
+<text x="18" y="498">assistant&gt; Test evidence: unit suite passed.</text>
+<text x="18" y="518">assistant&gt; GUARDED EDIT COMPLETE</text>
+<text x="18" y="538">exit</text>
+<text x="18" y="558"></text>
+<text x="18" y="578">pi&gt; assistant&gt; Closing Pi workflow demonstration.</text>
+<text x="18" y="598">WORKFLOW SESSION COMPLETE</text>
+</svg>
