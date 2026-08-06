@@ -8,7 +8,10 @@ from pathlib import Path
 from typing import Any
 
 from .before_after import build_before_after
-from .evidence_publish import rewrite_screenshot_links
+from .evidence_publish import (
+    rewrite_screenshot_links,
+    rewrite_video_links,
+)
 from .models import RunResult
 
 DEFAULT_RECEIPT = Path("docs/ci/evidence-receipt.json")
@@ -18,8 +21,7 @@ def load_receipt(path: Path = DEFAULT_RECEIPT) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def run_target(target_name: str, repo: Path, out: Path | None = None,
-               receipt_path: Path = DEFAULT_RECEIPT) -> int:
+def run_target(target_name: str, repo: Path, out: Path | None = None, receipt_path: Path = DEFAULT_RECEIPT) -> int:
     receipt = load_receipt(receipt_path)
     target = receipt["targets"][target_name]
     out_dir = out or Path(target["out"])
@@ -32,14 +34,21 @@ def run_target(target_name: str, repo: Path, out: Path | None = None,
     cmd.extend(["--out", str(out_dir)])
     completed = subprocess.run(cmd, cwd=repo)
     _normalize_artifact_paths(receipt_out)
+    _rewrite_video_links_in_reports(receipt_out, receipt)
     _copy_receipt(receipt_path, receipt_out)
     return completed.returncode
 
 
-def compose_pr_comment(base_dir: Path, head_dir: Path, run_url: str,
-                       base_label: str = "base", head_label: str = "head",
-                       screenshot_base_url: str = "",
-                       receipt_path: Path = DEFAULT_RECEIPT) -> str:
+def compose_pr_comment(
+    base_dir: Path,
+    head_dir: Path,
+    run_url: str,
+    base_label: str = "base",
+    head_label: str = "head",
+    screenshot_base_url: str = "",
+    video_base_url: str = "",
+    receipt_path: Path = DEFAULT_RECEIPT,
+) -> str:
     receipt = load_receipt(receipt_path)
     ci_target = receipt["targets"]["ci"]
     release_target = receipt["targets"]["release"]
@@ -50,8 +59,18 @@ def compose_pr_comment(base_dir: Path, head_dir: Path, run_url: str,
     if screenshot_base_url:
         base_report = rewrite_screenshot_links(base_report, base_dir, f"{screenshot_base_url.rstrip('/')}/base")
         head_report = rewrite_screenshot_links(head_report, head_dir, f"{screenshot_base_url.rstrip('/')}/head")
+    if video_base_url:
+        base_report = rewrite_video_links(base_report, base_dir, f"{video_base_url.rstrip('/')}/base")
+        head_report = rewrite_video_links(head_report, head_dir, f"{video_base_url.rstrip('/')}/head")
+    # Also handle video_base_url provided via receipt hosting config
+    hosting = receipt.get("hosting", {})
+    if not video_base_url and hosting.get("video_base_url"):
+        vb = hosting["video_base_url"].rstrip("/")
+        base_report = rewrite_video_links(base_report, base_dir, f"{vb}/base")
+        head_report = rewrite_video_links(head_report, head_dir, f"{vb}/head")
     base_report = _truncate(base_report, 18000)
     head_report = _truncate(head_report, 26000)
+    video_line = _video_hosting_line(receipt, video_base_url)
     return "\n".join(
         [
             marker,
@@ -63,7 +82,7 @@ def compose_pr_comment(base_dir: Path, head_dir: Path, run_url: str,
             f"Release destination: GitHub Release asset `{release_target['archive_name']}`.",
             "Download the artifact/archive to inspect linked evidence files.",
             "Screenshots are linked through raw GitHub URLs when available.",
-            f"Hosted video links are tracked separately in {receipt['screenshots']['video_issue']}.",
+            video_line,
             "",
             "<details open><summary>Behavioral delta</summary>",
             "",
@@ -91,8 +110,7 @@ def load_results(root: Path) -> list[RunResult]:
     if not root.exists():
         return []
     return [
-        RunResult.from_dict(json.loads(path.read_text(encoding="utf-8")))
-        for path in sorted(root.rglob("result.json"))
+        _result_from_mapping(json.loads(path.read_text(encoding="utf-8"))) for path in sorted(root.rglob("result.json"))
     ]
 
 
@@ -114,6 +132,7 @@ def main(argv: list[str] | None = None) -> int:
     comment_parser.add_argument("--base-label", default="base")
     comment_parser.add_argument("--head-label", default="head")
     comment_parser.add_argument("--screenshot-base-url", default="")
+    comment_parser.add_argument("--video-base-url", default="")
 
     args = parser.parse_args(argv)
     if args.command == "run":
@@ -127,6 +146,7 @@ def main(argv: list[str] | None = None) -> int:
             base_label=args.base_label or "base",
             head_label=args.head_label or "head",
             screenshot_base_url=args.screenshot_base_url,
+            video_base_url=args.video_base_url,
             receipt_path=args.receipt,
         )
         args.out.parent.mkdir(parents=True, exist_ok=True)
@@ -155,10 +175,60 @@ def _normalize_artifact_paths(out_dir: Path) -> None:
             path.write_text(text.replace(old, new), encoding="utf-8")
     for path in out_dir.rglob("result.json"):
         data = json.loads(path.read_text(encoding="utf-8"))
-        data["artifacts"] = {
-            key: str(value).replace(old, new) for key, value in data.get("artifacts", {}).items()
-        }
+        data["artifacts"] = {key: str(value).replace(old, new) for key, value in data.get("artifacts", {}).items()}
         path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+
+
+def _rewrite_video_links_in_reports(out_dir: Path, receipt: dict[str, Any]) -> None:
+    """If receipt hosting has a video_base_url, rewrite session.mp4 paths in reports.
+
+    This provides durable links without requiring a separate publish step when
+    the CI bucket URL is known at run time.
+    """
+    hosting = receipt.get("hosting", {})
+    video_base_url = hosting.get("video_base_url", "")
+    if not video_base_url or not out_dir.exists():
+        return
+    # Build url map from the actual output directory video files
+    base = video_base_url.rstrip("/")
+    for report_path in [out_dir / "latest-report.md", *out_dir.rglob("report.md")]:
+        if not report_path.is_file():
+            continue
+        text = report_path.read_text(encoding="utf-8")
+        new_text = rewrite_video_links(text, out_dir, base)
+        if new_text != text:
+            report_path.write_text(new_text, encoding="utf-8")
+    for result_path in out_dir.rglob("result.json"):
+        try:
+            data = json.loads(result_path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        changed = False
+        artifacts = data.get("artifacts", {})
+        for key in ("video",):
+            val = artifacts.get(key)
+            if val and str(out_dir) in val:
+                if "session.mp4" in val:
+                    # Find actual file relative path
+                    try:
+                        actual = next(out_dir.rglob("session.mp4"))
+                        rel_actual = actual.relative_to(out_dir).as_posix()
+                        hosted = f"{base}/{rel_actual}"
+                        artifacts[key] = hosted
+                        changed = True
+                    except StopIteration:
+                        pass
+        if changed:
+            result_path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+
+
+def _video_hosting_line(receipt: dict[str, Any], video_base_url: str) -> str:
+    hosting = receipt.get("hosting", {})
+    configured_url = video_base_url or hosting.get("video_base_url", "")
+    if configured_url:
+        return f"Videos are hosted at `{configured_url}` (also in the workflow artifact)."
+    video_issue = receipt.get("screenshots", {}).get("video_issue", "https://github.com/md-mt/termproof/issues/69")
+    return f"Hosted video links are tracked separately in {video_issue}."
 
 
 def _read_report(root: Path) -> str:
@@ -175,6 +245,10 @@ def _truncate(text: str, limit: int) -> str:
         f"{text[:limit]}\n\n_Report truncated. Download the "
         "`termproof-ci-evidence` artifact from the run for the full report._"
     )
+
+
+def _result_from_mapping(data: dict[str, Any]) -> RunResult:
+    return RunResult.from_dict(data)
 
 
 if __name__ == "__main__":

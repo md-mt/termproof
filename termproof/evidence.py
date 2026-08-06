@@ -9,7 +9,6 @@ from pathlib import Path
 from typing import Any
 
 from .agg_bundle import resolve_agg
-from .builtin_video import AggFfmpegBackend
 from .models import RunResult, StepResult
 from .screen import render_svg, replay_cast
 
@@ -65,16 +64,12 @@ def render_artifacts(
             artifacts[name.removesuffix(".md").removesuffix(".json")] = str(path)
     if render_video:
         mp4_path = run_dir / "session.mp4"
+        from .builtin_video import AggFfmpegBackend
+
         if video_backend is not None and not isinstance(video_backend, AggFfmpegBackend):
-            # A caller-supplied custom backend owns its own dependency
-            # requirements; do not impose host tool checks on the plugin
-            # boundary.
             video_backend.render(cast_path, mp4_path, video_fps)
             artifacts["video"] = str(mp4_path)
         else:
-            # The built-in agg_ffmpeg backend (or no backend at all) cannot
-            # satisfy a --video request without the host tools; warn loudly
-            # and omit the artifact instead of recording a nonexistent file.
             missing = _missing_video_tools()
             if missing:
                 warnings.warn(
@@ -93,7 +88,6 @@ def render_artifacts(
 
 
 def _missing_video_tools() -> list[str]:
-    """Return the names of video tools that cannot be resolved on this system."""
     missing = []
     if not resolve_agg():
         missing.append("agg")
@@ -103,7 +97,6 @@ def _missing_video_tools() -> list[str]:
 
 
 def _resolve_ffmpeg() -> str | None:
-    """Resolve ffmpeg without raising, returning None when it is unavailable."""
     try:
         return find_ffmpeg()
     except Exception:
@@ -190,15 +183,61 @@ def find_ffmpeg() -> str:
     return imageio_ffmpeg.get_ffmpeg_exe()
 
 
-def write_result_files(run_dir: Path, result: RunResult) -> None:
+def write_result_files(
+    run_dir: Path,
+    result: RunResult,
+    video_base_url: str | None = None,
+) -> None:
     (run_dir / "result.json").write_text(
         json.dumps(result.to_dict(), indent=2) + "\n",
         encoding="utf-8",
     )
-    (run_dir / "report.md").write_text(render_report(result), encoding="utf-8")
+    report_text = render_report(result, video_base_url=video_base_url)
+    (run_dir / "report.md").write_text(report_text, encoding="utf-8")
+    # Also persist hosted artifact mapping when video_base_url is set
+    if video_base_url and result.artifacts.get("video"):
+        hosted = _hosted_video_url(result.artifacts["video"], run_dir, video_base_url)
+        if hosted:
+            hosted_map = run_dir / "hosted-artifacts.json"
+            hosted_map.write_text(
+                json.dumps({"video": hosted, "source_video": result.artifacts["video"]}, indent=2) + "\n",
+                encoding="utf-8",
+            )
 
 
-def render_report(result: RunResult) -> str:
+def _hosted_video_url(video_path: str, run_dir: Path, base_url: str) -> str | None:
+    """Map a local video path to a hosted URL relative to ``run_dir`` parent."""
+    try:
+        # run_dir is like .termproof/ci/2026...-recipe-default
+        # hosted key should be like {prefix}/{relative_to_out}
+        out_root = run_dir.parent
+        rel = (
+            Path(video_path).relative_to(out_root).as_posix()
+            if Path(video_path).is_absolute()
+            else Path(video_path).as_posix()
+        )
+        # If path is absolute-style (.termproof/ci/...), strip leading out_root-ish prefix
+        # Fallback: use just the filename path under run_dir
+        if rel.startswith(".termproof/"):
+            # try to make it relative to out_root
+            try:
+                rel = Path(video_path).relative_to(out_root).as_posix()
+            except ValueError:
+                rel = Path(video_path).name
+        else:
+            try:
+                rel = Path(video_path).relative_to(out_root).as_posix()
+            except ValueError:
+                rel = f"{run_dir.name}/{Path(video_path).name}"
+        base = base_url.rstrip("/")
+        from urllib.parse import quote as _quote
+
+        return f"{base}/{_quote(rel, safe='/._-~')}"
+    except Exception:
+        return None
+
+
+def render_report(result: RunResult, video_base_url: str | None = None) -> str:
     verdict = "PASS" if result.passed else "FAIL"
     lines = [
         f"# TUI Verification - {verdict}",
@@ -215,7 +254,16 @@ def render_report(result: RunResult) -> str:
         "",
     ]
     for name, path in result.artifacts.items():
-        lines.append(f"- {name}: `{path}`")
+        display_path = path
+        if video_base_url and name == "video":
+            try:
+                run_dir = Path(path).parent
+                hosted = _hosted_video_url(path, run_dir, video_base_url)
+                if hosted:
+                    display_path = hosted
+            except Exception:
+                pass
+        lines.append(f"- {name}: `{display_path}`")
     lines.extend(["", "## Assertions", ""])
     for assertion in result.assertions:
         mark = "PASS" if assertion.passed else "FAIL"

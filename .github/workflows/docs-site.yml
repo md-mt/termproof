@@ -53,6 +53,9 @@ jobs:
       - name: Install docs dependencies
         run: npm ci --prefix docs-site
 
+      - name: Validate case-study scaffolding (RUST-030 / #35)
+        run: python3 scripts/validate_case_studies.py
+
       - name: Build docs site
         run: npm run --prefix docs-site docs:build
 

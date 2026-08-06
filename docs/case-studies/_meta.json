@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "case_studies": [
+    {
+      "slug": "placeholder-tui-framework",
+      "title": "TBD — TUI framework adopter",
+      "adopter": "TBD",
+      "category": "tui-framework",
+      "repository": "",
+      "file": "placeholder-tui-framework.md",
+      "status": "draft",
+      "consent": false,
+      "published": null
+    },
+    {
+      "slug": "placeholder-terminal-app",
+      "title": "TBD — Terminal application adopter",
+      "adopter": "TBD",
+      "category": "terminal-app",
+      "repository": "",
+      "file": "placeholder-terminal-app.md",
+      "status": "draft",
+      "consent": false,
+      "published": null
+    },
+    {
+      "slug": "placeholder-cli-tool",
+      "title": "TBD — CLI tool adopter",
+      "adopter": "TBD",
+      "category": "cli-tool",
+      "repository": "",
+      "file": "placeholder-cli-tool.md",
+      "status": "draft",
+      "consent": false,
+      "published": null
+    }
+  ],
+  "requirements": {
+    "min_published": 3,
+    "required_categories": ["tui-framework", "terminal-app", "cli-tool"],
+    "required_sections": ["Problem", "Setup", "Recipe", "CI integration", "Results"],
+    "min_section_words": {
+      "Problem": 120,
+      "Setup": 80,
+      "Recipe": 60,
+      "CI integration": 40,
+      "Results": 100
+    }
+  }
+}

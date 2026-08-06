@@ -42,6 +42,16 @@
     ],
     "video_issue": "https://github.com/md-mt/termproof/issues/69"
   },
+  "hosting": {
+    "provider": "r2",
+    "bucket_env": "TERM_PROOF_VIDEO_BUCKET",
+    "prefix": "termproof/videos",
+    "video_base_url_env": "TERM_PROOF_VIDEO_BASE_URL",
+    "endpoint_env": "AWS_ENDPOINT_URL_S3",
+    "video_base_url": "",
+    "retention_days": 90,
+    "notes": "S3-compatible bucket (AWS S3 or Cloudflare R2). Configure TERM_PROOF_VIDEO_BUCKET, TERM_PROOF_VIDEO_BASE_URL (public URL prefix), and AWS_ENDPOINT_URL_S3 (for R2). CI publishes via termproof.evidence_publish publish-videos; report.md and PR comments rewrite session.mp4 links to hosted URLs when video_base_url is set."
+  },
   "pr_comment": {
     "marker": "<!-- termproof-ci-report -->",
     "max_chars": 55000

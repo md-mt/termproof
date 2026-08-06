@@ -122,8 +122,8 @@ jobs:
       - name: Run unit tests
         run: uv run python -m unittest discover -s tests
 
-      - name: Run community-health validation harness
-        run: uv run python scripts/validate_community_health.py
+      - name: Validate case-study scaffolding (RUST-030 / #35)
+        run: python3 scripts/validate_case_studies.py
 
       - name: Run plugin-template unit tests
         run: |
@@ -200,6 +200,39 @@ jobs:
             --out .termproof/evidence-branch \
             --pr-number "$PR_NUMBER" \
             --run-id "$RUN_ID"
+          # Stage video manifests (do not publish to the evidence branch — videos are hosted on R2/S3)
+          uv run python -m termproof.evidence_publish videos \
+            --base-dir .termproof/pr-base \
+            --head-dir .termproof/ci \
+            --out .termproof/evidence-branch \
+            --pr-number "$PR_NUMBER" \
+            --run-id "$RUN_ID" || true
+
+      - name: Publish video evidence to R2/S3
+        if: always() && github.event_name == 'pull_request'
+        continue-on-error: true
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          RUN_ID: ${{ github.run_id }}
+          TERM_PROOF_VIDEO_BUCKET: ${{ secrets.TERM_PROOF_VIDEO_BUCKET }}
+          TERM_PROOF_VIDEO_PREFIX: ${{ vars.TERM_PROOF_VIDEO_PREFIX }}
+          TERM_PROOF_VIDEO_BASE_URL: ${{ vars.TERM_PROOF_VIDEO_BASE_URL }}
+          AWS_ENDPOINT_URL_S3: ${{ secrets.AWS_ENDPOINT_URL_S3 }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        run: |
+          if [ -z "$TERM_PROOF_VIDEO_BUCKET" ] || [ -z "$TERM_PROOF_VIDEO_BASE_URL" ]; then
+            echo "Video hosting not configured (TERM_PROOF_VIDEO_BUCKET / TERM_PROOF_VIDEO_BASE_URL unset) — skipping upload. Artifact remains the canonical fallback."
+            exit 0
+          fi
+          uv run python -m termproof.evidence_publish publish-videos \
+            --base-dir .termproof/pr-base \
+            --head-dir .termproof/ci \
+            --bucket "$TERM_PROOF_VIDEO_BUCKET" \
+            --pr-number "$PR_NUMBER" \
+            --run-id "$RUN_ID" \
+            --video-base-url "$TERM_PROOF_VIDEO_BASE_URL" \
+            --out .termproof/evidence-branch
 
       - name: Publish screenshot evidence branch
         if: |
@@ -245,12 +278,20 @@ jobs:
           HEAD_LABEL: ${{ github.sha }}
           HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          TERM_PROOF_VIDEO_BASE_URL: ${{ vars.TERM_PROOF_VIDEO_BASE_URL }}
         run: |
           screenshot_args=()
           if [ "$HEAD_REPO" = "$GITHUB_REPOSITORY" ] && [ -n "$PR_NUMBER" ]; then
             screenshot_args=(
               --screenshot-base-url
               "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/termproof-evidence/pr/${PR_NUMBER}/${GITHUB_RUN_ID}"
+            )
+          fi
+          video_args=()
+          if [ -n "$TERM_PROOF_VIDEO_BASE_URL" ]; then
+            video_args=(
+              --video-base-url
+              "${TERM_PROOF_VIDEO_BASE_URL}/pr/${PR_NUMBER}/${GITHUB_RUN_ID}"
             )
           fi
           uv run python -m termproof.ci_evidence comment \
@@ -260,7 +301,8 @@ jobs:
             --run-url "$RUN_URL" \
             --base-label "$BASE_LABEL" \
             --head-label "$HEAD_LABEL" \
-            "${screenshot_args[@]}"
+            "${screenshot_args[@]}" \
+            "${video_args[@]}"
           {
             echo "## TermProof CI Report"
             echo

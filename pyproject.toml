@@ -93,6 +93,7 @@ select = ["E", "F", "I", "UP", "B"]
 # These modules embed long single-line SVG/recipe string literals that read worse when wrapped.
 "termproof/builtin_renderers.py" = ["E501"]
 "scripts/oracle_probe.py" = ["E501"]
+"scripts/validate_case_studies.py" = ["E501"]
 "termproof/demo.py" = ["E501"]
 "termproof/demo_tui.py" = ["E501"]
 "termproof/screen.py" = ["E501"]
