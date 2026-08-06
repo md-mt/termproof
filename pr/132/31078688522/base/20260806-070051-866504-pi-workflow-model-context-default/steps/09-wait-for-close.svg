@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="596" viewBox="0 0 1080 596">
+<rect width="100%" height="100%" fill="#101418"/>
+<style>text{font:14px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;fill:#e6edf3;white-space:pre}</style>
+<text x="18" y="38">Pi workflow: model routing and context resources</text>
+<text x="18" y="58">Type workflow commands; use exit to close.</text>
+<text x="18" y="78"></text>
+<text x="18" y="98">pi&gt; choose model</text>
+<text x="18" y="118">user&gt; choose model</text>
+<text x="18" y="138">assistant&gt; pi --provider openai --model gpt-4o-mini</text>
+<text x="18" y="158">assistant&gt; pi --model sonnet:high --thinking high</text>
+<text x="18" y="178">assistant&gt; pi --models claude-sonnet,claude-haiku,gpt-4o</text>
+<text x="18" y="198">assistant&gt; MODEL ROUTING READY</text>
+<text x="18" y="218">load context</text>
+<text x="18" y="238"></text>
+<text x="18" y="258">pi&gt; user&gt; load context</text>
+<text x="18" y="278">assistant&gt; pi --append-system-prompt project-rules.md</text>
+<text x="18" y="298">assistant&gt; pi --skill ./skills/reviewer</text>
+<text x="18" y="318">assistant&gt; pi --prompt-template ./prompts/fix-bug.md</text>
+<text x="18" y="338">assistant&gt; CONTEXT RESOURCES LOADED</text>
+<text x="18" y="358">configure startup</text>
+<text x="18" y="378"></text>
+<text x="18" y="398">pi&gt; user&gt; configure startup</text>
+<text x="18" y="418">assistant&gt; pi --offline --no-context-files --no-extensions --no-skills</text>
+<text x="18" y="438">assistant&gt; pi --theme ./themes/quiet.json --no-themes</text>
+<text x="18" y="458">assistant&gt; startup behavior is explicit and reviewable.</text>
+<text x="18" y="478">assistant&gt; MODEL CONTEXT WORKFLOW COMPLETE</text>
+<text x="18" y="498">exit</text>
+<text x="18" y="518"></text>
+<text x="18" y="538">pi&gt; assistant&gt; Closing Pi workflow demonstration.</text>
+<text x="18" y="558">WORKFLOW SESSION COMPLETE</text>
+</svg>
