@@ -6,6 +6,17 @@
 //! downstream crates (starting with `termproof-cli`) have a single source of
 //! truth for the product name and version.
 
+pub mod config;
+pub mod error;
+pub mod recipe;
+pub mod schema;
+pub mod validation;
+
+// Re-exports for ergonomics.
+pub use config::VerifierConfig;
+pub use recipe::{Assertion, CommandSpec, Recipe, Step, RECIPE_VERSION};
+pub use validation::{has_errors, Severity, ValidationIssue};
+
 /// Canonical product name used by the CLI and diagnostics.
 pub const NAME: &str = "termproof";
 
