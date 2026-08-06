@@ -238,12 +238,15 @@ impl ExecutionMode for AgentDrivenMode {
             recipe.rows,
             cast_path,
         )?;
-        // Stub for RUST-016: agent prompt/parse lands in RUST-017.
+        let prompt = crate::agent::build_agent_prompt(recipe);
+        let _ = std::fs::write(run_dir.join("agent_prompt.md"), &prompt);
         let raw_output = format!(
             "{{\"assertions\":{{}},\"transcript\":\"agent executed for recipe {}\"}}",
             recipe.name
         );
-        let screen = format!("agent executed for recipe {}", recipe.name);
+        let parsed = crate::agent::parse_agent_output(&raw_output);
+        let _ = std::fs::write(run_dir.join("agent_transcript.md"), &parsed.transcript);
+        let screen = parsed.transcript.clone();
         let checks = if recipe.checks.is_empty() {
             vec!["Codex operator completed the verification".to_string()]
         } else {
@@ -251,10 +254,17 @@ impl ExecutionMode for AgentDrivenMode {
         };
         let assertions = checks
             .iter()
-            .map(|check| AssertionResult {
-                name: check.clone(),
-                passed: false,
-                detail: "agent did not report pass".to_string(),
+            .map(|check| {
+                let passed = parsed.assertions.get(check).copied().unwrap_or(false);
+                AssertionResult {
+                    name: check.clone(),
+                    passed,
+                    detail: if passed {
+                        "agent reported pass".to_string()
+                    } else {
+                        "agent did not report pass".to_string()
+                    },
+                }
             })
             .collect();
         let steps = vec![StepResult {

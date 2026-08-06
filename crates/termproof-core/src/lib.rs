@@ -6,11 +6,16 @@
 //! downstream crates (starting with `termproof-cli`) have a single source of
 //! truth for the product name and version.
 
+pub mod agent;
 pub mod config;
 pub mod error;
 pub mod execution;
 pub mod models;
 
+pub use agent::{
+    build_agent_prompt, parse_agent_output, ParsedAgentOutput, MAX_AGENT_OUTPUT_BYTES,
+    MAX_PROMPT_CONTEXT_CHARS,
+};
 pub use config::{DockerBackendConfig, GlobalDefaults};
 pub use error::CoreError;
 pub use execution::{
