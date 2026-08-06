@@ -9,7 +9,6 @@ from pathlib import Path
 from termproof.cli import main
 from termproof.plugins_cli import load_community_plugins
 
-
 REGISTRY = """# Community plugins
 
 | Name | Description | Install | Author |

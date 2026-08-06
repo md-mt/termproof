@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Any
 
 from .models import AssertionResult, Recipe, StepResult
-from .protocols import ExecutionMode
+from .protocols import ExecutionMode as ExecutionMode
 
 
 class ScriptedPtyMode:

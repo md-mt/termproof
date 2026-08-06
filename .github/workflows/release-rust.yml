@@ -1,0 +1,88 @@
+name: Release (Rust)
+
+on:
+  push:
+    tags: ["v*.*.*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.target }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            archive: termproof-linux-x86_64.tar.gz
+          - target: x86_64-apple-darwin
+            os: macos-latest
+            archive: termproof-macos-x86_64.tar.gz
+          - target: aarch64-apple-darwin
+            os: macos-14
+            archive: termproof-macos-arm64.tar.gz
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.96.0"
+          targets: ${{ matrix.target }}
+      - name: Build release
+        run: cargo build --manifest-path rust/Cargo.toml --release --target ${{ matrix.target }}
+      - name: Package
+        run: |
+          mkdir -p dist
+          cp rust/target/${{ matrix.target }}/release/termproof dist/termproof
+          tar -czf dist/${{ matrix.archive }} -C dist termproof
+          shasum -a 256 dist/${{ matrix.archive }} > dist/${{ matrix.archive }}.sha256
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: dist/${{ matrix.archive }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.archive }}
+          path: dist/*
+
+  wheels:
+    name: PyPI wheels
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv build --wheel
+      - run: python scripts/sign_release.py --artifacts dist/*.whl
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheels
+          path: dist/*
+
+  homebrew:
+    name: Update Homebrew formula
+    needs: [build]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          SHA=$(shasum -a 256 dist/termproof-linux-x86_64.tar.gz | cut -d' ' -f1)
+          sed -i "s|url \".*\"|url \"https://github.com/md-mt/termproof/releases/download/v${VERSION}/termproof-${VERSION}.tar.gz\"|" Formula/termproof.rb
+          sed -i "s|sha256 \".*\"|sha256 \"${SHA}\"|" Formula/termproof.rb
+          cat Formula/termproof.rb
+
+  container:
+    name: Container image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/termproof.Dockerfile
+          push: false
+          tags: ghcr.io/md-mt/termproof:${{ github.ref_name }}

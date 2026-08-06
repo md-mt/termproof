@@ -5,7 +5,6 @@ from pathlib import Path
 
 import yaml
 
-
 ROOT = Path(__file__).resolve().parents[1]
 DOCKERFILE = ROOT / "docker" / "termproof.Dockerfile"
 WORKFLOW = ROOT / ".github" / "workflows" / "docker-image.yml"

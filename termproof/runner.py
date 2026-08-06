@@ -17,14 +17,12 @@ from .models import (
     Recipe,
     RunResult,
     StepResult,
-    load_recipe,
     score_from_assertions,
 )
 from .protocols import SessionBackend
 from .registry import Registry
 from .screen import replay_cast
 from .session import TerminalSession
-
 
 # -- registry builders -------------------------------------------------------
 
@@ -236,7 +234,13 @@ class VerificationRunner:
             if recipe.expect_exit_code is not None:
                 session.wait_for_exit(recipe.timeout_seconds)
             else:
-                session.wait_for_idle(0.5, min(3, recipe.timeout_seconds))
+                idle_cap = self.config.defaults.idle_cap_seconds
+                idle_timeout = (
+                    min(idle_cap, recipe.timeout_seconds)
+                    if idle_cap is not None
+                    else recipe.timeout_seconds
+                )
+                session.wait_for_idle(0.5, idle_timeout)
             return steps, session.raw_output, session.exit_code, session.screen
 
     def run_process(
@@ -282,8 +286,8 @@ class VerificationRunner:
         action_name = step["action"]
         try:
             action = self.step_registry.get(action_name)
-        except KeyError:
-            raise ValueError(f"unknown step action: {action_name}")
+        except KeyError as err:
+            raise ValueError(f"unknown step action: {action_name}") from err
         return action.execute(session, step, index)
 
     def evaluate_assertions(
@@ -347,8 +351,8 @@ class VerificationRunner:
         kind = assertion["type"]
         try:
             evaluator = self.assertion_registry.get(kind)
-        except KeyError:
-            raise ValueError(f"unknown assertion type: {kind}")
+        except KeyError as err:
+            raise ValueError(f"unknown assertion type: {kind}") from err
         return evaluator.evaluate(recipe, assertion, screen, raw_output, exit_code)
 
 

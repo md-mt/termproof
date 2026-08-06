@@ -9,7 +9,6 @@ from pathlib import Path
 
 from .config import VerifierConfig
 
-
 DEFAULT_REGISTRY_PATH = Path("docs/plugins.md")
 
 

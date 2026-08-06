@@ -34,7 +34,7 @@ class CodexCliAgentRunner:
     record_terminal: bool = True
 
     @classmethod
-    def from_recipe(cls, recipe: Recipe) -> "CodexCliAgentRunner":
+    def from_recipe(cls, recipe: Recipe) -> CodexCliAgentRunner:
         config = recipe.operator
         command = list(config.get("command", ["codex", "exec"]))
         timeout_seconds = float(config.get("timeout_seconds", 180))

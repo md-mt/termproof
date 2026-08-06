@@ -9,10 +9,10 @@ from pathlib import Path
 # whether the suite is run via `discover -s tests` or `-m unittest tests.…`.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+from legacy_recipe_validator import validate_recipe_mapping as legacy_validate_recipe_mapping
+
 from termproof.config import VerifierConfig
 from termproof.recipe_schema import validate_recipe_mapping
-
-from legacy_recipe_validator import validate_recipe_mapping as legacy_validate_recipe_mapping
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 

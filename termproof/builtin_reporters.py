@@ -6,9 +6,8 @@ import xml.etree.ElementTree as ET
 from .before_after import BeforeAfterResult
 from .build_info import BuildInfo
 from .models import RunResult
-from .protocols import Reporter
+from .protocols import Reporter as Reporter
 from .report_helpers import _build_info_lines, _detail, _evidence_links
-
 
 # XML 1.0 spec: allowed characters are:
 #   #x9 | #xA | #xD | [#x20-#xD7FF] | [#xE000-#xFFFD] | [#x10000-#x10FFFF]
@@ -112,7 +111,7 @@ class JUnitXmlReporter:
         # Aggregate attributes for CI consumers
         import datetime
         import socket
-        testsuites.set("timestamp", datetime.datetime.now(datetime.timezone.utc).isoformat())
+        testsuites.set("timestamp", datetime.datetime.now(datetime.UTC).isoformat())
         try:
             testsuites.set("hostname", socket.gethostname())
         except Exception:
