@@ -1032,6 +1032,10 @@ version = "0.1.0"
 [[package]]
 name = "termproof-terminal"
 version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
 
 [[package]]
 name = "thiserror"

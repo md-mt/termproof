@@ -55,3 +55,4 @@ serde_yaml = "0.9"
 schemars = { version = "0.8", features = ["preserve_order"] }
 jsonschema = { version = "0.33" }
 thiserror = "2.0"
+# RUST-006: portable-pty 0.9, vt100 0.15 (stubbed offline, wired when deps available)

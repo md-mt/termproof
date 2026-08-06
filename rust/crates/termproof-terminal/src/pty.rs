@@ -1,0 +1,680 @@
+//! PTY sessions and terminal state (RUST-006).
+//!
+//! `PtySession` owns a child process, a `TerminalScreen`, a `CastRecorder`,
+//! and an `ActivityClock`. The intended platform layer is `portable-pty`
+//! (see `rust/Cargo.toml` comment). This offline stub uses `std::process`
+//! with piped I/O to preserve the same public API so the crate builds and
+//! tests pass without a registry fetch. Swapping in `portable-pty` is a
+//! one-line `CommandBuilder` change in `spawn()` and a `MasterPty::resize`
+//! call in `resize()`.
+//!
+//! Merge dependency: RUST-004 provides the typed `Recipe` / `CommandSpec`
+//! and `SessionBackend` trait. `PtyConfig` scaffolds against the expected
+//! fields.
+
+use std::collections::HashMap;
+use std::io::{Read, Write};
+use std::path::PathBuf;
+use std::process::{Child, ChildStdin, Command, Stdio};
+use std::sync::{Arc, Mutex};
+use std::thread::{self, JoinHandle};
+use std::time::{Duration, Instant};
+
+use crate::cast::{ActivityClock, CastRecorder};
+use crate::screen::TerminalScreen;
+
+/// Key names that `press` understands (subset of `termproof/session.py::KEYS`).
+const KEY_MAP: &[(&str, &str)] = &[
+    ("enter", "\r"),
+    ("escape", "\x1b"),
+    ("tab", "\t"),
+    ("backspace", "\x7f"),
+    ("up", "\x1b[A"),
+    ("down", "\x1b[B"),
+    ("right", "\x1b[C"),
+    ("left", "\x1b[D"),
+];
+
+/// Configuration for a PTY session.
+#[derive(Debug, Clone)]
+pub struct PtyConfig {
+    /// Argument vector; `argv[0]` is the executable.
+    pub argv: Vec<String>,
+    /// Working directory.
+    pub cwd: Option<PathBuf>,
+    /// Environment overrides merged over the parent env.
+    pub env: HashMap<String, String>,
+    /// Optional cast output path.
+    pub cast_path: Option<PathBuf>,
+}
+
+impl PtyConfig {
+    /// Create a config that inherits the parent environment.
+    pub fn new(argv: Vec<String>) -> Self {
+        Self {
+            argv,
+            cwd: None,
+            env: HashMap::new(),
+            cast_path: None,
+        }
+    }
+
+    /// Set working directory.
+    #[must_use]
+    pub fn with_cwd(mut self, cwd: impl Into<PathBuf>) -> Self {
+        self.cwd = Some(cwd.into());
+        self
+    }
+
+    /// Insert an env var.
+    #[must_use]
+    pub fn with_env(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
+        self.env.insert(key.into(), value.into());
+        self
+    }
+
+    /// Set cast output path.
+    #[must_use]
+    pub fn with_cast_path(mut self, path: impl Into<PathBuf>) -> Self {
+        self.cast_path = Some(path.into());
+        self
+    }
+}
+
+/// Typed errors for PTY sessions.
+#[derive(Debug)]
+pub enum PtyError {
+    /// `argv` was empty.
+    EmptyArgv,
+    /// Child spawn failed.
+    SpawnFailed(String),
+    /// I/O error.
+    Io(String),
+    /// Session not started.
+    NotStarted,
+    /// Unknown key name for `press`.
+    UnknownKey(String),
+}
+
+impl std::fmt::Display for PtyError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::EmptyArgv => write!(f, "argv must not be empty"),
+            Self::SpawnFailed(msg) => write!(f, "failed to spawn pty child: {msg}"),
+            Self::Io(msg) => write!(f, "pty I/O error: {msg}"),
+            Self::NotStarted => write!(f, "pty session has not been started"),
+            Self::UnknownKey(k) => write!(f, "unknown key: {k}"),
+        }
+    }
+}
+
+impl std::error::Error for PtyError {}
+
+/// PTY-backed terminal session (offline stub using `std::process`).
+///
+/// The stub spawns the child with piped stdout/stderr/stdin, drains output
+/// on a background thread into `TerminalScreen` and `CastRecorder`, and
+/// presents the same `wait_for_text` / `wait_for_idle` / `resize` surface as
+/// the real `portable-pty` implementation. `Drop` guarantees termination.
+pub struct PtySession {
+    config: PtyConfig,
+    cols: u16,
+    rows: u16,
+    raw_output: Arc<Mutex<Vec<u8>>>,
+    screen: Arc<Mutex<TerminalScreen>>,
+    activity: Arc<Mutex<ActivityClock>>,
+    cast: Option<Arc<Mutex<CastRecorder>>>,
+    stdin: Option<ChildStdin>,
+    child: Option<Child>,
+    stdout_handle: Option<JoinHandle<()>>,
+    stderr_handle: Option<JoinHandle<()>>,
+    exit_code: Option<i32>,
+}
+
+impl std::fmt::Debug for PtySession {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PtySession")
+            .field("argv", &self.config.argv)
+            .field("cols", &self.cols)
+            .field("rows", &self.rows)
+            .field("exit_code", &self.exit_code)
+            .finish()
+    }
+}
+
+impl PtySession {
+    /// Create a session with dimensions `cols` x `rows`.
+    pub fn new(config: PtyConfig, cols: u16, rows: u16) -> Result<Self, PtyError> {
+        if config.argv.is_empty() {
+            return Err(PtyError::EmptyArgv);
+        }
+        if cols == 0 || rows == 0 {
+            return Err(PtyError::SpawnFailed("cols and rows must be > 0".into()));
+        }
+        let screen = TerminalScreen::new(cols, rows);
+        Ok(Self {
+            config,
+            cols,
+            rows,
+            raw_output: Arc::new(Mutex::new(Vec::new())),
+            screen: Arc::new(Mutex::new(screen)),
+            activity: Arc::new(Mutex::new(ActivityClock::new())),
+            cast: None,
+            stdin: None,
+            child: None,
+            stdout_handle: None,
+            stderr_handle: None,
+            exit_code: None,
+        })
+    }
+
+    /// Convenience: argv/cwd/env without cast.
+    pub fn from_parts(
+        argv: Vec<String>,
+        cwd: Option<PathBuf>,
+        env: HashMap<String, String>,
+        cols: u16,
+        rows: u16,
+    ) -> Result<Self, PtyError> {
+        Self::new(
+            PtyConfig {
+                argv,
+                cwd,
+                env,
+                cast_path: None,
+            },
+            cols,
+            rows,
+        )
+    }
+
+    /// Spawn the child.
+    pub fn spawn(&mut self) -> Result<(), PtyError> {
+        if self.child.is_some() {
+            return Ok(());
+        }
+        if let Some(path) = self.config.cast_path.clone() {
+            if let Ok(rec) = CastRecorder::new(path, self.cols, self.rows, self.config.argv.clone())
+            {
+                self.cast = Some(Arc::new(Mutex::new(rec)));
+            }
+        }
+
+        let mut cmd = Command::new(&self.config.argv[0]);
+        if self.config.argv.len() > 1 {
+            cmd.args(&self.config.argv[1..]);
+        }
+        if let Some(cwd) = &self.config.cwd {
+            cmd.current_dir(cwd);
+        }
+        for (k, v) in &self.config.env {
+            cmd.env(k, v);
+        }
+        if std::env::var("TERM").unwrap_or_default().is_empty()
+            && !self.config.env.contains_key("TERM")
+        {
+            cmd.env("TERM", "xterm-256color");
+        }
+        cmd.stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+
+        let mut child = cmd
+            .spawn()
+            .map_err(|e| PtyError::SpawnFailed(e.to_string()))?;
+        let stdin = child.stdin.take();
+        let stdout = child.stdout.take();
+        let stderr = child.stderr.take();
+
+        let raw_out = Arc::clone(&self.raw_output);
+        let screen_out = Arc::clone(&self.screen);
+        let activity_out = Arc::clone(&self.activity);
+        let cast_out = self.cast.clone();
+        let stdout_handle = stdout.map(|mut out| {
+            thread::spawn(move || {
+                let mut buf = [0u8; 4096];
+                loop {
+                    match out.read(&mut buf) {
+                        Ok(0) => break,
+                        Ok(n) => {
+                            let chunk = &buf[..n];
+                            if let Ok(mut r) = raw_out.lock() {
+                                r.extend_from_slice(chunk);
+                            }
+                            if let Ok(mut s) = screen_out.lock() {
+                                s.feed_bytes(chunk);
+                            }
+                            if let Ok(mut a) = activity_out.lock() {
+                                a.mark();
+                            }
+                            if let Some(c) = cast_out.as_ref() {
+                                if let Ok(mut rec) = c.lock() {
+                                    rec.record_output(&String::from_utf8_lossy(chunk));
+                                }
+                            }
+                        }
+                        Err(_) => break,
+                    }
+                }
+            })
+        });
+
+        let raw_err = Arc::clone(&self.raw_output);
+        let screen_err = Arc::clone(&self.screen);
+        let activity_err = Arc::clone(&self.activity);
+        let cast_err = self.cast.clone();
+        let stderr_handle = stderr.map(|mut err| {
+            thread::spawn(move || {
+                let mut buf = [0u8; 4096];
+                loop {
+                    match err.read(&mut buf) {
+                        Ok(0) => break,
+                        Ok(n) => {
+                            let chunk = &buf[..n];
+                            if let Ok(mut r) = raw_err.lock() {
+                                r.extend_from_slice(chunk);
+                            }
+                            if let Ok(mut s) = screen_err.lock() {
+                                s.feed_bytes(chunk);
+                            }
+                            if let Ok(mut a) = activity_err.lock() {
+                                a.mark();
+                            }
+                            if let Some(c) = cast_err.as_ref() {
+                                if let Ok(mut rec) = c.lock() {
+                                    rec.record_output(&String::from_utf8_lossy(chunk));
+                                }
+                            }
+                        }
+                        Err(_) => break,
+                    }
+                }
+            })
+        });
+
+        self.stdin = stdin;
+        self.child = Some(child);
+        self.stdout_handle = stdout_handle;
+        self.stderr_handle = stderr_handle;
+        Ok(())
+    }
+
+    /// Current raw output bytes (cloned).
+    pub fn raw_output(&self) -> Vec<u8> {
+        self.raw_output
+            .lock()
+            .map(|r| r.clone())
+            .unwrap_or_default()
+    }
+
+    /// Current raw output as lossy UTF-8.
+    pub fn raw_output_str(&self) -> String {
+        String::from_utf8_lossy(&self.raw_output()).to_string()
+    }
+
+    /// Current screen text.
+    pub fn screen_text(&self) -> String {
+        self.screen.lock().map(|s| s.contents()).unwrap_or_default()
+    }
+
+    /// Alias for `screen_text`.
+    pub fn screen(&self) -> String {
+        self.screen_text()
+    }
+
+    /// Exit code if reaped.
+    pub fn exit_code(&self) -> Option<i32> {
+        self.exit_code
+    }
+
+    /// Whether the child is still alive.
+    pub fn is_alive(&mut self) -> bool {
+        if let Some(child) = self.child.as_mut() {
+            match child.try_wait() {
+                Ok(None) => true,
+                Ok(Some(status)) => {
+                    if self.exit_code.is_none() {
+                        self.exit_code = status.code().or_else(|| {
+                            #[cfg(unix)]
+                            {
+                                use std::os::unix::process::ExitStatusExt;
+                                status.signal().map(|s| 128 + s)
+                            }
+                            #[cfg(not(unix))]
+                            {
+                                None
+                            }
+                        });
+                    }
+                    false
+                }
+                Err(_) => false,
+            }
+        } else {
+            false
+        }
+    }
+
+    /// Write bytes to stdin.
+    pub fn send_bytes(&mut self, data: &[u8]) -> Result<(), PtyError> {
+        let stdin = self.stdin.as_mut().ok_or(PtyError::NotStarted)?;
+        stdin
+            .write_all(data)
+            .map_err(|e| PtyError::Io(e.to_string()))?;
+        stdin.flush().map_err(|e| PtyError::Io(e.to_string()))?;
+        if let Some(c) = self.cast.as_ref() {
+            if let Ok(mut rec) = c.lock() {
+                rec.record_input(&String::from_utf8_lossy(data));
+            }
+        }
+        Ok(())
+    }
+
+    /// Send text without newline.
+    pub fn send_text(&mut self, text: &str) -> Result<(), PtyError> {
+        self.send_bytes(text.as_bytes())
+    }
+
+    /// Send a line (text + `\r`).
+    pub fn send_line(&mut self, text: &str) -> Result<(), PtyError> {
+        let mut buf = text.as_bytes().to_vec();
+        buf.push(b'\r');
+        self.send_bytes(&buf)
+    }
+
+    /// Press a named key.
+    pub fn press(&mut self, key: &str) -> Result<(), PtyError> {
+        let normalized = key.to_ascii_lowercase();
+        if let Some(stripped) = normalized.strip_prefix("ctrl-") {
+            if let Some(ch) = stripped.chars().next() {
+                let lower = ch.to_ascii_lowercase() as u8;
+                if lower.is_ascii_lowercase() {
+                    let ctrl = lower - b'a' + 1;
+                    return self.send_bytes(&[ctrl]);
+                }
+                return Err(PtyError::UnknownKey(key.to_string()));
+            }
+            return Err(PtyError::UnknownKey(key.to_string()));
+        }
+        if let Some((_, seq)) = KEY_MAP.iter().find(|(k, _)| *k == normalized) {
+            return self.send_bytes(seq.as_bytes());
+        }
+        Err(PtyError::UnknownKey(key.to_string()))
+    }
+
+    /// Send EOF (close stdin).
+    pub fn send_eof(&mut self) -> Result<(), PtyError> {
+        self.stdin.take();
+        Ok(())
+    }
+
+    /// Set echo (no-op; API symmetry).
+    pub fn set_echo(&mut self, _enabled: bool) -> Result<(), PtyError> {
+        Ok(())
+    }
+
+    /// Resize the PTY and screen.
+    ///
+    /// The real `portable-pty` path calls `MasterPty::resize`. The stub
+    /// replays the screen buffer so dimensions are tracked deterministically.
+    pub fn resize(&mut self, cols: u16, rows: u16) -> Result<(), PtyError> {
+        if cols == 0 || rows == 0 {
+            return Err(PtyError::SpawnFailed("cols and rows must be > 0".into()));
+        }
+        self.cols = cols;
+        self.rows = rows;
+        if let Ok(mut s) = self.screen.lock() {
+            s.resize(cols, rows);
+        }
+        Ok(())
+    }
+
+    /// Poll for output (sleep to let reader thread drain).
+    pub fn read_available(&mut self, timeout: Duration) {
+        if timeout.is_zero() {
+            thread::sleep(Duration::from_millis(5));
+        } else {
+            thread::sleep(timeout);
+        }
+    }
+
+    /// Wait until `text` appears in screen or raw output.
+    pub fn wait_for_text(&mut self, text: &str, timeout: Duration) -> Result<bool, PtyError> {
+        if self.child.is_none() {
+            return Err(PtyError::NotStarted);
+        }
+        let deadline = Instant::now() + timeout;
+        while Instant::now() < deadline {
+            self.read_available(Duration::from_millis(50));
+            let screen = self.screen_text();
+            let raw = self.raw_output_str();
+            if screen.contains(text) || raw.contains(text) {
+                return Ok(true);
+            }
+            if !self.is_alive() {
+                self.read_available(Duration::from_millis(20));
+                let screen = self.screen_text();
+                let raw = self.raw_output_str();
+                return Ok(screen.contains(text) || raw.contains(text));
+            }
+        }
+        Ok(false)
+    }
+
+    /// Wait until screen has been stable for `stable` within `timeout`.
+    pub fn wait_for_idle(&mut self, stable: Duration, timeout: Duration) -> Result<bool, PtyError> {
+        if self.child.is_none() {
+            return Err(PtyError::NotStarted);
+        }
+        let deadline = Instant::now() + timeout;
+        let mut last_screen = self.screen_text();
+        let mut stable_since = Instant::now();
+        while Instant::now() < deadline {
+            self.read_available(Duration::from_millis(50));
+            let current = self.screen_text();
+            if current != last_screen {
+                last_screen = current;
+                stable_since = Instant::now();
+            }
+            if stable_since.elapsed() >= stable {
+                return Ok(true);
+            }
+            if !self.is_alive() {
+                self.read_available(Duration::from_millis(20));
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
+    /// Wait for the child to exit, up to `timeout`.
+    pub fn wait_for_exit(&mut self, timeout: Duration) -> Result<Option<i32>, PtyError> {
+        if self.child.is_none() {
+            return Err(PtyError::NotStarted);
+        }
+        let deadline = Instant::now() + timeout;
+        while Instant::now() < deadline {
+            self.read_available(Duration::from_millis(50));
+            if !self.is_alive() {
+                return Ok(self.exit_code);
+            }
+        }
+        Ok(self.exit_code)
+    }
+
+    /// Terminate the child.
+    pub fn terminate(&mut self) -> Result<(), PtyError> {
+        if let Some(child) = self.child.as_mut() {
+            let _ = child.kill();
+        }
+        Ok(())
+    }
+
+    /// Close the session, terminating the child if needed and joining threads.
+    pub fn close(&mut self) {
+        if self.is_alive() {
+            let _ = self.terminate();
+            thread::sleep(Duration::from_millis(50));
+        }
+        if let Some(child) = self.child.as_mut() {
+            if let Ok(Some(status)) = child.try_wait() {
+                if self.exit_code.is_none() {
+                    self.exit_code = status.code();
+                }
+            }
+            let deadline = Instant::now() + Duration::from_millis(200);
+            while self.is_alive() && Instant::now() < deadline {
+                thread::sleep(Duration::from_millis(10));
+            }
+        }
+        self.stdin.take();
+        if let Some(h) = self.stdout_handle.take() {
+            let _ = h.join();
+        }
+        if let Some(h) = self.stderr_handle.take() {
+            let _ = h.join();
+        }
+        if let Some(c) = self.cast.take() {
+            if let Ok(mut rec) = c.lock() {
+                let _ = rec.finish();
+            }
+        }
+    }
+
+    /// Dimensions.
+    pub fn dimensions(&self) -> (u16, u16) {
+        (self.cols, self.rows)
+    }
+
+    /// Columns.
+    pub fn cols(&self) -> u16 {
+        self.cols
+    }
+
+    /// Rows.
+    pub fn rows(&self) -> u16 {
+        self.rows
+    }
+}
+
+impl Drop for PtySession {
+    fn drop(&mut self) {
+        self.close();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::Duration;
+
+    #[test]
+    fn spawns_and_captures_text() {
+        let config = PtyConfig::new(vec!["sh".into(), "-c".into(), "echo hello".into()]);
+        let mut sess = PtySession::new(config, 80, 24).expect("new");
+        sess.spawn().expect("spawn");
+        let found = sess
+            .wait_for_text("hello", Duration::from_secs(2))
+            .expect("wait");
+        assert!(found, "hello not found, screen={:?}", sess.screen_text());
+        sess.close();
+        assert!(sess.exit_code().is_some());
+    }
+
+    #[test]
+    fn unicode_is_preserved() {
+        let config = PtyConfig::new(vec![
+            "sh".into(),
+            "-c".into(),
+            "printf 'héllo 🌍\\n'".into(),
+        ]);
+        let mut sess = PtySession::new(config, 80, 24).expect("new");
+        sess.spawn().expect("spawn");
+        let found = sess
+            .wait_for_text("héllo", Duration::from_secs(2))
+            .expect("wait");
+        assert!(found, "unicode not found: {:?}", sess.screen_text());
+        sess.close();
+    }
+
+    #[test]
+    fn resize_changes_dimensions() {
+        let config = PtyConfig::new(vec!["sh".into(), "-c".into(), "sleep 0.5".into()]);
+        let mut sess = PtySession::new(config, 80, 24).expect("new");
+        sess.spawn().expect("spawn");
+        sess.resize(40, 10).expect("resize");
+        assert_eq!(sess.dimensions(), (40, 10));
+        sess.resize(100, 30).expect("resize2");
+        assert_eq!(sess.dimensions(), (100, 30));
+        sess.close();
+    }
+
+    #[test]
+    fn send_text_and_wait() {
+        let config = PtyConfig::new(vec!["cat".into()]);
+        let mut sess = PtySession::new(config, 80, 24).expect("new");
+        sess.spawn().expect("spawn");
+        thread::sleep(Duration::from_millis(100));
+        sess.send_line("hello pty").expect("send");
+        let found = sess
+            .wait_for_text("hello pty", Duration::from_secs(2))
+            .expect("wait");
+        assert!(found, "echo not found: {:?}", sess.screen_text());
+        sess.close();
+    }
+
+    #[test]
+    fn wait_for_idle_returns_on_stable_screen() {
+        let config = PtyConfig::new(vec![
+            "sh".into(),
+            "-c".into(),
+            "echo hi; sleep 0.1; echo done".into(),
+        ]);
+        let mut sess = PtySession::new(config, 80, 24).expect("new");
+        sess.spawn().expect("spawn");
+        let idle = sess
+            .wait_for_idle(Duration::from_millis(150), Duration::from_secs(2))
+            .expect("idle");
+        assert!(idle);
+        sess.close();
+    }
+
+    #[test]
+    fn press_unknown_key_is_error() {
+        let config = PtyConfig::new(vec!["sh".into(), "-c".into(), "sleep 0.1".into()]);
+        let mut sess = PtySession::new(config, 80, 24).expect("new");
+        sess.spawn().expect("spawn");
+        let err = sess.press("f13").unwrap_err();
+        assert!(matches!(err, PtyError::UnknownKey(_)));
+        sess.close();
+    }
+
+    #[test]
+    fn cast_is_written_when_path_given() {
+        let dir = std::env::temp_dir().join(format!("termproof-pty-cast-{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&dir);
+        let path = dir.join("pty.cast");
+        let _ = std::fs::remove_file(&path);
+        let config = PtyConfig::new(vec!["sh".into(), "-c".into(), "echo cast_hello".into()])
+            .with_cast_path(path.clone());
+        let mut sess = PtySession::new(config, 80, 24).expect("new");
+        sess.spawn().expect("spawn");
+        let _ = sess
+            .wait_for_text("cast_hello", Duration::from_secs(2))
+            .expect("wait");
+        sess.close();
+        let content = std::fs::read_to_string(&path).expect("read cast");
+        let mut lines = content.lines();
+        let header: serde_json::Value =
+            serde_json::from_str(lines.next().expect("header")).expect("header json");
+        assert_eq!(header["version"], 2);
+        let events: Vec<String> = lines.map(|s| s.to_string()).collect();
+        assert!(!events.is_empty(), "no events");
+        let joined = events.join("\n");
+        assert!(
+            joined.contains("cast_hello"),
+            "cast missing hello: {joined:?}"
+        );
+        let _ = std::fs::remove_file(&path);
+    }
+}
