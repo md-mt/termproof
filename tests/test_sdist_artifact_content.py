@@ -32,6 +32,7 @@ _NEW_TEST_PATHS = {
     "docs/case-studies/README.md",
     "docs/case-studies/TEMPLATE.md",
     "docs/case-studies/_meta.json",
+    "tests/test_tmux_version.py",
 }
 
 
