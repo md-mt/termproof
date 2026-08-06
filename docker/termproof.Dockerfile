@@ -1,7 +1,6 @@
 FROM rust:1.96-slim AS rust-builder
 WORKDIR /src
 COPY rust/ ./rust/
-COPY Cargo.toml ./Cargo.toml
 RUN cargo build --manifest-path rust/Cargo.toml --release --bin termproof
 
 FROM rust:1.85-slim AS agg-builder

@@ -1482,7 +1482,7 @@ dependencies = [
 
 [[package]]
 name = "termproof-cli"
-version = "0.1.0"
+version = "0.2.1"
 dependencies = [
  "clap",
  "termproof-core",
@@ -1490,7 +1490,7 @@ dependencies = [
 
 [[package]]
 name = "termproof-core"
-version = "0.1.0"
+version = "0.2.1"
 dependencies = [
  "chrono",
  "jsonschema",
@@ -1506,7 +1506,7 @@ dependencies = [
 
 [[package]]
 name = "termproof-evidence"
-version = "0.1.0"
+version = "0.2.1"
 dependencies = [
  "ab_glyph",
  "image",
@@ -1522,7 +1522,7 @@ dependencies = [
 
 [[package]]
 name = "termproof-plugin-protocol"
-version = "0.1.0"
+version = "0.2.1"
 dependencies = [
  "serde",
  "serde_json",
@@ -1533,7 +1533,7 @@ dependencies = [
 
 [[package]]
 name = "termproof-terminal"
-version = "0.1.0"
+version = "0.2.1"
 dependencies = [
  "serde",
  "serde_json",
