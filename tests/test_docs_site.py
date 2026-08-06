@@ -109,8 +109,9 @@ class DocsSiteDeployTest(unittest.TestCase):
     def test_docs_site_workflow_pins_pages_actions(self) -> None:
         text = WORKFLOW.read_text(encoding="utf-8")
         self.assertIn("uses: actions/configure-pages@v5", text)
-        self.assertIn("uses: actions/upload-pages-artifact@v3", text)
-        self.assertIn("uses: actions/deploy-pages@v4", text)
+        # Allow major bumps via dependabot — pin must stay on the correct action, not a fixed major.
+        self.assertRegex(text, r"uses: actions/upload-pages-artifact@v\d+")
+        self.assertRegex(text, r"uses: actions/deploy-pages@v\d+")
 
     def test_docs_site_workflow_has_deploy_job(self) -> None:
         workflow = self._workflow()
