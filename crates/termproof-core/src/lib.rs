@@ -10,6 +10,7 @@ pub mod planner;
 pub mod recipe;
 pub mod result;
 pub mod schema;
+pub mod steps;
 pub mod store;
 pub mod validation;
 

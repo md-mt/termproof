@@ -96,8 +96,9 @@ specification wins and this document is updated.
   only when needed, and optional heavy dependencies (ffmpeg/agg adapters,
   Docker) are behind features or adapter traits, never hard required.
 - Dependency/license/advisory checks are part of the CI gate (RUST-003) with
-  documented exceptions; the baseline intentionally has zero external
-  dependencies.
+  documented exceptions; new dependency added in RUST-007 is
+  `regex` 1.13.1 (corpus-selected engine per spec §5.3, declared as
+  `default-features = false` with explicit `std`+`unicode` features).
 
 ## 7. Feature policy
 
