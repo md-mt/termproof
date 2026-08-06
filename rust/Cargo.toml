@@ -43,3 +43,15 @@ all = "warn"
 # No dependency may be added without a documented reason in engineering-baseline.md.
 [workspace.dependencies]
 termproof-core = { path = "crates/termproof-core" }
+termproof-terminal = { path = "crates/termproof-terminal" }
+termproof-evidence = { path = "crates/termproof-evidence" }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+vt100 = "0.15"
+quick-junit = "0.4"
+image = { version = "0.25", default-features = false, features = ["png"] }
+sha2 = "0.10"
+tempfile = "3.10"
+thiserror = "2.0"
+chrono = "0.4"
+ab_glyph = "0.2"
