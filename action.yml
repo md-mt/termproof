@@ -24,7 +24,7 @@ inputs:
   rust-version:
     description: Rust binary version to install when engine is rust.
     required: false
-    default: "0.1.0"
+    default: "0.2.1"
 
 outputs:
   evidence-path:

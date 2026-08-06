@@ -54,13 +54,7 @@ def check_changelog(version: str) -> bool:
 
 
 def check_action(version: str) -> bool:
-    if not ACTION.exists():
-        return True
-    text = ACTION.read_text(encoding="utf-8")
-    # action.yml should reference the version in description or inputs.
-    # We only enforce that it does not pin an old version string.
-    re.findall(r"v?0\.\d+\.\d+", text)
-    # Allow current version — non-strict, just warn
+    # Non-strict: action.yml version pin is not enforced; drift is covered by pyproject ↔ Cargo check
     return True
 
 

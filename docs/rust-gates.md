@@ -6,10 +6,14 @@ This document prepares the cutover gates. No behavior is cut over until all M0â€
 
 Corpus: same recipes executed by Python (`uv run termproof`) and Rust (`cargo run -p termproof-cli`) on Tier 1 targets (linux x86_64, macos x86_64). Difference report allows only reviewed normalizations (timestamps, durations, platform paths, font rendering, encoded video). Goal: zero unexplained semantic differences.
 
-Run:
+Run (when `scripts/conformance.py` lands in RUST-026):
 
 ```sh
 python scripts/conformance.py --corpus examples/generic --py-out /tmp/py --rust-out /tmp/rust --report /tmp/conformance.json
+# Until then, manually compare:
+uv run termproof run examples/generic --out /tmp/py
+cargo run --manifest-path rust/Cargo.toml -p termproof-cli -- run examples/generic --out /tmp/rust
+diff -r /tmp/py /tmp/rust
 ```
 
 ## RUST-027 â€” Canary release
