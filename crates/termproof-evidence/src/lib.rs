@@ -1,6 +1,18 @@
 //! TermProof evidence pipeline: rendering, reports, video, baselines, diff,
 //! and cache.
-//!
-//! RUST-002 baseline: crate skeleton only. Implementation lands in RUST-010
-//! (canonical result/artifact storage) and RUST-011 through RUST-014 (evidence,
-//! reports, video, baselines, diff, cache, parallelism).
+
+pub mod diff;
+pub mod render;
+pub mod report;
+pub mod video;
+
+pub use diff::apply_visual_diff;
+pub use render::{normalize_text, render_by_extension, render_png, render_svg};
+pub use report::{
+    generate_junit, generate_markdown, generate_markdown_single, validate_duration,
+    validate_recipe_json,
+};
+pub use video::{
+    render_mp4, render_mp4_or_fail, resolve_agg, resolve_ffmpeg, AggFfmpegBackend, VideoBackend,
+    VideoError,
+};

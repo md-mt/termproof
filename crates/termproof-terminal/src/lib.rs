@@ -1,5 +1,9 @@
-//! TermProof terminal sessions: PTY/process ownership, terminal screen state,
-//! and asciinema cast recording.
-//!
-//! RUST-002 baseline: crate skeleton only. Implementation lands in RUST-005
-//! (non-PTY process sessions) and RUST-006 (PTY sessions and terminal state).
+//! TermProof terminal: PTY/process sessions, terminal screen, cast recording.
+
+pub mod cast;
+pub mod idle;
+pub mod screen;
+
+pub use cast::CastRecorder;
+pub use idle::{wait_for_idle, IdleTracker};
+pub use screen::{parser_screen_text, replay_cast};

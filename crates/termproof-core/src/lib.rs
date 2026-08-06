@@ -1,10 +1,5 @@
 //! TermProof core: models, config, schema, registries, planning, and
 //! orchestration.
-//!
-//! This crate is the shared foundation for the Rust reimplementation. During
-//! the RUST-002 baseline it only carries the canonical identity constants so
-//! downstream crates (starting with `termproof-cli`) have a single source of
-//! truth for the product name and version.
 
 /// Canonical product name used by the CLI and diagnostics.
 pub const NAME: &str = "termproof";
@@ -16,3 +11,14 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 pub fn banner() -> String {
     format!("{NAME} {VERSION} (rust workspace baseline)")
 }
+
+pub mod cache;
+pub mod planner;
+pub mod result;
+pub mod store;
+
+// Re-exports for convenience.
+pub use result::{AssertionResult, RunResult, StepResult};
+pub use store::{
+    atomic_write, atomic_write_text, ensure_within_base, new_run_dir, sanitize_component,
+};
