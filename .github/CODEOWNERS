@@ -1,0 +1,6 @@
+# Code owners for TermProof.
+# These owners are requested for review automatically on matching changes.
+# Docs: https://docs.github.com/articles/about-code-owners
+
+# Default owner for everything in the repo.
+*       @md-mt

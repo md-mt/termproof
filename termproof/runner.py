@@ -17,14 +17,12 @@ from .models import (
     Recipe,
     RunResult,
     StepResult,
-    load_recipe,
     score_from_assertions,
 )
 from .protocols import SessionBackend
 from .registry import Registry
 from .screen import replay_cast
 from .session import TerminalSession
-
 
 # -- registry builders -------------------------------------------------------
 
@@ -197,7 +195,7 @@ class VerificationRunner:
         write_result_files(run_dir, result)
         return result
 
-    def _run_agent_driven(
+    def run_agent_driven(
         self,
         recipe: Recipe,
         run_dir: Path,
@@ -208,7 +206,7 @@ class VerificationRunner:
             agent_runner = CodexCliAgentRunner.from_recipe(recipe)
         return AgentDrivenRunner(agent_runner).run(recipe, run_dir)
 
-    def _run_pty(
+    def run_pty(
         self,
         recipe: Recipe,
         run_dir: Path,
@@ -224,17 +222,28 @@ class VerificationRunner:
             recipe.rows,
         ) as session:
             for index, step in enumerate(recipe.steps, start=1):
-                step_result = self._run_step(session, index, step)
+                try:
+                    step_result = self._run_step(session, index, step)
+                except Exception as exc:
+                    action_name = step["action"]
+                    name = step.get("name", f"{index}:{action_name}")
+                    step_result = StepResult(name, False, str(exc), session.screen)
                 steps.append(step_result)
                 if not step_result.passed:
                     break
             if recipe.expect_exit_code is not None:
                 session.wait_for_exit(recipe.timeout_seconds)
             else:
-                session.wait_for_idle(0.5, min(3, recipe.timeout_seconds))
+                idle_cap = self.config.defaults.idle_cap_seconds
+                idle_timeout = (
+                    min(idle_cap, recipe.timeout_seconds)
+                    if idle_cap is not None
+                    else recipe.timeout_seconds
+                )
+                session.wait_for_idle(0.5, idle_timeout)
             return steps, session.raw_output, session.exit_code, session.screen
 
-    def _run_process(
+    def run_process(
         self,
         recipe: Recipe,
         run_dir: Path,
@@ -277,11 +286,11 @@ class VerificationRunner:
         action_name = step["action"]
         try:
             action = self.step_registry.get(action_name)
-        except KeyError:
-            raise ValueError(f"unknown step action: {action_name}")
+        except KeyError as err:
+            raise ValueError(f"unknown step action: {action_name}") from err
         return action.execute(session, step, index)
 
-    def _evaluate_assertions(
+    def evaluate_assertions(
         self,
         recipe: Recipe,
         screen: str,
@@ -296,6 +305,41 @@ class VerificationRunner:
             for assertion in assertions
         ]
 
+    # -- deprecated private aliases (retained for backward compatibility) -----
+    # The public ``run_*`` / ``evaluate_assertions`` methods above are the
+    # stable surface for ExecutionMode plugins. These underscore-prefixed
+    # aliases delegate to them so existing callers keep working.
+
+    def _run_agent_driven(
+        self,
+        recipe: Recipe,
+        run_dir: Path,
+    ) -> tuple[list[StepResult], list[AssertionResult], str, int | None, str]:
+        return self.run_agent_driven(recipe, run_dir)
+
+    def _run_pty(
+        self,
+        recipe: Recipe,
+        run_dir: Path,
+    ) -> tuple[list[StepResult], str, int | None, str]:
+        return self.run_pty(recipe, run_dir)
+
+    def _run_process(
+        self,
+        recipe: Recipe,
+        run_dir: Path,
+    ) -> tuple[list[StepResult], str, int | None, str]:
+        return self.run_process(recipe, run_dir)
+
+    def _evaluate_assertions(
+        self,
+        recipe: Recipe,
+        screen: str,
+        raw_output: str,
+        exit_code: int | None,
+    ) -> list[AssertionResult]:
+        return self.evaluate_assertions(recipe, screen, raw_output, exit_code)
+
     def _evaluate_assertion(
         self,
         recipe: Recipe,
@@ -307,8 +351,8 @@ class VerificationRunner:
         kind = assertion["type"]
         try:
             evaluator = self.assertion_registry.get(kind)
-        except KeyError:
-            raise ValueError(f"unknown assertion type: {kind}")
+        except KeyError as err:
+            raise ValueError(f"unknown assertion type: {kind}") from err
         return evaluator.evaluate(recipe, assertion, screen, raw_output, exit_code)
 
 

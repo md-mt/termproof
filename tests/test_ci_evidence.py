@@ -12,7 +12,6 @@ from termproof import ci_evidence
 from termproof.ci_evidence import compose_pr_comment, load_receipt, run_target
 from termproof.evidence_publish import prepare_screenshot_evidence, rewrite_screenshot_links
 
-
 ROOT = Path(__file__).resolve().parents[1]
 RECEIPT = ROOT / "docs" / "ci" / "evidence-receipt.json"
 
@@ -263,6 +262,40 @@ class CiEvidenceReceiptTest(unittest.TestCase):
 
             self.assertIn("https://raw.example/head/run/final.svg", rewritten)
             self.assertIn((evidence / "run" / "session.mp4").as_posix(), rewritten)
+
+
+    def test_load_results_missing_exit_code_is_tolerated_policy(self) -> None:
+        # Policy regression test: RunResult.from_dict reads exit_code via
+        # data.get (not data["exit_code"]), so a malformed ci_evidence
+        # result.json missing exit_code yields exit_code=None instead of
+        # raising KeyError. This is the selected, documented behavior of
+        # load_results — the producer always writes exit_code, but the
+        # evidence loader must not crash on legacy/truncated receipts.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            run_dir = root / "demo"
+            run_dir.mkdir(parents=True)
+            data = {
+                "recipe_name": "demo",
+                "passed": True,
+                # exit_code deliberately omitted
+                "duration_seconds": 1.0,
+                "priority": "P0",
+                "execution": "scripted",
+                "renderer": "default",
+                "score": 1.0,
+                "steps": [],
+                "assertions": [],
+                "artifacts": {},
+            }
+            (run_dir / "result.json").write_text(
+                json.dumps(data), encoding="utf-8"
+            )
+
+            results = ci_evidence.load_results(root)
+
+            self.assertEqual(1, len(results))
+            self.assertIsNone(results[0].exit_code)
 
 
 def _write_result(root: Path, passed: bool) -> None:

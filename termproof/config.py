@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -59,11 +60,7 @@ BUILTIN_DEFAULTS: dict[str, Any] = {
         "env": {},
     },
     "defaults": {
-        "timeout_seconds": 30.0,
-        "cols": 100,
-        "rows": 30,
-        "video_fps": 60,
-        "out_dir": ".termproof/runs",
+        "idle_cap_seconds": 3.0,
     },
 }
 
@@ -72,11 +69,9 @@ BUILTIN_DEFAULTS: dict[str, Any] = {
 
 @dataclass(frozen=True)
 class GlobalDefaults:
-    timeout_seconds: float = 30.0
-    cols: int = 100
-    rows: int = 30
-    video_fps: int = 60
-    out_dir: str = ".termproof/runs"
+    # Cap for the post-script idle wait in PTY mode. None means wait for
+    # quiescence up to the recipe timeout instead of a fixed cap.
+    idle_cap_seconds: float | None = 3.0
 
 
 @dataclass(frozen=True)
@@ -103,7 +98,7 @@ class VerifierConfig:
     defaults: GlobalDefaults
 
     @classmethod
-    def builtin(cls) -> "VerifierConfig":
+    def builtin(cls) -> VerifierConfig:
         """Return a config populated entirely from BUILTIN_DEFAULTS."""
         return _from_mapping(BUILTIN_DEFAULTS)
 
@@ -160,6 +155,28 @@ def load_config(
 
 # -- internal helpers --------------------------------------------------------
 
+def _parse_idle_cap_seconds(value: Any) -> float | None:
+    """Parse ``idle_cap_seconds``, rejecting non-finite or negative values.
+
+    A negative or NaN/Inf value would silently eliminate idle waiting (a
+    ``min()`` cap of ``-1`` or ``nan`` never waits), so config loading must
+    refuse it instead of degrading behavior invisibly.
+    """
+    if value is None:
+        return None
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError) as error:
+        raise ValueError(
+            f"idle_cap_seconds must be a finite nonnegative number, got {value!r}"
+        ) from error
+    if not math.isfinite(parsed) or parsed < 0:
+        raise ValueError(
+            f"idle_cap_seconds must be a finite nonnegative number, got {value!r}"
+        )
+    return parsed
+
+
 def _from_mapping(data: dict[str, Any]) -> VerifierConfig:
     defaults_raw = data.get("defaults", {})
     docker_raw = data.get("docker", {})
@@ -183,11 +200,9 @@ def _from_mapping(data: dict[str, Any]) -> VerifierConfig:
             },
         ),
         defaults=GlobalDefaults(
-            timeout_seconds=float(defaults_raw.get("timeout_seconds", 30.0)),
-            cols=int(defaults_raw.get("cols", 100)),
-            rows=int(defaults_raw.get("rows", 30)),
-            video_fps=int(defaults_raw.get("video_fps", 60)),
-            out_dir=str(defaults_raw.get("out_dir", ".termproof/runs")),
+            idle_cap_seconds=_parse_idle_cap_seconds(
+                defaults_raw.get("idle_cap_seconds", 3.0)
+            ),
         ),
     )
 

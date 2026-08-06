@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import unittest
 
-from termproof.models import CommandSpec, Recipe
-
 from termproof_my_plugin.assertions import ScreenCount
+
+from termproof.models import CommandSpec, Recipe
 
 
 def _recipe(name: str = "r") -> Recipe:

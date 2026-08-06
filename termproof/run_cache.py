@@ -6,7 +6,7 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
-from .models import AssertionResult, Recipe, RunResult, StepResult
+from .models import Recipe, RunResult
 
 
 def load_cached_result(
@@ -39,7 +39,7 @@ def load_cached_result(
     data = json.loads(path.read_text(encoding="utf-8"))
     if data.get("key") != key:
         return None
-    result = _result_from_dict(data["result"])
+    result = RunResult.from_dict(data["result"])
     if not result.passed or not _artifacts_exist(result):
         return None
     return replace(
@@ -139,25 +139,6 @@ def _hash_path(digest: Any, path: Path) -> None:
             _hash_path(digest, child)
         return
     digest.update(b"<missing>")
-
-
-def _result_from_dict(data: dict[str, Any]) -> RunResult:
-    return RunResult(
-        recipe_name=data["recipe_name"],
-        passed=bool(data["passed"]),
-        exit_code=data.get("exit_code"),
-        duration_seconds=float(data["duration_seconds"]),
-        priority=data["priority"],
-        execution=data["execution"],
-        renderer=data["renderer"],
-        score=float(data["score"]),
-        steps=[StepResult(**step) for step in data.get("steps", [])],
-        assertions=[
-            AssertionResult(**assertion)
-            for assertion in data.get("assertions", [])
-        ],
-        artifacts=dict(data.get("artifacts", {})),
-    )
 
 
 def _artifacts_exist(result: RunResult) -> bool:

@@ -5,7 +5,7 @@ import io
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 from termproof.cli import main
 from termproof.models import RunResult, load_recipe
@@ -43,7 +43,9 @@ class CliTest(unittest.TestCase):
                 encoding="utf-8",
             )
             config_path = root / "explicit-config.yaml"
-            config_path.write_text("defaults:\n  rows: 77\n", encoding="utf-8")
+            config_path.write_text(
+                "docker:\n  image: explicit-image\n", encoding="utf-8"
+            )
             result = RunResult(
                 recipe_name="configured-run",
                 passed=True,
@@ -75,7 +77,8 @@ class CliTest(unittest.TestCase):
 
             self.assertEqual(0, exit_code)
             self.assertEqual(
-                77, runner_class.call_args.kwargs["config"].defaults.rows
+                "explicit-image",
+                runner_class.call_args.kwargs["config"].docker.image,
             )
 
     def test_xml_path_writes_junit_xml_to_explicit_path(self) -> None:

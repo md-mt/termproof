@@ -1,4 +1,12 @@
-name: Pages
+name: Pages build validation
+
+# NOTE: This workflow is build-validation only. It no longer deploys to
+# GitHub Pages. docs-site.yml is the single authoritative github-pages
+# deployer (gated on vars.ENABLE_PAGES == 'true'); keeping a second deployer
+# for the same environment on shared docs/** and README.md triggers would
+# create a completion-order race on the live site. The build job below still
+# assembles and validates the legacy site/ preview so content regressions are
+# caught in CI.
 
 on:
   push:
@@ -20,16 +28,14 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
-  group: "pages"
+  group: "pages-build"
   cancel-in-progress: false
 
 jobs:
   build:
-    name: Build Pages site
+    name: Build Pages site preview
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -73,7 +79,7 @@ jobs:
           cd _site
           # find all href/src attributes in HTML that are relative (not http:// or #)
           for file in $(find . -type f -name '*.html'); do
-            links=$(grep -oP '(?:href|src)=\"([^\"]+)\"' "$file" | grep -oP '\"([^\"]+)\"' | tr -d '\"' || true)
+            links=$(grep -oP '(?:href|src)="([^"]+)"' "$file" | grep -oP '"([^"]+)"' | tr -d '"' || true)
             for link in $links; do
               case "$link" in
                 http://*|https://*) continue ;;
@@ -98,11 +104,6 @@ jobs:
           fi
           echo "All relative links in _site resolve."
 
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: _site
-
       - name: Upload site preview artifact (for private repo safety)
         uses: actions/upload-artifact@v4
         if: always()
@@ -110,39 +111,3 @@ jobs:
           name: termproof-pages-preview
           path: _site
           if-no-files-found: warn
-
-  # Deployment is explicitly opt-in so repos without Pages enabled do not fail CI.
-  # Set repository variable ENABLE_PAGES=true and enable Pages
-  # in Settings > Pages (source: GitHub Actions) to deploy.
-  deploy:
-    name: Deploy to Pages
-    needs: build
-    runs-on: ubuntu-latest
-    if: |
-      vars.ENABLE_PAGES == 'true' &&
-      ((github.event_name == 'push' && github.ref == 'refs/heads/main') ||
-        github.event_name == 'workflow_dispatch')
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
-
-  # Keep a separate notification that deploy was skipped — informative only.
-  deploy-skipped:
-    name: Pages deploy skipped (ENABLE_PAGES not true)
-    needs: build
-    runs-on: ubuntu-latest
-    if: |
-      github.event_name == 'push' &&
-      github.ref == 'refs/heads/main' &&
-      vars.ENABLE_PAGES != 'true'
-    steps:
-      - run: |
-          echo "Pages deploy skipped — ENABLE_PAGES is not 'true'."
-          echo "To enable Pages deploys, set repository variable ENABLE_PAGES=true"
-          echo "in Settings > Secrets and variables > Actions > Variables, and enable Pages"
-          echo "in Settings > Pages (source: GitHub Actions)."
-          echo "Artifact 'termproof-pages-preview' contains the site preview."

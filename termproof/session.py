@@ -11,7 +11,6 @@ import pyte
 
 from .screen import screen_text
 
-
 KEYS = {
     "enter": "\r",
     "escape": "\x1b",
@@ -51,7 +50,7 @@ class TerminalSession:
         self.child: pexpect.spawn | None = None
         self._env = merged_env
 
-    def __enter__(self) -> "TerminalSession":
+    def __enter__(self) -> TerminalSession:
         self.cast_path.parent.mkdir(parents=True, exist_ok=True)
         self.cast_path.unlink(missing_ok=True)
         self.exit_code_path.unlink(missing_ok=True)

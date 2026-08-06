@@ -19,7 +19,8 @@ We aim to acknowledge reports within 48 hours and provide an initial assessment 
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 0.1.x   | :white_check_mark: |
+| 0.2.x   | :white_check_mark: |
+| 0.1.x   | :x:                |
 
 ## Disclosure
 

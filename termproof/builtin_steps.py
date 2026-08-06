@@ -6,7 +6,7 @@ import time
 from typing import Any
 
 from .models import StepResult
-from .protocols import StepAction
+from .protocols import StepAction as StepAction
 from .session import TerminalSession
 
 
@@ -171,7 +171,6 @@ class WaitForRegex:
             )
 
         deadline = time.monotonic() + timeout
-        last_match_detail: str | None = None
 
         def _format_match(m: re.Match[str]) -> str:
             named = m.groupdict()
