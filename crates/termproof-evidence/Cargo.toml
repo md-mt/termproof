@@ -1,6 +1,6 @@
 [package]
 name = "termproof-evidence"
-description = "TermProof rendering, reports, video, baselines, diff, cache"
+description = "TermProof evidence pipeline: rendering, reports, video, baselines, diff, cache"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

@@ -22,3 +22,4 @@ sha2.workspace = true
 chrono.workspace = true
 tempfile.workspace = true
 thiserror.workspace = true
+termproof-terminal.workspace = true

@@ -65,4 +65,4 @@ thiserror = "2.0"
 chrono = "0.4"
 ab_glyph = "0.2"
 # RUST-006: portable-pty 0.9, vt100 0.15 (wired via vt100, portable-pty stubbed offline)
-
+termproof-plugin-protocol = { path = "crates/termproof-plugin-protocol" }
