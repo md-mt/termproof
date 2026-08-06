@@ -43,3 +43,12 @@ all = "warn"
 # No dependency may be added without a documented reason in engineering-baseline.md.
 [workspace.dependencies]
 termproof-core = { path = "crates/termproof-core" }
+# RUST-006 intended dependencies (offline stub): portable-pty 0.9, vt100 0.15,
+# serde 1.0, serde_json 1.0. Network is unavailable in this sandbox, so the
+# workspace pins are deferred to the merge that lands after RUST-004. The
+# `termproof-terminal` crate below documents the intended pins and provides
+# an offline-compatible stub that preserves the same public API and passes
+# deterministic tests. The actual `portable-pty`/`vt100` integration is a
+# one-line Cargo.toml change once the registry is reachable.
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
