@@ -6,6 +6,19 @@
 //! downstream crates (starting with `termproof-cli`) have a single source of
 //! truth for the product name and version.
 
+pub mod config;
+pub mod error;
+pub mod execution;
+pub mod models;
+
+pub use config::{DockerBackendConfig, GlobalDefaults};
+pub use error::CoreError;
+pub use execution::{
+    AgentDrivenMode, ExecutionContext, ExecutionError, ExecutionMode, ExecutionResult,
+    ScriptedProcessMode, ScriptedPtyMode,
+};
+pub use models::{AssertionResult, CommandSpec, Recipe, RunResult, StepResult};
+
 /// Canonical product name used by the CLI and diagnostics.
 pub const NAME: &str = "termproof";
 

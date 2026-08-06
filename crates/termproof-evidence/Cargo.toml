@@ -1,6 +1,6 @@
 [package]
 name = "termproof-evidence"
-description = "TermProof rendering, reports, video, baselines, diff, cache"
+description = "TermProof evidence pipeline: rendering, reports, video, baselines, diff, cache"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -13,3 +13,7 @@ publish = false
 workspace = true
 
 [dependencies]
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+termproof-core.workspace = true

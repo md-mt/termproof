@@ -1,5 +1,17 @@
 //! TermProof terminal sessions: PTY/process ownership, terminal screen state,
 //! and asciinema cast recording.
 //!
-//! RUST-002 baseline: crate skeleton only. Implementation lands in RUST-005
-//! (non-PTY process sessions) and RUST-006 (PTY sessions and terminal state).
+//! The public surface for RUST-016 is the [`Session`] and [`SessionBackend`]
+//! traits. Production PTY/process implementations are behind `portable-pty`
+//! (future work, RUST-005/006) but the trait surface is frozen here so
+//! `termproof-core` execution modes depend only on public operations.
+
+pub mod backend;
+pub mod error;
+pub mod inmemory;
+pub mod session;
+
+pub use backend::SessionBackend;
+pub use error::SessionError;
+pub use inmemory::InMemorySession;
+pub use session::Session;
