@@ -34,4 +34,4 @@ jobs:
         run: |
           pip install hatch
           hatch build --target sdist
-          python -c "import tarfile; tf=tarfile.open('dist/termproof-*.tar.gz'); names=tf.getnames(); assert any('termproof' in n for n in names)"
+          python -c "import glob, tarfile; p=glob.glob('dist/termproof-*.tar.gz')[0]; tf=tarfile.open(p); names=tf.getnames(); assert any('termproof' in n for n in names)"

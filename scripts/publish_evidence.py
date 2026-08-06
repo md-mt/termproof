@@ -62,8 +62,19 @@ def main() -> int:
         files = collect_files(args.head_dir) + collect_files(args.base_dir)
         print(f"Found {len(files)} evidence files")
         for f in files[:10]:
-            rel = f.relative_to(args.head_dir if f.is_relative_to(args.head_dir) else args.base_dir)
-            url = stable_url(base_url or f"https://{bucket}.r2.dev", prefix, args.pr_number, args.run_id, rel.as_posix()) if base_url or bucket else f"r2://{prefix}/pr/{args.pr_number}/{args.run_id}/{rel.as_posix()}"
+            rel = f.relative_to(
+                args.head_dir if f.is_relative_to(args.head_dir) else args.base_dir
+            )
+            if base_url or bucket:
+                url = stable_url(
+                    base_url or f"https://{bucket}.r2.dev",
+                    prefix,
+                    args.pr_number,
+                    args.run_id,
+                    rel.as_posix(),
+                )
+            else:
+                url = f"r2://{prefix}/pr/{args.pr_number}/{args.run_id}/{rel.as_posix()}"
             print(f"  {f} -> {url}")
         return 0
 
@@ -86,10 +97,16 @@ def main() -> int:
             for f in collect_files(root):
                 rel = f.relative_to(root).as_posix()
                 key = f"{prefix}/pr/{args.pr_number}/{args.run_id}/{rel}"
-                subprocess.run(
-                    ["aws", "s3", "cp", str(f), f"s3://{bucket}/{key}", "--endpoint-url", endpoint] if endpoint else ["aws", "s3", "cp", str(f), f"s3://{bucket}/{key}"],
-                    check=True,
-                )
+                cmd = [
+                    "aws",
+                    "s3",
+                    "cp",
+                    str(f),
+                    f"s3://{bucket}/{key}",
+                ]
+                if endpoint:
+                    cmd += ["--endpoint-url", endpoint]
+                subprocess.run(cmd, check=True)
 
     # Write links manifest for PR comment rewriting.
     links = {}

@@ -34,7 +34,6 @@ def main() -> int:
     args = parser.parse_args()
 
     if args.verify:
-        ok = True
         for p in args.artifacts:
             if p.is_dir():
                 continue

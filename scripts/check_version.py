@@ -59,10 +59,8 @@ def check_action(version: str) -> bool:
     text = ACTION.read_text(encoding="utf-8")
     # action.yml should reference the version in description or inputs.
     # We only enforce that it does not pin an old version string.
-    old_versions = re.findall(r"v?0\.\d+\.\d+", text)
-    # Allow current version.
-    mismatched = [v for v in old_versions if version not in v and v != version]
-    # Non-strict: just warn
+    re.findall(r"v?0\.\d+\.\d+", text)
+    # Allow current version — non-strict, just warn
     return True
 
 
