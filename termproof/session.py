@@ -114,7 +114,7 @@ class TerminalSession:
         deadline = time.monotonic() + timeout_seconds
         last_screen = self.screen
         last_raw_len = len(self.raw_output)
-        stable_since: float | None = None
+        stable_since: float | None = time.monotonic() if self.raw_output else None
         while time.monotonic() < deadline:
             self.read_available(0.05)
             current = self.screen

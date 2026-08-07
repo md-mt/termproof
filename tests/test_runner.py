@@ -361,6 +361,26 @@ class QuiescenceBehaviorTest(unittest.TestCase):
         finally:
             session.close()
 
+    def test_wait_for_idle_returns_true_for_already_quiet_session(self) -> None:
+        runner = VerificationRunner()
+        session = runner.session_backend.create_session(
+            # Emits its only output before wait_for_idle is entered, so the
+            # stable window must be measured from prior activity rather than
+            # requiring fresh output during this call.
+            argv=[sys.executable, "-c", "print('ready'); import time; time.sleep(10)"],
+            cast_path=Path(tempfile.mkdtemp()) / "session.cast",
+            cwd=None,
+            env={},
+            cols=80,
+            rows=24,
+        )
+        try:
+            with session:
+                self.assertTrue(session.wait_for_text("ready", 5.0))
+                self.assertTrue(session.wait_for_idle(0.3, 2.0))
+        finally:
+            session.close()
+
     def test_wait_for_idle_does_not_report_idle_before_first_output(self) -> None:
         runner = VerificationRunner()
         session = runner.session_backend.create_session(
