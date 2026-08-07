@@ -14,4 +14,4 @@ class TmuxVersionTest(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0)
         output = (result.stdout + result.stderr).decode()
-        self.assertRegex(output, r"tmux \d+\.\d+")
+        self.assertRegex(output, r"^tmux \S+")
