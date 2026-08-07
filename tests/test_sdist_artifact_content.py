@@ -17,9 +17,12 @@ FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures"
 # without either tool skip the gate; CI and Rust-enabled dev machines enforce it.
 _HAVE_TOOLS = shutil.which("cargo") is not None and shutil.which("uv") is not None
 
-# Paths added by the RUST-002 regression suite itself and the RUST-023
-# version/drift + RUST-025 evidence-hosting docs. Everything else in the
-# sdist must be byte-for-byte identical to the pre-Rust base revision.
+# Paths added by the RUST-002 regression suite itself, the RUST-023
+# version/drift + RUST-025 evidence-hosting docs, and the RUST-030
+# case-study scaffolding. `docs` is an unanchored sdist include, so any new
+# file under docs/ ships in the sdist and must be listed here. Everything
+# else in the sdist must be byte-for-byte identical to the pre-Rust base
+# revision.
 _NEW_TEST_PATHS = {
     "tests/test_sdist_artifact_content.py",
     "tests/fixtures/base_sdist_paths.txt",
