@@ -1,10 +1,11 @@
 # AGENTS.md
 
-## Test runner gap: unittest vs pytest for PTY flakes
+## PTY tests must hold under both unittest and pytest
 
-CI runs `uv run coverage run -m unittest discover -s tests`. The PTY idle-detection
-race in `TerminalSession.wait_for_idle()` (fixed in fm/flaky-pty-p4) reproduced at
-199/200 iterations under pytest but 0/20 under unittest. The difference is pytest's
-additional harness startup overhead, which makes the blank-initial-screen window race
-much easier to hit. If a new PTY-related flake is reported locally under pytest but
-not seen in CI, check whether CI uses unittest — that gap can mask the failure.
+CI and the documented local workflow run the suite with `unittest discover -s tests`
+(see `CONTRIBUTING.md`), but pytest's extra harness startup shifts PTY timing enough
+to expose races unittest never reaches. A green unittest run is therefore not
+evidence that a PTY test is stable — run new or changed PTY tests under both runners
+before landing, and treat a pytest-only failure as a real bug rather than harness
+noise. Regression example:
+`tests/test_runner.py::QuiescenceBehaviorTest::test_wait_for_idle_does_not_report_idle_before_first_output`.

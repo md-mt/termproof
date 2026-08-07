@@ -114,6 +114,9 @@ class TerminalSession:
         deadline = time.monotonic() + timeout_seconds
         last_screen = self.screen
         last_raw_len = len(self.raw_output)
+        # `None` means no activity has been observed yet, so the stable window has not
+        # started. Without this, a session whose first output is still pending would
+        # have its blank initial screen counted as idle.
         stable_since: float | None = time.monotonic() if self.raw_output else None
         while time.monotonic() < deadline:
             self.read_available(0.05)
