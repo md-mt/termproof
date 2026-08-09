@@ -40,7 +40,14 @@ class WaitForIdle:
         stable = float(step.get("stable_seconds", 0.5))
         timeout = float(step.get("timeout_seconds", 10))
         passed = session.wait_for_idle(stable, timeout)
-        detail = f"stable for {stable}s" if passed else "timed out waiting for idle"
+        if passed:
+            detail = f"stable for {stable}s"
+        elif not session.raw_output:
+            # The stable window never armed because the session produced nothing
+            # at all — distinct from output that arrived but never settled.
+            detail = "no output observed from the session"
+        else:
+            detail = "timed out waiting for idle"
         return StepResult(display, passed, detail, session.screen)
 
 
