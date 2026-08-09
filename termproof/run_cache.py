@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from dataclasses import asdict, replace
+from dataclasses import asdict, fields, is_dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -113,6 +113,15 @@ def _cache_key(
         path = candidate if candidate.is_absolute() else recipe_path.parent / candidate
         _hash_path(digest, path)
     evidence_config = evidence or EvidenceConfig()
+    evidence_payload: dict[str, Any] = {}
+    for evidence_field in fields(evidence_config):
+        value = getattr(evidence_config, evidence_field.name)
+        if not is_dataclass(value):
+            evidence_payload[evidence_field.name] = value
+        elif evidence_field.name == "video" and not render_video:
+            evidence_payload[evidence_field.name] = None
+        else:
+            evidence_payload[evidence_field.name] = asdict(value)
     payload = {
         "renderer": renderer,
         "renderer_argv": renderer_argv,
@@ -121,17 +130,13 @@ def _cache_key(
         "render_video": render_video,
         "video_backend": video_backend if render_video else "",
         "video_fps": video_fps if render_video else 0,
-        # Serialize each evidence sub-section wholesale rather than listing
-        # knobs: every value in one changes the artifacts that section renders,
-        # so a knob added later has to invalidate cached runs without anyone
-        # remembering to add it here. The video knobs drop out when no video is
-        # rendered, for the same reason video_backend and video_fps do.
-        "evidence": {
-            "svg": asdict(evidence_config.svg),
-            "png": asdict(evidence_config.png),
-            "video": asdict(evidence_config.video) if render_video else None,
-            "dedup_step_screenshots": evidence_config.dedup_step_screenshots,
-        },
+        # Derived from EvidenceConfig rather than listed: each sub-section is
+        # serialized wholesale and each scalar knob is carried as-is, so a knob
+        # added later invalidates cached runs without anyone remembering to add
+        # it here. Every value changes the artifacts something renders. The
+        # video knobs drop out when no video is rendered, for the same reason
+        # video_backend and video_fps do.
+        "evidence": evidence_payload,
     }
     digest.update(json.dumps(payload, sort_keys=True).encode("utf-8"))
     return digest.hexdigest()
