@@ -116,7 +116,9 @@ def _cache_key(
     evidence_payload: dict[str, Any] = {}
     for evidence_field in fields(evidence_config):
         value = getattr(evidence_config, evidence_field.name)
-        if not is_dataclass(value):
+        # ``is_dataclass`` also accepts dataclass *types*, which ``asdict``
+        # rejects; the isinstance check is what narrows it to an instance.
+        if not is_dataclass(value) or isinstance(value, type):
             evidence_payload[evidence_field.name] = value
         elif evidence_field.name == "video" and not render_video:
             evidence_payload[evidence_field.name] = None

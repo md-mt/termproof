@@ -17,8 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   pixel format, CRF, preset, tune, idle time limit, last frame duration, theme,
   font size and family) are all settable, and every default reproduces the
   previous hardcoded behaviour byte for byte (#158). Alongside them,
-  `evidence.dedup_step_screenshots` (default `false`) writes one image per
-  distinct step screen instead of one per step, plus a
+  `evidence.dedup_step_screenshots` (default `false`) skips the screenshot for a
+  step whose screen is unchanged from the immediately preceding step, plus a
   `steps/steps-manifest.json` mapping every step onto the image that represents
   it and a `step_manifest` artifact key. Half the consecutive step screenshots
   in the shipped recipes are byte-identical, because a step that only waits for

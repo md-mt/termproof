@@ -22,10 +22,10 @@ config (`termproof/config.py`), not as a literal in a renderer. Unknown keys
 under `evidence` raise rather than being ignored, because a misspelled rendering
 knob that silently does nothing looks exactly like one that had no effect.
 
-Renderers and video backends reach that config by declaring an optional
-`from_config(cls, evidence)` classmethod; `runner._construct_evidence_plugin`
-calls it when present and falls back to `cls()` otherwise, so third-party
-plugins written against the bare protocols keep working.
+Renderers and video backends reach that config through the optional
+`from_config` classmethod owned by
+[`docs/plugin-protocols.md`](docs/plugin-protocols.md);
+`runner._construct_evidence_plugin` is the call site.
 
 `termproof/screen.py:render_svg` is a deliberate duplicate of
 `builtin_renderers.SvgRenderer`. Any change to one must be applied to both;
