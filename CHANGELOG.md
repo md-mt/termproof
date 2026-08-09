@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **An `evidence:` block in `.termproof/config.yaml`.** The SVG and PNG
+  renderers and the video pipeline no longer hardcode their rendering
+  parameters: `evidence.svg` (character width, line height, padding, font size
+  and family, foreground and background), `evidence.png` (scale, padding, font
+  size and path, foreground and background) and `evidence.video` (fps, fps cap,
+  pixel format, CRF, preset, tune, idle time limit, last frame duration, theme,
+  font size and family) are all settable, and every default reproduces the
+  previous hardcoded behaviour byte for byte (#158). Alongside them,
+  `evidence.dedup_step_screenshots` (default `false`) writes one image per
+  distinct step screen instead of one per step, plus a
+  `steps/steps-manifest.json` mapping every step onto the image that represents
+  it and a `step_manifest` artifact key. Half the consecutive step screenshots
+  in the shipped recipes are byte-identical, because a step that only waits for
+  the screen to settle re-renders the screen already written. It stays off by
+  default because it changes the artifact layout: a consumer that globs the step
+  directory has to read the manifest instead. Every step keeps its own `.txt`
+  either way. See `docs/evidence-quality.md` for the research behind the
+  recommended values.
+
 ### Changed
 - **`wait_for_idle` no longer treats a session that has produced no output as
   idle.** The stable window is armed by the first byte the session emits, so a

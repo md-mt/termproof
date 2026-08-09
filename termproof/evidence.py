@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 import json
 import shutil
 import subprocess
@@ -142,15 +141,14 @@ def _render_step_screens(
     step_dir = run_dir / "steps"
     step_dir.mkdir(parents=True, exist_ok=True)
     manifest: list[dict[str, Any]] = []
-    previous_digest: str | None = None
+    previous_screen: str | None = None
     previous_screenshot = ""
     for index, step in enumerate(steps, start=1):
         safe_name = "".join(ch if ch.isalnum() or ch in "-_" else "-" for ch in step.name)
         path_base = step_dir / f"{index:02d}-{safe_name}"
         (path_base.with_suffix(".txt")).write_text(step.screen + "\n", encoding="utf-8")
         screenshot_path = path_base.with_suffix(f".{screenshot_ext}")
-        digest = hashlib.sha256(step.screen.encode("utf-8")).hexdigest()
-        unchanged = dedup and digest == previous_digest
+        unchanged = dedup and step.screen == previous_screen
         if unchanged:
             # The step still happened and still has a screen; the manifest says
             # which already-written image represents it. Not dropped (that would
@@ -169,7 +167,7 @@ def _render_step_screens(
                 "unchanged_from_previous": unchanged,
             }
         )
-        previous_digest = digest
+        previous_screen = step.screen
         previous_screenshot = screenshot_name
     if dedup:
         (step_dir / STEPS_MANIFEST_NAME).write_text(

@@ -22,14 +22,17 @@ emulator's buffer:
 
 ```python
 def screen_text(screen: pyte.Screen) -> str:
-    return "\n".join(screen.display)
+    lines = [line.rstrip() for line in screen.display]
+    while lines and not lines[-1]:
+        lines.pop()
+    return "\n".join(lines)
 ```
 
-Every colour and every text attribute is discarded *before* any renderer is
-called. No renderer can draw what it was never given — not the built-in SVG or
-PNG renderers, not xterm.js, not a browser. Both research tracks independently
-identified this single line as the blocking issue, and both proposed the same
-shape of fix: an additive, optional attributed-grid path that leaves the
+`screen.display` is already the flattened character grid: every colour and every
+text attribute is discarded *before* any renderer is called. No renderer can
+draw what it was never given — not the built-in SVG or PNG renderers, not
+xterm.js, not a browser. Both research tracks independently identified this
+flattening as the blocking issue, and both proposed the same shape of fix: an additive, optional attributed-grid path that leaves the
 existing `ScreenRenderer` protocol untouched.
 
 This has been invisible because **the example corpus was 100% monochrome** —
