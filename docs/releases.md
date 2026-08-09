@@ -17,7 +17,8 @@ the leading `v`.
 ```bash
 uv run python -m unittest discover -s tests
 uv build
-uv run termproof run examples/generic examples/multi_turn_conversation.recipe.json \
+uv run termproof run examples/generic examples/colorstress \
+  examples/multi_turn_conversation.recipe.json \
   examples/pi_workflow_readonly_review.recipe.json \
   examples/pi_workflow_guarded_edit.recipe.json \
   examples/pi_workflow_session_resume_export.recipe.json \
@@ -39,7 +40,8 @@ uv run termproof run examples/generic examples/multi_turn_conversation.recipe.js
 The release evidence receipt lives at
 [`docs/ci/evidence-receipt.json`](ci/evidence-receipt.json). Update that receipt
 whenever the release or PR evidence suite changes; CI tests fail if the
-workflows stop using the receipt-backed runner.
+workflows stop using the receipt-backed runner, or if the Local Release Check
+command above drifts from the receipt's `release` target.
 
 ## PyPI Trusted Publishing
 
