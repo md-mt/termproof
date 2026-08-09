@@ -35,7 +35,8 @@ class DockerImageTest(unittest.TestCase):
         text = WORKFLOW.read_text(encoding="utf-8")
 
         self.assertIn("pull_request", workflow[True])
-        self.assertIn("docker/build-push-action@v6", text)
+        # Allow major bumps via dependabot — pin must stay on the correct action, not a fixed major.
+        self.assertRegex(text, r"docker/build-push-action@v\d+")
         self.assertIn("ghcr.io/${{ github.repository_owner }}/termproof", text)
         self.assertIn("github.event_name != 'pull_request'", text)
 
