@@ -298,6 +298,7 @@ _EVIDENCE_MINIMUMS: dict[str, int] = {
     "evidence.png.padding": 0,
     "evidence.video.fps": 1,
     "evidence.video.fps_cap": 1,
+    "evidence.video.font_size": 1,
 }
 
 

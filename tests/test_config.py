@@ -394,6 +394,8 @@ class EvidenceConfigTest(unittest.TestCase):
         cases = {
             "  video:\n    fps: 0\n": "evidence.video.fps",
             "  video:\n    fps_cap: 0\n": "evidence.video.fps_cap",
+            "  video:\n    font_size: 0\n": "evidence.video.font_size",
+            "  video:\n    font_size: -1\n": "evidence.video.font_size",
             "  png:\n    scale: 0\n": "evidence.png.scale",
             "  png:\n    font_size: -1\n": "evidence.png.font_size",
             "  png:\n    padding: -1\n": "evidence.png.padding",
@@ -418,13 +420,14 @@ class EvidenceConfigTest(unittest.TestCase):
                 "evidence:\n"
                 "  svg:\n    padding: 0\n"
                 "  png:\n    padding: 0\n"
-                "  video:\n    fps_cap: null\n",
+                "  video:\n    fps_cap: null\n    font_size: null\n",
                 encoding="utf-8",
             )
             config = load_config(project_path=Path(tmp), user_path=user_yaml)
         self.assertEqual(0, config.evidence.svg.padding)
         self.assertEqual(0, config.evidence.png.padding)
         self.assertIsNone(config.evidence.video.fps_cap)
+        self.assertIsNone(config.evidence.video.font_size)
 
     def test_non_mapping_evidence_section_is_rejected_naming_the_section(self) -> None:
         """``dict()`` alone raises a TypeError that names neither the section nor the key."""
