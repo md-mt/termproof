@@ -229,6 +229,8 @@ defaults:
 
 `idle_cap_seconds` is the documented replacement for the former hard-coded 3-second idle cap in `runner.py`. Defaults to `3.0` to preserve existing behavior; raise it (or set `null`) for TUIs that take longer to settle. The value must be a finite, nonnegative number: negative, NaN, or infinite values are rejected at config load.
 
+The idle wait — both the `wait_for_idle` step and this post-script wait — starts measuring at the session's **first byte of output**, so a still-starting target is never captured as a blank "idle" screen. The trade: a target that stays alive and never emits anything is never idle. A `wait_for_idle` step over such a target fails with `no output observed from the session` after its `timeout_seconds`, and the post-script wait burns its full budget — with `idle_cap_seconds: null` that is the whole recipe `timeout_seconds`, so prefer a finite cap for targets that may be silent. Once the first byte has arrived, quiescence is measured on rendered screen text only: terminal-title updates, colour changes, and repaints that redraw the same characters all count as quiet.
+
 ## Packaging
 
 ```bash
