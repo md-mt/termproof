@@ -19,11 +19,12 @@ _HAVE_TOOLS = shutil.which("cargo") is not None and shutil.which("uv") is not No
 
 # The general allowlist of sdist paths added after the pre-Rust base revision:
 # currently the RUST-002 regression suite itself, the RUST-023 version/drift +
-# RUST-025 evidence-hosting docs, the RUST-030 case-study scaffolding, and the
-# tmux toolchain check. `docs` is an unanchored sdist include, so any new file
-# under docs/ ships in the sdist and must be listed here. Add an entry whenever
-# a new file legitimately joins the sdist payload; everything else in the sdist
-# must stay identical to the base revision.
+# RUST-025 evidence-hosting docs, and the RUST-030 case-study scaffolding. The
+# directory includes are unanchored, so any new file under `termproof/`,
+# `tests/`, `examples/`, or `docs/` ships in the sdist and turns this gate red
+# until it is listed here. That hand-registration is a known limitation of
+# asserting an exact path set rather than an intended workflow; everything else
+# in the sdist must stay identical to the base revision.
 _NEW_TEST_PATHS = {
     "tests/test_sdist_artifact_content.py",
     "tests/fixtures/base_sdist_paths.txt",
@@ -33,7 +34,6 @@ _NEW_TEST_PATHS = {
     "docs/case-studies/README.md",
     "docs/case-studies/TEMPLATE.md",
     "docs/case-studies/_meta.json",
-    "tests/test_tmux_version.py",
 }
 
 
@@ -69,7 +69,8 @@ class SdistRustIsolationTest(unittest.TestCase):
 
     This test rebuilds Cargo outputs first and then asserts both invariants:
     zero Rust content in sdist/wheel, and the sdist's non-Rust path set is
-    exactly the base revision's path set plus the new regression test files.
+    exactly the base revision's path set plus the allowlisted post-base
+    additions.
     """
 
     @classmethod
@@ -173,7 +174,7 @@ class SdistRustIsolationTest(unittest.TestCase):
             f"revision's sdist: {missing}",
         )
 
-    def test_sdist_adds_only_regression_test_paths(self) -> None:
+    def test_sdist_adds_only_allowlisted_post_base_paths(self) -> None:
         base_paths = _load_fixture("base_sdist_paths.txt")
         head_paths = self._sdist_relative_names()
         unexpected = sorted((head_paths - base_paths) - _NEW_TEST_PATHS)
