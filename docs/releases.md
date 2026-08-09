@@ -40,7 +40,8 @@ uv run termproof run examples/generic examples/colorstress \
 The release evidence receipt lives at
 [`docs/ci/evidence-receipt.json`](ci/evidence-receipt.json). Update that receipt
 whenever the release or PR evidence suite changes; CI tests fail if the
-workflows stop using the receipt-backed runner.
+workflows stop using the receipt-backed runner, or if the Local Release Check
+command above drifts from the receipt's `release` target.
 
 ## PyPI Trusted Publishing
 
