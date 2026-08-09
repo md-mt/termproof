@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from .agg_bundle import resolve_agg
+from .config import EvidenceConfig, SvgRenderConfig, VideoConfig
 from .models import RunResult, StepResult
 from .screen import render_svg, replay_cast
 
@@ -29,17 +30,18 @@ def render_artifacts(
     rows: int | None = None,
     screen_renderer: Any = None,
     video_backend: Any = None,
+    evidence_config: EvidenceConfig | None = None,
 ) -> dict[str, str]:
+    evidence_config = evidence_config or EvidenceConfig()
     cast_path = run_dir / "session.cast"
     final_text, cols, rows = replay_cast(cast_path)
     final_txt = run_dir / "final.txt"
     screenshot_ext = _screen_extension(screen_renderer)
     final_screenshot = run_dir / f"final.{screenshot_ext}"
     final_txt.write_text(final_text + "\n", encoding="utf-8")
-    if screen_renderer is not None:
-        screen_renderer.render(final_text, final_screenshot, cols, rows)
-    else:
-        render_svg(final_text, final_screenshot, cols, rows)
+    _render_screen(
+        final_text, final_screenshot, cols, rows, screen_renderer, evidence_config.svg
+    )
     artifacts = {
         "cast": str(cast_path),
         "screenshot": str(final_screenshot),
@@ -55,6 +57,7 @@ def render_artifacts(
         rows,
         screen_renderer,
         screenshot_ext,
+        evidence_config,
     )
     if step_dir is not None:
         artifacts["step_screenshots"] = str(step_dir)
@@ -82,7 +85,7 @@ def render_artifacts(
                 if video_backend is not None:
                     video_backend.render(cast_path, mp4_path, video_fps)
                 else:
-                    render_mp4(cast_path, mp4_path, video_fps)
+                    render_mp4(cast_path, mp4_path, video_fps, evidence_config.video)
                 artifacts["video"] = str(mp4_path)
     return artifacts
 
@@ -103,6 +106,20 @@ def _resolve_ffmpeg() -> str | None:
         return None
 
 
+def _render_screen(
+    text: str,
+    output_path: Path,
+    cols: int,
+    rows: int,
+    screen_renderer: Any,
+    svg_config: SvgRenderConfig,
+) -> None:
+    if screen_renderer is not None:
+        screen_renderer.render(text, output_path, cols, rows)
+    else:
+        render_svg(text, output_path, cols, rows, svg_config)
+
+
 def _render_step_screens(
     run_dir: Path,
     steps: list[StepResult],
@@ -110,9 +127,11 @@ def _render_step_screens(
     rows: int,
     screen_renderer: Any = None,
     screenshot_ext: str = "svg",
+    evidence_config: EvidenceConfig | None = None,
 ) -> Path | None:
     if not steps:
         return None
+    config = evidence_config or EvidenceConfig()
     step_dir = run_dir / "steps"
     step_dir.mkdir(parents=True, exist_ok=True)
     for index, step in enumerate(steps, start=1):
@@ -120,10 +139,9 @@ def _render_step_screens(
         path_base = step_dir / f"{index:02d}-{safe_name}"
         (path_base.with_suffix(".txt")).write_text(step.screen + "\n", encoding="utf-8")
         screenshot_path = path_base.with_suffix(f".{screenshot_ext}")
-        if screen_renderer is not None:
-            screen_renderer.render(step.screen, screenshot_path, cols, rows)
-        else:
-            render_svg(step.screen, screenshot_path, cols, rows)
+        _render_screen(
+            step.screen, screenshot_path, cols, rows, screen_renderer, config.svg
+        )
     return step_dir
 
 
@@ -134,18 +152,43 @@ def _screen_extension(screen_renderer: Any = None) -> str:
     return extension or "svg"
 
 
-def render_mp4(cast_path: Path, mp4_path: Path, fps: int = 60) -> None:
+def _optional_flags(pairs: tuple[tuple[str, Any], ...]) -> list[str]:
+    """Expand ``(flag, value)`` pairs, omitting any whose value is None."""
+    flags: list[str] = []
+    for flag, value in pairs:
+        if value is not None:
+            flags.extend([flag, str(value)])
+    return flags
+
+
+def render_mp4(
+    cast_path: Path,
+    mp4_path: Path,
+    fps: int = 60,
+    config: VideoConfig | None = None,
+) -> None:
+    config = config or VideoConfig()
     agg_path = resolve_agg()
     if agg_path is None:
         return
     gif_path = mp4_path.with_suffix(".agg.gif")
+    fps_cap = fps if config.fps_cap is None else config.fps_cap
     try:
         subprocess.run(
             [
                 agg_path,
                 "--quiet",
                 "--fps-cap",
-                str(fps),
+                str(fps_cap),
+                *_optional_flags(
+                    (
+                        ("--idle-time-limit", config.idle_time_limit),
+                        ("--last-frame-duration", config.last_frame_duration),
+                        ("--theme", config.theme),
+                        ("--font-size", config.font_size),
+                        ("--font-family", config.font_family),
+                    )
+                ),
                 str(cast_path),
                 str(gif_path),
             ],
@@ -163,7 +206,14 @@ def render_mp4(cast_path: Path, mp4_path: Path, fps: int = 60) -> None:
                 "-vf",
                 f"fps={fps},scale=trunc(iw/2)*2:trunc(ih/2)*2",
                 "-pix_fmt",
-                "yuv420p",
+                config.pix_fmt,
+                *_optional_flags(
+                    (
+                        ("-crf", config.crf),
+                        ("-preset", config.preset),
+                        ("-tune", config.tune),
+                    )
+                ),
                 "-movflags",
                 "+faststart",
                 str(mp4_path),

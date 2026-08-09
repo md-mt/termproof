@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from pathlib import Path
 from typing import Any
 
@@ -62,6 +62,42 @@ BUILTIN_DEFAULTS: dict[str, Any] = {
     "defaults": {
         "idle_cap_seconds": 3.0,
     },
+    # Evidence-rendering parameters. Every value here reproduces the behavior
+    # that was previously hardcoded in the renderers and the video pipeline, so
+    # an unconfigured run is byte-identical to one from before they were
+    # extracted.
+    "evidence": {
+        "svg": {
+            "char_width": 9,
+            "line_height": 20,
+            "padding": 18,
+            "font_size": 14,
+            "font_family": "ui-monospace,SFMono-Regular,Menlo,Consolas,monospace",
+            "fg": "#e6edf3",
+            "bg": "#101418",
+        },
+        "png": {
+            "scale": 1,
+            "padding": 18,
+            "font_size": 14,
+            "font_path": None,
+            "fg": "#e6edf3",
+            "bg": "#101418",
+        },
+        "video": {
+            "fps": 60,
+            "fps_cap": None,
+            "pix_fmt": "yuv420p",
+            "crf": None,
+            "preset": None,
+            "tune": None,
+            "idle_time_limit": None,
+            "last_frame_duration": None,
+            "theme": None,
+            "font_size": None,
+            "font_family": None,
+        },
+    },
 }
 
 
@@ -85,6 +121,54 @@ class DockerBackendConfig:
 
 
 @dataclass(frozen=True)
+class SvgRenderConfig:
+    char_width: int = 9
+    line_height: int = 20
+    padding: int = 18
+    font_size: int = 14
+    font_family: str = "ui-monospace,SFMono-Regular,Menlo,Consolas,monospace"
+    fg: str = "#e6edf3"
+    bg: str = "#101418"
+
+
+@dataclass(frozen=True)
+class PngRenderConfig:
+    # ``font_path`` of None keeps PIL's bundled proportional bitmap face.
+    # ``font_size`` is only consulted when a font path is given.
+    scale: int = 1
+    padding: int = 18
+    font_size: int = 14
+    font_path: str | None = None
+    fg: str = "#e6edf3"
+    bg: str = "#101418"
+
+
+@dataclass(frozen=True)
+class VideoConfig:
+    # None means "omit the flag", so the default command line is the one the
+    # pipeline built before these were configurable. ``fps_cap`` of None keeps
+    # agg's cap tied to the effective output fps, as it was.
+    fps: int = 60
+    fps_cap: int | None = None
+    pix_fmt: str = "yuv420p"
+    crf: int | None = None
+    preset: str | None = None
+    tune: str | None = None
+    idle_time_limit: float | None = None
+    last_frame_duration: float | None = None
+    theme: str | None = None
+    font_size: int | None = None
+    font_family: str | None = None
+
+
+@dataclass(frozen=True)
+class EvidenceConfig:
+    svg: SvgRenderConfig = SvgRenderConfig()
+    png: PngRenderConfig = PngRenderConfig()
+    video: VideoConfig = VideoConfig()
+
+
+@dataclass(frozen=True)
 class VerifierConfig:
     steps: dict[str, str]
     assertions: dict[str, str]
@@ -96,6 +180,7 @@ class VerifierConfig:
     session_backend: str
     docker: DockerBackendConfig
     defaults: GlobalDefaults
+    evidence: EvidenceConfig
 
     @classmethod
     def builtin(cls) -> VerifierConfig:
@@ -177,6 +262,34 @@ def _parse_idle_cap_seconds(value: Any) -> float | None:
     return parsed
 
 
+def _section(cls: type, raw: Any, label: str) -> Any:
+    """Build a frozen config dataclass from a YAML mapping.
+
+    Unknown keys are rejected rather than ignored: a misspelled rendering knob
+    that silently does nothing is indistinguishable from one that had no effect.
+    """
+    values = dict(raw or {})
+    known = {field_.name for field_ in fields(cls)}
+    unknown = sorted(set(values) - known)
+    if unknown:
+        raise ValueError(
+            f"unknown {label} option(s) {unknown}; known options: {sorted(known)}"
+        )
+    return cls(**values)
+
+
+def _evidence_from_mapping(raw: Any) -> EvidenceConfig:
+    values = dict(raw or {})
+    evidence = EvidenceConfig(
+        svg=_section(SvgRenderConfig, values.pop("svg", {}), "evidence.svg"),
+        png=_section(PngRenderConfig, values.pop("png", {}), "evidence.png"),
+        video=_section(VideoConfig, values.pop("video", {}), "evidence.video"),
+    )
+    if values:
+        raise ValueError(f"unknown evidence option(s) {sorted(values)}")
+    return evidence
+
+
 def _from_mapping(data: dict[str, Any]) -> VerifierConfig:
     defaults_raw = data.get("defaults", {})
     docker_raw = data.get("docker", {})
@@ -204,6 +317,7 @@ def _from_mapping(data: dict[str, Any]) -> VerifierConfig:
                 defaults_raw.get("idle_cap_seconds", 3.0)
             ),
         ),
+        evidence=_evidence_from_mapping(data.get("evidence", {})),
     )
 
 

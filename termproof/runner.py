@@ -9,6 +9,7 @@ from .agent_driven import AgentDrivenRunner, AgentRunner, CodexCliAgentRunner
 from .config import (
     CURRENT_PLUGIN_MODULE_PREFIX,
     LEGACY_PLUGIN_MODULE_PREFIX,
+    EvidenceConfig,
     VerifierConfig,
 )
 from .evidence import new_run_dir, render_artifacts, write_result_files
@@ -56,11 +57,22 @@ def _build_reporter_registry(config: VerifierConfig) -> Registry[Any]:
     return registry
 
 
+def _construct_evidence_plugin(cls: type, evidence: EvidenceConfig) -> Any:
+    """Instantiate a renderer or video backend, passing evidence config if wanted.
+
+    Plugins opt in by exposing ``from_config``. Ones that do not — including
+    every third-party plugin written against the existing protocols — keep being
+    constructed with no arguments.
+    """
+    factory = getattr(cls, "from_config", None)
+    return cls() if factory is None else factory(evidence)
+
+
 def _build_renderer_registry(config: VerifierConfig) -> Registry[Any]:
     registry: Registry[Any] = Registry()
     for name, qualname in config.screen_renderers.items():
         cls = _import_class(qualname)
-        registry.register(name, lambda c=cls: c())
+        registry.register(name, lambda c=cls: _construct_evidence_plugin(c, config.evidence))
     return registry
 
 
@@ -84,7 +96,7 @@ def _build_video_backend_registry(config: VerifierConfig) -> Registry[Any]:
     registry: Registry[Any] = Registry()
     for name, qualname in config.video_backends.items():
         cls = _import_class(qualname)
-        registry.register(name, lambda c=cls: c())
+        registry.register(name, lambda c=cls: _construct_evidence_plugin(c, config.evidence))
     return registry
 
 
@@ -176,6 +188,7 @@ class VerificationRunner:
             rows=recipe.rows,
             screen_renderer=screen_renderer,
             video_backend=video_backend,
+            evidence_config=self.config.evidence,
         )
         score = score_from_assertions(assertions)
         passed = all(step.passed for step in steps) and all(a.passed for a in assertions)

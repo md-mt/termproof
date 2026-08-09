@@ -226,6 +226,96 @@ docker:
         self.assertEqual({"PYTHONUNBUFFERED": "1"}, config.docker.env)
 
 
+class EvidenceConfigTest(unittest.TestCase):
+    def test_builtin_evidence_defaults_reproduce_the_previous_literals(self) -> None:
+        evidence = VerifierConfig.builtin().evidence
+        self.assertEqual(
+            (9, 20, 18, 14, "#e6edf3", "#101418"),
+            (
+                evidence.svg.char_width,
+                evidence.svg.line_height,
+                evidence.svg.padding,
+                evidence.svg.font_size,
+                evidence.svg.fg,
+                evidence.svg.bg,
+            ),
+        )
+        self.assertEqual(
+            "ui-monospace,SFMono-Regular,Menlo,Consolas,monospace",
+            evidence.svg.font_family,
+        )
+        self.assertEqual((1, 18, None), (evidence.png.scale, evidence.png.padding, evidence.png.font_path))
+        self.assertEqual((60, None, "yuv420p"), (evidence.video.fps, evidence.video.fps_cap, evidence.video.pix_fmt))
+        # None means "omit the flag", which is what the pipeline did before.
+        self.assertEqual(
+            [None] * 8,
+            [
+                evidence.video.crf,
+                evidence.video.preset,
+                evidence.video.tune,
+                evidence.video.idle_time_limit,
+                evidence.video.last_frame_duration,
+                evidence.video.theme,
+                evidence.video.font_size,
+                evidence.video.font_family,
+            ],
+        )
+
+    def test_evidence_values_load_from_yaml(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            user_yaml = Path(tmp) / "user.yaml"
+            user_yaml.write_text(
+                "evidence:\n"
+                "  svg:\n    char_width: 8\n    fg: '#ffffff'\n"
+                "  png:\n    scale: 2\n    font_path: /fonts/mono.ttf\n"
+                "  video:\n    pix_fmt: yuv444p\n    crf: 20\n",
+                encoding="utf-8",
+            )
+            config = load_config(project_path=Path(tmp), user_path=user_yaml)
+        self.assertEqual(8, config.evidence.svg.char_width)
+        self.assertEqual("#ffffff", config.evidence.svg.fg)
+        self.assertEqual(20, config.evidence.svg.line_height)  # untouched key keeps its default
+        self.assertEqual(2, config.evidence.png.scale)
+        self.assertEqual("/fonts/mono.ttf", config.evidence.png.font_path)
+        self.assertEqual("yuv444p", config.evidence.video.pix_fmt)
+        self.assertEqual(20, config.evidence.video.crf)
+
+    def test_project_evidence_config_wins_over_user(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            project_dir = Path(tmp) / "project"
+            (project_dir / ".termproof").mkdir(parents=True)
+            (project_dir / ".termproof" / "config.yaml").write_text(
+                "evidence:\n  video:\n    crf: 18\n",
+                encoding="utf-8",
+            )
+            user_yaml = Path(tmp) / "user.yaml"
+            user_yaml.write_text(
+                "evidence:\n  video:\n    crf: 30\n    preset: slow\n",
+                encoding="utf-8",
+            )
+            config = load_config(project_path=project_dir, user_path=user_yaml)
+        self.assertEqual(18, config.evidence.video.crf)  # project wins
+        self.assertEqual("slow", config.evidence.video.preset)  # user supplies, project doesn't
+        self.assertEqual("yuv420p", config.evidence.video.pix_fmt)  # builtin survives
+
+    def test_unknown_evidence_option_is_rejected(self) -> None:
+        """A misspelled rendering knob that silently does nothing is worse than an error."""
+        with tempfile.TemporaryDirectory() as tmp:
+            user_yaml = Path(tmp) / "user.yaml"
+            user_yaml.write_text(
+                "evidence:\n  svg:\n    charwidth: 8\n", encoding="utf-8"
+            )
+            with self.assertRaises(ValueError):
+                load_config(project_path=Path(tmp), user_path=user_yaml)
+
+    def test_unknown_evidence_section_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            user_yaml = Path(tmp) / "user.yaml"
+            user_yaml.write_text("evidence:\n  gif:\n    scale: 2\n", encoding="utf-8")
+            with self.assertRaises(ValueError):
+                load_config(project_path=Path(tmp), user_path=user_yaml)
+
+
 class RegistryTest(unittest.TestCase):
     def test_register_and_get(self) -> None:
         registry: Registry[str] = Registry()
