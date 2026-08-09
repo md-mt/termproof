@@ -13,12 +13,16 @@ class ProtocolApiTests(unittest.TestCase):
             [
                 "AgentRunner",
                 "AssertionType",
+                "EvidenceConfig",
                 "ExecutionMode",
+                "PngRenderConfig",
                 "Reporter",
                 "ScreenRenderer",
                 "SessionBackend",
                 "StepAction",
+                "SvgRenderConfig",
                 "VideoBackend",
+                "VideoConfig",
             ],
             protocols.__all__,
         )
