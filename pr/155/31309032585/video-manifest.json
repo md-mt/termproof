@@ -1,0 +1,62 @@
+[
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260809-104958-029608-generic-tui-workflow-default/session.mp4",
+    "path": "20260809-104958-029608-generic-tui-workflow-default/session.mp4"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260809-105002-256808-multi-turn-conversation-default/session.mp4",
+    "path": "20260809-105002-256808-multi-turn-conversation-default/session.mp4"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260809-105021-095700-pi-workflow-readonly-review-default/session.mp4",
+    "path": "20260809-105021-095700-pi-workflow-readonly-review-default/session.mp4"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260809-105029-624260-pi-workflow-guarded-edit-default/session.mp4",
+    "path": "20260809-105029-624260-pi-workflow-guarded-edit-default/session.mp4"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260809-105037-690029-pi-workflow-session-resume-export-default/session.mp4",
+    "path": "20260809-105037-690029-pi-workflow-session-resume-export-default/session.mp4"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260809-105044-011228-pi-workflow-model-context-default/session.mp4",
+    "path": "20260809-105044-011228-pi-workflow-model-context-default/session.mp4"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260809-105051-044523-generic-tui-workflow-default/session.mp4",
+    "path": "20260809-105051-044523-generic-tui-workflow-default/session.mp4"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260809-105054-545351-multi-turn-conversation-default/session.mp4",
+    "path": "20260809-105054-545351-multi-turn-conversation-default/session.mp4"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260809-105113-402270-pi-workflow-readonly-review-default/session.mp4",
+    "path": "20260809-105113-402270-pi-workflow-readonly-review-default/session.mp4"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260809-105121-900068-pi-workflow-guarded-edit-default/session.mp4",
+    "path": "20260809-105121-900068-pi-workflow-guarded-edit-default/session.mp4"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260809-105129-933556-pi-workflow-session-resume-export-default/session.mp4",
+    "path": "20260809-105129-933556-pi-workflow-session-resume-export-default/session.mp4"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260809-105136-297092-pi-workflow-model-context-default/session.mp4",
+    "path": "20260809-105136-297092-pi-workflow-model-context-default/session.mp4"
+  }
+]
