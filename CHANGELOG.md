@@ -5,6 +5,22 @@ All notable changes to TermProof are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+- **`wait_for_idle` no longer treats a session that has produced no output as
+  idle.** The stable window is armed by the first byte the session emits, so a
+  session that has emitted nothing at all can no longer have its blank initial
+  screen captured as the final evidence. The deliberate trade: a target that stays alive and emits
+  nothing at all can never report idle, and will fail the step after its
+  timeout — including the single-step recipe produced by `termproof init`. For
+  an evidence-recording tool a zero-output session is not something we can
+  attest to, so it is reported rather than passed. That failure now reads
+  `no output observed from the session` instead of `timed out waiting for
+  idle`. Once armed, quiescence is still measured on rendered screen text
+  alone, so terminal-title ticks, colour-only animation and idempotent repaints
+  go idle exactly as before.
+
 ## [0.2.1] — 2026-07-29
 
 ### Added

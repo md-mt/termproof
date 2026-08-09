@@ -353,6 +353,113 @@ class QuiescenceBehaviorTest(unittest.TestCase):
         )
         try:
             with session:
+                # Wait for the producer to be visible before measuring
+                # continuous-output quiescence. This avoids a startup-timing
+                # race where the blank initial screen could be mistaken for idle.
+                self.assertTrue(session.wait_for_text("0", 3.0))
                 self.assertFalse(session.wait_for_idle(0.3, 0.8))
+        finally:
+            session.close()
+
+    def test_wait_for_idle_returns_true_for_already_quiet_session(self) -> None:
+        runner = VerificationRunner()
+        session = runner.session_backend.create_session(
+            # Emits its only output before wait_for_idle is entered, so the
+            # stable window must be measured from prior activity rather than
+            # requiring fresh output during this call.
+            argv=[sys.executable, "-c", "print('ready'); import time; time.sleep(10)"],
+            cast_path=Path(tempfile.mkdtemp()) / "session.cast",
+            cwd=None,
+            env={},
+            cols=80,
+            rows=24,
+        )
+        try:
+            with session:
+                self.assertTrue(session.wait_for_text("ready", 5.0))
+                self.assertTrue(session.wait_for_idle(0.3, 2.0))
+        finally:
+            session.close()
+
+    def test_wait_for_idle_does_not_report_idle_before_first_output(self) -> None:
+        runner = VerificationRunner()
+        session = runner.session_backend.create_session(
+            # Sleeps 1s before producing any output, then keeps running.
+            # wait_for_idle must not treat the blank initial screen as idle
+            # while the child is alive and no output has been observed yet.
+            argv=[
+                sys.executable,
+                "-c",
+                "import time; time.sleep(1.0); print('started'); time.sleep(10)",
+            ],
+            cast_path=Path(tempfile.mkdtemp()) / "session.cast",
+            cwd=None,
+            env={},
+            cols=80,
+            rows=24,
+        )
+        try:
+            with session:
+                self.assertFalse(session.wait_for_idle(0.3, 0.6))
+        finally:
+            session.close()
+
+    def test_wait_for_idle_arms_on_output_that_never_renders(self) -> None:
+        runner = VerificationRunner()
+        session = runner.session_backend.create_session(
+            # The child's only emission is an OSC title sequence, which pyte
+            # discards, so the rendered screen stays blank for the whole call.
+            # The stable window must arm off the raw bytes: entered with no
+            # prior output, a screen-only arm would never start the timer.
+            argv=[
+                sys.executable,
+                "-c",
+                "import sys, time\n"
+                "sys.stdout.write('\\x1b]0;t\\x07')\n"
+                "sys.stdout.flush()\n"
+                "time.sleep(10)\n",
+            ],
+            cast_path=Path(tempfile.mkdtemp()) / "session.cast",
+            cwd=None,
+            env={},
+            cols=80,
+            rows=24,
+        )
+        try:
+            with session:
+                self.assertTrue(session.wait_for_idle(0.3, 2.0))
+                self.assertEqual(session.screen, "")
+                self.assertTrue(session.is_alive())
+        finally:
+            session.close()
+
+    def test_wait_for_idle_ignores_output_that_does_not_change_the_screen(self) -> None:
+        runner = VerificationRunner()
+        session = runner.session_backend.create_session(
+            # Draws once, then refreshes the terminal title every 50ms. pyte
+            # discards OSC sequences, so the rendered screen never changes even
+            # though bytes keep arriving: raw length arms the window but must
+            # not keep resetting it.
+            argv=[
+                sys.executable,
+                "-c",
+                "import sys, time\n"
+                "sys.stdout.write('MAIN VIEW\\r\\n')\n"
+                "sys.stdout.flush()\n"
+                "for i in range(200):\n"
+                "    sys.stdout.write('\\x1b]0;tick %d\\x07' % i)\n"
+                "    sys.stdout.flush()\n"
+                "    time.sleep(0.05)\n",
+            ],
+            cast_path=Path(tempfile.mkdtemp()) / "session.cast",
+            cwd=None,
+            env={},
+            cols=80,
+            rows=24,
+        )
+        try:
+            with session:
+                self.assertTrue(session.wait_for_text("MAIN VIEW", 3.0))
+                self.assertTrue(session.wait_for_idle(0.3, 2.0))
         finally:
             session.close()

@@ -113,14 +113,24 @@ class TerminalSession:
     def wait_for_idle(self, stable_seconds: float, timeout_seconds: float) -> bool:
         deadline = time.monotonic() + timeout_seconds
         last_screen = self.screen
-        stable_since = time.monotonic()
+        last_raw_len = len(self.raw_output)
+        # `None` means no activity has been observed yet, so the stable window has not
+        # started. Without this, a session whose first output is still pending would
+        # have its blank initial screen counted as idle.
+        stable_since: float | None = time.monotonic() if self.raw_output else None
         while time.monotonic() < deadline:
             self.read_available(0.05)
             current = self.screen
-            if current != last_screen:
+            raw_len = len(self.raw_output)
+            # Raw length only *arms* the window: a first byte that is pure escape
+            # sequence never changes the rendered screen, so without it the timer
+            # would never start. Once armed, only rendered-text changes count —
+            # otherwise title ticks or colour-only animation would never go idle.
+            if current != last_screen or (stable_since is None and raw_len != last_raw_len):
                 last_screen = current
+                last_raw_len = raw_len
                 stable_since = time.monotonic()
-            if time.monotonic() - stable_since >= stable_seconds:
+            if stable_since is not None and time.monotonic() - stable_since >= stable_seconds:
                 return True
             if not self.is_alive():
                 self.read_available(0)
