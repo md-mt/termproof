@@ -88,7 +88,7 @@ jobs:
           cat release-notes.md >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload release evidence
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: termproof-release-evidence
@@ -96,7 +96,7 @@ jobs:
           if-no-files-found: ignore
 
       - name: Upload package artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: termproof-dist
           path: dist/*
