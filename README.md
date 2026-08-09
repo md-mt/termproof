@@ -1,17 +1,43 @@
-# TermProof Rust Workspace
+# termproof-rust
 
-This directory holds the Rust reimplementation of TermProof. It is a fully
-separate workspace from the Python implementation at the repository root: the
-Python package, packaging, CLI default, and docs remain unchanged at the top
-level until the parity gates in `docs/rust-reimplementation-spec.md` pass.
+A Rust reimplementation of [TermProof](https://github.com/md-mt/termproof),
+extracted from that repository's `rust/` directory with its history intact.
+
+**TermProof is evidence-first verification for TUI and terminal applications.**
+The Python implementation at `md-mt/termproof` is the shipped product. This
+repository is a port of it, and it is **in progress**.
+
+## Maturity — read this before using it
+
+This port is **not** a drop-in replacement for the Python implementation, and
+nothing here should be read as a claim that it behaves the same way.
+
+- There is **no parity gate**. A differential harness driving identical inputs
+  through both implementations found them agreeing on **55 of 217 cases**, with
+  33 pass/fail flips and 6 panics on recipe-controlled input. Landing that
+  harness as a required check is the next piece of work, and it will be red when
+  it arrives.
+- Known defects carried over with the code, in rough severity order: a large
+  finite `timeout_seconds` / `seconds` value panics the process; valid Python
+  regexes are rejected; strict JSON typing rejects recipes Python accepts;
+  `send_line` silently discards a non-string `text`; `_format_match`
+  diagnostics do not match Python's; `MockSession` encodes test-passing rather
+  than PTY semantics; the step dispatch table is exercised for 1 of 7 actions
+  and `wait_for_idle` has no coverage.
+- Some subsystems are offline stubs rather than implementations — the PTY
+  backend and terminal screen in `termproof-terminal` say so in their module
+  docs.
+
+Until a parity gate passes, treat the Python implementation as the only
+authority on TermProof's behaviour.
 
 ## Layout
 
-- `Cargo.toml` — workspace manifest with shared lint and dependency policy.
-- `rust-toolchain.toml` — pinned toolchain (`1.96.0`, minimal profile).
-- `docs/engineering-baseline.md` — formatting, lint, error, tracing,
-  dependency, feature, and unsafe-code policies (RUST-002 deliverable).
-- `crates/` — five workspace crates:
+- `Cargo.toml` — workspace manifest with shared lint and dependency policy
+- `rust-toolchain.toml` — pinned toolchain (`1.96.0`, minimal profile)
+- `docs/engineering-baseline.md` — formatting, lint, error, tracing, dependency,
+  feature and unsafe-code policy
+- `crates/`
   - `termproof-cli` — binary (`termproof`), command parsing, diagnostics
   - `termproof-core` — models, config, schema, registries, planning, orchestration
   - `termproof-terminal` — PTY/process sessions, terminal screen, cast recording
@@ -21,20 +47,30 @@ level until the parity gates in `docs/rust-reimplementation-spec.md` pass.
 ## Quickstart
 
 ```sh
-cd rust
-
-# Run the baseline binary
 cargo run -p termproof-cli
 
-# Local gates (must pass before every push; CI enforces the same)
+# The gates CI enforces
 cargo fmt --check --all
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo test --workspace
-cargo doc --workspace --no-deps
 ```
 
-## Status
+## Relationship to `md-mt/termproof`
 
-RUST-002 baseline: the workspace builds, lints clean, and the `termproof`
-binary prints the canonical greeting. Real behavior lands in the M0–M5
-milestones tracked by issues 94–123.
+The two repositories were split so the shipped Python product and this port stop
+constraining each other's CI, release surface and packaging. Things that stay
+with the Python repository on purpose:
+
+- **The recipe schema and the example corpus.** They are the contract both
+  implementations answer to, so they stay with the oracle. `load_canonical_schema`
+  in `termproof-core` therefore finds nothing in this checkout.
+- **Version and changelog drift checks**, and the sdist packaging gate.
+
+Branches under `archive/` here hold Rust work that was never merged to `main` in
+the original repository, preserved so it is not stranded — including the fuller
+quality-gate tooling (`deny.toml`, a coverage baseline, a conformance corpus and
+their checker scripts) that only ever existed on `wt/rust-003-ci-gates`.
+
+## Licence
+
+MIT — see [LICENSE](LICENSE). Same terms as `md-mt/termproof`.

@@ -1,0 +1,57 @@
+# Ported from md-mt/termproof at the repository split. Only the Rust binary
+# build survives the move: the PyPI wheel, Homebrew formula and container jobs
+# belonged to the Python package and stay with it. Whether the Rust CLI is
+# distributed alongside the Python package at all is an open decision.
+#
+# UNVERIFIED: this workflow has never run in this repository. The provenance
+# attestation below needs a release identity review before the first tag.
+name: Release (Rust)
+
+on:
+  push:
+    tags: ["v*.*.*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.target }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            archive: termproof-linux-x86_64.tar.gz
+          - target: x86_64-apple-darwin
+            os: macos-latest
+            archive: termproof-macos-x86_64.tar.gz
+          - target: aarch64-apple-darwin
+            os: macos-14
+            archive: termproof-macos-arm64.tar.gz
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.96.0"
+          targets: ${{ matrix.target }}
+      - name: Build release
+        run: cargo build --release --target ${{ matrix.target }}
+      - name: Package
+        run: |
+          mkdir -p dist
+          cp target/${{ matrix.target }}/release/termproof dist/termproof
+          tar -czf dist/${{ matrix.archive }} -C dist termproof
+          shasum -a 256 dist/${{ matrix.archive }} > dist/${{ matrix.archive }}.sha256
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: dist/${{ matrix.archive }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.archive }}
+          path: dist/*

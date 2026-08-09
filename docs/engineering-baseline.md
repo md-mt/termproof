@@ -2,23 +2,24 @@
 
 Status: Active
 Owner: termproof maintainers
-Scope: `rust/` workspace (all five crates)
+Scope: this workspace (all five crates)
 Applies from: RUST-002 (milestone Rust M0 — Contract and skeleton)
 
 This document is the engineering policy for the Rust reimplementation. It
-complements `docs/rust-reimplementation-spec.md`; where the two disagree the
-specification wins and this document is updated.
+complements `docs/rust-reimplementation-spec.md` in the Python repository
+(https://github.com/md-mt/termproof); where the two disagree the specification
+wins and this document is updated.
 
 ## 1. Toolchain and MSRV
 
-- The workspace pins an exact Rust toolchain via `rust/rust-toolchain.toml`
+- The workspace pins an exact Rust toolchain via `rust-toolchain.toml`
   (`channel = "1.96.0"`, `profile = "minimal"`, components `rustfmt` and
   `clippy`). The pin is deliberately an exact stable release, not the moving
   `stable` alias, so a fresh environment reproduces the same compiler. CI and
   developers using `rustup` pick this up automatically; Homebrew/manual
   installs must install the same exact channel.
 - The minimum supported Rust version (MSRV) is declared as
-  `rust-version = "1.96"` in `rust/Cargo.toml` (`[workspace.package]`). The
+  `rust-version = "1.96"` in `Cargo.toml` (`[workspace.package]`). The
   pinned toolchain matches the MSRV, so development and CI run on the declared
   minimum. Code must compile on the MSRV with no warnings.
 - No nightly-only production features are used. Nightly is allowed only for
@@ -41,7 +42,7 @@ specification wins and this document is updated.
 
 ## 3. Lint and warnings policy
 
-- Workspace lints live in `rust/Cargo.toml` under `[workspace.lints]` and are
+- Workspace lints live in `Cargo.toml` under `[workspace.lints]` and are
   inherited by every crate through `[lints] workspace = true`:
   - `rust.unsafe_code = "forbid"` — no `unsafe` in workspace code (see §8).
   - `rust.missing_docs = "warn"` — public items must be documented.
@@ -130,7 +131,7 @@ specification wins and this document is updated.
 ## 9. Workspace layout and crate map
 
 ```
-rust/
+.
 ├── Cargo.toml                  # workspace manifest + shared lints/deps
 ├── rust-toolchain.toml         # pinned toolchain 1.96.0 (exact stable release)
 ├── Cargo.lock                  # pinned dependency graph (committed)

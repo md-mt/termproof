@@ -1,7 +1,7 @@
 //! Terminal screen emulation (RUST-006).
 //!
 //! Provides an in-memory view of what a user would see on a terminal.
-//! The intended implementation is `vt100` (see `rust/Cargo.toml` comment).
+//! The intended implementation is `vt100` (see `Cargo.toml` comment).
 //! This offline stub faithfully preserves the same public API and normalization
 //! so the crate builds and tests pass without a registry fetch. Swapping in
 //! `vt100` is a one-line change: `Parser::new(rows, cols, 0)` + `process(bytes)`.

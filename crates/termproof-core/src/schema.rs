@@ -52,16 +52,19 @@ pub fn generate_recipe_schema() -> serde_json::Value {
 
 /// Load the checked-in canonical schema from `docs/recipe-schema-v1.json` if present.
 ///
-/// When running from the workspace the docs path is `../docs/recipe-schema-v1.json`
-/// relative to `rust/`; fallback is to look beside the crate root.
+/// The canonical schema is owned by the Python implementation at
+/// https://github.com/md-mt/termproof and is deliberately not vendored here, so
+/// in this repository every candidate misses and this returns `None`. The
+/// candidates below are kept for the checkout layouts where the two trees sit
+/// side by side; sourcing the schema properly is parity-gate work.
 #[allow(dead_code)]
 pub fn load_canonical_schema() -> Option<serde_json::Value> {
     for candidate in [
-        // When run with cwd = rust/ (workspace root's rust dir)
+        // When run one level below a checkout of the Python repository
         std::path::Path::new("../docs/recipe-schema-v1.json"),
-        // When run with cwd = repository root
+        // When run with cwd = Python repository root
         std::path::Path::new("docs/recipe-schema-v1.json"),
-        // When run with cwd = rust/crates/termproof-core
+        // When run with cwd = <python-repo>/rust/crates/termproof-core
         std::path::Path::new("../../../docs/recipe-schema-v1.json"),
     ] {
         if candidate.exists() {

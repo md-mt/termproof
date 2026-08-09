@@ -1,14 +1,12 @@
 # TermProof Rust workspace manifest.
 #
-# The entire Rust implementation lives in this dedicated `rust/` directory so
-# the Cargo metadata never collides with the Python package at the repository
-# root. The Python implementation, packaging, and docs remain at the top level
-# and are the executable default until the parity gates in
-# docs/rust-reimplementation-spec.md (section 11) pass.
+# This workspace is the Rust reimplementation of TermProof. The Python
+# implementation at https://github.com/md-mt/termproof remains the shipped
+# product and the behavioural oracle; this port is not yet a substitute for it.
 #
 # Policies that govern this workspace (formatting, linting, errors, tracing,
 # dependencies, features, unsafe code) are documented in
-# rust/docs/engineering-baseline.md.
+# docs/engineering-baseline.md.
 
 [workspace]
 resolver = "2"
@@ -25,13 +23,13 @@ version = "0.2.1"
 edition = "2021"
 rust-version = "1.96"
 license = "MIT"
-repository = "https://github.com/md-mt/termproof"
+repository = "https://github.com/md-mt/termproof-rust"
 authors = ["TermProof maintainers"]
 description = "Evidence-first verification for TUI and terminal applications (Rust reimplementation)"
 
 # Workspace-wide lint policy. Every crate inherits these via `[lints] workspace = true`.
 # CI enforces `cargo clippy --all-targets --all-features -- -D warnings`, so warnings
-# here are effectively denied at the gate. See rust/docs/engineering-baseline.md.
+# here are effectively denied at the gate. See docs/engineering-baseline.md.
 [workspace.lints.rust]
 unsafe_code = "forbid"
 missing_docs = "warn"

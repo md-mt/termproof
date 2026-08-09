@@ -254,7 +254,7 @@ impl ProcessSession {
         // prohibits `CommandExt::pre_exec` (which is `unsafe`) in this crate.
         // The direct child is therefore killed via `Child::kill()`; descendants
         // that outlive the child are reaped by init. A future change that
-        // relaxes the lint to `deny` (per `rust/docs/engineering-baseline.md`
+        // relaxes the lint to `deny` (per `docs/engineering-baseline.md`
         // §8) can reintroduce `setpgid(0,0)` via `pre_exec` behind a scoped
         // `#[allow(unsafe_code)]` with a `// SAFETY:` comment.
 

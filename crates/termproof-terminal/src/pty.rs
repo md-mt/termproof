@@ -2,7 +2,7 @@
 //!
 //! `PtySession` owns a child process, a `TerminalScreen`, a `CastRecorder`,
 //! and an `ActivityClock`. The intended platform layer is `portable-pty`
-//! (see `rust/Cargo.toml` comment). This offline stub uses `std::process`
+//! (see `Cargo.toml` comment). This offline stub uses `std::process`
 //! with piped I/O to preserve the same public API so the crate builds and
 //! tests pass without a registry fetch. Swapping in `portable-pty` is a
 //! one-line `CommandBuilder` change in `spawn()` and a `MasterPty::resize`
