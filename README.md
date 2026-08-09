@@ -216,7 +216,7 @@ Plugin references using `tui_verifier.*:ClassName` are translated to `termproof.
 
 ## Configuration
 
-Optional configuration lives in `~/.config/termproof/config.yaml` (user) or `.termproof/config.yaml` (project). The `defaults` block currently exposes the post-script idle wait cap:
+Optional configuration lives in `~/.config/termproof/config.yaml` (user) or `.termproof/config.yaml` (project). The `defaults` block exposes the post-script idle wait cap:
 
 ```yaml
 defaults:
@@ -230,6 +230,37 @@ defaults:
 `idle_cap_seconds` is the documented replacement for the former hard-coded 3-second idle cap in `runner.py`. Defaults to `3.0` to preserve existing behavior; raise it (or set `null`) for TUIs that take longer to settle. The value must be a finite, nonnegative number: negative, NaN, or infinite values are rejected at config load.
 
 The idle wait — both the `wait_for_idle` step and this post-script wait — starts measuring at the session's **first byte of output**, so a session that has produced no output is never treated as idle. The trade: a target that stays alive and never emits anything is never idle. A `wait_for_idle` step over such a target fails with `no output observed from the session` after its `timeout_seconds`, and the post-script wait burns its full budget — with `idle_cap_seconds: null` that is the whole recipe `timeout_seconds`, so prefer a finite cap for targets that may be silent. Once the first byte has arrived, quiescence is measured on rendered screen text only: terminal-title updates, colour changes, and repaints that redraw the same characters all count as quiet.
+
+### Evidence rendering
+
+The `evidence` block sets the screenshot and video parameters that used to be
+hard-coded in the renderers and the video pipeline, split into `svg`, `png`, and
+`video`:
+
+```yaml
+evidence:
+  svg:
+    font_size: 14
+    fg: "#e6edf3"
+    bg: "#101418"
+  png:
+    scale: 1
+    font_path: null
+  video:
+    fps: 60
+    pix_fmt: yuv420p
+    crf: null
+```
+
+`BUILTIN_DEFAULTS` in `termproof/config.py` lists every knob with its default.
+Each default reproduces the behavior from before the knobs existed, so a run
+with no `evidence` block renders byte-identical artifacts.
+
+- `evidence.video.fps` is the default for `--video-fps`; the flag wins when passed.
+- A `null` video knob means "omit that flag"; `fps_cap: null` keeps `agg`'s cap tied to the output fps.
+- `png.font_size` applies only when `png.font_path` is set — the bundled bitmap face has one fixed size.
+- Unknown keys under `evidence` are rejected at config load, so a misspelled knob fails loudly instead of silently doing nothing.
+- Evidence values are part of the `--skip-unchanged` cache key, so changing one re-renders cached runs.
 
 ## Packaging
 
