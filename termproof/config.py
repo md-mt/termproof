@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from pathlib import Path
-from typing import Any
+from typing import Any, get_args, get_type_hints
 
 try:
     import yaml
@@ -62,6 +62,42 @@ BUILTIN_DEFAULTS: dict[str, Any] = {
     "defaults": {
         "idle_cap_seconds": 3.0,
     },
+    # Evidence-rendering parameters. Every value here reproduces the behavior
+    # that was previously hardcoded in the renderers and the video pipeline, so
+    # an unconfigured run is byte-identical to one from before they were
+    # extracted.
+    "evidence": {
+        "svg": {
+            "char_width": 9,
+            "line_height": 20,
+            "padding": 18,
+            "font_size": 14,
+            "font_family": "ui-monospace,SFMono-Regular,Menlo,Consolas,monospace",
+            "fg": "#e6edf3",
+            "bg": "#101418",
+        },
+        "png": {
+            "scale": 1,
+            "padding": 18,
+            "font_size": 14,
+            "font_path": None,
+            "fg": "#e6edf3",
+            "bg": "#101418",
+        },
+        "video": {
+            "fps": 60,
+            "fps_cap": None,
+            "pix_fmt": "yuv420p",
+            "crf": None,
+            "preset": None,
+            "tune": None,
+            "idle_time_limit": None,
+            "last_frame_duration": None,
+            "theme": None,
+            "font_size": None,
+            "font_family": None,
+        },
+    },
 }
 
 
@@ -85,6 +121,58 @@ class DockerBackendConfig:
 
 
 @dataclass(frozen=True)
+class SvgRenderConfig:
+    char_width: int = 9
+    line_height: int = 20
+    padding: int = 18
+    font_size: int = 14
+    font_family: str = "ui-monospace,SFMono-Regular,Menlo,Consolas,monospace"
+    fg: str = "#e6edf3"
+    bg: str = "#101418"
+
+
+@dataclass(frozen=True)
+class PngRenderConfig:
+    # ``font_path`` of None keeps PIL's bundled proportional bitmap face.
+    # ``font_size`` is only consulted when a font path is given.
+    # ``scale`` multiplies the canvas, the padding and the line pitch, but not
+    # the glyphs of the default bitmap face, which has one fixed size. Scaling
+    # up therefore spreads the same text over a larger image unless
+    # ``font_path`` is also set, which is what yields a higher-DPI screenshot.
+    scale: int = 1
+    padding: int = 18
+    font_size: int = 14
+    font_path: str | None = None
+    fg: str = "#e6edf3"
+    bg: str = "#101418"
+
+
+@dataclass(frozen=True)
+class VideoConfig:
+    # None means "omit the flag", so the default command line is the one the
+    # pipeline built before these were configurable. ``fps_cap`` of None keeps
+    # agg's cap tied to the effective output fps, as it was.
+    fps: int = 60
+    fps_cap: int | None = None
+    pix_fmt: str = "yuv420p"
+    crf: int | None = None
+    preset: str | None = None
+    tune: str | None = None
+    idle_time_limit: float | None = None
+    last_frame_duration: float | None = None
+    theme: str | None = None
+    font_size: int | None = None
+    font_family: str | None = None
+
+
+@dataclass(frozen=True)
+class EvidenceConfig:
+    svg: SvgRenderConfig = SvgRenderConfig()
+    png: PngRenderConfig = PngRenderConfig()
+    video: VideoConfig = VideoConfig()
+
+
+@dataclass(frozen=True)
 class VerifierConfig:
     steps: dict[str, str]
     assertions: dict[str, str]
@@ -96,6 +184,7 @@ class VerifierConfig:
     session_backend: str
     docker: DockerBackendConfig
     defaults: GlobalDefaults
+    evidence: EvidenceConfig
 
     @classmethod
     def builtin(cls) -> VerifierConfig:
@@ -177,6 +266,96 @@ def _parse_idle_cap_seconds(value: Any) -> float | None:
     return parsed
 
 
+def _check_field_type(label: str, name: str, hint: Any, value: Any) -> None:
+    """Reject a value whose type its field cannot honor.
+
+    A quoted number or a stray mapping loads happily and then fails deep inside
+    a renderer, in an error that no longer names the option that was wrong.
+    """
+    declared = get_args(hint) or (hint,)
+    accepted = (*declared, int) if float in declared else declared
+    if isinstance(value, accepted) and not (
+        isinstance(value, bool) and bool not in declared
+    ):
+        return
+    names = " or ".join(
+        "null" if arg is type(None) else arg.__name__ for arg in declared
+    )
+    raise ValueError(f"{label}.{name} must be {names}, got {value!r}")
+
+
+# Smallest value each dimensional or rate knob can take. A zero or negative
+# size collapses the rendered geometry (or reaches ``ImageFont.truetype`` as a
+# negative size), and ``fps: 0`` reaches ffmpeg as ``-vf fps=0``, so these have
+# to be refused where the offending key can still be named.
+_EVIDENCE_MINIMUMS: dict[str, int] = {
+    "evidence.svg.char_width": 1,
+    "evidence.svg.line_height": 1,
+    "evidence.svg.font_size": 1,
+    "evidence.svg.padding": 0,
+    "evidence.png.scale": 1,
+    "evidence.png.font_size": 1,
+    "evidence.png.padding": 0,
+    "evidence.video.fps": 1,
+    "evidence.video.fps_cap": 1,
+    "evidence.video.font_size": 1,
+}
+
+
+def _check_field_range(label: str, name: str, value: Any) -> None:
+    """Reject an out-of-range size or rate, naming the key as the type check does."""
+    minimum = _EVIDENCE_MINIMUMS.get(f"{label}.{name}")
+    if minimum is None or value is None or value >= minimum:
+        return
+    wording = "a positive integer" if minimum == 1 else "a nonnegative integer"
+    raise ValueError(f"{label}.{name} must be {wording}, got {value!r}")
+
+
+def _mapping(raw: Any, label: str) -> dict[str, Any]:
+    """Return a config section as a mapping, refusing a scalar or a sequence.
+
+    ``dict(raw)`` alone raises a ``TypeError`` that names neither the section
+    nor the key, and callers of ``load_config`` expect a ``ValueError``.
+    """
+    if raw is None:
+        return {}
+    if not isinstance(raw, dict):
+        raise ValueError(f"{label} must be a mapping, got {raw!r}")
+    return dict(raw)
+
+
+def _section(cls: type, raw: Any, label: str) -> Any:
+    """Build a frozen config dataclass from a YAML mapping.
+
+    Unknown keys are rejected rather than ignored: a misspelled rendering knob
+    that silently does nothing is indistinguishable from one that had no effect.
+    """
+    values = _mapping(raw, label)
+    hints = get_type_hints(cls)
+    known = {field_.name for field_ in fields(cls)}
+    unknown = sorted(set(values) - known)
+    if unknown:
+        raise ValueError(
+            f"unknown {label} option(s) {unknown}; known options: {sorted(known)}"
+        )
+    for name, value in values.items():
+        _check_field_type(label, name, hints[name], value)
+        _check_field_range(label, name, value)
+    return cls(**values)
+
+
+def _evidence_from_mapping(raw: Any) -> EvidenceConfig:
+    values = _mapping(raw, "evidence")
+    evidence = EvidenceConfig(
+        svg=_section(SvgRenderConfig, values.pop("svg", {}), "evidence.svg"),
+        png=_section(PngRenderConfig, values.pop("png", {}), "evidence.png"),
+        video=_section(VideoConfig, values.pop("video", {}), "evidence.video"),
+    )
+    if values:
+        raise ValueError(f"unknown evidence option(s) {sorted(values)}")
+    return evidence
+
+
 def _from_mapping(data: dict[str, Any]) -> VerifierConfig:
     defaults_raw = data.get("defaults", {})
     docker_raw = data.get("docker", {})
@@ -204,6 +383,7 @@ def _from_mapping(data: dict[str, Any]) -> VerifierConfig:
                 defaults_raw.get("idle_cap_seconds", 3.0)
             ),
         ),
+        evidence=_evidence_from_mapping(data.get("evidence", {})),
     )
 
 

@@ -26,7 +26,8 @@ def main(argv: list[str] | None = None) -> int:
     run_parser.add_argument("--out", type=Path, default=Path(".termproof/runs"))
     run_parser.add_argument("--video", action="store_true")
     run_parser.add_argument("--no-video", action="store_true")
-    run_parser.add_argument("--video-fps", type=int, default=60)
+    run_parser.add_argument("--video-fps", type=int, default=None,
+                            help="video frame rate; overrides evidence.video.fps (default: 60)")
     run_parser.add_argument("--priority")
     run_parser.add_argument("--recipe-name", action="append", dest="recipe_names")
     run_parser.add_argument("--parallel", type=int, default=1,
@@ -89,7 +90,8 @@ def main(argv: list[str] | None = None) -> int:
                              help="do not attempt to open generated report in browser")
     demo_parser.add_argument("--video", action="store_true",
                              help="render video evidence if video backend available")
-    demo_parser.add_argument("--video-fps", type=int, default=60)
+    demo_parser.add_argument("--video-fps", type=int, default=None,
+                             help="video frame rate; overrides evidence.video.fps (default: 60)")
     demo_parser.add_argument("--config", type=Path, default=None,
                              help="path to a termproof config YAML file")
     demo_parser.add_argument("--reporter", default="markdown",
@@ -110,6 +112,10 @@ def main(argv: list[str] | None = None) -> int:
             print("--skip-unchanged cannot be combined with --diff or --update-baselines")
             return 2
         config = _resolve_config(args)
+        # The flag is the last step of the same cascade: builtin, then user,
+        # project and explicit config files, then the command line.
+        if args.video_fps is None:
+            args.video_fps = config.evidence.video.fps
         recipes = select_recipes(
             load_recipes(args.recipes),
             priority=args.priority,
@@ -289,6 +295,7 @@ def _run_item(
             video_backend=args.video_backend,
             render_video=render_video,
             video_fps=args.video_fps,
+            evidence=runner.config.evidence,
         )
         if cached is not None:
             return cached
@@ -314,5 +321,6 @@ def _run_item(
             video_backend=args.video_backend,
             render_video=render_video,
             video_fps=args.video_fps,
+            evidence=runner.config.evidence,
         )
     return result

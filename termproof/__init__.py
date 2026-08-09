@@ -1,6 +1,13 @@
 """Evidence-first verification for terminal and TUI applications."""
 
-from .config import VerifierConfig, load_config
+from .config import (
+    EvidenceConfig,
+    PngRenderConfig,
+    SvgRenderConfig,
+    VerifierConfig,
+    VideoConfig,
+    load_config,
+)
 from .models import AssertionResult, Recipe, RunResult, StepResult, load_recipe
 from .protocols import (
     AgentRunner,
@@ -20,7 +27,9 @@ __all__ = [
     "AgentRunner",
     "AssertionResult",
     "AssertionType",
+    "EvidenceConfig",
     "ExecutionMode",
+    "PngRenderConfig",
     "Recipe",
     "Registry",
     "Reporter",
@@ -30,7 +39,9 @@ __all__ = [
     "SessionBackend",
     "StepAction",
     "StepResult",
+    "SvgRenderConfig",
     "VideoBackend",
+    "VideoConfig",
     "VerificationRunner",
     "VerifierConfig",
     "load_config",

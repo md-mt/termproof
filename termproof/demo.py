@@ -112,7 +112,7 @@ def run_demo(
     out_dir: Path,
     no_open: bool,
     render_video: bool = False,
-    video_fps: int = 60,
+    video_fps: int | None = None,
     reporter_name: str = "markdown",
     screen_renderer_name: str = "svg",
     video_backend_name: str = "agg_ffmpeg",
@@ -128,6 +128,8 @@ def run_demo(
         # Default demo uses builtin config only — avoids ambient project/user
         # config contamination for a self-contained demo.
         config = VerifierConfig.builtin()
+    if video_fps is None:
+        video_fps = config.evidence.video.fps
 
     recipe = build_demo_recipe(out_dir=out_dir)
     runner = VerificationRunner(config=config)

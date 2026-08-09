@@ -19,6 +19,15 @@ TermProof exposes stable plugin protocols from `termproof.protocols`.
 
 `ScreenRenderer` plugins can optionally set `extension = "png"` (or another file extension) so evidence artifacts use that screenshot filename suffix.
 
+`ScreenRenderer` and `VideoBackend` plugins can optionally define a
+`from_config(cls, evidence: EvidenceConfig) -> Self` classmethod. When it is
+present TermProof calls it instead of the zero-argument constructor, so the
+plugin can read the `evidence` config block (see the Configuration section of
+the README). Plugins without it keep being constructed with no arguments.
+`EvidenceConfig`, and the narrower `SvgRenderConfig`, `PngRenderConfig`, and
+`VideoConfig` its sections hold, are exported from `termproof.protocols`
+alongside the protocols themselves.
+
 ## ExecutionMode runner surface
 
 An `ExecutionMode.execute` implementation receives a `VerificationRunner` and
