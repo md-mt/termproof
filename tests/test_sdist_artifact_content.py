@@ -25,6 +25,7 @@ _HAVE_TOOLS = shutil.which("cargo") is not None and shutil.which("uv") is not No
 # revision.
 _NEW_TEST_PATHS = {
     "tests/test_sdist_artifact_content.py",
+    "tests/test_wait_for_idle_step.py",
     "tests/fixtures/base_sdist_paths.txt",
     "tests/fixtures/base_wheel_paths.txt",
     "docs/rust-gates.md",
