@@ -130,6 +130,7 @@ def _cache_key(
             "svg": asdict(evidence_config.svg),
             "png": asdict(evidence_config.png),
             "video": asdict(evidence_config.video) if render_video else None,
+            "dedup_step_screenshots": evidence_config.dedup_step_screenshots,
         },
     }
     digest.update(json.dumps(payload, sort_keys=True).encode("utf-8"))

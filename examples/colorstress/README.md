@@ -15,4 +15,6 @@ fixture exists to expose, not a bug in the fixture: `termproof/screen.py`
 flattens the terminal buffer to plain text, so colour and attributes are
 discarded before any renderer is called. Fixing that needs an additive change
 to the renderer interface and is deliberately not done here — this pack is the
-regression surface that has to exist first.
+regression surface that has to exist first. See
+[docs/evidence-quality.md](../../docs/evidence-quality.md) for what was measured
+and what is deferred.

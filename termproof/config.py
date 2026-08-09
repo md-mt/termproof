@@ -65,7 +65,7 @@ BUILTIN_DEFAULTS: dict[str, Any] = {
     # Evidence-rendering parameters. Every value here reproduces the behavior
     # that was previously hardcoded in the renderers and the video pipeline, so
     # an unconfigured run is byte-identical to one from before they were
-    # extracted.
+    # extracted. See docs/evidence-quality.md for the researched alternatives.
     "evidence": {
         "svg": {
             "char_width": 9,
@@ -97,6 +97,7 @@ BUILTIN_DEFAULTS: dict[str, Any] = {
             "font_size": None,
             "font_family": None,
         },
+        "dedup_step_screenshots": False,
     },
 }
 
@@ -167,9 +168,14 @@ class VideoConfig:
 
 @dataclass(frozen=True)
 class EvidenceConfig:
+    # ``dedup_step_screenshots`` writes one image per distinct screen instead of
+    # one per step, and a steps-manifest.json that maps every step onto the
+    # image representing it. Off by default: it changes the artifact layout, so
+    # a consumer that globs the step directory has to read the manifest first.
     svg: SvgRenderConfig = SvgRenderConfig()
     png: PngRenderConfig = PngRenderConfig()
     video: VideoConfig = VideoConfig()
+    dedup_step_screenshots: bool = False
 
 
 @dataclass(frozen=True)
@@ -346,10 +352,13 @@ def _section(cls: type, raw: Any, label: str) -> Any:
 
 def _evidence_from_mapping(raw: Any) -> EvidenceConfig:
     values = _mapping(raw, "evidence")
+    dedup = values.pop("dedup_step_screenshots", False)
+    _check_field_type("evidence", "dedup_step_screenshots", bool, dedup)
     evidence = EvidenceConfig(
         svg=_section(SvgRenderConfig, values.pop("svg", {}), "evidence.svg"),
         png=_section(PngRenderConfig, values.pop("png", {}), "evidence.png"),
         video=_section(VideoConfig, values.pop("video", {}), "evidence.video"),
+        dedup_step_screenshots=dedup,
     )
     if values:
         raise ValueError(f"unknown evidence option(s) {sorted(values)}")

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import shutil
 import subprocess
@@ -12,6 +13,8 @@ from .agg_bundle import resolve_agg
 from .config import EvidenceConfig, SvgRenderConfig, VideoConfig
 from .models import RunResult, StepResult
 from .screen import render_svg, replay_cast
+
+STEPS_MANIFEST_NAME = "steps-manifest.json"
 
 
 def new_run_dir(base_dir: Path, recipe_name: str, renderer: str = "default") -> Path:
@@ -61,6 +64,9 @@ def render_artifacts(
     )
     if step_dir is not None:
         artifacts["step_screenshots"] = str(step_dir)
+        manifest_path = step_dir / STEPS_MANIFEST_NAME
+        if manifest_path.exists():
+            artifacts["step_manifest"] = str(manifest_path)
     for name in ("agent_prompt.md", "agent_transcript.md", "agent_outcome.json"):
         path = run_dir / name
         if path.exists():
@@ -132,15 +138,42 @@ def _render_step_screens(
     if not steps:
         return None
     config = evidence_config or EvidenceConfig()
+    dedup = config.dedup_step_screenshots
     step_dir = run_dir / "steps"
     step_dir.mkdir(parents=True, exist_ok=True)
+    manifest: list[dict[str, Any]] = []
+    previous_digest: str | None = None
+    previous_screenshot = ""
     for index, step in enumerate(steps, start=1):
         safe_name = "".join(ch if ch.isalnum() or ch in "-_" else "-" for ch in step.name)
         path_base = step_dir / f"{index:02d}-{safe_name}"
         (path_base.with_suffix(".txt")).write_text(step.screen + "\n", encoding="utf-8")
         screenshot_path = path_base.with_suffix(f".{screenshot_ext}")
-        _render_screen(
-            step.screen, screenshot_path, cols, rows, screen_renderer, config.svg
+        digest = hashlib.sha256(step.screen.encode("utf-8")).hexdigest()
+        unchanged = dedup and digest == previous_digest
+        if unchanged:
+            # The step still happened and still has a screen; the manifest says
+            # which already-written image represents it. Not dropped (that would
+            # lose the step) and not symlinked (links do not survive artifact
+            # upload).
+            screenshot_name = previous_screenshot
+        else:
+            _render_screen(
+                step.screen, screenshot_path, cols, rows, screen_renderer, config.svg
+            )
+            screenshot_name = screenshot_path.name
+        manifest.append(
+            {
+                "step": path_base.name,
+                "screenshot": screenshot_name,
+                "unchanged_from_previous": unchanged,
+            }
+        )
+        previous_digest = digest
+        previous_screenshot = screenshot_name
+    if dedup:
+        (step_dir / STEPS_MANIFEST_NAME).write_text(
+            json.dumps(manifest, indent=2) + "\n", encoding="utf-8"
         )
     return step_dir
 

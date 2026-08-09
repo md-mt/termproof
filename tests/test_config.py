@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import tempfile
 import unittest
-from dataclasses import fields
+from dataclasses import fields, is_dataclass
 from pathlib import Path
 
 from termproof.config import (
@@ -273,6 +273,7 @@ class EvidenceConfigTest(unittest.TestCase):
                 evidence.video.font_family,
             ],
         )
+        self.assertFalse(evidence.dedup_step_screenshots)
 
     def test_builtin_evidence_defaults_match_the_dataclass_defaults(self) -> None:
         """The two are consumed independently, so drift between them is invisible.
@@ -287,11 +288,13 @@ class EvidenceConfigTest(unittest.TestCase):
         builtin = BUILTIN_DEFAULTS["evidence"]
         self.assertEqual({f.name for f in fields(EvidenceConfig)}, set(builtin))
         for section in fields(EvidenceConfig):
+            value = getattr(EvidenceConfig(), section.name)
+            if not is_dataclass(value):
+                continue  # a scalar knob, already covered by the equality above
             with self.subTest(section=section.name):
-                declared = {
-                    f.name for f in fields(getattr(EvidenceConfig(), section.name))
-                }
-                self.assertEqual(declared, set(builtin[section.name]))
+                self.assertEqual(
+                    {f.name for f in fields(value)}, set(builtin[section.name])
+                )
 
     def test_evidence_values_load_from_yaml(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -300,10 +303,12 @@ class EvidenceConfigTest(unittest.TestCase):
                 "evidence:\n"
                 "  svg:\n    char_width: 8\n    fg: '#ffffff'\n"
                 "  png:\n    scale: 2\n    font_path: /fonts/mono.ttf\n"
-                "  video:\n    pix_fmt: yuv444p\n    crf: 20\n",
+                "  video:\n    pix_fmt: yuv444p\n    crf: 20\n"
+                "  dedup_step_screenshots: true\n",
                 encoding="utf-8",
             )
             config = load_config(project_path=Path(tmp), user_path=user_yaml)
+        self.assertTrue(config.evidence.dedup_step_screenshots)
         self.assertEqual(8, config.evidence.svg.char_width)
         self.assertEqual("#ffffff", config.evidence.svg.fg)
         self.assertEqual(20, config.evidence.svg.line_height)  # untouched key keeps its default
@@ -339,6 +344,16 @@ class EvidenceConfigTest(unittest.TestCase):
             )
             with self.assertRaises(ValueError):
                 load_config(project_path=Path(tmp), user_path=user_yaml)
+
+    def test_non_boolean_dedup_flag_is_rejected_naming_the_offending_key(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            user_yaml = Path(tmp) / "user.yaml"
+            user_yaml.write_text(
+                "evidence:\n  dedup_step_screenshots: yes please\n", encoding="utf-8"
+            )
+            with self.assertRaises(ValueError) as caught:
+                load_config(project_path=Path(tmp), user_path=user_yaml)
+        self.assertIn("evidence.dedup_step_screenshots", str(caught.exception))
 
     def test_quoted_number_is_rejected_naming_the_offending_key(self) -> None:
         """A YAML scalar of the wrong type must fail here, not inside a renderer."""

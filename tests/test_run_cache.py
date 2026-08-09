@@ -234,6 +234,18 @@ class EvidenceConfigCacheKeyTest(unittest.TestCase):
             )
         )
 
+    def test_changed_step_dedup_invalidates_the_cache(self) -> None:
+        """Dedup changes which step screenshots exist, video or not."""
+        for render_video in (False, True):
+            with self.subTest(render_video=render_video):
+                self.assertIsNone(
+                    self._roundtrip(
+                        EvidenceConfig(),
+                        EvidenceConfig(dedup_step_screenshots=True),
+                        render_video=render_video,
+                    )
+                )
+
 
 def _write_recipe(root: Path, name: str, ci_paths: list[str] | None = None) -> Path:
     path = root / f"{name}.recipe.json"

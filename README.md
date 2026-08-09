@@ -250,6 +250,7 @@ evidence:
     fps: 60
     pix_fmt: yuv420p
     crf: null
+  dedup_step_screenshots: false
 ```
 
 `BUILTIN_DEFAULTS` in `termproof/config.py` lists every knob with its default.
@@ -262,6 +263,10 @@ with no `evidence` block renders byte-identical artifacts.
 - `png.scale` multiplies the canvas, the padding and the line pitch, not the glyphs of that bitmap face, so it spreads the same text over a larger image unless `png.font_path` is set too.
 - Unknown keys under `evidence` are rejected at config load, so a misspelled knob fails loudly instead of silently doing nothing. So are a value of the wrong type, a section that is not a mapping, a non-positive size or frame rate, and a negative padding.
 - Evidence values are part of the `--skip-unchanged` cache key, so changing one re-renders cached runs. The `video` knobs only count towards it for a run that renders video, as `--video-fps` and the video backend already do.
+- `dedup_step_screenshots` writes one image per distinct screen instead of one per step. Half of the consecutive step screenshots in the shipped corpus are byte-identical. Every step still gets its `.txt`, and `steps/steps-manifest.json` names the image that represents each one, so no step is lost — but a consumer that globs `steps/*.svg` has to read the manifest instead. Off by default for that reason.
+
+See [`docs/evidence-quality.md`](docs/evidence-quality.md) for what the research
+measured about these defaults and which alternatives it recommends.
 
 ## Packaging
 
