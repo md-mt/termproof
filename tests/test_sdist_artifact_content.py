@@ -21,10 +21,11 @@ _HAVE_TOOLS = shutil.which("cargo") is not None and shutil.which("uv") is not No
 # currently the RUST-002 regression suite itself, the RUST-023 version/drift +
 # RUST-025 evidence-hosting docs, and the RUST-030 case-study scaffolding. The
 # directory includes are unanchored, so any new file under `termproof/`,
-# `tests/`, `examples/`, or `docs/` ships in the sdist and turns this gate red
-# until it is listed here. That hand-registration is a known limitation of
-# asserting an exact path set rather than an intended workflow; everything else
-# in the sdist must stay identical to the base revision.
+# `tests/`, `examples/` (outside the excluded `examples/artifacts`), or `docs/`
+# ships in the sdist and turns this gate red until it is listed here. That
+# hand-registration is a known limitation of asserting an exact path set rather
+# than an intended workflow; everything else in the sdist must stay identical to
+# the base revision.
 _NEW_TEST_PATHS = {
     "tests/test_sdist_artifact_content.py",
     "tests/fixtures/base_sdist_paths.txt",
