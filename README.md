@@ -204,7 +204,7 @@ See [`docs/verified-badge.md`](docs/verified-badge.md) for variants (flat, plast
 - **Pages demo:** Preview locally with `python3 -m http.server 8000 --directory site`. When Pages is enabled on this repo, the rendered site will be at https://md-mt.github.io/termproof/.
 - **Docs site:** [`docs-site`](docs-site) — VitePress documentation source and build.
 - **Examples:** [`examples/generic`](examples/generic) — portable TUI; `examples/pi_workflow_*.recipe.json` — Pi agent showcase.
-- **Docs:** [`docs/install/homebrew.md`](docs/install/homebrew.md) · [`docs/recipe-packs.md`](docs/recipe-packs.md) · [`docs/guides/textual.md`](docs/guides/textual.md) · [`docs/guides/bubbletea.md`](docs/guides/bubbletea.md) · [`docs/guides/ratatui.md`](docs/guides/ratatui.md) · [`docs/releases.md`](docs/releases.md) · [`docs/plugins.md`](docs/plugins.md) · [`docs/verified-badge.md`](docs/verified-badge.md) · [`docs/ci/gitlab.md`](docs/ci/gitlab.md) · [`docs/ci/circleci.md`](docs/ci/circleci.md) · [`docs/ci/docker.md`](docs/ci/docker.md)
+- **Docs:** [`docs/install/homebrew.md`](docs/install/homebrew.md) · [`docs/recipe-packs.md`](docs/recipe-packs.md) · [`docs/guides/textual.md`](docs/guides/textual.md) · [`docs/guides/bubbletea.md`](docs/guides/bubbletea.md) · [`docs/guides/ratatui.md`](docs/guides/ratatui.md) · [`docs/releases.md`](docs/releases.md) · [`docs/evidence-quality.md`](docs/evidence-quality.md) · [`docs/plugins.md`](docs/plugins.md) · [`docs/verified-badge.md`](docs/verified-badge.md) · [`docs/ci/gitlab.md`](docs/ci/gitlab.md) · [`docs/ci/circleci.md`](docs/ci/circleci.md) · [`docs/ci/docker.md`](docs/ci/docker.md)
 
 ## Upgrading from tui-verifier
 
@@ -235,7 +235,7 @@ The idle wait — both the `wait_for_idle` step and this post-script wait — st
 
 The `evidence` block sets the screenshot and video parameters that used to be
 hard-coded in the renderers and the video pipeline, split into `svg`, `png`, and
-`video`:
+`video`, plus the run-wide `dedup_step_screenshots` switch:
 
 ```yaml
 evidence:
@@ -250,6 +250,7 @@ evidence:
     fps: 60
     pix_fmt: yuv420p
     crf: null
+  dedup_step_screenshots: false
 ```
 
 `BUILTIN_DEFAULTS` in `termproof/config.py` lists every knob with its default.
@@ -262,6 +263,10 @@ with no `evidence` block renders byte-identical artifacts.
 - `png.scale` multiplies the canvas, the padding and the line pitch, not the glyphs of that bitmap face, so it spreads the same text over a larger image unless `png.font_path` is set too.
 - Unknown keys under `evidence` are rejected at config load, so a misspelled knob fails loudly instead of silently doing nothing. So are a value of the wrong type, a section that is not a mapping, a non-positive size or frame rate, and a negative padding.
 - Evidence values are part of the `--skip-unchanged` cache key, so changing one re-renders cached runs. The `video` knobs only count towards it for a run that renders video, as `--video-fps` and the video backend already do.
+- `dedup_step_screenshots` skips the screenshot for a step whose screen is unchanged from the immediately preceding step, so an unbroken run of identical screens costs one image instead of one per step. A screen that reappears after a different one is rendered again. Half of the consecutive step screenshots in the shipped corpus are byte-identical. Every step still gets its `.txt`, and `steps/steps-manifest.json` names the image that represents each one, so no step is lost — but a consumer that globs `steps/*.svg` has to read the manifest instead. Off by default for that reason.
+
+See [`docs/evidence-quality.md`](docs/evidence-quality.md) for what the research
+measured about these defaults and which alternatives it recommends.
 
 ## Packaging
 

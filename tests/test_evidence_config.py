@@ -254,5 +254,105 @@ class StepScreenScopeTest(unittest.TestCase):
             self.assertIn("#ff0000", path.read_text(encoding="utf-8"))
 
 
+class StepScreenshotDedupTest(unittest.TestCase):
+    STEPS = [
+        StepResult("wait for prompt", True, "", "screen one"),
+        StepResult("propose change", True, "", "screen one"),
+        StepResult("apply change", True, "", "screen two"),
+    ]
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+
+    def _render(self, config: EvidenceConfig) -> Path:
+        run_dir = Path(self._tmp.name)
+        evidence._render_step_screens(
+            run_dir, self.STEPS, 80, 24, SvgRenderer(), "svg", config
+        )
+        return run_dir / "steps"
+
+    def _run_dir_with_cast(self) -> Path:
+        run_dir = Path(self._tmp.name) / "run"
+        run_dir.mkdir()
+        (run_dir / "session.cast").write_text(
+            json.dumps({"version": 2, "width": 80, "height": 24}) + "\n",
+            encoding="utf-8",
+        )
+        return run_dir
+
+    def test_dedup_off_writes_every_screenshot_and_no_manifest(self) -> None:
+        step_dir = self._render(EvidenceConfig())
+        self.assertEqual(3, len(list(step_dir.glob("*.svg"))))
+        self.assertFalse((step_dir / evidence.STEPS_MANIFEST_NAME).exists())
+
+    def test_dedup_on_skips_the_repeat_image_but_keeps_every_step(self) -> None:
+        step_dir = self._render(EvidenceConfig(dedup_step_screenshots=True))
+        written = sorted(path.name for path in step_dir.glob("*.svg"))
+        self.assertEqual(["01-wait-for-prompt.svg", "03-apply-change.svg"], written)
+        # The step that produced no new image still has its own screen text.
+        self.assertEqual(3, len(list(step_dir.glob("*.txt"))))
+
+    def test_dedup_manifest_records_every_step(self) -> None:
+        step_dir = self._render(EvidenceConfig(dedup_step_screenshots=True))
+        manifest = json.loads(
+            (step_dir / evidence.STEPS_MANIFEST_NAME).read_text(encoding="utf-8")
+        )
+        self.assertEqual(
+            [
+                {
+                    "step": "01-wait-for-prompt",
+                    "screenshot": "01-wait-for-prompt.svg",
+                    "unchanged_from_previous": False,
+                },
+                {
+                    "step": "02-propose-change",
+                    "screenshot": "01-wait-for-prompt.svg",
+                    "unchanged_from_previous": True,
+                },
+                {
+                    "step": "03-apply-change",
+                    "screenshot": "03-apply-change.svg",
+                    "unchanged_from_previous": False,
+                },
+            ],
+            manifest,
+        )
+
+    def test_dedup_compares_against_the_previous_step_only(self) -> None:
+        """A screen that reappears after a different one is rendered again."""
+        steps = [
+            StepResult("a", True, "", "one"),
+            StepResult("b", True, "", "two"),
+            StepResult("c", True, "", "one"),
+        ]
+        run_dir = Path(self._tmp.name)
+        evidence._render_step_screens(
+            run_dir,
+            steps,
+            80,
+            24,
+            SvgRenderer(),
+            "svg",
+            EvidenceConfig(dedup_step_screenshots=True),
+        )
+        self.assertEqual(3, len(list((run_dir / "steps").glob("*.svg"))))
+
+    def test_manifest_is_published_as_an_artifact_when_dedup_is_on(self) -> None:
+        artifacts = evidence.render_artifacts(
+            self._run_dir_with_cast(),
+            render_video=False,
+            steps=list(self.STEPS),
+            evidence_config=EvidenceConfig(dedup_step_screenshots=True),
+        )
+        self.assertIn("step_manifest", artifacts)
+
+    def test_no_manifest_artifact_by_default(self) -> None:
+        artifacts = evidence.render_artifacts(
+            self._run_dir_with_cast(), render_video=False, steps=list(self.STEPS)
+        )
+        self.assertNotIn("step_manifest", artifacts)
+
+
 if __name__ == "__main__":
     unittest.main()

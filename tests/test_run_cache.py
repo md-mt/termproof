@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import tempfile
 import unittest
+from dataclasses import fields, is_dataclass, replace
 from pathlib import Path
+from typing import Any
 
 from termproof.config import (
     EvidenceConfig,
@@ -233,6 +235,54 @@ class EvidenceConfigCacheKeyTest(unittest.TestCase):
                 render_video=False,
             )
         )
+
+    def test_changed_step_dedup_invalidates_the_cache(self) -> None:
+        """Dedup changes which step screenshots exist, video or not."""
+        for render_video in (False, True):
+            with self.subTest(render_video=render_video):
+                self.assertIsNone(
+                    self._roundtrip(
+                        EvidenceConfig(),
+                        EvidenceConfig(dedup_step_screenshots=True),
+                        render_video=render_video,
+                    )
+                )
+
+    def test_every_scalar_evidence_knob_invalidates_the_cache(self) -> None:
+        """The scalar knobs are enumerated from the dataclass, not by hand.
+
+        The sub-sections are serialized wholesale, so a knob added inside one is
+        keyed for free; a scalar added beside them is not, and one that never
+        reaches the digest lets ``--skip-unchanged`` replay a stored pass whose
+        artifacts the knob would have changed. This fails for any such field.
+        """
+        defaults = EvidenceConfig()
+        scalars = [
+            field.name
+            for field in fields(defaults)
+            if not is_dataclass(getattr(defaults, field.name))
+        ]
+        self.assertTrue(scalars)
+        for name in scalars:
+            changed = replace(defaults, **{name: _perturbed(getattr(defaults, name))})
+            for render_video in (False, True):
+                with self.subTest(knob=name, render_video=render_video):
+                    self.assertIsNone(
+                        self._roundtrip(
+                            defaults, changed, render_video=render_video
+                        )
+                    )
+
+
+def _perturbed(value: Any) -> Any:
+    """Any different value of the same kind, so the cache key has to notice."""
+    if isinstance(value, bool):
+        return not value
+    if isinstance(value, (int, float)):
+        return value + 1
+    if isinstance(value, str):
+        return value + "-changed"
+    raise TypeError(f"teach _perturbed how to change a {type(value).__name__}")
 
 
 def _write_recipe(root: Path, name: str, ci_paths: list[str] | None = None) -> Path:
