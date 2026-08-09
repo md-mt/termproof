@@ -40,7 +40,7 @@ jobs:
           cp rust/target/${{ matrix.target }}/release/termproof dist/termproof
           tar -czf dist/${{ matrix.archive }} -C dist termproof
           shasum -a 256 dist/${{ matrix.archive }} > dist/${{ matrix.archive }}.sha256
-      - uses: actions/attest-build-provenance@v2
+      - uses: actions/attest-build-provenance@v4
         with:
           subject-path: dist/${{ matrix.archive }}
       - uses: actions/upload-artifact@v4
