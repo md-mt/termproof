@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="936" height="676" viewBox="0 0 936 676">
+<rect width="100%" height="100%" fill="#101418"/>
+<style>text{font:14px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;fill:#e6edf3;white-space:pre}</style>
+<text x="18" y="38">└──────────────────────────────────────────────────────────────┘</text>
+<text x="18" y="58">16-colour  fg 30-37 / bright 90-97, bg 40-47 / bright 100-107</text>
+<text x="18" y="78">  fg ████████████████  bright ████████████████</text>
+<text x="18" y="98">  bg  40  41  42  43  44  45  46  47</text>
+<text x="18" y="118">  bgbright 100101102103104105106107</text>
+<text x="18" y="138">256-colour  6x6x6 cube (16-231) then greyscale ramp (232-255)</text>
+<text x="18" y="158"></text>
+<text x="18" y="178"></text>
+<text x="18" y="198"></text>
+<text x="18" y="218"></text>
+<text x="18" y="238">24-bit truecolour  bg sweep then fg sweep</text>
+<text x="18" y="258"></text>
+<text x="18" y="278">  ████████████████████████████████████████████████████████████████████████</text>
+<text x="18" y="298">PALETTE READY</text>
+<text x="18" y="318"></text>
+<text x="18" y="338">colour&gt; attrs</text>
+<text x="18" y="358"></text>
+<text x="18" y="378">attributes</text>
+<text x="18" y="398">  bold  dim  italic  underline  reverse  strike  bold-red  dim-green  ul-truecolour</text>
+<text x="18" y="418">unicode  box drawing, CJK wide cells, emoji</text>
+<text x="18" y="438">  ┏━━━┳━━━┓  ╔═╗  ╭─╮</text>
+<text x="18" y="458">  ┃ A ┃ B ┃  ║ ║  │ │</text>
+<text x="18" y="478">  ┗━━━┻━━━┛  ╚═╝  ╰─╯</text>
+<text x="18" y="498">  中文宽字符 | 日本語テキスト | 한국어 | 🚀 ✔ ✗</text>
+<text x="18" y="518">ATTRS READY</text>
+<text x="18" y="538"></text>
+<text x="18" y="558">colour&gt; animate</text>
+<text x="18" y="578"></text>
+<text x="18" y="598">  ⠙ indexing                                          100%</text>
+<text x="18" y="618">ANIMATE READY</text>
+<text x="18" y="638"></text>
+<text x="18" y="658">colour&gt;</text>
+</svg>
