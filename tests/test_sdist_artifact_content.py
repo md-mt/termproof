@@ -24,6 +24,18 @@ _BUILD_OUTPUT_SUFFIXES = frozenset(
 # Path components that denote a build directory rather than source.
 _BUILD_OUTPUT_DIRS = frozenset({"target", "build", "dist", "__pycache__", ".pytest_cache", ".mypy_cache"})
 
+# Base-revision paths that have since been deliberately removed from the
+# repository. `base_sdist_paths.txt` is a historical record of what the base
+# revision shipped and is not rewritten, so an intentional deletion is
+# registered here instead -- which keeps it a reviewed decision rather than a
+# silent edit to the baseline.
+_INTENTIONALLY_REMOVED = frozenset(
+    {
+        # The Rust reimplementation moved to https://github.com/md-mt/termproof-rust.
+        "docs/rust-reimplementation-spec.md",
+    }
+)
+
 
 def _load_fixture(name: str) -> set[str]:
     return {
@@ -51,7 +63,8 @@ class SdistArtifactContentTest(unittest.TestCase):
     2. ``base ⊆ head`` — the sdist never *drops* payload it used to ship. This
        is the failure that actually happened: anchoring the include patterns to
        the repository root silently dropped 13 ``plugin-template/**`` and
-       ``site/README.md`` paths;
+       ``site/README.md`` paths. A file deleted on purpose is registered in
+       ``_INTENTIONALLY_REMOVED`` rather than edited out of the baseline;
     3. ``head − base`` contains no compiled build output — no build directory,
        no object/library suffix, no executable bit.
 
@@ -137,13 +150,27 @@ class SdistArtifactContentTest(unittest.TestCase):
         self.assertEqual([], rust_entries, f"wheel must not contain any rust/ entries: {rust_entries}")
 
     def test_sdist_preserves_base_non_rust_payload_paths(self) -> None:
-        base_paths = _load_fixture("base_sdist_paths.txt")
+        base_paths = _load_fixture("base_sdist_paths.txt") - _INTENTIONALLY_REMOVED
         head_paths = self._sdist_relative_names()
         missing = sorted(base_paths - head_paths)
         self.assertEqual(
             [],
             missing,
             "sdist dropped pre-existing payload paths present in the base revision's sdist: " f"{missing}",
+        )
+
+    def test_intentional_removals_are_accurate(self) -> None:
+        """Stop `_INTENTIONALLY_REMOVED` from rotting into a blanket exemption."""
+        base_paths = _load_fixture("base_sdist_paths.txt")
+
+        not_in_base = sorted(_INTENTIONALLY_REMOVED - base_paths)
+        self.assertEqual([], not_in_base, f"registered removals that the base revision never shipped: {not_in_base}")
+
+        still_shipping = sorted(_INTENTIONALLY_REMOVED & self._sdist_relative_names())
+        self.assertEqual(
+            [],
+            still_shipping,
+            f"registered removals that the sdist still ships -- drop them from the set: {still_shipping}",
         )
 
     def test_sdist_adds_no_build_output(self) -> None:

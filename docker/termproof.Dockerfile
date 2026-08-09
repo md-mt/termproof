@@ -1,8 +1,5 @@
-FROM rust:1.96-slim AS rust-builder
-WORKDIR /src
-COPY rust/ ./rust/
-RUN cargo build --manifest-path rust/Cargo.toml --release --bin termproof
-
+# The Rust toolchain here builds `agg`, the asciinema cast renderer. It is not
+# a TermProof engine — the image ships the Python implementation only.
 FROM rust:1.85-slim AS agg-builder
 
 ARG AGG_TAG=v1.9.0
@@ -23,12 +20,10 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=agg-builder /opt/agg/bin/agg /usr/local/bin/agg
-COPY --from=rust-builder /src/rust/target/release/termproof /usr/local/bin/termproof-rust
 COPY . /opt/termproof
 
 RUN python -m pip install --no-cache-dir /opt/termproof \
     && termproof --help >/dev/null \
-    && termproof-rust --help >/dev/null \
     && agg --version >/dev/null \
     && ffmpeg -version >/dev/null
 

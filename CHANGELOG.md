@@ -21,6 +21,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   alone, so terminal-title ticks, colour-only animation and idempotent repaints
   go idle exactly as before.
 
+### Removed
+
+- **The Rust engine.** The in-progress Rust reimplementation has moved to its
+  own repository, [md-mt/termproof-rust](https://github.com/md-mt/termproof-rust),
+  and no longer ships from here. Concretely:
+  - the GitHub Action no longer accepts `engine: rust`; passing it now fails
+    with an explanatory error instead of downloading a release archive. The
+    `rust-version` input is gone. `engine: auto` and `engine: python` are
+    unchanged.
+  - the container image no longer contains the `termproof-rust` binary. It
+    still contains a Rust toolchain, which builds the `agg` cast renderer and
+    is unrelated.
+  - the `rust/` workspace, the `Rust` and `Release (Rust)` workflows, the
+    `rust` build dependency in the Homebrew formula, and the
+    `pyproject.toml` ↔ `rust/Cargo.toml` version drift check are gone.
+  - `docs/rust-reimplementation-spec.md`, `docs/rust-gates.md` and the docs-site
+    Rust pages are gone; `/rust/` now explains the move.
+
+  **There is no replacement yet.** `termproof-rust` has not published a release
+  and has no parity gate — a differential harness found the two implementations
+  agreeing on 55 of 217 cases. The Python implementation, which is what every
+  install channel has always shipped, remains the only supported engine.
+
 ## [0.2.1] — 2026-07-29
 
 ### Added

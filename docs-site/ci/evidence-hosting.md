@@ -1,4 +1,4 @@
-# Durable Evidence Hosting (RUST-025)
+# Durable Evidence Hosting
 
 GitHub Actions artifacts expire. TermProof now supports durable hosting via S3-compatible storage (Cloudflare R2 or AWS S3) with least-privilege publishing and stable PR links.
 

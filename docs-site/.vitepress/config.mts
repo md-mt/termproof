@@ -39,7 +39,8 @@ export default defineConfig({
           { text: "API Reference", link: "/api/" },
           { text: "Plugins", link: "/plugins" },
           { text: "CI Integration", link: "/ci/" },
-          { text: "Rust Migration", link: "/rust/migration" }
+          { text: "Evidence Hosting", link: "/ci/evidence-hosting" },
+          { text: "Rust Port", link: "/rust/" }
         ]
       },
       {
@@ -49,15 +50,6 @@ export default defineConfig({
           { text: "TUI Framework (draft)", link: "/case-studies/placeholder-tui-framework" },
           { text: "Terminal App (draft)", link: "/case-studies/placeholder-terminal-app" },
           { text: "CLI Tool (draft)", link: "/case-studies/placeholder-cli-tool" }
-        ]
-      },
-      {
-        text: "Rust (RUST-024)",
-        items: [
-          { text: "Rust Install", link: "/rust/install" },
-          { text: "Migration Guide", link: "/rust/migration" },
-          { text: "Plugin Protocol", link: "/rust/plugin-protocol" },
-          { text: "Evidence Hosting", link: "/rust/evidence-hosting" }
         ]
       }
     ],

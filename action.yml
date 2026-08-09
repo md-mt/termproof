@@ -18,13 +18,12 @@ inputs:
     required: false
     default: "60"
   engine:
-    description: Engine to use (auto, python, rust). Auto prefers Rust binary when available.
+    description: |
+      Engine to use (auto, python). Auto reuses a `termproof` already on PATH.
+      `rust` is no longer accepted — the Rust engine moved to
+      https://github.com/md-mt/termproof-rust and does not publish releases yet.
     required: false
     default: "auto"
-  rust-version:
-    description: Rust binary version to install when engine is rust.
-    required: false
-    default: "0.2.1"
 
 outputs:
   evidence-path:
@@ -41,12 +40,19 @@ runs:
     - name: Install TermProof
       shell: bash
       run: |
-        if [[ "${{ inputs.engine }}" == "rust" ]]; then
-          ver="${{ inputs.rust-version }}"
-          curl -LO "https://github.com/md-mt/termproof/releases/download/v${ver}/termproof-linux-x86_64.tar.gz"
-          tar -xzf termproof-linux-x86_64.tar.gz -C /tmp
-          sudo mv /tmp/termproof /usr/local/bin/termproof
-        elif [[ "${{ inputs.engine }}" == "auto" ]] && command -v termproof >/dev/null 2>&1; then
+        engine="${{ inputs.engine }}"
+        case "$engine" in
+          rust)
+            echo "::error::engine: rust is no longer supported by this action. The Rust engine moved to https://github.com/md-mt/termproof-rust, which has not published a release yet. Use engine: python (or auto) until it does."
+            exit 1
+            ;;
+          auto|python) ;;
+          *)
+            echo "::error::Unknown engine '$engine'. Supported values: auto, python."
+            exit 1
+            ;;
+        esac
+        if [[ "$engine" == "auto" ]] && command -v termproof >/dev/null 2>&1; then
           echo "Using existing termproof binary"
         else
           uv tool install termproof

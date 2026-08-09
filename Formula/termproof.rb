@@ -8,7 +8,6 @@ class Termproof < Formula
   license "MIT"
 
   depends_on "pkgconf" => :build
-  depends_on "rust" => :build
   depends_on "agg"
   depends_on "ffmpeg"
   depends_on "jpeg-turbo"
