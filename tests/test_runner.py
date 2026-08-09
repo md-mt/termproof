@@ -2,13 +2,17 @@ from __future__ import annotations
 
 import sys
 import tempfile
+import types
 import unittest
 from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 
+from PIL import Image
+
+from termproof import evidence as evidence_module
 from termproof import runner as runner_module
-from termproof.config import VerifierConfig, load_config
+from termproof.config import EvidenceConfig, VerifierConfig, load_config
 from termproof.models import CommandSpec, Recipe
 from termproof.runner import VerificationRunner
 
@@ -514,3 +518,131 @@ class QuiescenceBehaviorTest(unittest.TestCase):
                 self.assertTrue(session.wait_for_idle(0.3, 2.0))
         finally:
             session.close()
+
+
+class ConfigAwareRenderer:
+    """A plugin that opts into the evidence config via ``from_config``."""
+
+    name = "config_aware"
+    extension = "svg"
+
+    def __init__(self, evidence: EvidenceConfig) -> None:
+        self.evidence = evidence
+
+    @classmethod
+    def from_config(cls, evidence: EvidenceConfig) -> ConfigAwareRenderer:
+        return cls(evidence)
+
+    def render(self, text: str, output_path: Path, cols: int, rows: int) -> None:
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(self.evidence.svg.bg, encoding="utf-8")
+
+
+class BareRenderer:
+    """A third-party plugin written against the bare protocol, with no hook."""
+
+    name = "bare"
+    extension = "svg"
+
+    def render(self, text: str, output_path: Path, cols: int, rows: int) -> None:
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(text, encoding="utf-8")
+
+
+class EvidencePluginConstructionTest(unittest.TestCase):
+    """The registries are the only path by which ``evidence`` reaches a plugin.
+
+    A renderer or video backend a run actually uses comes from
+    ``runner.screen_renderer_registry`` / ``runner.video_backend_registry``, so
+    a configured knob that never reaches those instances is a knob that does
+    nothing. The opt-in hook has two halves worth pinning: a plugin exposing
+    ``from_config`` receives the loaded configuration, and one written against
+    the bare protocol is still constructed with no arguments.
+    """
+
+    @staticmethod
+    def _with_evidence(**sections: object) -> VerifierConfig:
+        config = VerifierConfig.builtin()
+        return replace(config, evidence=replace(config.evidence, **sections))
+
+    def _install_plugin_module(self, **members: type) -> str:
+        module = types.ModuleType("termproof_evidence_plugin_fixture")
+        for name, member in members.items():
+            setattr(module, name, member)
+        sys.modules[module.__name__] = module
+        self.addCleanup(sys.modules.pop, module.__name__, None)
+        return module.__name__
+
+    def test_configured_svg_colour_reaches_the_renderer_a_run_uses(self) -> None:
+        config = VerifierConfig.builtin()
+        runner = VerificationRunner(
+            config=self._with_evidence(svg=replace(config.evidence.svg, bg="#ff0000"))
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp) / "final.svg"
+            runner.screen_renderer_registry.get("svg").render("hello", output, 80, 24)
+            svg = output.read_text(encoding="utf-8")
+        self.assertIn('fill="#ff0000"', svg)
+        self.assertNotIn("#101418", svg)
+
+    def test_configured_png_colour_reaches_the_renderer_a_run_uses(self) -> None:
+        config = VerifierConfig.builtin()
+        runner = VerificationRunner(
+            config=self._with_evidence(png=replace(config.evidence.png, bg="#00ff00"))
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp) / "final.png"
+            runner.screen_renderer_registry.get("png").render("hello", output, 20, 4)
+            with Image.open(output) as image:
+                corner = image.convert("RGB").getpixel((0, 0))
+        self.assertEqual((0, 255, 0), corner)
+
+    def test_configured_video_setting_reaches_the_backend_a_run_uses(self) -> None:
+        config = VerifierConfig.builtin()
+        runner = VerificationRunner(
+            config=self._with_evidence(
+                video=replace(config.evidence.video, pix_fmt="yuv444p")
+            )
+        )
+        backend = runner.video_backend_registry.get("agg_ffmpeg")
+        with tempfile.TemporaryDirectory() as tmp, \
+                patch.object(evidence_module, "resolve_agg", return_value="/bin/agg"), \
+                patch.object(evidence_module, "find_ffmpeg", return_value="/bin/ffmpeg"), \
+                patch.object(evidence_module.subprocess, "run") as run:
+            backend.render(Path(tmp) / "in.cast", Path(tmp) / "out.mp4", 60)
+        ffmpeg_cmd = run.call_args_list[-1].args[0]
+        self.assertEqual("yuv444p", ffmpeg_cmd[ffmpeg_cmd.index("-pix_fmt") + 1])
+
+    def test_plugin_with_from_config_receives_the_loaded_evidence_config(self) -> None:
+        module = self._install_plugin_module(ConfigAwareRenderer=ConfigAwareRenderer)
+        config = VerifierConfig.builtin()
+        config = self._with_evidence(svg=replace(config.evidence.svg, bg="#123456"))
+        config = replace(
+            config,
+            screen_renderers={
+                **config.screen_renderers,
+                "config_aware": f"{module}:ConfigAwareRenderer",
+            },
+        )
+        renderer = VerificationRunner(config=config).screen_renderer_registry.get(
+            "config_aware"
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp) / "plugin.svg"
+            renderer.render("hello", output, 80, 24)
+            self.assertEqual("#123456", output.read_text(encoding="utf-8"))
+
+    def test_plugin_without_from_config_is_still_constructed_with_no_arguments(self) -> None:
+        """The opt-in hook is what keeps plugins written against the bare protocol working."""
+        module = self._install_plugin_module(BareRenderer=BareRenderer)
+        config = VerifierConfig.builtin()
+        config = replace(
+            config,
+            screen_renderers={**config.screen_renderers, "bare": f"{module}:BareRenderer"},
+        )
+        renderer = VerificationRunner(config=config).screen_renderer_registry.get("bare")
+        self.assertIsInstance(renderer, BareRenderer)
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp) / "plugin.svg"
+            renderer.render("hello", output, 80, 24)
+            self.assertEqual("hello", output.read_text(encoding="utf-8"))
