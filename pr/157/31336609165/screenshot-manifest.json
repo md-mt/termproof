@@ -1,0 +1,772 @@
+[
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260809-212253-044204-generic-tui-workflow-default/final.svg",
+    "path": "20260809-212253-044204-generic-tui-workflow-default/final.svg"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260809-212253-044204-generic-tui-workflow-default/steps/01-wait-for-prompt.svg",
+    "path": "20260809-212253-044204-generic-tui-workflow-default/steps/01-wait-for-prompt.svg"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260809-212253-044204-generic-tui-workflow-default/steps/02-open-dashboard.svg",
+    "path": "20260809-212253-044204-generic-tui-workflow-default/steps/02-open-dashboard.svg"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260809-212253-044204-generic-tui-workflow-default/steps/03-wait-for-dashboard.svg",
+    "path": "20260809-212253-044204-generic-tui-workflow-default/steps/03-wait-for-dashboard.svg"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260809-212253-044204-generic-tui-workflow-default/steps/04-filter-errors.svg",
+    "path": "20260809-212253-044204-generic-tui-workflow-default/steps/04-filter-errors.svg"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260809-212253-044204-generic-tui-workflow-default/steps/05-wait-for-filter.svg",
+    "path": "20260809-212253-044204-generic-tui-workflow-default/steps/05-wait-for-filter.svg"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260809-212253-044204-generic-tui-workflow-default/steps/06-export-report.svg",
+    "path": "20260809-212253-044204-generic-tui-workflow-default/steps/06-export-report.svg"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260809-212253-044204-generic-tui-workflow-default/steps/07-wait-for-export.svg",
+    "path": "20260809-212253-044204-generic-tui-workflow-default/steps/07-wait-for-export.svg"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260809-212253-044204-generic-tui-workflow-default/steps/08-close-session.svg",
+    "path": "20260809-212253-044204-generic-tui-workflow-default/steps/08-close-session.svg"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260809-212253-044204-generic-tui-workflow-default/steps/09-wait-for-close.svg",
+    "path": "20260809-212253-044204-generic-tui-workflow-default/steps/09-wait-for-close.svg"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260809-212257-901856-colour-stress-default/final.svg",
+    "path": "20260809-212257-901856-colour-stress-default/final.svg"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260809-212257-901856-colour-stress-default/steps/01-wait-for-prompt.svg",
+    "path": "20260809-212257-901856-colour-stress-default/steps/01-wait-for-prompt.svg"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260809-212257-901856-colour-stress-default/steps/02-show-palette.svg",
+    "path": "20260809-212257-901856-colour-stress-default/steps/02-show-palette.svg"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260809-212257-901856-colour-stress-default/steps/03-wait-for-palette.svg",
+    "path": "20260809-212257-901856-colour-stress-default/steps/03-wait-for-palette.svg"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260809-212257-901856-colour-stress-default/steps/04-show-attributes.svg",
+    "path": "20260809-212257-901856-colour-stress-default/steps/04-show-attributes.svg"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260809-212257-901856-colour-stress-default/steps/05-wait-for-attributes.svg",
+    "path": "20260809-212257-901856-colour-stress-default/steps/05-wait-for-attributes.svg"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260809-212257-901856-colour-stress-default/steps/06-animate.svg",
+    "path": "20260809-212257-901856-colour-stress-default/steps/06-animate.svg"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260809-212257-901856-colour-stress-default/steps/07-wait-for-animation.svg",
+    "path": "20260809-212257-901856-colour-stress-default/steps/07-wait-for-animation.svg"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260809-212257-901856-colour-stress-default/steps/08-close-session.svg",
+    "path": "20260809-212257-901856-colour-stress-default/steps/08-close-session.svg"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260809-212257-901856-colour-stress-default/steps/09-wait-for-close.svg",
+    "path": "20260809-212257-901856-colour-stress-default/steps/09-wait-for-close.svg"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260809-212301-358784-multi-turn-conversation-default/final.svg",
+    "path": "20260809-212301-358784-multi-turn-conversation-default/final.svg"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260809-212301-358784-multi-turn-conversation-default/steps/01-wait-for-prompt.svg",
+    "path": "20260809-212301-358784-multi-turn-conversation-default/steps/01-wait-for-prompt.svg"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260809-212301-358784-multi-turn-conversation-default/steps/02-inspect-repository.svg",
+    "path": "20260809-212301-358784-multi-turn-conversation-default/steps/02-inspect-repository.svg"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260809-212301-358784-multi-turn-conversation-default/steps/03-wait-for-inspection.svg",
+    "path": "20260809-212301-358784-multi-turn-conversation-default/steps/03-wait-for-inspection.svg"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260809-212301-358784-multi-turn-conversation-default/steps/04-pause-after-inspection.svg",
+    "path": "20260809-212301-358784-multi-turn-conversation-default/steps/04-pause-after-inspection.svg"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260809-212301-358784-multi-turn-conversation-default/steps/05-run-pipeline.svg",
+    "path": "20260809-212301-358784-multi-turn-conversation-default/steps/05-run-pipeline.svg"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260809-212301-358784-multi-turn-conversation-default/steps/06-wait-for-pipeline.svg",
+    "path": "20260809-212301-358784-multi-turn-conversation-default/steps/06-wait-for-pipeline.svg"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260809-212301-358784-multi-turn-conversation-default/steps/07-pause-after-render.svg",
+    "path": "20260809-212301-358784-multi-turn-conversation-default/steps/07-pause-after-render.svg"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260809-212301-358784-multi-turn-conversation-default/steps/08-summarize-evidence.svg",
+    "path": "20260809-212301-358784-multi-turn-conversation-default/steps/08-summarize-evidence.svg"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260809-212301-358784-multi-turn-conversation-default/steps/09-wait-for-summary.svg",
+    "path": "20260809-212301-358784-multi-turn-conversation-default/steps/09-wait-for-summary.svg"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260809-212301-358784-multi-turn-conversation-default/steps/10-pause-before-exit.svg",
+    "path": "20260809-212301-358784-multi-turn-conversation-default/steps/10-pause-before-exit.svg"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260809-212301-358784-multi-turn-conversation-default/steps/11-close-session.svg",
+    "path": "20260809-212301-358784-multi-turn-conversation-default/steps/11-close-session.svg"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260809-212301-358784-multi-turn-conversation-default/steps/12-wait-for-completion.svg",
+    "path": "20260809-212301-358784-multi-turn-conversation-default/steps/12-wait-for-completion.svg"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260809-212322-065078-pi-workflow-readonly-review-default/final.svg",
+    "path": "20260809-212322-065078-pi-workflow-readonly-review-default/final.svg"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260809-212322-065078-pi-workflow-readonly-review-default/steps/01-wait-for-prompt.svg",
+    "path": "20260809-212322-065078-pi-workflow-readonly-review-default/steps/01-wait-for-prompt.svg"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260809-212322-065078-pi-workflow-readonly-review-default/steps/02-scope-repository.svg",
+    "path": "20260809-212322-065078-pi-workflow-readonly-review-default/steps/02-scope-repository.svg"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260809-212322-065078-pi-workflow-readonly-review-default/steps/03-wait-for-scope.svg",
+    "path": "20260809-212322-065078-pi-workflow-readonly-review-default/steps/03-wait-for-scope.svg"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260809-212322-065078-pi-workflow-readonly-review-default/steps/04-inspect-files.svg",
+    "path": "20260809-212322-065078-pi-workflow-readonly-review-default/steps/04-inspect-files.svg"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260809-212322-065078-pi-workflow-readonly-review-default/steps/05-wait-for-inspection.svg",
+    "path": "20260809-212322-065078-pi-workflow-readonly-review-default/steps/05-wait-for-inspection.svg"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260809-212322-065078-pi-workflow-readonly-review-default/steps/06-run-validation.svg",
+    "path": "20260809-212322-065078-pi-workflow-readonly-review-default/steps/06-run-validation.svg"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260809-212322-065078-pi-workflow-readonly-review-default/steps/07-wait-for-validation.svg",
+    "path": "20260809-212322-065078-pi-workflow-readonly-review-default/steps/07-wait-for-validation.svg"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260809-212322-065078-pi-workflow-readonly-review-default/steps/08-report-findings.svg",
+    "path": "20260809-212322-065078-pi-workflow-readonly-review-default/steps/08-report-findings.svg"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260809-212322-065078-pi-workflow-readonly-review-default/steps/09-wait-for-review.svg",
+    "path": "20260809-212322-065078-pi-workflow-readonly-review-default/steps/09-wait-for-review.svg"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260809-212322-065078-pi-workflow-readonly-review-default/steps/10-close-session.svg",
+    "path": "20260809-212322-065078-pi-workflow-readonly-review-default/steps/10-close-session.svg"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260809-212322-065078-pi-workflow-readonly-review-default/steps/11-wait-for-close.svg",
+    "path": "20260809-212322-065078-pi-workflow-readonly-review-default/steps/11-wait-for-close.svg"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260809-212331-843519-pi-workflow-guarded-edit-default/final.svg",
+    "path": "20260809-212331-843519-pi-workflow-guarded-edit-default/final.svg"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260809-212331-843519-pi-workflow-guarded-edit-default/steps/01-wait-for-prompt.svg",
+    "path": "20260809-212331-843519-pi-workflow-guarded-edit-default/steps/01-wait-for-prompt.svg"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260809-212331-843519-pi-workflow-guarded-edit-default/steps/02-propose-change.svg",
+    "path": "20260809-212331-843519-pi-workflow-guarded-edit-default/steps/02-propose-change.svg"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260809-212331-843519-pi-workflow-guarded-edit-default/steps/03-wait-for-plan.svg",
+    "path": "20260809-212331-843519-pi-workflow-guarded-edit-default/steps/03-wait-for-plan.svg"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260809-212331-843519-pi-workflow-guarded-edit-default/steps/04-apply-patch.svg",
+    "path": "20260809-212331-843519-pi-workflow-guarded-edit-default/steps/04-apply-patch.svg"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260809-212331-843519-pi-workflow-guarded-edit-default/steps/05-wait-for-patch.svg",
+    "path": "20260809-212331-843519-pi-workflow-guarded-edit-default/steps/05-wait-for-patch.svg"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260809-212331-843519-pi-workflow-guarded-edit-default/steps/06-validate-tests.svg",
+    "path": "20260809-212331-843519-pi-workflow-guarded-edit-default/steps/06-validate-tests.svg"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260809-212331-843519-pi-workflow-guarded-edit-default/steps/07-wait-for-validation.svg",
+    "path": "20260809-212331-843519-pi-workflow-guarded-edit-default/steps/07-wait-for-validation.svg"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260809-212331-843519-pi-workflow-guarded-edit-default/steps/08-summarize-diff.svg",
+    "path": "20260809-212331-843519-pi-workflow-guarded-edit-default/steps/08-summarize-diff.svg"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260809-212331-843519-pi-workflow-guarded-edit-default/steps/09-wait-for-summary.svg",
+    "path": "20260809-212331-843519-pi-workflow-guarded-edit-default/steps/09-wait-for-summary.svg"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260809-212331-843519-pi-workflow-guarded-edit-default/steps/10-close-session.svg",
+    "path": "20260809-212331-843519-pi-workflow-guarded-edit-default/steps/10-close-session.svg"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260809-212331-843519-pi-workflow-guarded-edit-default/steps/11-wait-for-close.svg",
+    "path": "20260809-212331-843519-pi-workflow-guarded-edit-default/steps/11-wait-for-close.svg"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260809-212341-113454-pi-workflow-session-resume-export-default/final.svg",
+    "path": "20260809-212341-113454-pi-workflow-session-resume-export-default/final.svg"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260809-212341-113454-pi-workflow-session-resume-export-default/steps/01-wait-for-prompt.svg",
+    "path": "20260809-212341-113454-pi-workflow-session-resume-export-default/steps/01-wait-for-prompt.svg"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260809-212341-113454-pi-workflow-session-resume-export-default/steps/02-start-session.svg",
+    "path": "20260809-212341-113454-pi-workflow-session-resume-export-default/steps/02-start-session.svg"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260809-212341-113454-pi-workflow-session-resume-export-default/steps/03-wait-for-start.svg",
+    "path": "20260809-212341-113454-pi-workflow-session-resume-export-default/steps/03-wait-for-start.svg"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260809-212341-113454-pi-workflow-session-resume-export-default/steps/04-continue-session.svg",
+    "path": "20260809-212341-113454-pi-workflow-session-resume-export-default/steps/04-continue-session.svg"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260809-212341-113454-pi-workflow-session-resume-export-default/steps/05-wait-for-resume.svg",
+    "path": "20260809-212341-113454-pi-workflow-session-resume-export-default/steps/05-wait-for-resume.svg"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260809-212341-113454-pi-workflow-session-resume-export-default/steps/06-fork-export.svg",
+    "path": "20260809-212341-113454-pi-workflow-session-resume-export-default/steps/06-fork-export.svg"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260809-212341-113454-pi-workflow-session-resume-export-default/steps/07-wait-for-export.svg",
+    "path": "20260809-212341-113454-pi-workflow-session-resume-export-default/steps/07-wait-for-export.svg"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260809-212341-113454-pi-workflow-session-resume-export-default/steps/08-close-session.svg",
+    "path": "20260809-212341-113454-pi-workflow-session-resume-export-default/steps/08-close-session.svg"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260809-212341-113454-pi-workflow-session-resume-export-default/steps/09-wait-for-close.svg",
+    "path": "20260809-212341-113454-pi-workflow-session-resume-export-default/steps/09-wait-for-close.svg"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260809-212348-344791-pi-workflow-model-context-default/final.svg",
+    "path": "20260809-212348-344791-pi-workflow-model-context-default/final.svg"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260809-212348-344791-pi-workflow-model-context-default/steps/01-wait-for-prompt.svg",
+    "path": "20260809-212348-344791-pi-workflow-model-context-default/steps/01-wait-for-prompt.svg"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260809-212348-344791-pi-workflow-model-context-default/steps/02-choose-model.svg",
+    "path": "20260809-212348-344791-pi-workflow-model-context-default/steps/02-choose-model.svg"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260809-212348-344791-pi-workflow-model-context-default/steps/03-wait-for-model.svg",
+    "path": "20260809-212348-344791-pi-workflow-model-context-default/steps/03-wait-for-model.svg"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260809-212348-344791-pi-workflow-model-context-default/steps/04-load-context.svg",
+    "path": "20260809-212348-344791-pi-workflow-model-context-default/steps/04-load-context.svg"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260809-212348-344791-pi-workflow-model-context-default/steps/05-wait-for-context.svg",
+    "path": "20260809-212348-344791-pi-workflow-model-context-default/steps/05-wait-for-context.svg"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260809-212348-344791-pi-workflow-model-context-default/steps/06-configure-startup.svg",
+    "path": "20260809-212348-344791-pi-workflow-model-context-default/steps/06-configure-startup.svg"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260809-212348-344791-pi-workflow-model-context-default/steps/07-wait-for-startup.svg",
+    "path": "20260809-212348-344791-pi-workflow-model-context-default/steps/07-wait-for-startup.svg"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260809-212348-344791-pi-workflow-model-context-default/steps/08-close-session.svg",
+    "path": "20260809-212348-344791-pi-workflow-model-context-default/steps/08-close-session.svg"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260809-212348-344791-pi-workflow-model-context-default/steps/09-wait-for-close.svg",
+    "path": "20260809-212348-344791-pi-workflow-model-context-default/steps/09-wait-for-close.svg"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260809-212356-557617-generic-tui-workflow-default/final.svg",
+    "path": "20260809-212356-557617-generic-tui-workflow-default/final.svg"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260809-212356-557617-generic-tui-workflow-default/steps/01-wait-for-prompt.svg",
+    "path": "20260809-212356-557617-generic-tui-workflow-default/steps/01-wait-for-prompt.svg"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260809-212356-557617-generic-tui-workflow-default/steps/02-open-dashboard.svg",
+    "path": "20260809-212356-557617-generic-tui-workflow-default/steps/02-open-dashboard.svg"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260809-212356-557617-generic-tui-workflow-default/steps/03-wait-for-dashboard.svg",
+    "path": "20260809-212356-557617-generic-tui-workflow-default/steps/03-wait-for-dashboard.svg"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260809-212356-557617-generic-tui-workflow-default/steps/04-filter-errors.svg",
+    "path": "20260809-212356-557617-generic-tui-workflow-default/steps/04-filter-errors.svg"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260809-212356-557617-generic-tui-workflow-default/steps/05-wait-for-filter.svg",
+    "path": "20260809-212356-557617-generic-tui-workflow-default/steps/05-wait-for-filter.svg"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260809-212356-557617-generic-tui-workflow-default/steps/06-export-report.svg",
+    "path": "20260809-212356-557617-generic-tui-workflow-default/steps/06-export-report.svg"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260809-212356-557617-generic-tui-workflow-default/steps/07-wait-for-export.svg",
+    "path": "20260809-212356-557617-generic-tui-workflow-default/steps/07-wait-for-export.svg"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260809-212356-557617-generic-tui-workflow-default/steps/08-close-session.svg",
+    "path": "20260809-212356-557617-generic-tui-workflow-default/steps/08-close-session.svg"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260809-212356-557617-generic-tui-workflow-default/steps/09-wait-for-close.svg",
+    "path": "20260809-212356-557617-generic-tui-workflow-default/steps/09-wait-for-close.svg"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260809-212400-653676-colour-stress-default/final.svg",
+    "path": "20260809-212400-653676-colour-stress-default/final.svg"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260809-212400-653676-colour-stress-default/steps/01-wait-for-prompt.svg",
+    "path": "20260809-212400-653676-colour-stress-default/steps/01-wait-for-prompt.svg"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260809-212400-653676-colour-stress-default/steps/02-show-palette.svg",
+    "path": "20260809-212400-653676-colour-stress-default/steps/02-show-palette.svg"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260809-212400-653676-colour-stress-default/steps/03-wait-for-palette.svg",
+    "path": "20260809-212400-653676-colour-stress-default/steps/03-wait-for-palette.svg"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260809-212400-653676-colour-stress-default/steps/04-show-attributes.svg",
+    "path": "20260809-212400-653676-colour-stress-default/steps/04-show-attributes.svg"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260809-212400-653676-colour-stress-default/steps/05-wait-for-attributes.svg",
+    "path": "20260809-212400-653676-colour-stress-default/steps/05-wait-for-attributes.svg"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260809-212400-653676-colour-stress-default/steps/06-animate.svg",
+    "path": "20260809-212400-653676-colour-stress-default/steps/06-animate.svg"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260809-212400-653676-colour-stress-default/steps/07-wait-for-animation.svg",
+    "path": "20260809-212400-653676-colour-stress-default/steps/07-wait-for-animation.svg"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260809-212400-653676-colour-stress-default/steps/08-close-session.svg",
+    "path": "20260809-212400-653676-colour-stress-default/steps/08-close-session.svg"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260809-212400-653676-colour-stress-default/steps/09-wait-for-close.svg",
+    "path": "20260809-212400-653676-colour-stress-default/steps/09-wait-for-close.svg"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260809-212404-106945-multi-turn-conversation-default/final.svg",
+    "path": "20260809-212404-106945-multi-turn-conversation-default/final.svg"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260809-212404-106945-multi-turn-conversation-default/steps/01-wait-for-prompt.svg",
+    "path": "20260809-212404-106945-multi-turn-conversation-default/steps/01-wait-for-prompt.svg"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260809-212404-106945-multi-turn-conversation-default/steps/02-inspect-repository.svg",
+    "path": "20260809-212404-106945-multi-turn-conversation-default/steps/02-inspect-repository.svg"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260809-212404-106945-multi-turn-conversation-default/steps/03-wait-for-inspection.svg",
+    "path": "20260809-212404-106945-multi-turn-conversation-default/steps/03-wait-for-inspection.svg"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260809-212404-106945-multi-turn-conversation-default/steps/04-pause-after-inspection.svg",
+    "path": "20260809-212404-106945-multi-turn-conversation-default/steps/04-pause-after-inspection.svg"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260809-212404-106945-multi-turn-conversation-default/steps/05-run-pipeline.svg",
+    "path": "20260809-212404-106945-multi-turn-conversation-default/steps/05-run-pipeline.svg"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260809-212404-106945-multi-turn-conversation-default/steps/06-wait-for-pipeline.svg",
+    "path": "20260809-212404-106945-multi-turn-conversation-default/steps/06-wait-for-pipeline.svg"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260809-212404-106945-multi-turn-conversation-default/steps/07-pause-after-render.svg",
+    "path": "20260809-212404-106945-multi-turn-conversation-default/steps/07-pause-after-render.svg"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260809-212404-106945-multi-turn-conversation-default/steps/08-summarize-evidence.svg",
+    "path": "20260809-212404-106945-multi-turn-conversation-default/steps/08-summarize-evidence.svg"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260809-212404-106945-multi-turn-conversation-default/steps/09-wait-for-summary.svg",
+    "path": "20260809-212404-106945-multi-turn-conversation-default/steps/09-wait-for-summary.svg"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260809-212404-106945-multi-turn-conversation-default/steps/10-pause-before-exit.svg",
+    "path": "20260809-212404-106945-multi-turn-conversation-default/steps/10-pause-before-exit.svg"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260809-212404-106945-multi-turn-conversation-default/steps/11-close-session.svg",
+    "path": "20260809-212404-106945-multi-turn-conversation-default/steps/11-close-session.svg"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260809-212404-106945-multi-turn-conversation-default/steps/12-wait-for-completion.svg",
+    "path": "20260809-212404-106945-multi-turn-conversation-default/steps/12-wait-for-completion.svg"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260809-212424-785989-pi-workflow-readonly-review-default/final.svg",
+    "path": "20260809-212424-785989-pi-workflow-readonly-review-default/final.svg"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260809-212424-785989-pi-workflow-readonly-review-default/steps/01-wait-for-prompt.svg",
+    "path": "20260809-212424-785989-pi-workflow-readonly-review-default/steps/01-wait-for-prompt.svg"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260809-212424-785989-pi-workflow-readonly-review-default/steps/02-scope-repository.svg",
+    "path": "20260809-212424-785989-pi-workflow-readonly-review-default/steps/02-scope-repository.svg"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260809-212424-785989-pi-workflow-readonly-review-default/steps/03-wait-for-scope.svg",
+    "path": "20260809-212424-785989-pi-workflow-readonly-review-default/steps/03-wait-for-scope.svg"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260809-212424-785989-pi-workflow-readonly-review-default/steps/04-inspect-files.svg",
+    "path": "20260809-212424-785989-pi-workflow-readonly-review-default/steps/04-inspect-files.svg"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260809-212424-785989-pi-workflow-readonly-review-default/steps/05-wait-for-inspection.svg",
+    "path": "20260809-212424-785989-pi-workflow-readonly-review-default/steps/05-wait-for-inspection.svg"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260809-212424-785989-pi-workflow-readonly-review-default/steps/06-run-validation.svg",
+    "path": "20260809-212424-785989-pi-workflow-readonly-review-default/steps/06-run-validation.svg"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260809-212424-785989-pi-workflow-readonly-review-default/steps/07-wait-for-validation.svg",
+    "path": "20260809-212424-785989-pi-workflow-readonly-review-default/steps/07-wait-for-validation.svg"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260809-212424-785989-pi-workflow-readonly-review-default/steps/08-report-findings.svg",
+    "path": "20260809-212424-785989-pi-workflow-readonly-review-default/steps/08-report-findings.svg"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260809-212424-785989-pi-workflow-readonly-review-default/steps/09-wait-for-review.svg",
+    "path": "20260809-212424-785989-pi-workflow-readonly-review-default/steps/09-wait-for-review.svg"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260809-212424-785989-pi-workflow-readonly-review-default/steps/10-close-session.svg",
+    "path": "20260809-212424-785989-pi-workflow-readonly-review-default/steps/10-close-session.svg"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260809-212424-785989-pi-workflow-readonly-review-default/steps/11-wait-for-close.svg",
+    "path": "20260809-212424-785989-pi-workflow-readonly-review-default/steps/11-wait-for-close.svg"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260809-212434-608687-pi-workflow-guarded-edit-default/final.svg",
+    "path": "20260809-212434-608687-pi-workflow-guarded-edit-default/final.svg"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260809-212434-608687-pi-workflow-guarded-edit-default/steps/01-wait-for-prompt.svg",
+    "path": "20260809-212434-608687-pi-workflow-guarded-edit-default/steps/01-wait-for-prompt.svg"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260809-212434-608687-pi-workflow-guarded-edit-default/steps/02-propose-change.svg",
+    "path": "20260809-212434-608687-pi-workflow-guarded-edit-default/steps/02-propose-change.svg"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260809-212434-608687-pi-workflow-guarded-edit-default/steps/03-wait-for-plan.svg",
+    "path": "20260809-212434-608687-pi-workflow-guarded-edit-default/steps/03-wait-for-plan.svg"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260809-212434-608687-pi-workflow-guarded-edit-default/steps/04-apply-patch.svg",
+    "path": "20260809-212434-608687-pi-workflow-guarded-edit-default/steps/04-apply-patch.svg"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260809-212434-608687-pi-workflow-guarded-edit-default/steps/05-wait-for-patch.svg",
+    "path": "20260809-212434-608687-pi-workflow-guarded-edit-default/steps/05-wait-for-patch.svg"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260809-212434-608687-pi-workflow-guarded-edit-default/steps/06-validate-tests.svg",
+    "path": "20260809-212434-608687-pi-workflow-guarded-edit-default/steps/06-validate-tests.svg"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260809-212434-608687-pi-workflow-guarded-edit-default/steps/07-wait-for-validation.svg",
+    "path": "20260809-212434-608687-pi-workflow-guarded-edit-default/steps/07-wait-for-validation.svg"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260809-212434-608687-pi-workflow-guarded-edit-default/steps/08-summarize-diff.svg",
+    "path": "20260809-212434-608687-pi-workflow-guarded-edit-default/steps/08-summarize-diff.svg"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260809-212434-608687-pi-workflow-guarded-edit-default/steps/09-wait-for-summary.svg",
+    "path": "20260809-212434-608687-pi-workflow-guarded-edit-default/steps/09-wait-for-summary.svg"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260809-212434-608687-pi-workflow-guarded-edit-default/steps/10-close-session.svg",
+    "path": "20260809-212434-608687-pi-workflow-guarded-edit-default/steps/10-close-session.svg"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260809-212434-608687-pi-workflow-guarded-edit-default/steps/11-wait-for-close.svg",
+    "path": "20260809-212434-608687-pi-workflow-guarded-edit-default/steps/11-wait-for-close.svg"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260809-212443-910469-pi-workflow-session-resume-export-default/final.svg",
+    "path": "20260809-212443-910469-pi-workflow-session-resume-export-default/final.svg"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260809-212443-910469-pi-workflow-session-resume-export-default/steps/01-wait-for-prompt.svg",
+    "path": "20260809-212443-910469-pi-workflow-session-resume-export-default/steps/01-wait-for-prompt.svg"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260809-212443-910469-pi-workflow-session-resume-export-default/steps/02-start-session.svg",
+    "path": "20260809-212443-910469-pi-workflow-session-resume-export-default/steps/02-start-session.svg"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260809-212443-910469-pi-workflow-session-resume-export-default/steps/03-wait-for-start.svg",
+    "path": "20260809-212443-910469-pi-workflow-session-resume-export-default/steps/03-wait-for-start.svg"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260809-212443-910469-pi-workflow-session-resume-export-default/steps/04-continue-session.svg",
+    "path": "20260809-212443-910469-pi-workflow-session-resume-export-default/steps/04-continue-session.svg"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260809-212443-910469-pi-workflow-session-resume-export-default/steps/05-wait-for-resume.svg",
+    "path": "20260809-212443-910469-pi-workflow-session-resume-export-default/steps/05-wait-for-resume.svg"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260809-212443-910469-pi-workflow-session-resume-export-default/steps/06-fork-export.svg",
+    "path": "20260809-212443-910469-pi-workflow-session-resume-export-default/steps/06-fork-export.svg"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260809-212443-910469-pi-workflow-session-resume-export-default/steps/07-wait-for-export.svg",
+    "path": "20260809-212443-910469-pi-workflow-session-resume-export-default/steps/07-wait-for-export.svg"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260809-212443-910469-pi-workflow-session-resume-export-default/steps/08-close-session.svg",
+    "path": "20260809-212443-910469-pi-workflow-session-resume-export-default/steps/08-close-session.svg"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260809-212443-910469-pi-workflow-session-resume-export-default/steps/09-wait-for-close.svg",
+    "path": "20260809-212443-910469-pi-workflow-session-resume-export-default/steps/09-wait-for-close.svg"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260809-212451-176777-pi-workflow-model-context-default/final.svg",
+    "path": "20260809-212451-176777-pi-workflow-model-context-default/final.svg"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260809-212451-176777-pi-workflow-model-context-default/steps/01-wait-for-prompt.svg",
+    "path": "20260809-212451-176777-pi-workflow-model-context-default/steps/01-wait-for-prompt.svg"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260809-212451-176777-pi-workflow-model-context-default/steps/02-choose-model.svg",
+    "path": "20260809-212451-176777-pi-workflow-model-context-default/steps/02-choose-model.svg"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260809-212451-176777-pi-workflow-model-context-default/steps/03-wait-for-model.svg",
+    "path": "20260809-212451-176777-pi-workflow-model-context-default/steps/03-wait-for-model.svg"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260809-212451-176777-pi-workflow-model-context-default/steps/04-load-context.svg",
+    "path": "20260809-212451-176777-pi-workflow-model-context-default/steps/04-load-context.svg"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260809-212451-176777-pi-workflow-model-context-default/steps/05-wait-for-context.svg",
+    "path": "20260809-212451-176777-pi-workflow-model-context-default/steps/05-wait-for-context.svg"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260809-212451-176777-pi-workflow-model-context-default/steps/06-configure-startup.svg",
+    "path": "20260809-212451-176777-pi-workflow-model-context-default/steps/06-configure-startup.svg"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260809-212451-176777-pi-workflow-model-context-default/steps/07-wait-for-startup.svg",
+    "path": "20260809-212451-176777-pi-workflow-model-context-default/steps/07-wait-for-startup.svg"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260809-212451-176777-pi-workflow-model-context-default/steps/08-close-session.svg",
+    "path": "20260809-212451-176777-pi-workflow-model-context-default/steps/08-close-session.svg"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260809-212451-176777-pi-workflow-model-context-default/steps/09-wait-for-close.svg",
+    "path": "20260809-212451-176777-pi-workflow-model-context-default/steps/09-wait-for-close.svg"
+  }
+]
