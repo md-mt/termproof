@@ -27,7 +27,7 @@ jobs:
             archive: termproof-macos-arm64.tar.gz
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: "1.96.0"
@@ -52,7 +52,7 @@ jobs:
     name: PyPI wheels
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v7
       - run: uv build --wheel
       - run: python scripts/sign_release.py --artifacts dist/*.whl
@@ -67,7 +67,7 @@ jobs:
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - run: |
           VERSION=${GITHUB_REF_NAME#v}
           SHA=$(shasum -a 256 dist/termproof-linux-x86_64.tar.gz | cut -d' ' -f1)
@@ -79,7 +79,7 @@ jobs:
     name: Container image
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: docker/build-push-action@v6
         with:
           context: .
