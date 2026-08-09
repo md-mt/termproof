@@ -113,18 +113,16 @@ def spinner(cycles: int = 12, delay: float = 0.08) -> None:
             f"{sgr(48, 2, 40, 200, 120)}" + " " * filled + RESET
             + f"{sgr(48, 2, 45, 50, 60)}" + " " * (40 - filled) + RESET
         )
-        sys.stdout.write(
-            f"\r  {sgr(96)}{frames[i % len(frames)]}{RESET} indexing {bar} {sgr(1)}{pct:3d}%{RESET}"
+        out(
+            f"\r  {sgr(96)}{frames[i % len(frames)]}{RESET} indexing {bar} {sgr(1)}{pct:3d}%{RESET}",
+            end="",
         )
-        sys.stdout.flush()
         time.sleep(delay)
-    sys.stdout.write("\n")
-    sys.stdout.flush()
+    out()
 
 
 def prompt() -> None:
-    sys.stdout.write(f"{sgr(1, 92)}colour>{RESET} ")
-    sys.stdout.flush()
+    out(f"{sgr(1, 92)}colour>{RESET} ", end="")
 
 
 # -- driver -----------------------------------------------------------------

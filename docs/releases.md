@@ -17,7 +17,8 @@ the leading `v`.
 ```bash
 uv run python -m unittest discover -s tests
 uv build
-uv run termproof run examples/generic examples/multi_turn_conversation.recipe.json \
+uv run termproof run examples/generic examples/colorstress \
+  examples/multi_turn_conversation.recipe.json \
   examples/pi_workflow_readonly_review.recipe.json \
   examples/pi_workflow_guarded_edit.recipe.json \
   examples/pi_workflow_session_resume_export.recipe.json \
