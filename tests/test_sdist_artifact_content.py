@@ -17,12 +17,15 @@ FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures"
 # without either tool skip the gate; CI and Rust-enabled dev machines enforce it.
 _HAVE_TOOLS = shutil.which("cargo") is not None and shutil.which("uv") is not None
 
-# Paths added by the RUST-002 regression suite itself, the RUST-023
-# version/drift + RUST-025 evidence-hosting docs, and the RUST-030
-# case-study scaffolding. `docs` is an unanchored sdist include, so any new
-# file under docs/ ships in the sdist and must be listed here. Everything
-# else in the sdist must be byte-for-byte identical to the pre-Rust base
-# revision.
+# The general allowlist of sdist paths added after the pre-Rust base revision:
+# currently the RUST-002 regression suite itself, the RUST-023 version/drift +
+# RUST-025 evidence-hosting docs, and the RUST-030 case-study scaffolding. The
+# directory includes are unanchored, so any new file under `termproof/`,
+# `tests/`, `examples/` (outside the excluded `examples/artifacts`), or `docs/`
+# ships in the sdist and turns this gate red until it is listed here. That
+# hand-registration is a known limitation of asserting an exact path set rather
+# than an intended workflow; everything else in the sdist must stay identical to
+# the base revision.
 _NEW_TEST_PATHS = {
     "tests/test_sdist_artifact_content.py",
     "tests/fixtures/base_sdist_paths.txt",
@@ -70,7 +73,8 @@ class SdistRustIsolationTest(unittest.TestCase):
 
     This test rebuilds Cargo outputs first and then asserts both invariants:
     zero Rust content in sdist/wheel, and the sdist's non-Rust path set is
-    exactly the base revision's path set plus the new regression test files.
+    exactly the base revision's path set plus the allowlisted post-base
+    additions.
     """
 
     @classmethod
@@ -174,14 +178,14 @@ class SdistRustIsolationTest(unittest.TestCase):
             f"revision's sdist: {missing}",
         )
 
-    def test_sdist_adds_only_regression_test_paths(self) -> None:
+    def test_sdist_adds_only_allowlisted_post_base_paths(self) -> None:
         base_paths = _load_fixture("base_sdist_paths.txt")
         head_paths = self._sdist_relative_names()
         unexpected = sorted((head_paths - base_paths) - _NEW_TEST_PATHS)
         self.assertEqual(
             [],
             unexpected,
-            "sdist gained non-Rust paths beyond the RUST-002 regression tests: "
+            "sdist gained non-Rust paths beyond the allowlisted post-base additions: "
             f"{unexpected}",
         )
 
