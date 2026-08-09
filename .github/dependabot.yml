@@ -16,8 +16,19 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 10
+    # A single catch-all group means this ecosystem can only ever open one PR.
+    open-pull-requests-limit: 1
     labels:
       - "area:ci"
     commit-message:
       prefix: "chore"
+    # Batch every action bump into one PR: "are our CI actions current" is one
+    # question, and separate PRs overlap heavily across the workflow files.
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+        update-types:
+          - "patch"
+          - "minor"
+          - "major"
