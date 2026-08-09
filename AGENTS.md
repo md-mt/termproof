@@ -12,4 +12,5 @@ a cold interpreter (for example the ephemeral overlay `uv run --with <pkg>`
 builds per invocation) or a loaded machine measures ~0.35 s against a warm
 ~0.10 s, which is enough to cross a 0.3 s window. Gate on observed output with
 `wait_for_text` before measuring quiescence, rather than assuming the child is
-already talking.
+already talking. Both directions of the arming rule are pinned by
+`QuiescenceBehaviorTest` in `tests/test_runner.py`.
