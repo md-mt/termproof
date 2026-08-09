@@ -3,7 +3,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass, field, fields
 from pathlib import Path
-from typing import Any
+from typing import Any, get_args, get_type_hints
 
 try:
     import yaml
@@ -135,6 +135,10 @@ class SvgRenderConfig:
 class PngRenderConfig:
     # ``font_path`` of None keeps PIL's bundled proportional bitmap face.
     # ``font_size`` is only consulted when a font path is given.
+    # ``scale`` multiplies the canvas, the padding and the line pitch, but not
+    # the glyphs of the default bitmap face, which has one fixed size. Scaling
+    # up therefore spreads the same text over a larger image unless
+    # ``font_path`` is also set, which is what yields a higher-DPI screenshot.
     scale: int = 1
     padding: int = 18
     font_size: int = 14
@@ -262,6 +266,24 @@ def _parse_idle_cap_seconds(value: Any) -> float | None:
     return parsed
 
 
+def _check_field_type(label: str, name: str, hint: Any, value: Any) -> None:
+    """Reject a value whose type its field cannot honor.
+
+    A quoted number or a stray mapping loads happily and then fails deep inside
+    a renderer, in an error that no longer names the option that was wrong.
+    """
+    declared = get_args(hint) or (hint,)
+    accepted = (*declared, int) if float in declared else declared
+    if isinstance(value, accepted) and not (
+        isinstance(value, bool) and bool not in declared
+    ):
+        return
+    names = " or ".join(
+        "null" if arg is type(None) else arg.__name__ for arg in declared
+    )
+    raise ValueError(f"{label}.{name} must be {names}, got {value!r}")
+
+
 def _section(cls: type, raw: Any, label: str) -> Any:
     """Build a frozen config dataclass from a YAML mapping.
 
@@ -269,12 +291,15 @@ def _section(cls: type, raw: Any, label: str) -> Any:
     that silently does nothing is indistinguishable from one that had no effect.
     """
     values = dict(raw or {})
+    hints = get_type_hints(cls)
     known = {field_.name for field_ in fields(cls)}
     unknown = sorted(set(values) - known)
     if unknown:
         raise ValueError(
             f"unknown {label} option(s) {unknown}; known options: {sorted(known)}"
         )
+    for name, value in values.items():
+        _check_field_type(label, name, hints[name], value)
     return cls(**values)
 
 

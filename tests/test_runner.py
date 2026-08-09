@@ -3,9 +3,11 @@ from __future__ import annotations
 import sys
 import tempfile
 import unittest
+from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 
+from termproof import runner as runner_module
 from termproof.config import VerifierConfig, load_config
 from termproof.models import CommandSpec, Recipe
 from termproof.runner import VerificationRunner
@@ -208,6 +210,55 @@ class RunnerTest(unittest.TestCase):
             message = str(caught.warning)
             self.assertIn("agg", message)
             self.assertIn("--video", message)
+
+
+class VideoFpsWiringTest(unittest.TestCase):
+    """``evidence.video.fps`` must be honoured on the library path too.
+
+    The CLI entry points resolve it themselves; a caller going straight through
+    ``VerificationRunner.run`` used to get the literal 60 regardless.
+    """
+
+    RECIPE = Recipe(
+        name="fps",
+        command=CommandSpec(argv=[sys.executable, "-c", "print('ok')"], pty=False),
+        steps=[{"action": "wait_for_text", "text": "ok"}],
+    )
+
+    def _rendered_fps(self, config: VerifierConfig, **run_kwargs: object) -> int:
+        seen: list[int] = []
+        real = runner_module.render_artifacts
+
+        def spy(run_dir, render_video, video_fps, **kwargs):  # type: ignore[no-untyped-def]
+            seen.append(video_fps)
+            return real(run_dir, render_video, video_fps, **kwargs)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch.object(runner_module, "render_artifacts", spy):
+                VerificationRunner(config=config).run(
+                    self.RECIPE, Path(tmp), render_video=False, **run_kwargs
+                )
+        self.assertEqual(1, len(seen))
+        return seen[0]
+
+    @staticmethod
+    def _with_fps(fps: int) -> VerifierConfig:
+        config = VerifierConfig.builtin()
+        return replace(
+            config,
+            evidence=replace(
+                config.evidence, video=replace(config.evidence.video, fps=fps)
+            ),
+        )
+
+    def test_unconfigured_run_still_renders_at_sixty(self) -> None:
+        self.assertEqual(60, self._rendered_fps(VerifierConfig.builtin()))
+
+    def test_configured_fps_reaches_the_renderer(self) -> None:
+        self.assertEqual(24, self._rendered_fps(self._with_fps(24)))
+
+    def test_explicit_argument_beats_the_configured_fps(self) -> None:
+        self.assertEqual(30, self._rendered_fps(self._with_fps(24), video_fps=30))
 
 
 class IdleCapWiringTest(unittest.TestCase):

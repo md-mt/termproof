@@ -308,6 +308,48 @@ class EvidenceConfigTest(unittest.TestCase):
             with self.assertRaises(ValueError):
                 load_config(project_path=Path(tmp), user_path=user_yaml)
 
+    def test_quoted_number_is_rejected_naming_the_offending_key(self) -> None:
+        """A YAML scalar of the wrong type must fail here, not inside a renderer."""
+        with tempfile.TemporaryDirectory() as tmp:
+            user_yaml = Path(tmp) / "user.yaml"
+            user_yaml.write_text(
+                "evidence:\n  svg:\n    padding: '18'\n", encoding="utf-8"
+            )
+            with self.assertRaises(ValueError) as caught:
+                load_config(project_path=Path(tmp), user_path=user_yaml)
+        self.assertIn("evidence.svg.padding", str(caught.exception))
+        self.assertIn("int", str(caught.exception))
+
+    def test_wrong_type_is_rejected_for_each_evidence_section(self) -> None:
+        cases = {
+            "  png:\n    font_path: 3\n": "evidence.png.font_path",
+            "  video:\n    crf: fast\n": "evidence.video.crf",
+            "  svg:\n    font_family: 12\n": "evidence.svg.font_family",
+        }
+        for body, key in cases.items():
+            with self.subTest(key=key), tempfile.TemporaryDirectory() as tmp:
+                user_yaml = Path(tmp) / "user.yaml"
+                user_yaml.write_text(f"evidence:\n{body}", encoding="utf-8")
+                with self.assertRaises(ValueError) as caught:
+                    load_config(project_path=Path(tmp), user_path=user_yaml)
+                self.assertIn(key, str(caught.exception))
+
+    def test_optional_and_widening_values_still_load(self) -> None:
+        """Validation must not reject values that loaded fine before it existed."""
+        with tempfile.TemporaryDirectory() as tmp:
+            user_yaml = Path(tmp) / "user.yaml"
+            user_yaml.write_text(
+                "evidence:\n"
+                "  png:\n    font_path: null\n"
+                # A float field written as a YAML integer is still a valid float.
+                "  video:\n    idle_time_limit: 2\n    theme: asciinema\n",
+                encoding="utf-8",
+            )
+            config = load_config(project_path=Path(tmp), user_path=user_yaml)
+        self.assertIsNone(config.evidence.png.font_path)
+        self.assertEqual(2, config.evidence.video.idle_time_limit)
+        self.assertEqual("asciinema", config.evidence.video.theme)
+
     def test_unknown_evidence_section_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             user_yaml = Path(tmp) / "user.yaml"

@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import hashlib
 import json
-from dataclasses import replace
+from dataclasses import asdict, replace
 from pathlib import Path
 from typing import Any
 
+from .config import EvidenceConfig
 from .models import Recipe, RunResult
 
 
@@ -20,6 +21,7 @@ def load_cached_result(
     video_backend: str,
     render_video: bool,
     video_fps: int,
+    evidence: EvidenceConfig | None = None,
 ) -> RunResult | None:
     key = _cache_key(
         recipe,
@@ -30,6 +32,7 @@ def load_cached_result(
         video_backend=video_backend,
         render_video=render_video,
         video_fps=video_fps,
+        evidence=evidence,
     )
     if key is None:
         return None
@@ -61,6 +64,7 @@ def store_cached_result(
     video_backend: str,
     render_video: bool,
     video_fps: int,
+    evidence: EvidenceConfig | None = None,
 ) -> None:
     if not result.passed:
         return
@@ -73,6 +77,7 @@ def store_cached_result(
         video_backend=video_backend,
         render_video=render_video,
         video_fps=video_fps,
+        evidence=evidence,
     )
     if key is None:
         return
@@ -94,6 +99,7 @@ def _cache_key(
     video_backend: str,
     render_video: bool,
     video_fps: int,
+    evidence: EvidenceConfig | None = None,
 ) -> str | None:
     if not recipe.source_path:
         return None
@@ -114,6 +120,10 @@ def _cache_key(
         "render_video": render_video,
         "video_backend": video_backend if render_video else "",
         "video_fps": video_fps if render_video else 0,
+        # Serialize the whole evidence section rather than listing knobs: every
+        # value in it changes the rendered artifacts, so a knob added later has
+        # to invalidate cached runs without anyone remembering to add it here.
+        "evidence": asdict(evidence or EvidenceConfig()),
     }
     digest.update(json.dumps(payload, sort_keys=True).encode("utf-8"))
     return digest.hexdigest()

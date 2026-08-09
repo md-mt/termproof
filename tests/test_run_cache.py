@@ -4,6 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from termproof.config import EvidenceConfig, SvgRenderConfig, VideoConfig
 from termproof.models import RunResult, load_recipe
 from termproof.run_cache import load_cached_result, store_cached_result
 
@@ -128,6 +129,76 @@ class RunCacheTest(unittest.TestCase):
             )
 
             self.assertIsNone(cached)
+
+
+class EvidenceConfigCacheKeyTest(unittest.TestCase):
+    """A rendering knob changes the artifacts, so it must invalidate the cache.
+
+    Otherwise ``--skip-unchanged`` replays a stored pass whose screenshots were
+    rendered with the old settings, and the new configuration silently does
+    nothing.
+    """
+
+    def _roundtrip(
+        self,
+        stored: EvidenceConfig,
+        loaded: EvidenceConfig,
+        *,
+        render_video: bool = False,
+    ) -> RunResult | None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            recipe = load_recipe(_write_recipe(root, "cached"))
+            screenshot = root / "run" / "final.svg"
+            screenshot.parent.mkdir()
+            screenshot.write_text("<svg/>\n", encoding="utf-8")
+
+            common = dict(
+                out_dir=root / "runs",
+                screen_renderer="svg",
+                video_backend="agg_ffmpeg",
+                render_video=render_video,
+                video_fps=60,
+            )
+            store_cached_result(
+                root / "cache",
+                recipe,
+                "default",
+                [],
+                _result("cached", screenshot),
+                evidence=stored,
+                **common,
+            )
+            return load_cached_result(
+                root / "cache",
+                recipe,
+                "default",
+                [],
+                evidence=loaded,
+                **common,
+            )
+
+    def test_unchanged_evidence_config_still_hits_the_cache(self) -> None:
+        self.assertIsNotNone(
+            self._roundtrip(EvidenceConfig(), EvidenceConfig())
+        )
+
+    def test_changed_screenshot_colour_invalidates_the_cache(self) -> None:
+        self.assertIsNone(
+            self._roundtrip(
+                EvidenceConfig(),
+                EvidenceConfig(svg=SvgRenderConfig(fg="#ff0000")),
+            )
+        )
+
+    def test_changed_video_setting_invalidates_the_cache(self) -> None:
+        self.assertIsNone(
+            self._roundtrip(
+                EvidenceConfig(),
+                EvidenceConfig(video=VideoConfig(crf=20)),
+                render_video=True,
+            )
+        )
 
 
 def _write_recipe(root: Path, name: str, ci_paths: list[str] | None = None) -> Path:

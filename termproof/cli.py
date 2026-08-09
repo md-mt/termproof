@@ -295,6 +295,7 @@ def _run_item(
             video_backend=args.video_backend,
             render_video=render_video,
             video_fps=args.video_fps,
+            evidence=runner.config.evidence,
         )
         if cached is not None:
             return cached
@@ -320,5 +321,6 @@ def _run_item(
             video_backend=args.video_backend,
             render_video=render_video,
             video_fps=args.video_fps,
+            evidence=runner.config.evidence,
         )
     return result

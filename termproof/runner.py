@@ -162,13 +162,17 @@ class VerificationRunner:
         recipe: Recipe,
         out_dir: Path = Path(".termproof/runs"),
         render_video: bool = False,
-        video_fps: int = 60,
+        video_fps: int | None = None,
         renderer: str = "default",
         renderer_argv: list[str] | None = None,
         screen_renderer_name: str = "svg",
         video_backend_name: str = "agg_ffmpeg",
     ) -> RunResult:
         start = time.monotonic()
+        # An explicit argument wins; otherwise the configured fps is the last
+        # step of the same cascade the CLI entry points already follow.
+        if video_fps is None:
+            video_fps = self.config.evidence.video.fps
         runnable_recipe = _with_renderer_argv(recipe, renderer_argv or [])
         run_dir = new_run_dir(out_dir, recipe.name, renderer)
         run_dir.mkdir(parents=True, exist_ok=True)

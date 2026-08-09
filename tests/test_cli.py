@@ -8,6 +8,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from termproof.cli import main
+from termproof.config import VerifierConfig
 from termproof.models import RunResult, load_recipe
 from termproof.run_cache import store_cached_result
 
@@ -305,6 +306,9 @@ class CliTest(unittest.TestCase):
 
             with patch("termproof.cli.VerificationRunner") as runner_class:
                 runner = runner_class.return_value
+                # The cache key covers the evidence config the runner renders
+                # with, so the stand-in needs the real one.
+                runner.config = VerifierConfig.builtin()
                 runner.run.side_effect = AssertionError("runner should be skipped")
                 runner.reporter_registry.get.return_value.generate.return_value = "report"
                 output = io.StringIO()
