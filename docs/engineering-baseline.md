@@ -6,9 +6,9 @@ Scope: this workspace (all five crates)
 Applies from: RUST-002 (milestone Rust M0 — Contract and skeleton)
 
 This document is the engineering policy for the Rust reimplementation. It
-complements `docs/rust-reimplementation-spec.md` in the Python repository
-(https://github.com/md-mt/termproof); where the two disagree the specification
-wins and this document is updated.
+complements [`docs/rust-reimplementation-spec.md`](rust-reimplementation-spec.md),
+which moved here with the port; where the two disagree the specification wins
+and this document is updated.
 
 ## 1. Toolchain and MSRV
 

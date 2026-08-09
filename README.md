@@ -37,6 +37,10 @@ authority on TermProof's behaviour.
 - `rust-toolchain.toml` — pinned toolchain (`1.96.0`, minimal profile)
 - `docs/engineering-baseline.md` — formatting, lint, error, tracing, dependency,
   feature and unsafe-code policy
+- `docs/rust-reimplementation-spec.md` — the design rationale, compatibility
+  contract and parity gates this port is measured against. Written before the
+  split, so parts of it describe a workspace under `rust/` in the Python
+  repository; its header says which sections are superseded.
 - `crates/`
   - `termproof-cli` — binary (`termproof`), command parsing, diagnostics
   - `termproof-core` — models, config, schema, registries, planning, orchestration
