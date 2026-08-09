@@ -10,8 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - **`wait_for_idle` no longer treats a session that has produced no output as
   idle.** The stable window is armed by the first byte the session emits, so a
-  still-starting target can no longer have its blank initial screen captured as
-  the final evidence. The deliberate trade: a target that stays alive and emits
+  session that has emitted nothing at all can no longer have its blank initial
+  screen captured as the final evidence. The deliberate trade: a target that stays alive and emits
   nothing at all can never report idle, and will fail the step after its
   timeout — including the single-step recipe produced by `termproof init`. For
   an evidence-recording tool a zero-output session is not something we can

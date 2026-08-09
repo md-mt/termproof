@@ -404,6 +404,35 @@ class QuiescenceBehaviorTest(unittest.TestCase):
         finally:
             session.close()
 
+    def test_wait_for_idle_arms_on_output_that_never_renders(self) -> None:
+        runner = VerificationRunner()
+        session = runner.session_backend.create_session(
+            # The child's only emission is an OSC title sequence, which pyte
+            # discards, so the rendered screen stays blank for the whole call.
+            # The stable window must arm off the raw bytes: entered with no
+            # prior output, a screen-only arm would never start the timer.
+            argv=[
+                sys.executable,
+                "-c",
+                "import sys, time\n"
+                "sys.stdout.write('\\x1b]0;t\\x07')\n"
+                "sys.stdout.flush()\n"
+                "time.sleep(10)\n",
+            ],
+            cast_path=Path(tempfile.mkdtemp()) / "session.cast",
+            cwd=None,
+            env={},
+            cols=80,
+            rows=24,
+        )
+        try:
+            with session:
+                self.assertTrue(session.wait_for_idle(0.3, 2.0))
+                self.assertEqual(session.screen, "")
+                self.assertTrue(session.is_alive())
+        finally:
+            session.close()
+
     def test_wait_for_idle_ignores_output_that_does_not_change_the_screen(self) -> None:
         runner = VerificationRunner()
         session = runner.session_backend.create_session(
