@@ -24,6 +24,9 @@ TermProof exposes stable plugin protocols from `termproof.protocols`.
 present TermProof calls it instead of the zero-argument constructor, so the
 plugin can read the `evidence` config block (see the Configuration section of
 the README). Plugins without it keep being constructed with no arguments.
+`EvidenceConfig`, and the narrower `SvgRenderConfig`, `PngRenderConfig`, and
+`VideoConfig` its sections hold, are exported from `termproof.protocols`
+alongside the protocols themselves.
 
 ## ExecutionMode runner surface
 

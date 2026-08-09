@@ -2,10 +2,13 @@ from __future__ import annotations
 
 import tempfile
 import unittest
+from dataclasses import fields
 from pathlib import Path
 
 from termproof.config import (
+    BUILTIN_DEFAULTS,
     DockerBackendConfig,
+    EvidenceConfig,
     VerifierConfig,
     load_config,
 )
@@ -244,7 +247,17 @@ class EvidenceConfigTest(unittest.TestCase):
             "ui-monospace,SFMono-Regular,Menlo,Consolas,monospace",
             evidence.svg.font_family,
         )
-        self.assertEqual((1, 18, None), (evidence.png.scale, evidence.png.padding, evidence.png.font_path))
+        self.assertEqual(
+            (1, 18, 14, None, "#e6edf3", "#101418"),
+            (
+                evidence.png.scale,
+                evidence.png.padding,
+                evidence.png.font_size,
+                evidence.png.font_path,
+                evidence.png.fg,
+                evidence.png.bg,
+            ),
+        )
         self.assertEqual((60, None, "yuv420p"), (evidence.video.fps, evidence.video.fps_cap, evidence.video.pix_fmt))
         # None means "omit the flag", which is what the pipeline did before.
         self.assertEqual(
@@ -260,6 +273,25 @@ class EvidenceConfigTest(unittest.TestCase):
                 evidence.video.font_family,
             ],
         )
+
+    def test_builtin_evidence_defaults_match_the_dataclass_defaults(self) -> None:
+        """The two are consumed independently, so drift between them is invisible.
+
+        A config-loaded run reads ``BUILTIN_DEFAULTS``; every ``EvidenceConfig()``
+        fallback in the renderers, the video pipeline and the run cache reads the
+        dataclass defaults. Comparing whole dataclasses covers each knob without
+        an assertion per field, and comparing the key sets catches a knob that
+        was added to only one of the two.
+        """
+        self.assertEqual(EvidenceConfig(), VerifierConfig.builtin().evidence)
+        builtin = BUILTIN_DEFAULTS["evidence"]
+        self.assertEqual({f.name for f in fields(EvidenceConfig)}, set(builtin))
+        for section in fields(EvidenceConfig):
+            with self.subTest(section=section.name):
+                declared = {
+                    f.name for f in fields(getattr(EvidenceConfig(), section.name))
+                }
+                self.assertEqual(declared, set(builtin[section.name]))
 
     def test_evidence_values_load_from_yaml(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -356,6 +388,58 @@ class EvidenceConfigTest(unittest.TestCase):
             user_yaml.write_text("evidence:\n  gif:\n    scale: 2\n", encoding="utf-8")
             with self.assertRaises(ValueError):
                 load_config(project_path=Path(tmp), user_path=user_yaml)
+
+    def test_out_of_range_size_or_rate_is_rejected_naming_the_offending_key(self) -> None:
+        """A zero fps dies inside ffmpeg, and a zero scale silently collapses the canvas."""
+        cases = {
+            "  video:\n    fps: 0\n": "evidence.video.fps",
+            "  video:\n    fps_cap: 0\n": "evidence.video.fps_cap",
+            "  png:\n    scale: 0\n": "evidence.png.scale",
+            "  png:\n    font_size: -1\n": "evidence.png.font_size",
+            "  png:\n    padding: -1\n": "evidence.png.padding",
+            "  svg:\n    char_width: 0\n": "evidence.svg.char_width",
+            "  svg:\n    line_height: 0\n": "evidence.svg.line_height",
+            "  svg:\n    font_size: 0\n": "evidence.svg.font_size",
+            "  svg:\n    padding: -1\n": "evidence.svg.padding",
+        }
+        for body, key in cases.items():
+            with self.subTest(key=key), tempfile.TemporaryDirectory() as tmp:
+                user_yaml = Path(tmp) / "user.yaml"
+                user_yaml.write_text(f"evidence:\n{body}", encoding="utf-8")
+                with self.assertRaises(ValueError) as caught:
+                    load_config(project_path=Path(tmp), user_path=user_yaml)
+                self.assertIn(key, str(caught.exception))
+
+    def test_zero_padding_and_null_optionals_still_load(self) -> None:
+        """Zero padding is a coherent choice, and an unset optional stays unset."""
+        with tempfile.TemporaryDirectory() as tmp:
+            user_yaml = Path(tmp) / "user.yaml"
+            user_yaml.write_text(
+                "evidence:\n"
+                "  svg:\n    padding: 0\n"
+                "  png:\n    padding: 0\n"
+                "  video:\n    fps_cap: null\n",
+                encoding="utf-8",
+            )
+            config = load_config(project_path=Path(tmp), user_path=user_yaml)
+        self.assertEqual(0, config.evidence.svg.padding)
+        self.assertEqual(0, config.evidence.png.padding)
+        self.assertIsNone(config.evidence.video.fps_cap)
+
+    def test_non_mapping_evidence_section_is_rejected_naming_the_section(self) -> None:
+        """``dict()`` alone raises a TypeError that names neither the section nor the key."""
+        cases = {
+            "evidence:\n  svg: 8\n": "evidence.svg",
+            "evidence:\n  video: [fps]\n": "evidence.video",
+            "evidence:\n  - svg\n  - png\n": "evidence",
+        }
+        for body, label in cases.items():
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as tmp:
+                user_yaml = Path(tmp) / "user.yaml"
+                user_yaml.write_text(body, encoding="utf-8")
+                with self.assertRaises(ValueError) as caught:
+                    load_config(project_path=Path(tmp), user_path=user_yaml)
+                self.assertIn(f"{label} must be a mapping", str(caught.exception))
 
 
 class RegistryTest(unittest.TestCase):

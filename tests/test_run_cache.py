@@ -4,7 +4,12 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from termproof.config import EvidenceConfig, SvgRenderConfig, VideoConfig
+from termproof.config import (
+    EvidenceConfig,
+    PngRenderConfig,
+    SvgRenderConfig,
+    VideoConfig,
+)
 from termproof.models import RunResult, load_recipe
 from termproof.run_cache import load_cached_result, store_cached_result
 
@@ -184,12 +189,26 @@ class EvidenceConfigCacheKeyTest(unittest.TestCase):
         )
 
     def test_changed_screenshot_colour_invalidates_the_cache(self) -> None:
-        self.assertIsNone(
-            self._roundtrip(
-                EvidenceConfig(),
-                EvidenceConfig(svg=SvgRenderConfig(fg="#ff0000")),
-            )
-        )
+        for render_video in (False, True):
+            with self.subTest(render_video=render_video):
+                self.assertIsNone(
+                    self._roundtrip(
+                        EvidenceConfig(),
+                        EvidenceConfig(svg=SvgRenderConfig(fg="#ff0000")),
+                        render_video=render_video,
+                    )
+                )
+
+    def test_changed_screenshot_scale_invalidates_the_cache(self) -> None:
+        for render_video in (False, True):
+            with self.subTest(render_video=render_video):
+                self.assertIsNone(
+                    self._roundtrip(
+                        EvidenceConfig(),
+                        EvidenceConfig(png=PngRenderConfig(scale=2)),
+                        render_video=render_video,
+                    )
+                )
 
     def test_changed_video_setting_invalidates_the_cache(self) -> None:
         self.assertIsNone(
@@ -197,6 +216,21 @@ class EvidenceConfigCacheKeyTest(unittest.TestCase):
                 EvidenceConfig(),
                 EvidenceConfig(video=VideoConfig(crf=20)),
                 render_video=True,
+            )
+        )
+
+    def test_changed_video_setting_still_hits_the_cache_without_video(self) -> None:
+        """A run that renders no video cannot produce a different artifact for it.
+
+        ``video_backend`` and ``video_fps`` are already excluded from the key for
+        exactly this reason, so the video knobs must drop out with them rather
+        than busting every screenshot-only cache entry.
+        """
+        self.assertIsNotNone(
+            self._roundtrip(
+                EvidenceConfig(),
+                EvidenceConfig(video=VideoConfig(crf=20, fps=30)),
+                render_video=False,
             )
         )
 

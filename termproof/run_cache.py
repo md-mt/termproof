@@ -112,6 +112,7 @@ def _cache_key(
         candidate = Path(ci_path)
         path = candidate if candidate.is_absolute() else recipe_path.parent / candidate
         _hash_path(digest, path)
+    evidence_config = evidence or EvidenceConfig()
     payload = {
         "renderer": renderer,
         "renderer_argv": renderer_argv,
@@ -120,10 +121,16 @@ def _cache_key(
         "render_video": render_video,
         "video_backend": video_backend if render_video else "",
         "video_fps": video_fps if render_video else 0,
-        # Serialize the whole evidence section rather than listing knobs: every
-        # value in it changes the rendered artifacts, so a knob added later has
-        # to invalidate cached runs without anyone remembering to add it here.
-        "evidence": asdict(evidence or EvidenceConfig()),
+        # Serialize each evidence sub-section wholesale rather than listing
+        # knobs: every value in one changes the artifacts that section renders,
+        # so a knob added later has to invalidate cached runs without anyone
+        # remembering to add it here. The video knobs drop out when no video is
+        # rendered, for the same reason video_backend and video_fps do.
+        "evidence": {
+            "svg": asdict(evidence_config.svg),
+            "png": asdict(evidence_config.png),
+            "video": asdict(evidence_config.video) if render_video else None,
+        },
     }
     digest.update(json.dumps(payload, sort_keys=True).encode("utf-8"))
     return digest.hexdigest()

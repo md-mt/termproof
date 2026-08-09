@@ -284,13 +284,52 @@ def _check_field_type(label: str, name: str, hint: Any, value: Any) -> None:
     raise ValueError(f"{label}.{name} must be {names}, got {value!r}")
 
 
+# Smallest value each dimensional or rate knob can take. A zero or negative
+# size collapses the rendered geometry (or reaches ``ImageFont.truetype`` as a
+# negative size), and ``fps: 0`` reaches ffmpeg as ``-vf fps=0``, so these have
+# to be refused where the offending key can still be named.
+_EVIDENCE_MINIMUMS: dict[str, int] = {
+    "evidence.svg.char_width": 1,
+    "evidence.svg.line_height": 1,
+    "evidence.svg.font_size": 1,
+    "evidence.svg.padding": 0,
+    "evidence.png.scale": 1,
+    "evidence.png.font_size": 1,
+    "evidence.png.padding": 0,
+    "evidence.video.fps": 1,
+    "evidence.video.fps_cap": 1,
+}
+
+
+def _check_field_range(label: str, name: str, value: Any) -> None:
+    """Reject an out-of-range size or rate, naming the key as the type check does."""
+    minimum = _EVIDENCE_MINIMUMS.get(f"{label}.{name}")
+    if minimum is None or value is None or value >= minimum:
+        return
+    wording = "a positive integer" if minimum == 1 else "a nonnegative integer"
+    raise ValueError(f"{label}.{name} must be {wording}, got {value!r}")
+
+
+def _mapping(raw: Any, label: str) -> dict[str, Any]:
+    """Return a config section as a mapping, refusing a scalar or a sequence.
+
+    ``dict(raw)`` alone raises a ``TypeError`` that names neither the section
+    nor the key, and callers of ``load_config`` expect a ``ValueError``.
+    """
+    if raw is None:
+        return {}
+    if not isinstance(raw, dict):
+        raise ValueError(f"{label} must be a mapping, got {raw!r}")
+    return dict(raw)
+
+
 def _section(cls: type, raw: Any, label: str) -> Any:
     """Build a frozen config dataclass from a YAML mapping.
 
     Unknown keys are rejected rather than ignored: a misspelled rendering knob
     that silently does nothing is indistinguishable from one that had no effect.
     """
-    values = dict(raw or {})
+    values = _mapping(raw, label)
     hints = get_type_hints(cls)
     known = {field_.name for field_ in fields(cls)}
     unknown = sorted(set(values) - known)
@@ -300,11 +339,12 @@ def _section(cls: type, raw: Any, label: str) -> Any:
         )
     for name, value in values.items():
         _check_field_type(label, name, hints[name], value)
+        _check_field_range(label, name, value)
     return cls(**values)
 
 
 def _evidence_from_mapping(raw: Any) -> EvidenceConfig:
-    values = dict(raw or {})
+    values = _mapping(raw, "evidence")
     evidence = EvidenceConfig(
         svg=_section(SvgRenderConfig, values.pop("svg", {}), "evidence.svg"),
         png=_section(PngRenderConfig, values.pop("png", {}), "evidence.png"),

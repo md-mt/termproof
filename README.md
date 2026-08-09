@@ -259,8 +259,8 @@ with no `evidence` block renders byte-identical artifacts.
 - `evidence.video.fps` is the default for `--video-fps`; the flag wins when passed.
 - A `null` video knob means "omit that flag"; `fps_cap: null` keeps `agg`'s cap tied to the output fps.
 - `png.font_size` applies only when `png.font_path` is set — the bundled bitmap face has one fixed size.
-- Unknown keys under `evidence` are rejected at config load, so a misspelled knob fails loudly instead of silently doing nothing.
-- Evidence values are part of the `--skip-unchanged` cache key, so changing one re-renders cached runs.
+- Unknown keys under `evidence` are rejected at config load, so a misspelled knob fails loudly instead of silently doing nothing. So are a value of the wrong type, a section that is not a mapping, a non-positive size or frame rate, and a negative padding.
+- Evidence values are part of the `--skip-unchanged` cache key, so changing one re-renders cached runs. The `video` knobs only count towards it for a run that renders video, as `--video-fps` and the video backend already do.
 
 ## Packaging
 
