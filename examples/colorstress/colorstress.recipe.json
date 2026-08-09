@@ -1,0 +1,94 @@
+{
+  "name": "colour-stress",
+  "description": "Colour and attribute stress fixture; the only example whose screen is not monochrome.",
+  "priority": "P1",
+  "execution": "scripted",
+  "determinism": "deterministic",
+  "checks": [
+    "16/256/truecolour palettes render",
+    "text attributes render",
+    "animation produces motion",
+    "wide characters and emoji render"
+  ],
+  "renderers": {
+    "default": []
+  },
+  "command": {
+    "argv": ["python3", "examples/colorstress/colorstress_tui.py"],
+    "pty": true
+  },
+  "timeout_seconds": 40,
+  "cols": 100,
+  "rows": 32,
+  "steps": [
+    {
+      "name": "wait for prompt",
+      "action": "wait_for_text",
+      "text": "colour>",
+      "timeout_seconds": 5
+    },
+    {
+      "name": "show palette",
+      "action": "send_line",
+      "text": "palette"
+    },
+    {
+      "name": "wait for palette",
+      "action": "wait_for_text",
+      "text": "PALETTE READY",
+      "timeout_seconds": 10
+    },
+    {
+      "name": "show attributes",
+      "action": "send_line",
+      "text": "attrs"
+    },
+    {
+      "name": "wait for attributes",
+      "action": "wait_for_text",
+      "text": "ATTRS READY",
+      "timeout_seconds": 10
+    },
+    {
+      "name": "animate",
+      "action": "send_line",
+      "text": "animate"
+    },
+    {
+      "name": "wait for animation",
+      "action": "wait_for_text",
+      "text": "ANIMATE READY",
+      "timeout_seconds": 15
+    },
+    {
+      "name": "close session",
+      "action": "send_line",
+      "text": "exit"
+    },
+    {
+      "name": "wait for close",
+      "action": "wait_for_text",
+      "text": "COLOUR STRESS COMPLETE",
+      "timeout_seconds": 5
+    }
+  ],
+  "assertions": [
+    {
+      "type": "output_contains",
+      "value": "PALETTE READY"
+    },
+    {
+      "type": "output_contains",
+      "value": "ATTRS READY"
+    },
+    {
+      "type": "output_contains",
+      "value": "ANIMATE READY"
+    },
+    {
+      "type": "output_contains",
+      "value": "COLOUR STRESS COMPLETE"
+    }
+  ],
+  "expect_exit_code": 0
+}

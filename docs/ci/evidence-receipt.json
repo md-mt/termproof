@@ -6,6 +6,7 @@
       "out": ".termproof/ci",
       "recipes": [
         "examples/generic",
+        "examples/colorstress",
         "examples/multi_turn_conversation.recipe.json",
         "examples/pi_workflow_readonly_review.recipe.json",
         "examples/pi_workflow_guarded_edit.recipe.json",
@@ -21,6 +22,7 @@
       "out": ".termproof/release",
       "recipes": [
         "examples/generic",
+        "examples/colorstress",
         "examples/multi_turn_conversation.recipe.json",
         "examples/pi_workflow_readonly_review.recipe.json",
         "examples/pi_workflow_guarded_edit.recipe.json",

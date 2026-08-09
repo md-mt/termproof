@@ -32,6 +32,9 @@ _NEW_TEST_PATHS = {
     "docs/case-studies/README.md",
     "docs/case-studies/TEMPLATE.md",
     "docs/case-studies/_meta.json",
+    "examples/colorstress/README.md",
+    "examples/colorstress/colorstress.recipe.json",
+    "examples/colorstress/colorstress_tui.py",
 }
 
 
