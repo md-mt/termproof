@@ -9,37 +9,20 @@ import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-RUST_DIR = ROOT / "rust"
 FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures"
 
-# The RUST-002 regression gate needs both the Rust toolchain (to generate
-# Cargo build/test/doc outputs) and uv (the project's build frontend). Environments
-# without either tool skip the gate; CI and Rust-enabled dev machines enforce it.
-_HAVE_TOOLS = shutil.which("cargo") is not None and shutil.which("uv") is not None
+# uv is the project's build frontend. Environments without it skip the gate.
+_HAVE_TOOLS = shutil.which("uv") is not None
 
-# The general allowlist of sdist paths added after the pre-Rust base revision:
-# currently the RUST-002 regression suite itself, the RUST-023 version/drift +
-# RUST-025 evidence-hosting docs, and the RUST-030 case-study scaffolding. The
-# directory includes are unanchored, so any new file under `termproof/`,
-# `tests/`, `examples/` (outside the excluded `examples/artifacts`), or `docs/`
-# ships in the sdist and turns this gate red until it is listed here. That
-# hand-registration is a known limitation of asserting an exact path set rather
-# than an intended workflow; everything else in the sdist must stay identical to
-# the base revision.
-_NEW_TEST_PATHS = {
-    "tests/test_sdist_artifact_content.py",
-    "tests/test_wait_for_idle_step.py",
-    "tests/fixtures/base_sdist_paths.txt",
-    "tests/fixtures/base_wheel_paths.txt",
-    "docs/rust-gates.md",
-    "docs/case-studies/CONSENT.md",
-    "docs/case-studies/README.md",
-    "docs/case-studies/TEMPLATE.md",
-    "docs/case-studies/_meta.json",
-    "examples/colorstress/README.md",
-    "examples/colorstress/colorstress.recipe.json",
-    "examples/colorstress/colorstress_tui.py",
-}
+# Suffixes that only ever belong to compiled build output, never to source we
+# intend to ship. A new sdist path matching one of these is a packaging bug
+# regardless of which toolchain produced it.
+_BUILD_OUTPUT_SUFFIXES = frozenset(
+    {".so", ".dylib", ".dll", ".a", ".o", ".obj", ".rlib", ".rmeta", ".pyd", ".exe", ".pyc"}
+)
+
+# Path components that denote a build directory rather than source.
+_BUILD_OUTPUT_DIRS = frozenset({"target", "build", "dist", "__pycache__", ".pytest_cache", ".mypy_cache"})
 
 
 def _load_fixture(name: str) -> set[str]:
@@ -50,73 +33,42 @@ def _load_fixture(name: str) -> set[str]:
     }
 
 
-@unittest.skipUnless(_HAVE_TOOLS, "requires cargo and uv to build the Rust workspace and Python sdist")
-class SdistRustIsolationTest(unittest.TestCase):
-    """RUST-002 regression: the Python source distribution must never contain
-    Rust workspace build artifacts (host-built executables, generated rustdoc)
-    or any ``rust/`` tree until Rust is intentionally part of the Python
-    release artifact.
+@unittest.skipUnless(_HAVE_TOOLS, "requires uv to build the Python sdist and wheel")
+class SdistArtifactContentTest(unittest.TestCase):
+    """The Python release artifact must contain source and only source.
 
-    The historical failure modes, both now covered:
+    This gate used to assert that the sdist's path set was *exactly* the base
+    revision's set plus a hand-maintained allowlist of every file added since.
+    That enumeration guarded one real invariant — no Rust build output leaking
+    into the release artifact — and otherwise only ever caught "a human forgot
+    to register a new file", at the cost of being a merge-conflict point in four
+    consecutive changes. The Rust workspace has moved to
+    https://github.com/md-mt/termproof-rust, so that invariant is now vacuous.
 
-    1. Hatch's sdist include patterns are matched with gitignore semantics, so
-       bare names like ``termproof``, ``docs``, ``tests``, and ``README.md``
-       also matched nested ``rust/`` paths. Building the sdist *after* ``cargo
-       build``/``cargo doc`` shipped ``rust/target/debug/termproof``,
-       ``rust/target/release/termproof``, and generated rustdoc in the release
-       artifact.
+    What replaces it are the invariants the enumeration was standing in for:
 
-    2. Anchoring every include to the repository root (leading ``/``) to fix
-       #1 silently dropped 13 pre-existing non-Rust payload paths
-       (``plugin-template/**`` and ``site/README.md``). The narrow fix keeps the
-       original unanchored include list and adds only the explicit ``/rust/``
-       exclusion, so the non-Rust payload stays unchanged.
+    1. no ``rust/`` content (cheap insurance, now trivially satisfied);
+    2. ``base ⊆ head`` — the sdist never *drops* payload it used to ship. This
+       is the failure that actually happened: anchoring the include patterns to
+       the repository root silently dropped 13 ``plugin-template/**`` and
+       ``site/README.md`` paths;
+    3. ``head − base`` contains no compiled build output — no build directory,
+       no object/library suffix, no executable bit.
 
-    This test rebuilds Cargo outputs first and then asserts both invariants:
-    zero Rust content in sdist/wheel, and the sdist's non-Rust path set is
-    exactly the base revision's path set plus the allowlisted post-base
-    additions.
+    Adding a source file under ``termproof/``, ``tests/``, ``examples/`` or
+    ``docs/`` now ships it without needing to be registered anywhere, which is
+    the intended workflow. Adding a *binary* still fails the gate.
     """
 
     @classmethod
     def setUpClass(cls) -> None:
         cls._tmp = tempfile.TemporaryDirectory()
         cls._out_dir = Path(cls._tmp.name)
-        cls._generate_cargo_outputs()
         cls._build_python_artifacts()
 
     @classmethod
     def tearDownClass(cls) -> None:
         cls._tmp.cleanup()
-
-    @classmethod
-    def _generate_cargo_outputs(cls) -> None:
-        if not RUST_DIR.is_dir():
-            raise unittest.SkipTest("rust workspace not present")
-        subprocess.run(
-            ["cargo", "build", "--workspace"],
-            cwd=RUST_DIR,
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-        subprocess.run(
-            ["cargo", "test", "--workspace"],
-            cwd=RUST_DIR,
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-        subprocess.run(
-            ["cargo", "doc", "--workspace", "--no-deps"],
-            cwd=RUST_DIR,
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-        debug_binary = RUST_DIR / "target" / "debug" / "termproof"
-        if not debug_binary.is_file():
-            raise unittest.SkipTest("cargo build did not produce a debug binary")
 
     @classmethod
     def _build_python_artifacts(cls) -> None:
@@ -129,9 +81,12 @@ class SdistRustIsolationTest(unittest.TestCase):
         )
 
     @classmethod
+    def _sdist_path(cls) -> Path:
+        return next(cls._out_dir.glob("*.tar.gz"))
+
+    @classmethod
     def _sdist_names(cls) -> list[str]:
-        sdist = next(cls._out_dir.glob("*.tar.gz"))
-        with tarfile.open(sdist, "r:gz") as archive:
+        with tarfile.open(cls._sdist_path(), "r:gz") as archive:
             return archive.getnames()
 
     @classmethod
@@ -141,32 +96,45 @@ class SdistRustIsolationTest(unittest.TestCase):
             return archive.namelist()
 
     @classmethod
-    def _sdist_relative_names(cls) -> set[str]:
-        """Sdist member names with the leading ``termproof-<version>/`` root stripped."""
-        root_prefix = next(cls._out_dir.glob("*.tar.gz")).name.removesuffix(".tar.gz") + "/"
-        return {name[len(root_prefix):] for name in cls._sdist_names() if name.startswith(root_prefix)}
+    def _root_prefix(cls) -> str:
+        return cls._sdist_path().name.removesuffix(".tar.gz") + "/"
 
     @classmethod
-    def _rust_entries(cls, names: list[str]) -> list[str]:
-        return [name for name in names if any(part == "rust" for part in name.split("/"))]
+    def _sdist_relative_names(cls) -> set[str]:
+        """Sdist member names with the leading ``termproof-<version>/`` root stripped."""
+        prefix = cls._root_prefix()
+        return {name[len(prefix):] for name in cls._sdist_names() if name.startswith(prefix)}
 
-    def test_sdist_contains_no_rust_entries_after_cargo_build_test_doc(self) -> None:
-        rust_entries = self._rust_entries(self._sdist_names())
-        self.assertEqual(
-            [],
-            rust_entries,
-            "sdist must not contain any rust/ entries after Cargo build/test/doc outputs exist: "
-            f"{rust_entries}",
-        )
+    @classmethod
+    def _executable_relative_names(cls) -> set[str]:
+        """Relative names of sdist members that carry an executable bit."""
+        prefix = cls._root_prefix()
+        with tarfile.open(cls._sdist_path(), "r:gz") as archive:
+            return {
+                member.name[len(prefix):]
+                for member in archive.getmembers()
+                if member.isfile() and member.mode & 0o111 and member.name.startswith(prefix)
+            }
 
-    def test_wheel_contains_no_rust_entries_after_cargo_build_test_doc(self) -> None:
-        rust_entries = self._rust_entries(self._wheel_names())
-        self.assertEqual(
-            [],
-            rust_entries,
-            "wheel must not contain any rust/ entries after Cargo build/test/doc outputs exist: "
-            f"{rust_entries}",
-        )
+    @staticmethod
+    def _build_output_reason(path: str) -> str | None:
+        """Why ``path`` looks like build output, or ``None`` if it looks like source."""
+        parts = path.split("/")
+        offending = _BUILD_OUTPUT_DIRS.intersection(parts)
+        if offending:
+            return f"build directory component {sorted(offending)[0]!r}"
+        suffix = Path(path).suffix
+        if suffix in _BUILD_OUTPUT_SUFFIXES:
+            return f"compiled-artifact suffix {suffix!r}"
+        return None
+
+    def test_sdist_contains_no_rust_entries(self) -> None:
+        rust_entries = [name for name in self._sdist_names() if any(part == "rust" for part in name.split("/"))]
+        self.assertEqual([], rust_entries, f"sdist must not contain any rust/ entries: {rust_entries}")
+
+    def test_wheel_contains_no_rust_entries(self) -> None:
+        rust_entries = [name for name in self._wheel_names() if any(part == "rust" for part in name.split("/"))]
+        self.assertEqual([], rust_entries, f"wheel must not contain any rust/ entries: {rust_entries}")
 
     def test_sdist_preserves_base_non_rust_payload_paths(self) -> None:
         base_paths = _load_fixture("base_sdist_paths.txt")
@@ -175,19 +143,28 @@ class SdistRustIsolationTest(unittest.TestCase):
         self.assertEqual(
             [],
             missing,
-            "sdist dropped pre-existing non-Rust payload paths present in the base "
-            f"revision's sdist: {missing}",
+            "sdist dropped pre-existing payload paths present in the base revision's sdist: " f"{missing}",
         )
 
-    def test_sdist_adds_only_allowlisted_post_base_paths(self) -> None:
+    def test_sdist_adds_no_build_output(self) -> None:
         base_paths = _load_fixture("base_sdist_paths.txt")
-        head_paths = self._sdist_relative_names()
-        unexpected = sorted((head_paths - base_paths) - _NEW_TEST_PATHS)
+        added = self._sdist_relative_names() - base_paths
+        offenders = sorted(
+            f"{path} ({reason})" for path in added if (reason := self._build_output_reason(path)) is not None
+        )
         self.assertEqual(
             [],
-            unexpected,
-            "sdist gained non-Rust paths beyond the allowlisted post-base additions: "
-            f"{unexpected}",
+            offenders,
+            "sdist gained paths that look like build output rather than source: " f"{offenders}",
+        )
+
+    def test_sdist_adds_no_executable_files(self) -> None:
+        base_paths = _load_fixture("base_sdist_paths.txt")
+        added_executables = sorted(self._executable_relative_names() - base_paths)
+        self.assertEqual(
+            [],
+            added_executables,
+            "sdist gained executable files, which are build output rather than source: " f"{added_executables}",
         )
 
     def test_wheel_path_set_matches_base(self) -> None:
