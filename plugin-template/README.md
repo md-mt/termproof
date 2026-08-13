@@ -11,6 +11,7 @@ Copy this repository to start your own plugin. It contains:
 
 - **Example step** (`WaitForRegex`) — regex-aware terminal wait with `ignore_case`/`multiline`/`dotall` flags (`src/termproof_my_plugin/steps.py`)
 - **Example assertion** (`ScreenCount`) — occurrence counting with optional min/max bounds (`src/termproof_my_plugin/assertions.py`)
+- **Example step-aware assertion** (`StepScreenMatches`) — regex against the screen captured after a named step, not the final one (`src/termproof_my_plugin/step_assertions.py`)
 - **Example reporter** (`JsonSummaryReporter`) — machine-readable JSON summary with build provenance (`src/termproof_my_plugin/reporters.py`)
 - Packaging metadata (`pyproject.toml`) with dev extras
 - Tests (`tests/`) including config-wiring verification
@@ -52,6 +53,7 @@ steps:
 
 assertions:
   screen_count: termproof_my_plugin.assertions:ScreenCount
+  step_screen_matches: termproof_my_plugin.step_assertions:StepScreenMatches
 
 reporters:
   json_summary: termproof_my_plugin.reporters:JsonSummaryReporter
@@ -65,7 +67,8 @@ Then reference by name in recipe JSON:
     { "action": "wait_for_regex", "pattern": "Dashboard .* \\\\d+/\\\\d+" }
   ],
   "assertions": [
-    { "type": "screen_count", "pattern": "TODO", "max": 0 }
+    { "type": "screen_count", "pattern": "TODO", "max": 0 },
+    { "type": "step_screen_matches", "step": "open dashboard", "pattern": "Dashboard .* \\\\d+/\\\\d+" }
   ]
 }
 ```

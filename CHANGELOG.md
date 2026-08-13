@@ -105,6 +105,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `from_target` classmethod, mirroring `from_config` for renderers, so
   credentials stay out of the checked-in config file. See
   `docs/plugin-protocols.md`.
+- **Assertions can read the screen captured after each step.** Until now an
+  assertion saw only the final screen, which makes anything about a state the
+  run passes through and then leaves — a dialog that was dismissed, a mid-flow
+  confirmation — inexpressible. The data already existed: `StepResult` carries a
+  per-step `screen`, and the scripted execution modes simply did not pass it on.
+  They now do, via a new `steps` argument on `VerificationRunner.evaluate_assertions`
+  and on assertion evaluation, plus a `StepAwareAssertionType` protocol exported
+  from `termproof.protocols` alongside the existing nine. The new built-in
+  `step_screen_contains` assertion takes a `step` name and a `value` substring
+  and reads that step's screen.
+
+  The change is additive: TermProof passes `steps` only to an `evaluate` that
+  declares a parameter of that name, so an assertion written against
+  `AssertionType` is still called with the original five arguments and keeps
+  working without source changes. A bare `**kwargs` deliberately does not count
+  as opting in, so an assertion that forwards unrecognised arguments to another
+  one written against the older signature cannot break either. `steps` is
+  keyword-only with a default of `None`, which also lets a step-aware assertion
+  run unchanged on a TermProof that never passes it — `None` means the execution
+  mode supplied no per-step screens, which is not the same as a run in which no
+  step ran. See `docs/plugin-protocols.md` and the `StepScreenMatches` example in
+  `plugin-template/`.
 - **An `evidence:` block in `.termproof/config.yaml`.** The SVG and PNG
   renderers and the video pipeline no longer hardcode their rendering
   parameters: `evidence.svg` (character width, line height, padding, font size

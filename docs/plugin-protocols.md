@@ -8,6 +8,7 @@ TermProof exposes stable plugin protocols from `termproof.protocols`.
 | --- | --- |
 | `StepAction` | `execute(session, step, index) -> StepResult` |
 | `AssertionType` | `evaluate(recipe, assertion, screen, raw_output, exit_code) -> AssertionResult` |
+| `StepAwareAssertionType` | `evaluate(recipe, assertion, screen, raw_output, exit_code, *, steps=None) -> AssertionResult` |
 | `ExecutionMode` | `execute(runner, recipe, run_dir) -> tuple[list[StepResult], list[AssertionResult], str, int | None, str]` |
 | `Reporter` | `generate(results, build_info=None, before_after=None) -> str` |
 | `ScreenRenderer` | `render(text, output_path, cols, rows) -> None` |
@@ -16,7 +17,7 @@ TermProof exposes stable plugin protocols from `termproof.protocols`.
 | `SessionBackend` | `create_session(argv, cast_path, cwd, env, cols, rows) -> TerminalSession` |
 | `ArtifactPublisher` | `publish(source, key) -> PublishedArtifact` |
 
-`StepAction`, `AssertionType`, `ExecutionMode`, `Reporter`, `ScreenRenderer`, `VideoBackend`, and `ArtifactPublisher` also require a `name: str` class attribute. `AgentRunner` and `SessionBackend` are selected by config keys and do not require a `name`.
+`StepAction`, `AssertionType`, `StepAwareAssertionType`, `ExecutionMode`, `Reporter`, `ScreenRenderer`, `VideoBackend`, and `ArtifactPublisher` also require a `name: str` class attribute. `AgentRunner` and `SessionBackend` are selected by config keys and do not require a `name`.
 
 `ScreenRenderer` plugins can optionally set `extension = "png"` (or another file extension) so evidence artifacts use that screenshot filename suffix.
 
@@ -62,6 +63,36 @@ the README). Plugins without it keep being constructed with no arguments.
 `EvidenceConfig`, and the narrower `SvgRenderConfig`, `PngRenderConfig`, and
 `VideoConfig` its sections hold, are exported from `termproof.protocols`
 alongside the protocols themselves.
+
+## Assertions and per-step screens
+
+`AssertionType` sees the final screen only, which makes an assertion about a
+state the run passes through and then leaves inexpressible. `StepAwareAssertionType`
+extends it with `steps`: the `StepResult` list for the steps that ran, in order,
+each carrying the screen captured after that step.
+
+`StepResult.screen` is plain text — pyte's already-flattened `display` — not an
+`AttributedScreen`. Colour, bold and reverse video are gone by the time an
+assertion sees a per-step screen, so a step-aware assertion can match glyphs and
+layout but not styling. The `render_attributed` grid described above is built
+for the final screen and the video, not for these; see
+[`docs/evidence-quality.md`](evidence-quality.md) for why per-step screens are
+still flat.
+
+The two protocols are one opt-in apart. TermProof passes `steps` only to an
+`evaluate` that declares a parameter of that name, so an assertion written
+against `AssertionType` is called with the original five arguments and needs no
+source change. A bare `**kwargs` does not count as declaring it — an assertion
+that forwards unrecognised arguments to another assertion would otherwise pass
+`steps` into one that cannot accept it. Keeping `steps` keyword-only with a
+default of `None`, as the protocol declares it, also lets a step-aware assertion
+run unchanged on a TermProof that never passes it.
+
+`steps` is `None` when the execution mode supplied no per-step screens, which is
+distinct from a run in which no step ran. Both built-in scripted modes supply
+them; the agent-driven mode derives its assertions from the agent's own report
+and does not go through the assertion registry. The built-in
+`step_screen_contains` assertion is the reference implementation.
 
 ## ArtifactPublisher
 
@@ -133,7 +164,7 @@ internals:
 | `run_pty(recipe, run_dir) -> tuple[list[StepResult], str, int | None, str]` | Run scripted steps interactively over a PTY session. |
 | `run_process(recipe, run_dir) -> tuple[list[StepResult], str, int | None, str]` | Run the command to completion, then replay the cast. |
 | `run_agent_driven(recipe, run_dir) -> tuple[list[StepResult], list[AssertionResult], str, int | None, str]` | Delegate execution to the configured agent runner. |
-| `evaluate_assertions(recipe, screen, raw_output, exit_code) -> list[AssertionResult]` | Evaluate a recipe's assertions against captured output. |
+| `evaluate_assertions(recipe, screen, raw_output, exit_code, *, steps=None) -> list[AssertionResult]` | Evaluate a recipe's assertions against captured output. Pass `steps` so step-aware assertions can read per-step screens. |
 
 The former private methods (`_run_pty`, `_run_process`, `_run_agent_driven`,
 `_evaluate_assertions`) remain as deprecated aliases that delegate to the public

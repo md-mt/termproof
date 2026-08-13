@@ -19,7 +19,9 @@ class ScriptedPtyMode:
         run_dir: Path,
     ) -> tuple[list[StepResult], list[AssertionResult], str, int | None, str]:
         steps, raw_output, exit_code, screen = runner.run_pty(recipe, run_dir)
-        assertions = runner.evaluate_assertions(recipe, screen, raw_output, exit_code)
+        assertions = runner.evaluate_assertions(
+            recipe, screen, raw_output, exit_code, steps=steps
+        )
         return steps, assertions, raw_output, exit_code, screen
 
 
@@ -35,7 +37,9 @@ class ScriptedProcessMode:
         run_dir: Path,
     ) -> tuple[list[StepResult], list[AssertionResult], str, int | None, str]:
         steps, raw_output, exit_code, screen = runner.run_process(recipe, run_dir)
-        assertions = runner.evaluate_assertions(recipe, screen, raw_output, exit_code)
+        assertions = runner.evaluate_assertions(
+            recipe, screen, raw_output, exit_code, steps=steps
+        )
         return steps, assertions, raw_output, exit_code, screen
 
 

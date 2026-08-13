@@ -13,10 +13,12 @@ Protocol compatibility:
 - ``name`` class attribute must match the config ``assertions`` mapping
 - ``evaluate(recipe, assertion, screen, raw_output, exit_code) -> AssertionResult``
 
-Note: The assertion protocol only receives the final screen/raw_output/exit_code.
-Timing data and run artifacts are NOT available, so duration-based assertions
-must be implemented in TermProof core and cannot be written in a plugin.
-See ``docs/protocol.md`` for the full availability matrix.
+Note: this signature receives the final screen/raw_output/exit_code only, which
+is all ``screen_count`` needs. An assertion about an *intermediate* state opts
+into the per-step screens by declaring a ``steps`` parameter — see
+``step_assertions.py``. Timing data and run artifacts are still NOT available,
+so duration-based assertions must be implemented in TermProof core and cannot be
+written in a plugin. See ``docs/protocol.md`` for the full availability matrix.
 """
 
 from __future__ import annotations

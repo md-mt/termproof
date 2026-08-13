@@ -30,6 +30,7 @@ BUILTIN_DEFAULTS: dict[str, Any] = {
         "output_not_contains": "termproof.builtin_assertions:OutputNotContains",
         "screen_contains": "termproof.builtin_assertions:ScreenContains",
         "screen_not_contains": "termproof.builtin_assertions:ScreenNotContains",
+        "step_screen_contains": "termproof.builtin_assertions:StepScreenContains",
         "exit_code": "termproof.builtin_assertions:ExitCode",
         "file_exists": "termproof.builtin_assertions:FileExists",
         "file_contains": "termproof.builtin_assertions:FileContains",
