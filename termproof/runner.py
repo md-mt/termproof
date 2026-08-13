@@ -7,8 +7,6 @@ from typing import Any
 
 from .agent_driven import AgentDrivenRunner, AgentRunner, CodexCliAgentRunner
 from .config import (
-    CURRENT_PLUGIN_MODULE_PREFIX,
-    LEGACY_PLUGIN_MODULE_PREFIX,
     EvidenceConfig,
     VerifierConfig,
 )
@@ -21,7 +19,7 @@ from .models import (
     score_from_assertions,
 )
 from .protocols import SessionBackend
-from .registry import Registry
+from .registry import Registry, import_class
 from .screen import replay_cast
 from .session import TerminalSession
 
@@ -38,7 +36,7 @@ SESSION_BACKEND_ALIASES = {
 def _build_step_registry(config: VerifierConfig) -> Registry[Any]:
     registry: Registry[Any] = Registry()
     for name, qualname in config.steps.items():
-        cls = _import_class(qualname)
+        cls = import_class(qualname)
         registry.register(name, lambda c=cls: c())
     return registry
 
@@ -46,7 +44,7 @@ def _build_step_registry(config: VerifierConfig) -> Registry[Any]:
 def _build_assertion_registry(config: VerifierConfig) -> Registry[Any]:
     registry: Registry[Any] = Registry()
     for name, qualname in config.assertions.items():
-        cls = _import_class(qualname)
+        cls = import_class(qualname)
         registry.register(name, lambda c=cls: c())
     return registry
 
@@ -54,7 +52,7 @@ def _build_assertion_registry(config: VerifierConfig) -> Registry[Any]:
 def _build_reporter_registry(config: VerifierConfig) -> Registry[Any]:
     registry: Registry[Any] = Registry()
     for name, qualname in config.reporters.items():
-        cls = _import_class(qualname)
+        cls = import_class(qualname)
         registry.register(name, lambda c=cls: c())
     return registry
 
@@ -73,7 +71,7 @@ def _construct_evidence_plugin(cls: type, evidence: EvidenceConfig) -> Any:
 def _build_renderer_registry(config: VerifierConfig) -> Registry[Any]:
     registry: Registry[Any] = Registry()
     for name, qualname in config.screen_renderers.items():
-        cls = _import_class(qualname)
+        cls = import_class(qualname)
         registry.register(name, lambda c=cls: _construct_evidence_plugin(c, config.evidence))
     return registry
 
@@ -81,7 +79,7 @@ def _build_renderer_registry(config: VerifierConfig) -> Registry[Any]:
 def _build_execution_mode_registry(config: VerifierConfig) -> Registry[Any]:
     registry: Registry[Any] = Registry()
     for name, qualname in config.execution_modes.items():
-        cls = _import_class(qualname)
+        cls = import_class(qualname)
         registry.register(name, lambda c=cls: c())
     return registry
 
@@ -89,7 +87,7 @@ def _build_execution_mode_registry(config: VerifierConfig) -> Registry[Any]:
 def _build_agent_runner_registry(config: VerifierConfig) -> Registry[Any]:
     registry: Registry[Any] = Registry()
     for name, qualname in config.agent_runners.items():
-        cls = _import_class(qualname)
+        cls = import_class(qualname)
         registry.register(name, lambda c=cls: c())
     return registry
 
@@ -97,40 +95,17 @@ def _build_agent_runner_registry(config: VerifierConfig) -> Registry[Any]:
 def _build_video_backend_registry(config: VerifierConfig) -> Registry[Any]:
     registry: Registry[Any] = Registry()
     for name, qualname in config.video_backends.items():
-        cls = _import_class(qualname)
+        cls = import_class(qualname)
         registry.register(name, lambda c=cls: _construct_evidence_plugin(c, config.evidence))
     return registry
 
 
 def _resolve_session_backend(config: VerifierConfig) -> SessionBackend:
     qualname = SESSION_BACKEND_ALIASES.get(config.session_backend, config.session_backend)
-    cls = _import_class(qualname)
+    cls = import_class(qualname)
     if qualname == "termproof.builtin_session:DockerSessionBackend":
         return cls(config.docker)  # type: ignore[return-value]
     return cls()  # type: ignore[return-value]
-
-
-def _import_class(qualname: str) -> type:
-    """Import a plugin class from a ``module.path:ClassName`` reference.
-
-    Configuration written for the pre-TermProof package can keep using its
-    plugin module prefix. This narrow alias avoids a compatibility shim package
-    while ensuring external plugin configuration remains loadable.
-    """
-    if ":" not in qualname:
-        raise ValueError(
-            f"expected 'module.path:ClassName', got {qualname!r}"
-        )
-    module_name, class_name = qualname.split(":", 1)
-    if module_name.startswith(LEGACY_PLUGIN_MODULE_PREFIX):
-        module_name = (
-            CURRENT_PLUGIN_MODULE_PREFIX
-            + module_name.removeprefix(LEGACY_PLUGIN_MODULE_PREFIX)
-        )
-    import importlib
-
-    module = importlib.import_module(module_name)
-    return getattr(module, class_name)
 
 
 def _resolve_execution_mode_name(recipe: Recipe) -> str:
