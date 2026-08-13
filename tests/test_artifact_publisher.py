@@ -62,6 +62,32 @@ class RefusingPublisher:
         )
 
 
+class DecliningPublisher:
+    """Declines every artifact, but names the URL it would have used."""
+
+    name = "declining"
+
+    def publish(self, source: Path, key: str) -> PublishedArtifact:
+        return PublishedArtifact(
+            source=source,
+            key=key,
+            url=f"https://cdn.example/{key}",
+            published=False,
+            detail="store unavailable",
+        )
+
+
+class PartialPublisher:
+    """Stores head evidence and declines base evidence."""
+
+    name = "partial"
+
+    def publish(self, source: Path, key: str) -> PublishedArtifact:
+        if "/base/" in key:
+            return PublishedArtifact(source=source, key=key, published=False, detail="store unavailable")
+        return PublishedArtifact(source=source, key=key, url=f"https://cdn.example/{key}")
+
+
 def _evidence_tree(root: Path) -> tuple[Path, Path]:
     base = root / "base"
     head = root / "head"
@@ -138,6 +164,24 @@ class ArtifactPublisherProtocolTests(unittest.TestCase):
             )
 
         self.assertIn("s3", str(caught.exception))
+
+    def test_registry_resolves_a_publisher_only_when_it_is_asked_for(self) -> None:
+        config = replace(
+            VerifierConfig.builtin(),
+            artifact_publishers={"absent": "termproof_absent_dependency.publishers:Store"},
+        )
+
+        runner = VerificationRunner(config=config)
+
+        self.assertIn("absent", runner.artifact_publisher_registry.names())
+        with self.assertRaises(ModuleNotFoundError):
+            runner.artifact_publisher_registry.get("absent")
+
+    def test_url_map_skips_an_artifact_that_was_never_transferred(self) -> None:
+        published = [DecliningPublisher().publish(Path("/tmp/a.mp4"), "a")]
+
+        self.assertEqual("https://cdn.example/a", published[0].url)
+        self.assertEqual({}, url_map_from_published(published))
 
     def test_url_map_skips_artifacts_the_publisher_could_not_address(self) -> None:
         published = [
@@ -444,6 +488,143 @@ class PublishVideosCommandTests(unittest.TestCase):
 
         self.assertEqual(0, code)
         self.assertEqual(original, report)
+
+
+class PublishVideosResultReportingTests(unittest.TestCase):
+    """What the command reports has to be what the publisher actually did."""
+
+    def test_a_wholly_declined_batch_fails_and_says_why(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base, head = _evidence_tree(Path(tmp))
+            out = Path(tmp) / "out"
+            original = REPORT.format(base=base / "run-1", head=head / "run-1")
+            (head / "latest-report.md").write_text(original, encoding="utf-8")
+
+            with (
+                _publishers(declining=f"{__name__}:DecliningPublisher"),
+                contextlib.redirect_stdout(io.StringIO()) as stdout,
+            ):
+                code = main(
+                    [
+                        "publish-videos",
+                        "--base-dir",
+                        str(base),
+                        "--head-dir",
+                        str(head),
+                        "--publisher",
+                        "declining",
+                        "--out",
+                        str(out),
+                    ]
+                )
+
+            manifest = json.loads((out / "video-manifest.json").read_text(encoding="utf-8"))
+            report = (head / "latest-report.md").read_text(encoding="utf-8")
+
+        self.assertEqual(1, code)
+        self.assertEqual([], manifest)
+        self.assertIn("store unavailable", stdout.getvalue())
+        self.assertIn("0 videos published", stdout.getvalue())
+        self.assertEqual(original, report)
+
+    def test_a_partly_declined_batch_reports_only_what_was_stored(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base, head = _evidence_tree(Path(tmp))
+            out = Path(tmp) / "out"
+            (head / "latest-report.md").write_text(
+                REPORT.format(base=base / "run-1", head=head / "run-1"),
+                encoding="utf-8",
+            )
+
+            with (
+                _publishers(partial=f"{__name__}:PartialPublisher"),
+                contextlib.redirect_stdout(io.StringIO()) as stdout,
+            ):
+                code = main(
+                    [
+                        "publish-videos",
+                        "--base-dir",
+                        str(base),
+                        "--head-dir",
+                        str(head),
+                        "--publisher",
+                        "partial",
+                        "--out",
+                        str(out),
+                    ]
+                )
+
+            manifest = json.loads((out / "video-manifest.json").read_text(encoding="utf-8"))
+            report = (head / "latest-report.md").read_text(encoding="utf-8")
+
+        self.assertEqual(0, code)
+        self.assertEqual(["termproof/videos/head/run-1/session.mp4"], [entry["key"] for entry in manifest])
+        self.assertIn("1 videos published", stdout.getvalue())
+        self.assertIn("store unavailable", stdout.getvalue())
+        self.assertIn("https://cdn.example/termproof/videos/head/run-1/session.mp4", report)
+        self.assertIn(str(base / "run-1" / "session.mp4"), report)
+
+
+class PublishVideosPublisherSelectionTests(unittest.TestCase):
+    def test_s3_still_demands_a_bucket_outside_a_dry_run(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base, head = _evidence_tree(Path(tmp))
+
+            with contextlib.redirect_stderr(io.StringIO()) as stderr:
+                with self.assertRaises(SystemExit) as caught:
+                    main(["publish-videos", "--base-dir", str(base), "--head-dir", str(head)])
+
+        self.assertEqual(2, caught.exception.code)
+        self.assertIn("--bucket is required (or set TERM_PROOF_VIDEO_BUCKET) unless --dry-run", stderr.getvalue())
+
+    def test_another_publisher_does_not_inherit_the_bucket_requirement(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base, head = _evidence_tree(Path(tmp))
+            (head / "latest-report.md").write_text(
+                REPORT.format(base=base / "run-1", head=head / "run-1"),
+                encoding="utf-8",
+            )
+
+            with _publishers(recording=f"{__name__}:RecordingPublisher"), contextlib.redirect_stdout(io.StringIO()):
+                code = main(
+                    [
+                        "publish-videos",
+                        "--base-dir",
+                        str(base),
+                        "--head-dir",
+                        str(head),
+                        "--publisher",
+                        "recording",
+                        "--video-base-url",
+                        "https://artifacts.example/store",
+                    ]
+                )
+
+            report = (head / "latest-report.md").read_text(encoding="utf-8")
+
+        self.assertEqual(0, code)
+        self.assertIn(
+            "https://artifacts.example/store/termproof/videos/head/run-1/session.mp4",
+            report,
+        )
+
+
+@contextlib.contextmanager
+def _publishers(**publishers: str):
+    """Register extra publishers for the duration of a CLI invocation."""
+    from termproof import evidence_publish
+
+    builtin = VerifierConfig.builtin()
+    config = replace(
+        builtin,
+        artifact_publishers={**builtin.artifact_publishers, **publishers},
+    )
+    original = evidence_publish.load_config
+    evidence_publish.load_config = lambda *args, **kwargs: config
+    try:
+        yield
+    finally:
+        evidence_publish.load_config = original
 
 
 @contextlib.contextmanager

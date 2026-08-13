@@ -34,6 +34,26 @@ class MyStorePublisherTest(unittest.TestCase):
             self.assertFalse(published.published)
             self.assertIn("no such file", published.detail)
 
+    def test_dry_run_names_the_url_without_copying_anything(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / "session.mp4"
+            source.write_bytes(b"video")
+            store = MyStore.from_target(
+                PublishTarget(
+                    bucket=str(root / "store"),
+                    base_url="https://evidence.example/",
+                    dry_run=True,
+                )
+            )
+
+            published = store.publish(source, "pr/7/head/session.mp4")
+
+            self.assertFalse(published.published)
+            self.assertEqual("dry run: not uploaded", published.detail)
+            self.assertEqual("https://evidence.example/pr/7/head/session.mp4", published.url)
+            self.assertFalse((root / "store").exists())
+
     def test_unaddressable_artifacts_are_left_out_of_the_url_map(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

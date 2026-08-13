@@ -101,10 +101,16 @@ def _build_video_backend_registry(config: VerifierConfig) -> Registry[Any]:
 
 
 def _build_artifact_publisher_registry(config: VerifierConfig) -> Registry[Any]:
+    """Register configured publishers without importing them.
+
+    Unlike the other registries, this one resolves the class on demand: a run
+    never publishes, so an artifact store whose module needs an optional
+    dependency must not be able to break ``termproof run`` by merely being
+    configured.
+    """
     registry: Registry[Any] = Registry()
     for name, qualname in config.artifact_publishers.items():
-        cls = import_class(qualname)
-        registry.register(name, lambda c=cls: c())
+        registry.register(name, lambda q=qualname: import_class(q)())
     return registry
 
 

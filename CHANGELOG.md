@@ -83,12 +83,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   needs the source and the URL together, which `url_map_from_published` builds.
   A publisher reports `published=False` when it did not transfer the bytes and
   an empty `url` when it did but cannot address them, so neither has to be an
-  exception. The existing S3/R2 path is the first implementation
+  exception. Neither is treated as a success either: only an artifact that is
+  both published and addressable is rewritten into a report, `publish-videos`
+  reports each declined artifact with its `detail`, records only what was stored
+  in `video-manifest.json`, and exits non-zero when a batch was offered and
+  nothing was stored. The existing S3/R2 path is the first implementation
   (`termproof.evidence_publish:S3ArtifactPublisher`, registered as `s3`) rather
   than a parallel special case, and `publish-videos` gained `--publisher` to
-  select another one. Publishing behaviour is unchanged: same keys, same URLs,
-  same report rewriting, same failure when neither the AWS CLI nor boto3 is
-  installed. Deployment settings reach a publisher through an optional
+  select another one; `--bucket` is a precondition of that publisher rather than
+  of publishing, so another one may run without it. Publishing behaviour is
+  unchanged: same keys, same URLs, same report rewriting, same failure when
+  neither the AWS CLI nor boto3 is installed. A configured publisher is imported
+  when it is asked for rather than when a runner is built, so a store that
+  nothing publishes to cannot break an ordinary run. Deployment settings reach a
+  publisher through an optional
   `from_target` classmethod, mirroring `from_config` for renderers, so
   credentials stay out of the checked-in config file. See
   `docs/plugin-protocols.md`.

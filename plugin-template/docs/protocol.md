@@ -46,7 +46,9 @@ did but cannot name a public address for them; neither has to raise.
 Deployment settings (bucket, endpoint, public base URL, dry-run) arrive through
 an optional `from_target(cls, target)` classmethod rather than from
 `.termproof/config.yaml`, since that file is checked in. Publishers without it
-are constructed with no arguments.
+are constructed with no arguments. A publisher that takes a target has to honour
+`dry_run`: name the URL the artifact would get, report `published=False`, and
+move nothing.
 
 Publishers compose, because a publisher is just an object returning results: a
 wrapper that tries one store, falls back to another and records the degradation

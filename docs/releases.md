@@ -138,7 +138,11 @@ The upload itself goes through the `ArtifactPublisher` protocol. `s3` is the
 default and is what the table above configures; `--publisher <name>` (or
 `TERM_PROOF_ARTIFACT_PUBLISHER`) selects any other publisher registered under
 `artifact_publishers` in `.termproof/config.yaml`, which is how evidence is sent
-to a store that is not S3-compatible. See `docs/plugin-protocols.md`.
+to a store that is not S3-compatible. `--bucket` is a precondition of the `s3`
+publisher rather than of publishing, so another publisher is free to run without
+it. Whichever publisher runs, the manifest and the count record what was
+actually stored, and a batch where nothing was stored exits non-zero. See
+`docs/plugin-protocols.md`.
 
 The PR comment (`termproof.ci_evidence comment`) accepts `--video-base-url` and
 rewrites video links the same way it rewrites screenshot links. When

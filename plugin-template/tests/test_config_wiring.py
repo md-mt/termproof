@@ -39,7 +39,12 @@ class PluginConfigWiringTest(unittest.TestCase):
             self.assertIn("wait_for_regex", runner.step_registry.names())
             self.assertIn("screen_count", runner.assertion_registry.names())
             self.assertIn("json_summary", runner.reporter_registry.names())
+            # Publishers are resolved on demand rather than at construction, so
+            # a store nothing publishes to cannot break an ordinary run.
             self.assertIn("my_store", runner.artifact_publisher_registry.names())
+            from termproof_my_plugin.publishers import MyStore
+
+            self.assertIsInstance(runner.artifact_publisher_registry.get("my_store"), MyStore)
 
 
 if __name__ == "__main__":

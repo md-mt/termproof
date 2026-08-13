@@ -37,9 +37,10 @@ class MyStore:
 
     name = "my_store"
 
-    def __init__(self, root: Path = Path("published"), base_url: str = "") -> None:
+    def __init__(self, root: Path = Path("published"), base_url: str = "", dry_run: bool = False) -> None:
         self.root = root
         self.base_url = base_url.rstrip("/")
+        self.dry_run = dry_run
 
     @classmethod
     def from_target(cls, target: PublishTarget) -> MyStore:
@@ -47,6 +48,7 @@ class MyStore:
         return cls(
             root=Path(target.bucket or "published"),
             base_url=target.base_url,
+            dry_run=target.dry_run,
         )
 
     def publish(self, source: Path, key: str) -> PublishedArtifact:
@@ -57,10 +59,19 @@ class MyStore:
                 published=False,
                 detail=f"no such file: {source}",
             )
-        destination = self.root / key
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(source, destination)
         # An empty base URL means the bytes are stored but not addressable, so
         # reports keep pointing at the local file rather than a broken link.
         url = f"{self.base_url}/{key}" if self.base_url else ""
+        # A dry run names where the artifact would land without storing it.
+        if self.dry_run:
+            return PublishedArtifact(
+                source=source,
+                key=key,
+                url=url,
+                published=False,
+                detail="dry run: not uploaded",
+            )
+        destination = self.root / key
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, destination)
         return PublishedArtifact(source=source, key=key, url=url)

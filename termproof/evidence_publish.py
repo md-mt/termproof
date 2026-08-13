@@ -174,7 +174,7 @@ class S3ArtifactPublisher:
         )
 
     def publish(self, source: Path, key: str) -> PublishedArtifact:
-        url = f"{self.base_url}/{quote(key, safe='/._-~')}" if self.base_url else ""
+        url = _hosted_url(self.base_url, key)
         if self.dry_run:
             return PublishedArtifact(
                 source=source,
@@ -208,17 +208,23 @@ def resolve_artifact_publisher(
     return cls() if factory is None else factory(target)
 
 
+def _hosted_url(base_url: str, key: str) -> str:
+    """Name the public URL a key is served under, or nothing without a base URL."""
+    return f"{base_url}/{quote(key, safe='/._-~')}" if base_url else ""
+
+
 def url_map_from_published(published: Iterable[PublishedArtifact]) -> dict[str, str]:
     """Map every published artifact's local path onto its hosted URL.
 
     Reports link evidence by local path, so this is the bridge between
-    publishing and :func:`rewrite_report_video_links`. Artifacts the publisher
-    could not address are skipped: rewriting a link to an empty URL would break
-    a report that currently points at a file the reader can still open.
+    publishing and :func:`rewrite_report_video_links`. Only an artifact that is
+    both published and addressable is included: rewriting a link to an empty URL
+    or to a URL whose bytes never arrived would break a report that currently
+    points at a file the reader can still open.
     """
     url_map: dict[str, str] = {}
     for artifact in published:
-        if not artifact.url:
+        if not artifact.published or not artifact.url:
             continue
         for local in {str(artifact.source), artifact.source.as_posix()}:
             url_map[local] = artifact.url
@@ -306,13 +312,16 @@ def build_video_url_map(
     :func:`url_map_from_published`, which reads the URLs the publisher actually
     reported instead of predicting them.
     """
-    # A dry run is precisely "name the URL without moving the bytes", which is
-    # what this asks for.
-    publisher = S3ArtifactPublisher(base_url=base_url, dry_run=True)
-    return url_map_from_published(
-        publisher.publish(Path(entry["source"]), entry["key"])
-        for entry in _video_manifest_entries(base_dir, head_dir, prefix, pr_number, run_id)
-    )
+    base_url = base_url.rstrip("/")
+    url_map: dict[str, str] = {}
+    for entry in _video_manifest_entries(base_dir, head_dir, prefix, pr_number, run_id):
+        url = _hosted_url(base_url, entry["key"])
+        if not url:
+            continue
+        source = Path(entry["source"])
+        for local in {str(source), source.as_posix()}:
+            url_map[local] = url
+    return url_map
 
 
 def rewrite_report_video_links(text: str, url_map: dict[str, str]) -> str:
@@ -380,7 +389,9 @@ def main(argv: list[str] | None = None) -> int:
         print(f"{len(manifest)} videos prepared")
         return 0
     if args.command == "publish-videos":
-        if not args.bucket and not args.dry_run:
+        # A bucket is what the S3 publisher needs, not what publishing needs.
+        # Any other store states its own preconditions by refusing the target.
+        if args.publisher == "s3" and not args.bucket and not args.dry_run:
             parser.error("--bucket is required (or set TERM_PROOF_VIDEO_BUCKET) unless --dry-run")
         publisher = resolve_artifact_publisher(
             args.publisher,
@@ -399,12 +410,34 @@ def main(argv: list[str] | None = None) -> int:
             args.run_id,
         )
         published = [publisher.publish(Path(entry["source"]), entry["key"]) for entry in entries]
+        # A dry run declines every artifact by design, so nothing it reports is
+        # a failure; anything else the publisher declined is one, and the
+        # manifest records what was actually stored rather than what was offered.
+        declined = [] if args.dry_run else [artifact for artifact in published if not artifact.published]
+        stored = (
+            entries
+            if args.dry_run
+            else [entry for entry, artifact in zip(entries, published, strict=True) if artifact.published]
+        )
         if args.out is not None:
             root = args.out / "pr" / args.pr_number / args.run_id if args.pr_number and args.run_id else args.out
             root.mkdir(parents=True, exist_ok=True)
-            (root / "video-manifest.json").write_text(json.dumps(entries, indent=2) + "\n", encoding="utf-8")
-        # Rewrite video links in reports for whatever the publisher could address
-        url_map = url_map_from_published(published)
+            (root / "video-manifest.json").write_text(json.dumps(stored, indent=2) + "\n", encoding="utf-8")
+        # Rewrite video links in reports for whatever the publisher could address.
+        # A dry run names URLs without moving bytes, so its map comes from the
+        # key layout rather than from results that report nothing as published.
+        url_map = (
+            build_video_url_map(
+                args.base_dir,
+                args.head_dir,
+                args.video_base_url,
+                pr_number=args.pr_number,
+                run_id=args.run_id,
+                prefix=args.prefix,
+            )
+            if args.dry_run
+            else url_map_from_published(published)
+        )
         if url_map:
             for report_path in [
                 *args.base_dir.rglob("report.md"),
@@ -417,11 +450,15 @@ def main(argv: list[str] | None = None) -> int:
                     new_text = rewrite_report_video_links(text, url_map)
                     if new_text != text:
                         report_path.write_text(new_text, encoding="utf-8")
+        for artifact in declined:
+            print(f"not published: {artifact.source}" + (f" ({artifact.detail})" if artifact.detail else ""))
         print(
-            f"{len(entries)} videos {'(dry-run) ' if args.dry_run else ''}published"
+            f"{len(stored)} videos {'(dry-run) ' if args.dry_run else ''}published"
             + (f" to s3://{args.bucket}/{args.prefix}" if args.bucket else "")
         )
-        return 0
+        # Nothing stored out of something offered is a failed publish, not a
+        # successful publish of nothing.
+        return 1 if declined and not stored else 0
     raise AssertionError(args.command)
 
 

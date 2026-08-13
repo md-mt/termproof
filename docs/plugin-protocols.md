@@ -102,6 +102,14 @@ The two failure shapes are distinct and both are reportable without raising:
 - `url=""` — the bytes were transferred but the publisher cannot name a public
   address for them, so a report link should keep pointing at the local file.
 
+Only an artifact that is both published and addressable is rewritten into a
+report, so neither failure shape can replace a working local path with a link
+that does not resolve. `publish-videos` reports every declined artifact with its
+`detail`, records only what was stored in `video-manifest.json`, and exits
+non-zero when a batch was offered and nothing was stored — a store that declines
+without raising must not read as a successful publish. A dry run is not a
+decline: it names URLs without moving bytes and still succeeds.
+
 A publisher may define a `from_target(cls, target: PublishTarget) -> Self`
 classmethod to receive the bucket, endpoint, public base URL and dry-run flag
 supplied at publish time — the same opt-in pattern `from_config` uses for
