@@ -141,7 +141,13 @@ default and is what the table above configures; `--publisher <name>` (or
 to a store that is not S3-compatible. `--bucket` is a precondition of the `s3`
 publisher rather than of publishing, so another publisher is free to run without
 it. Whichever publisher runs, the manifest and the count record what was
-actually stored, and a batch where nothing was stored exits non-zero. See
+actually stored, any declined artifact is reported with its `detail`, and the
+command exits non-zero if anything was declined — a partial publish is a failed
+publish, not a smaller success. Report links are rewritten to the URLs the
+publisher itself reported, so a store that maps keys into its own namespace, or
+that stores bytes it cannot address, is never credited with a link it would not
+serve. `--dry-run` is refused by a publisher that takes no target, because such
+a publisher never sees the flag and would publish for real. See
 `docs/plugin-protocols.md`.
 
 The PR comment (`termproof.ci_evidence comment`) accepts `--video-base-url` and

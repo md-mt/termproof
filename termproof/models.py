@@ -88,9 +88,11 @@ class PublishedArtifact:
     ``url`` is empty when the store took the bytes but cannot name a public
     address for them, and ``published`` is false when it did not take them at
     all — a dry run, an unsupported file, or a failure the publisher chose to
-    report rather than raise. ``detail`` says which. Both a link rewrite and a
-    manifest entry are only warranted for an artifact that is published and
-    addressable, so callers can tell the two conditions apart.
+    report rather than raise. ``detail`` says which. The two conditions warrant
+    different things: a link rewrite needs an artifact that is both published
+    and addressable, while a manifest entry needs only that it was published,
+    because bytes that were stored but cannot be named still belong in the
+    record of what was stored.
     """
 
     source: Path

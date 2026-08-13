@@ -88,6 +88,45 @@ class PartialPublisher:
         return PublishedArtifact(source=source, key=key, url=f"https://cdn.example/{key}")
 
 
+class TenantPublisher:
+    """Maps keys into its own namespace, and spells URLs its own way."""
+
+    name = "tenant"
+
+    def __init__(self, base_url: str = "", dry_run: bool = False) -> None:
+        self.base_url = base_url.rstrip("/")
+        self.dry_run = dry_run
+
+    @classmethod
+    def from_target(cls, target: PublishTarget) -> TenantPublisher:
+        return cls(base_url=target.base_url, dry_run=target.dry_run)
+
+    def publish(self, source: Path, key: str) -> PublishedArtifact:
+        url = f"{self.base_url}/tenant/{key}" if self.base_url else ""
+        if self.dry_run:
+            return PublishedArtifact(
+                source=source,
+                key=key,
+                url=url,
+                published=False,
+                detail="dry run: not uploaded",
+            )
+        return PublishedArtifact(source=source, key=key, url=url)
+
+
+class UnaddressablePublisher:
+    """Takes the bytes but cannot name a public address for them."""
+
+    name = "silent"
+
+    @classmethod
+    def from_target(cls, target: PublishTarget) -> UnaddressablePublisher:
+        return cls()
+
+    def publish(self, source: Path, key: str) -> PublishedArtifact:
+        return PublishedArtifact(source=source, key=key)
+
+
 def _evidence_tree(root: Path) -> tuple[Path, Path]:
     base = root / "base"
     head = root / "head"
@@ -527,7 +566,7 @@ class PublishVideosResultReportingTests(unittest.TestCase):
         self.assertIn("0 videos published", stdout.getvalue())
         self.assertEqual(original, report)
 
-    def test_a_partly_declined_batch_reports_only_what_was_stored(self) -> None:
+    def test_a_partly_declined_batch_fails_and_stores_the_rest(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             base, head = _evidence_tree(Path(tmp))
             out = Path(tmp) / "out"
@@ -557,7 +596,9 @@ class PublishVideosResultReportingTests(unittest.TestCase):
             manifest = json.loads((out / "video-manifest.json").read_text(encoding="utf-8"))
             report = (head / "latest-report.md").read_text(encoding="utf-8")
 
-        self.assertEqual(0, code)
+        # One video silently missing is the same false success as none stored,
+        # so a partial decline fails the command too.
+        self.assertEqual(1, code)
         self.assertEqual(["termproof/videos/head/run-1/session.mp4"], [entry["key"] for entry in manifest])
         self.assertIn("1 videos published", stdout.getvalue())
         self.assertIn("store unavailable", stdout.getvalue())
@@ -607,6 +648,129 @@ class PublishVideosPublisherSelectionTests(unittest.TestCase):
             "https://artifacts.example/store/termproof/videos/head/run-1/session.mp4",
             report,
         )
+
+
+class DryRunSpeaksForItsOwnStoreTests(unittest.TestCase):
+    """A dry run must report where the *selected* publisher would put evidence."""
+
+    def test_report_links_use_the_publishers_own_urls_not_the_s3_layout(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            base = root / "base"
+            head = root / "head"
+            for scope in (base, head):
+                run = scope / "run one"
+                run.mkdir(parents=True)
+                (run / "session.mp4").write_bytes(b"video")
+            (head / "latest-report.md").write_text(
+                REPORT.format(base=base / "run one", head=head / "run one"),
+                encoding="utf-8",
+            )
+
+            with _publishers(tenant=f"{__name__}:TenantPublisher"), contextlib.redirect_stdout(io.StringIO()):
+                code = main(
+                    [
+                        "publish-videos",
+                        "--base-dir",
+                        str(base),
+                        "--head-dir",
+                        str(head),
+                        "--publisher",
+                        "tenant",
+                        "--video-base-url",
+                        "https://evidence.example",
+                        "--dry-run",
+                    ]
+                )
+
+            report = (head / "latest-report.md").read_text(encoding="utf-8")
+
+        self.assertEqual(0, code)
+        # The store's own namespace, with the space left exactly as the store
+        # spelled it - not the percent-encoded s3 key layout.
+        self.assertIn("https://evidence.example/tenant/termproof/videos/head/run one/session.mp4", report)
+        self.assertNotIn("run%20one", report)
+
+    def test_a_publisher_that_cannot_address_an_artifact_keeps_the_local_link(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base, head = _evidence_tree(Path(tmp))
+            (head / "latest-report.md").write_text(
+                REPORT.format(base=base / "run-1", head=head / "run-1"),
+                encoding="utf-8",
+            )
+
+            with _publishers(silent=f"{__name__}:UnaddressablePublisher"), contextlib.redirect_stdout(io.StringIO()):
+                code = main(
+                    [
+                        "publish-videos",
+                        "--base-dir",
+                        str(base),
+                        "--head-dir",
+                        str(head),
+                        "--publisher",
+                        "silent",
+                        "--video-base-url",
+                        "https://evidence.example",
+                        "--dry-run",
+                    ]
+                )
+
+            report = (head / "latest-report.md").read_text(encoding="utf-8")
+
+        self.assertEqual(0, code)
+        self.assertIn(str(head / "run-1" / "session.mp4"), report)
+        self.assertNotIn("https://evidence.example", report)
+
+    def test_dry_run_is_refused_by_a_publisher_that_cannot_see_the_flag(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base, head = _evidence_tree(Path(tmp))
+
+            with (
+                _publishers(refusing=f"{__name__}:RefusingPublisher"),
+                contextlib.redirect_stderr(io.StringIO()) as stderr,
+            ):
+                with self.assertRaises(SystemExit) as caught:
+                    main(
+                        [
+                            "publish-videos",
+                            "--base-dir",
+                            str(base),
+                            "--head-dir",
+                            str(head),
+                            "--publisher",
+                            "refusing",
+                            "--dry-run",
+                        ]
+                    )
+
+        self.assertEqual(2, caught.exception.code)
+        self.assertIn("--dry-run cannot be honoured by publisher 'refusing'", stderr.getvalue())
+
+    def test_the_destination_line_names_the_publisher_instead_of_guessing_a_scheme(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base, head = _evidence_tree(Path(tmp))
+
+            with (
+                _publishers(recording=f"{__name__}:RecordingPublisher"),
+                contextlib.redirect_stdout(io.StringIO()) as stdout,
+            ):
+                code = main(
+                    [
+                        "publish-videos",
+                        "--base-dir",
+                        str(base),
+                        "--head-dir",
+                        str(head),
+                        "--publisher",
+                        "recording",
+                        "--bucket",
+                        "evidence-dir",
+                    ]
+                )
+
+        self.assertEqual(0, code)
+        self.assertIn("2 videos published via recording", stdout.getvalue())
+        self.assertNotIn("s3://", stdout.getvalue())
 
 
 @contextlib.contextmanager

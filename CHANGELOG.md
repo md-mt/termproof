@@ -86,8 +86,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   exception. Neither is treated as a success either: only an artifact that is
   both published and addressable is rewritten into a report, `publish-videos`
   reports each declined artifact with its `detail`, records only what was stored
-  in `video-manifest.json`, and exits non-zero when a batch was offered and
-  nothing was stored. The existing S3/R2 path is the first implementation
+  in `video-manifest.json`, and exits non-zero if anything was declined — a
+  batch that stored most of its evidence and quietly dropped the rest is the
+  same false success as one that stored none. Report links are rewritten to the
+  URLs the selected publisher reported rather than to a predicted S3 layout, so
+  no store's address scheme can speak for another, and `--dry-run` is refused by
+  a publisher that takes no target, since it would never see the flag and would
+  publish for real. The existing S3/R2 path is the first implementation
   (`termproof.evidence_publish:S3ArtifactPublisher`, registered as `s3`) rather
   than a parallel special case, and `publish-videos` gained `--publisher` to
   select another one; `--bucket` is a precondition of that publisher rather than
