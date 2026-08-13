@@ -134,6 +134,12 @@ What happens when publishing:
 3. When `--video-base-url` is set, `report.md` / `latest-report.md` links for
    `session.mp4` are rewritten to `{base_url}/pr/{pr}/{run}/{scope}/...`.
 
+The upload itself goes through the `ArtifactPublisher` protocol. `s3` is the
+default and is what the table above configures; `--publisher <name>` (or
+`TERM_PROOF_ARTIFACT_PUBLISHER`) selects any other publisher registered under
+`artifact_publishers` in `.termproof/config.yaml`, which is how evidence is sent
+to a store that is not S3-compatible. See `docs/plugin-protocols.md`.
+
 The PR comment (`termproof.ci_evidence comment`) accepts `--video-base-url` and
 rewrites video links the same way it rewrites screenshot links. When
 `TERM_PROOF_VIDEO_BASE_URL` is set in CI, the existing screenshot flow needs no

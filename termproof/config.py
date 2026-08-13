@@ -56,6 +56,9 @@ BUILTIN_DEFAULTS: dict[str, Any] = {
         "agg_ffmpeg": "termproof.builtin_video:AggFfmpegBackend",
         "attributed_rsvg": "termproof.cast_video:RsvgFfmpegBackend",
     },
+    "artifact_publishers": {
+        "s3": "termproof.evidence_publish:S3ArtifactPublisher",
+    },
     "session_backend": "termproof.builtin_session:PexpectBackend",
     "docker": {
         "image": "",
@@ -207,6 +210,7 @@ class VerifierConfig:
     reporters: dict[str, str]
     screen_renderers: dict[str, str]
     video_backends: dict[str, str]
+    artifact_publishers: dict[str, str]
     session_backend: str
     docker: DockerBackendConfig
     defaults: GlobalDefaults
@@ -397,6 +401,7 @@ def _from_mapping(data: dict[str, Any]) -> VerifierConfig:
         reporters=dict(data.get("reporters", {})),
         screen_renderers=dict(data.get("screen_renderers", {})),
         video_backends=dict(data.get("video_backends", {})),
+        artifact_publishers=dict(data.get("artifact_publishers", {})),
         session_backend=str(data.get("session_backend", "")),
         docker=DockerBackendConfig(
             image=str(docker_raw.get("image", "")),

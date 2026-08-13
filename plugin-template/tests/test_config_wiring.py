@@ -22,6 +22,8 @@ class PluginConfigWiringTest(unittest.TestCase):
                   screen_count: termproof_my_plugin.assertions:ScreenCount
                 reporters:
                   json_summary: termproof_my_plugin.reporters:JsonSummaryReporter
+                artifact_publishers:
+                  my_store: termproof_my_plugin.publishers:MyStore
                 """),
                 encoding="utf-8",
             )
@@ -29,6 +31,7 @@ class PluginConfigWiringTest(unittest.TestCase):
             self.assertIn("wait_for_regex", cfg.steps)
             self.assertIn("screen_count", cfg.assertions)
             self.assertIn("json_summary", cfg.reporters)
+            self.assertIn("my_store", cfg.artifact_publishers)
 
             from termproof.runner import VerificationRunner
 
@@ -36,6 +39,7 @@ class PluginConfigWiringTest(unittest.TestCase):
             self.assertIn("wait_for_regex", runner.step_registry.names())
             self.assertIn("screen_count", runner.assertion_registry.names())
             self.assertIn("json_summary", runner.reporter_registry.names())
+            self.assertIn("my_store", runner.artifact_publisher_registry.names())
 
 
 if __name__ == "__main__":

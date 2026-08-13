@@ -100,6 +100,14 @@ def _build_video_backend_registry(config: VerifierConfig) -> Registry[Any]:
     return registry
 
 
+def _build_artifact_publisher_registry(config: VerifierConfig) -> Registry[Any]:
+    registry: Registry[Any] = Registry()
+    for name, qualname in config.artifact_publishers.items():
+        cls = import_class(qualname)
+        registry.register(name, lambda c=cls: c())
+    return registry
+
+
 def _resolve_session_backend(config: VerifierConfig) -> SessionBackend:
     qualname = SESSION_BACKEND_ALIASES.get(config.session_backend, config.session_backend)
     cls = import_class(qualname)
@@ -132,6 +140,7 @@ class VerificationRunner:
         self.execution_mode_registry = _build_execution_mode_registry(self.config)
         self.agent_runner_registry = _build_agent_runner_registry(self.config)
         self.video_backend_registry = _build_video_backend_registry(self.config)
+        self.artifact_publisher_registry = _build_artifact_publisher_registry(self.config)
         self.session_backend = _resolve_session_backend(self.config)
 
     def run(

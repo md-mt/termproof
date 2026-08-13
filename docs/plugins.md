@@ -1,6 +1,6 @@
 # Community plugins
 
-TermProof is extensible via a plugin registry: steps, assertions, session backends, video backends, reporters, execution modes, and agent runners. This directory lists community-provided plugins.
+TermProof is extensible via a plugin registry: steps, assertions, session backends, video backends, reporters, execution modes, agent runners, and artifact publishers. This directory lists community-provided plugins.
 
 ## What counts as a plugin?
 
@@ -15,6 +15,8 @@ assertions:
 session_backend: my_org.termproof_session:DockerSessionBackend
 reporters:
   junit_xml: my_org.termproof_reporters:JunitReporter
+artifact_publishers:
+  my_store: my_org.termproof_publishers:MyStorePublisher
 ```
 
 See [`plugin-protocols.md`](plugin-protocols.md) for the stable protocol contract and `termproof/config.py` for built-ins.

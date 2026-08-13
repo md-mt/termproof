@@ -24,5 +24,6 @@ Stable protocols cover:
 - `VideoBackend`
 - `AgentRunner`
 - `SessionBackend`
+- `ArtifactPublisher`
 
 See `docs/plugin-protocols.md` for signatures and compatibility policy.

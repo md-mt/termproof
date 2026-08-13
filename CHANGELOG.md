@@ -72,6 +72,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   binary that exists — previously any commit at all was enough, including the
   working tree's, which says nothing about what was tested.
 - **`asciinema` is now an optional extra, `termproof[record]`.** See Changed.
+- **An `ArtifactPublisher` plugin protocol.** Where evidence goes is now an
+  extension point like every other part of the pipeline, registered under the
+  `artifact_publishers` config key and selected by name. A publisher implements
+  `publish(source, key) -> PublishedArtifact`: the caller decides the key layout,
+  because that is the shape of the evidence rather than a property of any store,
+  and the publisher maps the key onto its own namespace and onto a public URL.
+  The result is a record rather than a bare URL because publishing is not the
+  last step — reports link evidence by local path, so rewriting those links
+  needs the source and the URL together, which `url_map_from_published` builds.
+  A publisher reports `published=False` when it did not transfer the bytes and
+  an empty `url` when it did but cannot address them, so neither has to be an
+  exception. The existing S3/R2 path is the first implementation
+  (`termproof.evidence_publish:S3ArtifactPublisher`, registered as `s3`) rather
+  than a parallel special case, and `publish-videos` gained `--publisher` to
+  select another one. Publishing behaviour is unchanged: same keys, same URLs,
+  same report rewriting, same failure when neither the AWS CLI nor boto3 is
+  installed. Deployment settings reach a publisher through an optional
+  `from_target` classmethod, mirroring `from_config` for renderers, so
+  credentials stay out of the checked-in config file. See
+  `docs/plugin-protocols.md`.
 - **An `evidence:` block in `.termproof/config.yaml`.** The SVG and PNG
   renderers and the video pipeline no longer hardcode their rendering
   parameters: `evidence.svg` (character width, line height, padding, font size

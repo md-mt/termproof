@@ -12,10 +12,12 @@ class ProtocolApiTests(unittest.TestCase):
         self.assertEqual(
             [
                 "AgentRunner",
+                "ArtifactPublisher",
                 "AssertionType",
                 "EvidenceConfig",
                 "ExecutionMode",
                 "PngRenderConfig",
+                "PublishedArtifact",
                 "Reporter",
                 "ScreenRenderer",
                 "SessionBackend",
@@ -62,6 +64,10 @@ class ProtocolApiTests(unittest.TestCase):
             protocols.SessionBackend.create_session: (
                 ["self", "argv", "cast_path", "cwd", "env", "cols", "rows"],
                 "TerminalSession",
+            ),
+            protocols.ArtifactPublisher.publish: (
+                ["self", "source", "key"],
+                "PublishedArtifact",
             ),
         }
         for method, (parameters, return_annotation) in cases.items():

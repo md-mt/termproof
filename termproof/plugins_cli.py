@@ -37,6 +37,7 @@ def installed_plugins(config: VerifierConfig) -> list[InstalledPlugin]:
         ("reporters", config.reporters),
         ("screen_renderers", config.screen_renderers),
         ("video_backends", config.video_backends),
+        ("artifact_publishers", config.artifact_publishers),
     ]
     for category, mapping in registries:
         for name, target in sorted(mapping.items()):
