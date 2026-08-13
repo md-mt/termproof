@@ -7,6 +7,8 @@ pub mod error;
 pub mod execution;
 pub mod models;
 pub mod planner;
+pub mod pyregex;
+pub mod pyrepr;
 pub mod recipe;
 pub mod result;
 pub mod schema;
