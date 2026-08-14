@@ -17,7 +17,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.2.1"
+version = "0.3.0"
 edition = "2021"
 rust-version = "1.96"
 license = "MIT"
@@ -51,7 +51,7 @@ all = "warn"
 # against on the registry. A `path`-only dependency cannot be published at all,
 # and the two must be bumped together — see docs/publishing.md.
 [workspace.dependencies]
-termproof = { path = "crates/termproof", version = "0.2.1" }
+termproof = { path = "crates/termproof", version = "0.3.0" }
 regex = { version = "1.13.1", default-features = false, features = ["std", "unicode"] }
 fancy-regex = "0.19.0"
 serde = { version = "1.0", features = ["derive"] }
@@ -77,4 +77,4 @@ chrono = "0.4"
 globset = "0.4"
 ab_glyph = "0.2"
 clap = { version = "4.5", features = ["derive"] }
-termproof-plugin-protocol = { path = "crates/termproof-plugin-protocol", version = "0.2.1" }
+termproof-plugin-protocol = { path = "crates/termproof-plugin-protocol", version = "0.3.0" }
