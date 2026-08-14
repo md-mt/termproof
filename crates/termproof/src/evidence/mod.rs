@@ -21,6 +21,7 @@
 //! [`render`]'s module docs carry the full table.
 
 pub mod cast_video;
+pub mod collector;
 pub mod dedup;
 pub mod diff;
 pub mod render;
@@ -29,6 +30,11 @@ pub mod screenshot;
 pub mod uploader;
 pub mod video;
 
+pub use collector::{
+    CaptureKind, CapturedStep, EvidenceCollector, EvidenceManifest, EvidencePublisher,
+    PublishedStep, RawOutput, ReusedFrom, RunIdentity, ScreenCapture, ScreenSource,
+    EVIDENCE_MANIFEST_VERSION,
+};
 pub use diff::apply_visual_diff;
 pub use render::{normalize_text, render_by_extension, render_png, render_svg};
 pub use report::{
