@@ -17,6 +17,12 @@
 //! | `file_contains` | the filesystem | `contains <repr>` |
 //! | `json_schema` | `raw_output` | one of nine (FR-016) |
 //!
+//! `json_schema` is the one row behind a feature. It needs the `jsonschema`
+//! crate, which is 87 of the crate's 180 transitive dependencies, so the
+//! `json-schema` feature — on by default — decides whether it is compiled. Off,
+//! it is absent from [`BUILTIN_TYPES`] and dispatch reports it the way it
+//! reports any name it does not know; the other seven are unaffected.
+//!
 //! **Nothing here can end a run.** FR-020 supersedes the oracle, which raises
 //! out of `evaluate_assertions` on eight different malformed inputs and
 //! discards every result already collected. Each of those becomes a failed
@@ -24,6 +30,7 @@
 //! assertion — a partial report is worse than none.
 
 use std::collections::BTreeMap;
+#[cfg(feature = "json-schema")]
 use std::fmt::Write as _;
 
 use serde_json::Value as JsonValue;
@@ -31,15 +38,17 @@ use serde_json::Value as JsonValue;
 use crate::models::{AssertionResult, Recipe};
 use crate::pypath::PyPath;
 use crate::pyrepr::{repr_json, repr_str, str_json, type_name};
+#[cfg(feature = "json-schema")]
 use crate::pyschema;
 
-/// The assertion types this crate answers for, in the order the config
+/// The built-ins that need no optional dependency, in the order the config
 /// declares them.
 ///
-/// FR-024 wants dispatch to go through a registry rather than a closed `match`,
-/// so a plugin type can be added without editing the dispatcher. This is that
-/// registry's built-in half; [`dispatch`] consults it by name.
-pub const BUILTIN_TYPES: [&str; 8] = [
+/// The single source for both shapes of [`BUILTIN_TYPES`]. Writing the list
+/// once is what makes "the same names minus `json_schema`" a fact the compiler
+/// carries rather than a convention two literals have to keep: an eighth
+/// unconditional built-in is added here, and both shapes gain it.
+const UNCONDITIONAL_TYPES: [&str; 7] = [
     "output_contains",
     "output_not_contains",
     "screen_contains",
@@ -47,8 +56,34 @@ pub const BUILTIN_TYPES: [&str; 8] = [
     "exit_code",
     "file_exists",
     "file_contains",
-    "json_schema",
 ];
+
+/// The assertion types this crate answers for, in the order the config
+/// declares them.
+///
+/// FR-024 wants dispatch to go through a registry rather than a closed `match`,
+/// so a plugin type can be added without editing the dispatcher. This is that
+/// registry's built-in half; [`dispatch`] consults it by name.
+///
+/// The list is what is actually dispatchable: [`UNCONDITIONAL_TYPES`], and
+/// `json_schema` when the `json-schema` feature compiles something that can
+/// answer it.
+#[cfg(feature = "json-schema")]
+pub const BUILTIN_TYPES: [&str; 8] = {
+    let mut all = [""; 8];
+    let mut i = 0;
+    while i < UNCONDITIONAL_TYPES.len() {
+        all[i] = UNCONDITIONAL_TYPES[i];
+        i += 1;
+    }
+    all[i] = "json_schema";
+    all
+};
+
+/// The assertion types this crate answers for, without the `json-schema`
+/// feature: [`UNCONDITIONAL_TYPES`] exactly, since nothing else is compiled.
+#[cfg(not(feature = "json-schema"))]
+pub const BUILTIN_TYPES: [&str; 7] = UNCONDITIONAL_TYPES;
 
 /// The assertions a recipe evaluates, in order (FR-019).
 ///
@@ -159,6 +194,7 @@ fn dispatch(
         "exit_code" => exit_code_matches(assertion, exit_code),
         "file_exists" => file_exists(recipe, assertion),
         "file_contains" => file_contains(recipe, assertion),
+        #[cfg(feature = "json-schema")]
         "json_schema" => json_schema(recipe, assertion, raw_output),
         other => Err(format!("unknown assertion type {}", repr_str(other))),
     }
@@ -313,12 +349,16 @@ fn file_contains(recipe: &Recipe, assertion: &JsonValue) -> Result<Outcome, Stri
     ))
 }
 
+// Everything from here to `describe_json_error` serves `json_schema` and
+// nothing else, so the `json-schema` feature gates it as one block.
+
 /// `json_schema` (FR-015, FR-016, FR-017).
 ///
 /// Six of the nine details the oracle produces embed a `jsonschema`, CPython or
 /// libc message. Reproducing another project's message table is the open
 /// decision 003-OQ-010, so the port reaches the same verdict and words the
 /// clause itself. The prefixes are unreserved contract (FR-021) and are exact.
+#[cfg(feature = "json-schema")]
 fn json_schema(
     recipe: &Recipe,
     assertion: &JsonValue,
@@ -364,6 +404,7 @@ fn json_schema(
 /// Both file branches return the schema-reading detail as `Ok(Err(..))` would
 /// in a language with one; here a failure is an `Err(String)` that
 /// [`evaluate`] turns into a failed result with that detail.
+#[cfg(feature = "json-schema")]
 fn resolve_schema(recipe: &Recipe, assertion: &JsonValue) -> Result<JsonValue, String> {
     match assertion.get("schema_path") {
         Some(JsonValue::Null) | None => {}
@@ -377,6 +418,7 @@ fn resolve_schema(recipe: &Recipe, assertion: &JsonValue) -> Result<JsonValue, S
 }
 
 /// Read and parse a schema file, with FR-016's two prefixes.
+#[cfg(feature = "json-schema")]
 fn read_schema_file(recipe: &Recipe, path: &str) -> Result<JsonValue, String> {
     let resolved = recipe_path(recipe, path).to_string();
     let text = std::fs::read_to_string(&resolved).map_err(|error| {
@@ -399,6 +441,7 @@ fn read_schema_file(recipe: &Recipe, path: &str) -> Result<JsonValue, String> {
 /// `[Errno 2] No such file or directory: '/tmp/fx/nope.json'`. That is
 /// 003-OQ-010's territory, so this says the same thing in its own words and
 /// keeps the path, which is the part a recipe author needs.
+#[cfg(feature = "json-schema")]
 fn describe_io_error(error: &std::io::Error, path: &str) -> String {
     use std::io::ErrorKind;
     let cause = match error.kind() {
@@ -425,6 +468,7 @@ fn describe_io_error(error: &std::io::Error, path: &str) -> String {
 /// valid JSON passes on output no other parser accepts. `serde_json` rejects
 /// the non-finite tokens and cannot represent them, so those four corpus rows
 /// diverge on `passed`, not merely on wording. Recorded, not papered over.
+#[cfg(feature = "json-schema")]
 fn describe_json_error(input: &str, error: &serde_json::Error) -> String {
     if input.starts_with('\u{feff}') {
         return "unexpected UTF-8 byte order mark".to_string();
@@ -693,6 +737,7 @@ mod tests {
         assert_eq!(result.detail, "contains 'x'");
     }
 
+    #[cfg(feature = "json-schema")]
     #[test]
     fn json_schema_reports_the_fixed_message_when_there_is_no_schema() {
         for assertion in [
@@ -710,6 +755,7 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "json-schema")]
     #[test]
     fn json_schema_passes_a_matching_instance() {
         let result = eval(
@@ -723,6 +769,7 @@ mod tests {
     }
 
     /// FR-016: the prefix and the `at <path>` infix are contract.
+    #[cfg(feature = "json-schema")]
     #[test]
     fn json_schema_names_where_the_instance_failed() {
         let result = eval(
@@ -738,6 +785,7 @@ mod tests {
     }
 
     /// FR-015: an explicit null `schema_path` falls through to `schema`.
+    #[cfg(feature = "json-schema")]
     #[test]
     fn a_null_schema_path_is_not_a_path() {
         let result = eval(
@@ -749,6 +797,7 @@ mod tests {
         assert!(result.passed);
     }
 
+    #[cfg(feature = "json-schema")]
     #[test]
     fn a_missing_schema_file_says_so_with_its_path() {
         let recipe = recipe_with_cwd(Some("/tmp"));
@@ -842,15 +891,44 @@ mod tests {
         assert_eq!(score(&[pass, fail.clone(), fail]), 1.0 / 3.0);
     }
 
+    /// The count itself is pinned by `BUILTIN_TYPES`'s array type, which the
+    /// `json-schema` feature picks; what this checks is that every name in it
+    /// reaches an implementation.
     #[test]
-    fn the_registry_names_all_eight() {
-        assert_eq!(builtin_registry().len(), 8);
+    fn the_registry_names_every_builtin() {
+        assert_eq!(builtin_registry().len(), BUILTIN_TYPES.len());
         for name in BUILTIN_TYPES {
             let result = eval(json!({"type": name}), "", "", None);
             assert!(
                 !result.detail.starts_with("unknown assertion type"),
                 "{name} is not dispatched"
             );
+        }
+    }
+
+    /// `BUILTIN_TYPES` is derived from `UNCONDITIONAL_TYPES`, so the compiler
+    /// already carries "the same names minus `json_schema`". What it cannot
+    /// carry is that the *dispatcher* agrees, since a match arm is not a value.
+    /// `json_schema` is the one name whose presence varies, so this pins the
+    /// registry, the dispatcher and the feature to each other at that point —
+    /// in both directions, and in whichever shape is compiled.
+    #[test]
+    fn json_schema_is_dispatchable_exactly_when_the_registry_lists_it() {
+        let listed = BUILTIN_TYPES.contains(&"json_schema");
+        let detail = eval(json!({"type": "json_schema"}), "", "", None).detail;
+        let dispatched = !detail.starts_with("unknown assertion type");
+
+        assert_eq!(
+            listed, dispatched,
+            "registry says {listed}, dispatcher says {dispatched}"
+        );
+        assert_eq!(listed, cfg!(feature = "json-schema"));
+        assert_eq!(
+            BUILTIN_TYPES.len(),
+            UNCONDITIONAL_TYPES.len() + usize::from(listed)
+        );
+        for name in UNCONDITIONAL_TYPES {
+            assert!(BUILTIN_TYPES.contains(&name), "{name} was dropped");
         }
     }
 }
