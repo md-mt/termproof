@@ -1,9 +1,13 @@
 //! TermProof evidence pipeline: rendering, reports, video, baselines, diff,
 //! and cache.
 
+pub mod cast_video;
+pub mod dedup;
 pub mod diff;
 pub mod render;
 pub mod report;
+pub mod screenshot;
+pub mod uploader;
 pub mod video;
 
 pub use diff::apply_visual_diff;

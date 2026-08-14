@@ -2,11 +2,14 @@
 
 pub mod agent;
 pub mod assertions;
+pub mod before_after;
+pub mod build_info;
 pub mod cache;
 pub mod config;
 pub mod error;
 pub mod execution;
 pub mod models;
+pub mod parity;
 pub mod planner;
 pub mod pypath;
 pub mod pyregex;
@@ -14,11 +17,14 @@ pub mod pyrepr;
 pub mod pyschema;
 pub mod recipe;
 pub mod result;
+pub mod run_config;
 pub mod runner;
 pub mod schema;
+pub mod selection;
 pub mod steps;
 pub mod store;
 pub mod validation;
+pub mod vocabulary;
 
 // Re-exports: config + recipe/schema/validation (RUST-004)
 pub use config::VerifierConfig;

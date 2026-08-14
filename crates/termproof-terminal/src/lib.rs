@@ -1,8 +1,10 @@
 //! TermProof terminal: PTY/process ownership, terminal screen, cast recording, idle, and session backends (RUST-005/006 + RUST-012 + RUST-016).
 
 // RUST-005/006 PTY and process implementations
+pub mod attributed;
 pub mod cast;
 pub mod idle;
+pub mod proc;
 pub mod process;
 pub mod pty;
 pub mod pty_backend;
@@ -16,6 +18,7 @@ pub mod error;
 pub mod inmemory;
 pub mod keys;
 pub mod session;
+pub mod tmux;
 
 pub use cast::{replay_cast, ActivityClock, CastHeader, CastRecorder};
 pub use idle::{wait_for_idle, IdleTracker};
