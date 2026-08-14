@@ -54,8 +54,17 @@ the only one that has ever existed on crates.io.
 
 ### `evidence` — screenshots, video, reports
 
-- `render_png` / `render_svg` / `render_by_extension` — screen state to an
-  image.
+- `render_svg` / `render_by_extension` — plain screen text to an SVG, in
+  default colours.
+- `ScreenshotRenderer` — an attributed grid to a PNG, with the colours the
+  terminal actually showed. It and `render_svg` draw through the same
+  `screen_svg`, so an SVG still looks the same whichever produced it; pick on
+  what you have, not on how you want it to look.
+- `render_png` — plain screen text to a PNG with no external tool. It bundles
+  no font, so it paints a block per occupied cell rather than glyphs: it shares
+  the canvas, grid and palette with `render_svg` and nothing else. A PNG that
+  looks like the SVG is a rasterised one, which is `ScreenshotRenderer`.
+  `evidence::render`'s module docs have the table.
 - `generate_markdown` / `generate_junit` — human and machine reports for a run.
 - `apply_visual_diff` — compare a screenshot against a stored baseline, or
   refresh the baseline.
@@ -64,8 +73,9 @@ the only one that has ever existed on crates.io.
 
 ### Library surface no TermProof command uses yet
 
-These are tested APIs with no caller in the CLI. Useful if you are building on
-the library; not evidence that a `termproof run` does any of it.
+Fourteen tested APIs with no caller in the CLI. Useful if you are building on
+the library; not evidence that a `termproof run` does any of it. The workspace
+README lists the same fourteen.
 
 - `parity` — compares two runs and reports where they disagree.
 - `before_after` — reports which outcomes flipped between two runs.
@@ -76,12 +86,17 @@ the library; not evidence that a `termproof run` does any of it.
   traced back to an exact artifact.
 - `terminal::attributed` — a per-cell screen carrying foreground, background,
   bold, dim, italic, underline, strikethrough, reverse and display width, with
-  an SVG renderer. The screenshots a run writes today still come from the
-  single-colour text path.
+  an SVG renderer. A run writes no image at all today — `raw_output.txt`,
+  `screen.txt` and a cast if one was recorded — so nothing in the CLI reaches
+  this or the text path.
 - `terminal::tmux` — a `Session` that runs the program in a tmux pane and reads
   the grid back with `capture-pane`. A disagreement between it and the `vt100`
   path is an emulation gap made visible.
 - `terminal::proc` — child processes with a deadline.
+- `terminal::driver` — `SessionDriver`, a scenario-facing wrapper over
+  `Box<dyn Session>`: implement `Session` to write a backend, use
+  `SessionDriver` to write a scenario. Its tests are the integration suite
+  `tests/session_driver.rs` rather than a unit module.
 - `evidence::screenshot` and `evidence::cast_video` — stills and video frames
   rendered through one renderer rather than two unrelated ones.
 - `evidence::dedup` — skips re-rendering a screen identical to the step before

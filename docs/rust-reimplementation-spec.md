@@ -198,10 +198,42 @@ and semantic fields for:
 - CI receipts and before/after reports; and
 - published screenshots or evidence links.
 
-Byte-for-byte identity is required for stable JSON serialization, normalized
-text, and deterministic render fixtures where practical. For timestamps,
-durations, platform paths, terminal font rendering, and encoded video, tests
-compare normalized semantics rather than unstable bytes.
+Byte-for-byte identity is required for stable JSON serialization and
+normalized text. For timestamps, durations, platform paths, terminal font
+rendering, and encoded video, tests compare normalized semantics rather than
+unstable bytes.
+
+Stills are the exception, and deliberately so. Resolving issue #19 replaced the
+text-only SVG writer with the attributed renderer, which changes canvas size,
+cell metrics, font stack and document structure. The compatibility target for
+`evidence::render` and `evidence::screenshot` is therefore internal rather than
+cross-runtime, and it is stated per entry point rather than as a blanket rule,
+because the entry points genuinely differ:
+
+| Entry point | Target |
+| --- | --- |
+| `render_svg`, `ScreenshotRenderer` | drawn by `screen_svg`; canvas derived from the grid, not clamped to a floor; plain-text and attributed input occupy the same columns |
+| `CastVideoConverter` | frames drawn by `screen_svg`, so a frame matches a still in fonts, palette, metrics and document structure — but not necessarily in column layout, because `avt` measures widths with `unicode-width` 0.1 and the rest of the crate uses 0.2 |
+| `render_png` | shares canvas, grid and palette with `render_svg` and nothing else; a block per occupied cell, because it bundles no font |
+| `AggFfmpegBackend` | outside the target entirely; `agg` brings its own fonts and palette |
+
+The first three rows are asserted in unit tests, including the negative part of
+the third: what `render_png` is checked to share is exactly canvas, grid and
+palette. The fourth is not asserted, and cannot be by the same means — it is an
+exclusion, not a property. `evidence::video` has no unit tests at all, which is
+a real gap and RUST-012's to close; until it does, that row is a statement
+about what the code does, held up by reading it rather than by running it.
+
+Two of those rows are the ones to remember. `render_png` is a block renderer,
+not a glyph renderer; it earns its place by needing no external binary, where a
+faithful PNG has to go out to `rsvg-convert`, and a caller who wants the SVG's
+appearance should rasterise through `ScreenshotRenderer`. `AggFfmpegBackend` is
+still the configured default video backend, so a video from a default run does
+not match the stills beside it; changing that default is a separate decision,
+because `agg` is an external dependency the still path does not have.
+
+A Python-comparable still is no longer a requirement, and the visual fixtures a
+consumer holds against the old output need re-baselining once.
 
 ### 4.5 Plugin compatibility
 
@@ -387,7 +419,7 @@ Each row is ready to become a GitHub issue. Dependencies refer to other rows.
 | RUST-008 | M1 | **Implement built-in assertions.** Match all eight built-ins, path resolution, JSON Schema validation, diagnostics, ordering, and pass/fail serialization. | RUST-004–007 |
 | RUST-009 | M1 | **Contain step and execution failures.** Convert invalid step data, exceptions, process I/O failure, and PTY send failure into structured results; continue or stop according to the recipe contract; preserve partial artifacts. Add the regression that closes #74. | RUST-007, RUST-008 |
 | RUST-010 | M2 | **Define canonical result and artifact storage.** Preserve paths, filenames, JSON fields, atomic writes, partial-run handling, latest-report semantics, and safe concurrent output. | RUST-009 |
-| RUST-011 | M2 | **Implement text, SVG, and PNG evidence.** Render final/per-step snapshots at compatible dimensions and styling, preserve empty/error states, and pass normalized goldens. | RUST-006, RUST-010 |
+| RUST-011 | M2 | **Implement text, SVG, and PNG evidence.** Render final/per-step SVG stills through one renderer, on a canvas derived from the grid, with plain-text and attributed input laying out in the same columns; preserve empty/error states. `render_png` is a no-external-tool block renderer and shares canvas, grid and palette only. Dimensions and styling are no longer required to match the Python oracle's. Video is RUST-012. §4.4 has the per-entry-point table. | RUST-006, RUST-010 |
 | RUST-012 | M2 | **Implement video and idle semantics.** Detect a missing requested video as an explicit failure or warning per frozen contract, render MP4 through the backend, remove the hidden idle cap, and close #77 with tests. | RUST-006, RUST-010 |
 | RUST-013 | M2 | **Unify serialization, validation, and reports.** Generate Markdown, JUnit, aggregate reports, and CLI summaries from one RunResult model; remove duplicate logic identified in #80 without output drift. | RUST-008, RUST-010 |
 | RUST-014 | M2 | **Implement parallel runs, cache, changed paths, baselines, and visual diff.** Make ordering and output race-safe; preserve cache-key inputs, exact comparisons, update mode, and CI receipt behavior. | RUST-010–013 |
