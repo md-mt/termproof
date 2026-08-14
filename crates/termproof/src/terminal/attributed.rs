@@ -21,13 +21,33 @@
 //!   its escape sequences, e.g. `tmux capture-pane -e`.
 //! - [`attributed_screen_from_text`] — plain text, rendered in default colours.
 //!
-//! # Two fidelity gaps, stated plainly
+//! # One fidelity gap, stated plainly
 //!
-//! `vt100` models neither dim nor strikethrough, so [`AttributedCell::dim`] and
-//! [`AttributedCell::strikethrough`] are always `false` on the [`from_vt100`]
-//! path. The ANSI-text path parses SGR 2 and SGR 9 and does set them. The
-//! fields are kept rather than removed because the SVG renderer honours them
-//! and the ANSI path produces them.
+//! `vt100` does not model strikethrough, so [`AttributedCell::strikethrough`]
+//! is always `false` on the [`from_vt100`] path. The ANSI-text path parses
+//! SGR 9 and does set it. The field is kept rather than removed because the
+//! SVG renderer honours it and the ANSI path produces it.
+//!
+//! Dim *is* modelled, from `vt100` 0.16 onwards. Note that `vt100` treats
+//! SGR 1 and SGR 2 as one three-valued intensity, so bold and dim are mutually
+//! exclusive on the [`from_vt100`] path; the ANSI-text path carries them as
+//! independent flags, as `tmux` emits them.
+//!
+//! # Both paths must measure width with one table
+//!
+//! [`from_vt100`] inherits whatever column layout `vt100` chose, and the
+//! ANSI-text path re-derives it with [`cell_width`]. If those two consult
+//! different `unicode-width` majors they disagree about real code points —
+//! U+1FA89 is one column under 0.1 and two under 0.2, and 458 code points
+//! differ in total. The same byte then lands in a different column depending
+//! on which path read it, which moves glyphs in the SVG and changes
+//! [`AttributedScreen::render_fingerprint`], so evidence dedup stops
+//! recognising two identical screens as identical.
+//!
+//! The workspace therefore pins `unicode-width` to the major `vt100` depends
+//! on, and that pin carries a comment saying so. `evidence::cast_video` is the
+//! one place this cannot be enforced: it replays through `avt`, which brings
+//! its own table. See `cell_from_avt` there.
 
 use std::sync::OnceLock;
 
@@ -202,7 +222,7 @@ pub struct AttributedCell {
     pub bg: String,
     /// SGR 1.
     pub bold: bool,
-    /// SGR 2. Always `false` on the [`from_vt100`] path; see the module docs.
+    /// SGR 2.
     pub dim: bool,
     /// SGR 3.
     pub italic: bool,
@@ -446,10 +466,10 @@ fn cell_from_vt100(cell: &vt100::Cell) -> AttributedCell {
         fg: vt100_color(cell.fgcolor()),
         bg: vt100_color(cell.bgcolor()),
         bold: cell.bold(),
-        // `vt100` models neither dim nor strikethrough; see the module docs.
-        dim: false,
+        dim: cell.dim(),
         italic: cell.italic(),
         underline: cell.underline(),
+        // `vt100` does not model strikethrough; see the module docs.
         strikethrough: false,
         reverse: cell.inverse(),
         width,
@@ -817,6 +837,13 @@ fn xterm_256_color(index: u16) -> String {
         .unwrap_or_else(|| "default".to_string())
 }
 
+/// Display columns for one character, from the same table `vt100` lays cells
+/// out with.
+///
+/// "Same table" is a constraint, not a coincidence: the workspace pins
+/// `unicode-width` to the major `vt100` depends on precisely so this agrees
+/// with [`from_vt100`]. See the width-table note in the module docs for what
+/// goes wrong when they drift.
 fn cell_width(ch: char) -> u8 {
     match ch.width() {
         Some(2) => 2,
@@ -1014,6 +1041,111 @@ mod tests {
         assert_eq!(css_color("chartreuse", DEFAULT_FG), DEFAULT_FG);
         assert_eq!(css_color("abcdef", DEFAULT_FG), "#abcdef");
         assert_eq!(css_color("abcde", DEFAULT_FG), DEFAULT_FG);
+    }
+
+    // -- The vt100 path -----------------------------------------------------
+    //
+    // These drive a real `vt100::Parser` rather than building cells by hand.
+    // The defect these guard against was plumbing: the parser held the
+    // attribute and `cell_from_vt100` dropped it, so only a test that reads
+    // back through the parser can see it come loose again.
+
+    fn vt100_screen(bytes: &str) -> AttributedScreen {
+        let mut parser = vt100::Parser::new(3, 10, 0);
+        parser.process(bytes.as_bytes());
+        from_vt100(parser.screen())
+    }
+
+    #[test]
+    fn vt100_path_carries_dim() {
+        let s = vt100_screen("\x1b[2md\x1b[22mn");
+        assert!(s.rows[0][0].dim, "SGR 2 did not reach the cell");
+        assert!(!s.rows[0][1].dim, "SGR 22 did not clear dim");
+    }
+
+    #[test]
+    fn vt100_path_dim_is_distinct_from_bold() {
+        // vt100 models SGR 1/2/22 as one intensity, so the two are exclusive:
+        // the point is that each lands in its own field, not in the other's.
+        let bold = vt100_screen("\x1b[1mb");
+        assert!(bold.rows[0][0].bold && !bold.rows[0][0].dim);
+        let dim = vt100_screen("\x1b[2md");
+        assert!(dim.rows[0][0].dim && !dim.rows[0][0].bold);
+    }
+
+    #[test]
+    fn vt100_path_dim_changes_the_fingerprint() {
+        // Same text, same colour — the highlight is the only difference, and
+        // evidence skips re-rendering a step whose fingerprint is unchanged.
+        assert_ne!(
+            vt100_screen("\x1b[2mx").render_fingerprint(),
+            vt100_screen("x").render_fingerprint()
+        );
+    }
+
+    #[test]
+    fn vt100_path_dim_reaches_the_svg() {
+        let mut metrics = SvgMetrics {
+            columns: 10,
+            rows: 3,
+            ..Default::default()
+        };
+        metrics.recompute();
+        let out = screen_svg(&vt100_screen("\x1b[2mx"), &metrics);
+        assert!(out.contains("opacity=\"0.65\""), "dim not rendered: {out}");
+    }
+
+    /// U+1FA89 is one column under `unicode-width` 0.1 and two under 0.2, so
+    /// it is a live detector for the two paths drifting onto different tables.
+    const WIDTH_SPLIT_CHAR: char = '\u{1FA89}';
+
+    #[test]
+    fn both_paths_measure_width_with_the_same_table() {
+        let text = format!("{WIDTH_SPLIT_CHAR}x");
+        let via_vt100 = vt100_screen(&text);
+        let via_ansi = screen(&text);
+
+        let widths = |s: &AttributedScreen| -> Vec<u8> {
+            s.rows[0].iter().take(3).map(|c| c.width).collect()
+        };
+        assert_eq!(
+            widths(&via_vt100),
+            widths(&via_ansi),
+            "the vt100 and ANSI-text paths disagree about column layout, which \
+             means `unicode-width` has drifted off the major vt100 uses"
+        );
+        // Not just equal — equal at the value 0.2 reports, so this fails if
+        // both paths regress onto the old table together.
+        assert_eq!(widths(&via_vt100), vec![2, 0, 1]);
+    }
+
+    #[test]
+    fn both_paths_place_the_following_glyph_in_the_same_column() {
+        // The consequence that matters: a width disagreement shifts every
+        // glyph after it, so the SVG draws `x` at a different x coordinate.
+        // Compared as a column index rather than a whole-screen fingerprint,
+        // because the vt100 grid is padded to its full size and the ANSI-text
+        // grid is not — that difference is real but is not this one.
+        let text = format!("{WIDTH_SPLIT_CHAR}x");
+        let column_of_x = |s: &AttributedScreen| {
+            s.rows[0]
+                .iter()
+                .position(|c| c.text == "x")
+                .expect("x drawn")
+        };
+        assert_eq!(
+            column_of_x(&vt100_screen(&text)),
+            column_of_x(&screen(&text)),
+            "the glyph after a wide character lands in a different column \
+             depending on which path built the screen"
+        );
+    }
+
+    #[test]
+    fn vt100_path_leaves_strikethrough_unset() {
+        // vt100 still has no SGR 9; the module docs say so, and this is what
+        // makes that claim checkable.
+        assert!(!vt100_screen("\x1b[9mx").rows[0][0].strikethrough);
     }
 
     // -- SVG rendering ------------------------------------------------------
