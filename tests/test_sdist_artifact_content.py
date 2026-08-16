@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import shutil
 import subprocess
 import tarfile
@@ -35,6 +36,19 @@ _INTENTIONALLY_REMOVED = frozenset(
         "docs/rust-reimplementation-spec.md",
     }
 )
+
+
+_DIST_INFO = re.compile(r"^termproof-[^/]+\.dist-info/")
+
+
+def _normalize_dist_info(paths: set[str]) -> set[str]:
+    """Collapse the version out of ``termproof-<version>.dist-info/`` paths.
+
+    The metadata directory is named after the version, so comparing wheel path
+    sets across a version bump otherwise reports every metadata file as both
+    removed and added.
+    """
+    return {_DIST_INFO.sub("dist-info/", path) for path in paths}
 
 
 def _load_fixture(name: str) -> set[str]:
@@ -194,13 +208,36 @@ class SdistArtifactContentTest(unittest.TestCase):
             "sdist gained executable files, which are build output rather than source: " f"{added_executables}",
         )
 
-    def test_wheel_path_set_matches_base(self) -> None:
-        base_wheel = _load_fixture("base_wheel_paths.txt")
-        head_wheel = set(self._wheel_names())
+    def test_wheel_preserves_base_payload_paths(self) -> None:
+        base = _normalize_dist_info(_load_fixture("base_wheel_paths.txt"))
+        head = _normalize_dist_info(set(self._wheel_names()))
+        missing = sorted(base - head)
+        self.assertEqual([], missing, f"wheel dropped paths the base revision shipped: {missing}")
+
+    def test_wheel_adds_only_package_source(self) -> None:
+        """The wheel is the package and nothing else.
+
+        This replaces a strict set equality against the base revision. That
+        assertion could not survive a version bump -- the `dist-info` directory
+        is named after the version, so every path in it changed -- and it failed
+        for every new module besides. Both are routine, neither is a packaging
+        defect, and the sdist gates above already gave up enumeration for the
+        same reason.
+
+        What is worth catching is the wheel gaining something that is not the
+        package: a stray `tests/`, `examples/` or `docs/` tree, or build output.
+        """
+        base = _normalize_dist_info(_load_fixture("base_wheel_paths.txt"))
+        added = _normalize_dist_info(set(self._wheel_names())) - base
+        offenders = sorted(
+            path
+            for path in added
+            if not path.startswith("termproof/") or self._build_output_reason(path) is not None
+        )
         self.assertEqual(
-            base_wheel,
-            head_wheel,
-            "wheel path set must be byte-for-byte identical to the base revision",
+            [],
+            offenders,
+            f"wheel gained paths that are not package source: {offenders}",
         )
 
 
