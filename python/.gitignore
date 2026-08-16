@@ -1,8 +1,6 @@
 .DS_Store
 .venv/
 .pytest_cache/
-.mypy_cache/
-.ruff_cache/
 .coverage
 htmlcov/
 __pycache__/
@@ -13,7 +11,6 @@ build/
 *.egg-info/
 _site/
 node_modules/
-target/
-**/target/
-**/*.rs.bk
-.claude/settings.local.json
+docs-site/.vitepress/cache/
+docs-site/.vitepress/dist/
+.audit/

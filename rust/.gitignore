@@ -1,0 +1,7 @@
+# Rust workspace build artifacts.
+/target/
+**/target/
+**/*.rs.bk
+
+# Machine-local Claude Code settings (permissions, hooks) — not shared.
+.claude/settings.local.json

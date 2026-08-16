@@ -1,0 +1,38 @@
+[package]
+name = "termproof-cli"
+description = "The `termproof` command line binary: discovers recipes, runs them on a pseudo-terminal and writes evidence"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+readme = "README.md"
+documentation = "https://github.com/md-mt/termproof-rust#readme"
+keywords = ["terminal", "tui", "testing", "cli", "verification"]
+categories = ["command-line-utilities", "development-tools::testing", "command-line-interface"]
+# Held back from crates.io on purpose — see docs/publishing.md. The metadata
+# above is complete and stays complete, so lifting this line is the only change
+# needed to publish. The release workflow derives its publish set from this
+# field at run time, so nothing else has to be edited either.
+publish = false
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "termproof"
+path = "src/main.rs"
+
+[dependencies]
+# Named rather than left to `default`, so that what the binary needs is stated
+# where it is needed and a later change to the library's defaults cannot quietly
+# take a subcommand out of the CLI (#27). `evidence` is `termproof run`'s
+# Markdown report and artifacts; `junit` is its `--xml-path` output (#34);
+# `json-schema` is the `json_schema` built-in assertion.
+termproof = { workspace = true, features = ["evidence", "junit", "json-schema"] }
+clap.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true

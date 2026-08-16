@@ -1,8 +1,8 @@
 version: 2
 updates:
-  # Python dependencies declared in the root pyproject.toml.
+  # Python dependencies declared in python/pyproject.toml.
   - package-ecosystem: "pip"
-    directory: "/"
+    directory: "/python"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 10
@@ -11,7 +11,28 @@ updates:
     commit-message:
       prefix: "chore"
 
-  # GitHub Actions used by the workflows in .github/workflows.
+  # Cargo updates arrive as one grouped PR. The workspace treats a version
+  # requirement as a floor with tests at the floor (see
+  # rust/docs/engineering-baseline.md §6), so a grouped update is reviewed
+  # against the floor tests in one place rather than piecemeal.
+  - package-ecosystem: "cargo"
+    directory: "/rust"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore"
+    groups:
+      cargo:
+        patterns:
+          - "*"
+
+  # GitHub Actions used by the workflows in .github/workflows. One entry covers
+  # both implementations: GitHub reads only the root workflow directory, so
+  # there is only one action surface to keep current. Every third-party action
+  # in the Rust workflows is pinned to an immutable commit SHA with a version
+  # comment (see rust/docs/engineering-baseline.md §11); Dependabot moves the
+  # SHA and the comment together, which is the only way a pin does not rot.
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
@@ -32,3 +53,21 @@ updates:
           - "patch"
           - "minor"
           - "major"
+
+  # Docker base images follow the same rule for the same reason: each
+  # Dockerfile pins its stages by digest, and a digest with nobody moving it is
+  # a pin that rots into an unpatched base. Dependabot moves the tag and the
+  # digest together.
+  - package-ecosystem: "docker"
+    directories:
+      - "/python/docker"
+      - "/rust/docker"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore"
+    groups:
+      docker:
+        patterns:
+          - "*"
