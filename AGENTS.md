@@ -40,8 +40,40 @@ gets text. Do not make it required: third-party renderers are written against
 the text-only protocol, and `docs/plugin-protocols.md` promises they keep
 working.
 
-Two limits on what the grid actually carries. Both are pinned by tests; check
-them before writing "colour in every artifact" anywhere:
+### Where a user-visible claim can live
+
+A claim about what the artifacts contain drifts across surfaces, and correcting
+it by hand does not converge — three consecutive review rounds each found the
+same overclaim surviving somewhere the previous sweep had not reached:
+module docstrings, then the PR body, then the published site page.
+
+`tests/test_public_claims.py` now does the sweep. It enumerates tracked files
+from `git ls-files` rather than a hand-written list, so a new page is covered the
+day it is added, and it fails on phrasings that have actually had to be
+withdrawn. When you correct a claim, add its phrasing there rather than only
+fixing the file you found it in. The surfaces it covers:
+
+- prose: `*.md` anywhere — root, `docs/`, `docs-site/`, `examples/**/README.md`,
+  `plugin-template/`, case studies, launch and outreach copy
+- the published site: `site/*.html`, including `<meta>` description and social tags
+- code: every `*.py`, module docstrings included
+- package and distribution metadata: `pyproject.toml` (description, keywords),
+  `Formula/termproof.rb`, `action.yml`, `docker/*Dockerfile`,
+  `docs-site/.vitepress/config.mts`
+- example fixtures whose output is published as evidence — `examples/apps/*.py`
+  print text that lands in the corpus screenshots
+- `*.sh`, `*.json`, `*.yml`
+
+Not covered, deliberately: `examples/artifacts/**` and `site/artifacts/**` are
+recorded evidence, not prose — a stale claim inside a recording is a fact about
+when it was recorded. `docs/evidence/*.png` are research images that cannot be
+linted; check them by eye if the claim they illustrate changes. The PR body is
+not a tracked file, so it stays a manual check.
+
+### What the grid actually carries
+
+Two limits, both pinned by tests; check them before making any blanket claim
+about colour in the artifacts:
 
 - **Only `final.svg` and the `attributed_rsvg` video render from the grid.** Step
   screenshots render from `StepResult.screen`, which is pyte's flattened
