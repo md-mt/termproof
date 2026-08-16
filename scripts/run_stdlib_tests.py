@@ -30,6 +30,9 @@ STDLIB_ONLY = {
     "termproof.cast_video": "tests/test_cast_video.py",
     "termproof.cast": None,
     "termproof.tmux_session": "tests/test_tmux_session.py",
+    "termproof.models": None,
+    "termproof.selection": "tests/test_selection.py",
+    "termproof.build_info": "tests/test_build_info_provenance.py",
 }
 
 

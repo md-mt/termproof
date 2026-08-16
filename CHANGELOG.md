@@ -37,6 +37,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `capture-pane` returns what is on it, with attributes. Set
   `session_backend: tmux`. The cast is recorded from `pipe-pane`, so it keeps
   the session's real timings.
+- **`termproof.selection`, for running only the recipes a change could have
+  broken.** A recipe's `ci_paths` are matched against the files a diff touched.
+  `select_names` takes `(name, ci_paths)` pairs rather than recipe objects, so a
+  host whose recipes are classes can use it too; `select_recipes` is the wrapper
+  for this package's model. An `always` set runs regardless, and `harness_paths`
+  falls back to that set when the change is to the harness itself — the
+  path-to-recipe mapping is then exactly what is in question.
+- **`BuildInfo.from_binary` and `BuildInfo.from_source_build`.** `from_command`
+  resolves a name on PATH, which does not describe a binary built for the run.
+  A source build records `build_target` (what produced it) and `source_ref` (a
+  PR number, diff number or tag), and `verify_provenance` requires both plus a
+  binary that exists — previously any commit at all was enough, including the
+  working tree's, which says nothing about what was tested.
 - **`asciinema` is now an optional extra, `termproof[record]`.** See Changed.
 - **An `evidence:` block in `.termproof/config.yaml`.** The SVG and PNG
   renderers and the video pipeline no longer hardcode their rendering
