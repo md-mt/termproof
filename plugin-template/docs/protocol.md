@@ -12,6 +12,7 @@
 | Session backend | session_backend | my_plugin.session:DockerBackend |
 | Execution mode | execution_modes | my_plugin.modes:MyMode |
 | Agent runner | agent_runners | my_plugin.agents:MyRunner |
+| Artifact publisher | artifact_publishers | my_plugin.publishers:MyStore |
 
 Import protocols from `termproof.protocols`. Older module locations still re-export the same protocol objects for compatibility.
 
@@ -25,8 +26,34 @@ Most protocols require a `name` class attribute and a single method:
 - SessionBackend: create_session(argv, cast_path, cwd, env, cols, rows) -> TerminalSession
 - ExecutionMode: execute(runner, recipe, run_dir) -> (steps, assertions, raw_output, exit_code, screen)
 - AgentRunner: run(recipe, prompt, run_dir) -> AgentOutcome
+- ArtifactPublisher: publish(source, key) -> PublishedArtifact
 
 AgentRunner and SessionBackend are selected by config keys and do not require a `name`.
+
+## Publishing evidence
+
+An ArtifactPublisher decides where evidence goes after a run. `key` is the
+destination-relative identifier the caller has chosen, so a publisher maps that
+key onto its own namespace instead of inventing a layout.
+
+`PublishedArtifact(source, key, url="", published=True, detail="")` is a record
+rather than a bare URL because reports link evidence by local path: rewriting
+those links needs `source` and `url` together, which is what
+`termproof.evidence_publish.url_map_from_published` builds. A publisher reports
+`published=False` when it did not transfer the bytes, and an empty `url` when it
+did but cannot name a public address for them; neither has to raise.
+
+Deployment settings (bucket, endpoint, public base URL, dry-run) arrive through
+an optional `from_target(cls, target)` classmethod rather than from
+`.termproof/config.yaml`, since that file is checked in. Publishers without it
+are constructed with no arguments. A publisher that takes a target has to honour
+`dry_run`: name the URL the artifact would get, report `published=False`, and
+move nothing.
+
+Publishers compose, because a publisher is just an object returning results: a
+wrapper that tries one store, falls back to another and records the degradation
+in `detail` is a plain implementation of the same protocol. TermProof does not
+ship one.
 
 ## Context availability for assertions
 

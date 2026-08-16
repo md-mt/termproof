@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any, Protocol
 from .before_after import BeforeAfterResult
 from .build_info import BuildInfo
 from .config import EvidenceConfig, PngRenderConfig, SvgRenderConfig, VideoConfig
-from .models import AssertionResult, Recipe, RunResult, StepResult
+from .models import AssertionResult, PublishedArtifact, Recipe, RunResult, StepResult
 from .session import TerminalSession
 
 if TYPE_CHECKING:
@@ -89,6 +89,27 @@ class VideoBackend(Protocol):
         ...
 
 
+class ArtifactPublisher(Protocol):
+    """Send a local evidence file somewhere durable and say where it landed.
+
+    ``key`` is the destination-relative identifier the caller has chosen — the
+    layout of the evidence, which is the caller's policy, not the store's. The
+    publisher decides only how a key maps onto its own namespace and onto a
+    public URL.
+
+    Returning a :class:`PublishedArtifact` rather than a URL string is what
+    makes the result usable downstream: reports reference evidence by local
+    path, so rewriting those links needs source and URL together, and a
+    publisher that could not place a file has to be able to say so without
+    aborting the artifacts that did publish.
+    """
+
+    name: str
+
+    def publish(self, source: Path, key: str) -> PublishedArtifact:
+        ...
+
+
 class AgentRunner(Protocol):
     def run(self, recipe: Recipe, prompt: str, run_dir: Path) -> AgentOutcome:
         ...
@@ -109,10 +130,12 @@ class SessionBackend(Protocol):
 
 __all__ = [
     "AgentRunner",
+    "ArtifactPublisher",
     "AssertionType",
     "EvidenceConfig",
     "ExecutionMode",
     "PngRenderConfig",
+    "PublishedArtifact",
     "Reporter",
     "ScreenRenderer",
     "SessionBackend",

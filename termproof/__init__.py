@@ -18,9 +18,17 @@ from .config import (
     VideoConfig,
     load_config,
 )
-from .models import AssertionResult, Recipe, RunResult, StepResult, load_recipe
+from .models import (
+    AssertionResult,
+    PublishedArtifact,
+    Recipe,
+    RunResult,
+    StepResult,
+    load_recipe,
+)
 from .protocols import (
     AgentRunner,
+    ArtifactPublisher,
     AssertionType,
     ExecutionMode,
     Reporter,
@@ -36,6 +44,7 @@ from .selection import select_names, select_recipes
 
 __all__ = [
     "AgentRunner",
+    "ArtifactPublisher",
     "AssertionResult",
     "AssertionType",
     "AttributedCell",
@@ -44,6 +53,7 @@ __all__ = [
     "EvidenceConfig",
     "ExecutionMode",
     "PngRenderConfig",
+    "PublishedArtifact",
     "Recipe",
     "Registry",
     "Reporter",

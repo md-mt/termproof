@@ -14,8 +14,9 @@ TermProof exposes stable plugin protocols from `termproof.protocols`.
 | `VideoBackend` | `render(cast_path, output_path, fps) -> None` |
 | `AgentRunner` | `run(recipe, prompt, run_dir) -> AgentOutcome` |
 | `SessionBackend` | `create_session(argv, cast_path, cwd, env, cols, rows) -> TerminalSession` |
+| `ArtifactPublisher` | `publish(source, key) -> PublishedArtifact` |
 
-`StepAction`, `AssertionType`, `ExecutionMode`, `Reporter`, `ScreenRenderer`, and `VideoBackend` also require a `name: str` class attribute. `AgentRunner` and `SessionBackend` are selected by config keys and do not require a `name`.
+`StepAction`, `AssertionType`, `ExecutionMode`, `Reporter`, `ScreenRenderer`, `VideoBackend`, and `ArtifactPublisher` also require a `name: str` class attribute. `AgentRunner` and `SessionBackend` are selected by config keys and do not require a `name`.
 
 `ScreenRenderer` plugins can optionally set `extension = "png"` (or another file extension) so evidence artifacts use that screenshot filename suffix.
 
@@ -61,6 +62,65 @@ the README). Plugins without it keep being constructed with no arguments.
 `EvidenceConfig`, and the narrower `SvgRenderConfig`, `PngRenderConfig`, and
 `VideoConfig` its sections hold, are exported from `termproof.protocols`
 alongside the protocols themselves.
+
+## ArtifactPublisher
+
+An `ArtifactPublisher` decides where evidence goes once a run has produced it.
+It is registered under the `artifact_publishers` config key and selected by
+name; `s3` (`termproof.evidence_publish:S3ArtifactPublisher`) ships as the
+built-in implementation and publishes to any S3-compatible bucket.
+
+```python
+from pathlib import Path
+
+from termproof.protocols import ArtifactPublisher, PublishedArtifact
+
+
+class MyPublisher:
+    name = "my_store"
+
+    def publish(self, source: Path, key: str) -> PublishedArtifact:
+        url = upload_somehow(source, key)
+        return PublishedArtifact(source=source, key=key, url=url)
+```
+
+`key` is the destination-relative identifier the caller has chosen. The layout
+of published evidence is the caller's policy, so a publisher should map a key
+onto its own namespace rather than invent one.
+
+`PublishedArtifact` carries `source`, `key`, `url`, `published` and `detail`.
+The result is a record rather than a bare URL string because publishing is not
+the last step: reports reference evidence by local path, so rewriting those
+links needs `source` and `url` together. `termproof.evidence_publish` exposes
+`url_map_from_published(published)` to turn a batch of results into the
+local-path-to-URL map that `rewrite_report_video_links` consumes.
+
+The two failure shapes are distinct and both are reportable without raising:
+
+- `published=False` — the bytes were not transferred (a dry run, an artifact
+  the store does not accept). `detail` says why.
+- `url=""` — the bytes were transferred but the publisher cannot name a public
+  address for them, so a report link should keep pointing at the local file.
+
+Only an artifact that is both published and addressable is rewritten into a
+report, so neither failure shape can replace a working local path with a link
+that does not resolve. `publish-videos` reports every declined artifact with its
+`detail`, records only what was stored in `video-manifest.json`, and exits
+non-zero when a batch was offered and nothing was stored — a store that declines
+without raising must not read as a successful publish. A dry run is not a
+decline: it names URLs without moving bytes and still succeeds.
+
+A publisher may define a `from_target(cls, target: PublishTarget) -> Self`
+classmethod to receive the bucket, endpoint, public base URL and dry-run flag
+supplied at publish time — the same opt-in pattern `from_config` uses for
+renderers. Deployment credentials are passed this way rather than read from
+`.termproof/config.yaml`, which is checked in. Publishers without it are
+constructed with no arguments.
+
+Because a publisher is an ordinary object returning ordinary results, publishers
+compose: a wrapper that tries one publisher, falls back to a second, and records
+the degradation in `detail` is a plain implementation of the same protocol.
+TermProof does not ship one.
 
 ## ExecutionMode runner surface
 

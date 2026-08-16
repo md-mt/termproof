@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import importlib
 from collections.abc import Callable
 from pathlib import Path
 from typing import Generic, TypeVar
 
+from .config import CURRENT_PLUGIN_MODULE_PREFIX, LEGACY_PLUGIN_MODULE_PREFIX
 from .models import Recipe, load_recipe
 
 T = TypeVar("T")
@@ -33,6 +35,27 @@ class Registry(Generic[T]):
 
     def names(self) -> list[str]:
         return sorted(self._factories)
+
+
+def import_class(qualname: str) -> type:
+    """Import a plugin class from a ``module.path:ClassName`` reference.
+
+    Configuration written for the pre-TermProof package can keep using its
+    plugin module prefix. This narrow alias avoids a compatibility shim package
+    while ensuring external plugin configuration remains loadable.
+    """
+    if ":" not in qualname:
+        raise ValueError(
+            f"expected 'module.path:ClassName', got {qualname!r}"
+        )
+    module_name, class_name = qualname.split(":", 1)
+    if module_name.startswith(LEGACY_PLUGIN_MODULE_PREFIX):
+        module_name = (
+            CURRENT_PLUGIN_MODULE_PREFIX
+            + module_name.removeprefix(LEGACY_PLUGIN_MODULE_PREFIX)
+        )
+    module = importlib.import_module(module_name)
+    return getattr(module, class_name)
 
 
 # -- recipe discovery --------------------------------------------------------

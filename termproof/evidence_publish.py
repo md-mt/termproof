@@ -5,8 +5,18 @@ import json
 import os
 import shutil
 import subprocess
+from collections.abc import Iterable
+from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 from urllib.parse import quote
+
+from .config import VerifierConfig, load_config
+from .models import PublishedArtifact
+from .registry import import_class
+
+if TYPE_CHECKING:
+    from .protocols import ArtifactPublisher
 
 IMAGE_SUFFIXES = {".gif", ".jpeg", ".jpg", ".png", ".svg"}
 VIDEO_SUFFIXES = {".mp4", ".webm", ".mov"}
@@ -107,40 +117,153 @@ def rewrite_video_links(text: str, root: Path, url_prefix: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# S3 / R2 publishing helpers (RUST-025)
+# Artifact publishing
 # ---------------------------------------------------------------------------
 
 
-def publish_videos_to_s3(
+@dataclass(frozen=True)
+class PublishTarget:
+    """Where a publisher should put artifacts, as supplied by CLI or environment.
+
+    These are deployment credentials and addresses rather than project
+    settings, so they are passed at publish time instead of being read from
+    ``.termproof/config.yaml``, which is checked in.
+    """
+
+    bucket: str = ""
+    endpoint_url: str | None = None
+    base_url: str = ""
+    dry_run: bool = False
+
+
+class S3ArtifactPublisher:
+    """Publish artifacts to an S3-compatible bucket (AWS S3, Cloudflare R2, ...).
+
+    Uses ``aws s3 cp`` via subprocess when available so no Python dependency is
+    required. Falls back to ``boto3`` when the CLI is absent.
+
+    ``base_url`` is the public URL prefix the bucket is served under, e.g.
+    ``https://pub-xxx.r2.dev`` or ``https://s3.amazonaws.com/my-bucket``. It is
+    separate from ``endpoint_url``, the S3 API endpoint used to write: a bucket
+    is commonly written through one host and read through another, and only the
+    read host belongs in a report link. Without it an upload still happens and
+    the result simply carries no URL.
+    """
+
+    name = "s3"
+
+    def __init__(
+        self,
+        bucket: str = "",
+        endpoint_url: str | None = None,
+        base_url: str = "",
+        dry_run: bool = False,
+    ) -> None:
+        self.bucket = bucket
+        self.endpoint_url = endpoint_url
+        self.base_url = base_url.rstrip("/")
+        self.dry_run = dry_run
+
+    @classmethod
+    def from_target(cls, target: PublishTarget) -> S3ArtifactPublisher:
+        return cls(
+            bucket=target.bucket,
+            endpoint_url=target.endpoint_url,
+            base_url=target.base_url,
+            dry_run=target.dry_run,
+        )
+
+    def publish(self, source: Path, key: str) -> PublishedArtifact:
+        url = _hosted_url(self.base_url, key)
+        if self.dry_run:
+            return PublishedArtifact(
+                source=source,
+                key=key,
+                url=url,
+                published=False,
+                detail="dry run: not uploaded",
+            )
+        _upload_file(source, self.bucket, key, endpoint_url=self.endpoint_url)
+        return PublishedArtifact(source=source, key=key, url=url)
+
+
+def artifact_publisher_class(name: str, config: VerifierConfig | None = None) -> type:
+    """Import the class configured for the publisher named ``name``.
+
+    Separate from :func:`resolve_artifact_publisher` so a caller can inspect
+    what a publisher supports — whether it accepts a target, and so whether it
+    can honour a dry run — before constructing one.
+    """
+    config = config or load_config()
+    qualname = config.artifact_publishers.get(name)
+    if qualname is None:
+        available = ", ".join(sorted(config.artifact_publishers))
+        raise KeyError(f"unknown artifact publisher {name!r}; available: {available}")
+    return import_class(qualname)
+
+
+def resolve_artifact_publisher(
+    name: str,
+    target: PublishTarget,
+    config: VerifierConfig | None = None,
+) -> ArtifactPublisher:
+    """Build the configured publisher named ``name``.
+
+    Publishers opt into deployment settings by exposing ``from_target``, the
+    same way renderers opt into evidence config with ``from_config``. One that
+    does not is constructed with no arguments.
+    """
+    cls = artifact_publisher_class(name, config)
+    factory = getattr(cls, "from_target", None)
+    return cls() if factory is None else factory(target)
+
+
+def _hosted_url(base_url: str, key: str) -> str:
+    """Name the public URL a key is served under, or nothing without a base URL."""
+    return f"{base_url}/{quote(key, safe='/._-~')}" if base_url else ""
+
+
+def url_map_from_published(
+    published: Iterable[PublishedArtifact],
+    *,
+    include_unstored: bool = False,
+) -> dict[str, str]:
+    """Map every published artifact's local path onto its hosted URL.
+
+    Reports link evidence by local path, so this is the bridge between
+    publishing and :func:`rewrite_report_video_links`. Only an artifact that is
+    both published and addressable is included: rewriting a link to an empty URL
+    or to a URL whose bytes never arrived would break a report that currently
+    points at a file the reader can still open.
+
+    ``include_unstored`` keeps artifacts the publisher declined but could still
+    name a URL for. That is the shape of a dry run, whose whole purpose is to
+    report where evidence would land without moving it, and it is the only case
+    where a link to bytes that are not there yet is what the caller asked for.
+    """
+    url_map: dict[str, str] = {}
+    for artifact in published:
+        if not artifact.url:
+            continue
+        if not artifact.published and not include_unstored:
+            continue
+        for local in {str(artifact.source), artifact.source.as_posix()}:
+            url_map[local] = artifact.url
+    return url_map
+
+
+def _video_manifest_entries(
     base_dir: Path,
     head_dir: Path,
-    bucket: str,
     prefix: str = DEFAULT_VIDEO_PREFIX,
     pr_number: str = "",
     run_id: str = "",
-    endpoint_url: str | None = None,
-    dry_run: bool = False,
 ) -> list[dict[str, str]]:
-    """Upload video evidence to an S3-compatible bucket (AWS S3 or Cloudflare R2).
+    """Enumerate video evidence and assign each file its destination key.
 
-    Uses ``aws s3 cp`` via subprocess when available so no Python dependency is
-    required (works with R2 when ``endpoint_url`` is set to the R2 endpoint).
-    Falls back to ``boto3`` when the CLI is absent.
-
-    Args:
-        base_dir, head_dir: Evidence roots containing ``session.mp4`` files.
-        bucket: S3 bucket name (e.g. ``termproof-evidence`` or R2 bucket).
-        prefix: Key prefix inside the bucket (e.g. ``termproof/videos``).
-        pr_number, run_id: Used to build the object key layout
-            ``{prefix}/pr/{pr_number}/{run_id}/{base|head}/...``.
-        endpoint_url: S3-compatible endpoint (e.g. R2
-            ``https://<accountid>.r2.cloudflarestorage.com``).  When set, it
-            is passed as ``--endpoint-url`` to the AWS CLI or as
-            ``endpoint_url`` to boto3.
-        dry_run: When True, build the manifest without uploading.
-
-    Returns:
-        Manifest entries ``{scope, source, key, url}``.
+    The key layout ``{prefix}/pr/{pr_number}/{run_id}/{base|head}/...`` is the
+    caller's evidence layout, not a property of any store, which is why it is
+    computed here and handed to the publisher rather than left to it.
     """
     prefix = prefix.strip("/")
     entries: list[dict[str, str]] = []
@@ -155,12 +278,43 @@ def publish_videos_to_s3(
             # Normalise double slashes if pr/run omitted
             key = key.replace("//", "/")
             entries.append({"scope": scope, "source": video.as_posix(), "path": rel, "key": key})
+    return entries
+
+
+def publish_videos_to_s3(
+    base_dir: Path,
+    head_dir: Path,
+    bucket: str,
+    prefix: str = DEFAULT_VIDEO_PREFIX,
+    pr_number: str = "",
+    run_id: str = "",
+    endpoint_url: str | None = None,
+    dry_run: bool = False,
+) -> list[dict[str, str]]:
+    """Upload video evidence to an S3-compatible bucket.
+
+    Shorthand for driving :class:`S3ArtifactPublisher` over the video evidence
+    under ``base_dir``/``head_dir``.
+
+    Args:
+        base_dir, head_dir: Evidence roots containing ``session.mp4`` files.
+        bucket: S3 bucket name.
+        prefix: Key prefix inside the bucket (e.g. ``termproof/videos``).
+        pr_number, run_id: Used to build the object key layout
+            ``{prefix}/pr/{pr_number}/{run_id}/{base|head}/...``.
+        endpoint_url: S3-compatible endpoint, passed as ``--endpoint-url`` to
+            the AWS CLI or as ``endpoint_url`` to boto3.
+        dry_run: When True, build the manifest without uploading.
+
+    Returns:
+        Manifest entries ``{scope, source, path, key}``.
+    """
+    entries = _video_manifest_entries(base_dir, head_dir, prefix, pr_number, run_id)
     if dry_run or not entries:
         return entries
+    publisher = S3ArtifactPublisher(bucket=bucket, endpoint_url=endpoint_url)
     for entry in entries:
-        source = Path(entry["source"])
-        key = entry["key"]
-        _upload_file(source, bucket, key, endpoint_url=endpoint_url)
+        publisher.publish(Path(entry["source"]), entry["key"])
     return entries
 
 
@@ -172,27 +326,22 @@ def build_video_url_map(
     run_id: str = "",
     prefix: str = DEFAULT_VIDEO_PREFIX,
 ) -> dict[str, str]:
-    """Build a mapping from local video path -> hosted URL.
+    """Build a mapping from local video path -> hosted URL, without publishing.
 
-    Used to rewrite ``report.md`` / ``latest-report.md`` links after publishing.
-    ``base_url`` is the public bucket URL prefix, e.g.
-    ``https://pub-xxx.r2.dev`` or ``https://s3.amazonaws.com/my-bucket``.
+    Used to rewrite ``report.md`` / ``latest-report.md`` links when the videos
+    are known to be hosted already. After a publish, prefer
+    :func:`url_map_from_published`, which reads the URLs the publisher actually
+    reported instead of predicting them.
     """
-    prefix = prefix.strip("/")
-    url_map: dict[str, str] = {}
     base_url = base_url.rstrip("/")
-    for scope, source_root in (("base", base_dir), ("head", head_dir)):
-        if not source_root.exists():
+    url_map: dict[str, str] = {}
+    for entry in _video_manifest_entries(base_dir, head_dir, prefix, pr_number, run_id):
+        url = _hosted_url(base_url, entry["key"])
+        if not url:
             continue
-        for video in _video_files(source_root):
-            rel = video.relative_to(source_root).as_posix()
-            key = (
-                f"{prefix}/pr/{pr_number}/{run_id}/{scope}/{rel}" if pr_number and run_id else f"{prefix}/{scope}/{rel}"
-            )
-            key = key.replace("//", "/")
-            url = f"{base_url}/{quote(key, safe='/._-~')}"
-            for local in {str(video), video.as_posix()}:
-                url_map[local] = url
+        source = Path(entry["source"])
+        for local in {str(source), source.as_posix()}:
+            url_map[local] = url
     return url_map
 
 
@@ -233,6 +382,11 @@ def main(argv: list[str] | None = None) -> int:
     publish.add_argument("--video-base-url", default=os.environ.get("TERM_PROOF_VIDEO_BASE_URL", ""))
     publish.add_argument("--out", type=Path, default=None, help="optional out dir to stage + write video-manifest.json")
     publish.add_argument("--dry-run", action="store_true")
+    publish.add_argument(
+        "--publisher",
+        default=os.environ.get("TERM_PROOF_ARTIFACT_PUBLISHER", "s3"),
+        help="name of a publisher registered under 'artifact_publishers' in config",
+    )
 
     args = parser.parse_args(argv)
     if args.command == "screenshots":
@@ -256,32 +410,55 @@ def main(argv: list[str] | None = None) -> int:
         print(f"{len(manifest)} videos prepared")
         return 0
     if args.command == "publish-videos":
-        if not args.bucket and not args.dry_run:
+        # A bucket is what the S3 publisher needs, not what publishing needs.
+        # Any other store states its own preconditions by refusing the target.
+        if args.publisher == "s3" and not args.bucket and not args.dry_run:
             parser.error("--bucket is required (or set TERM_PROOF_VIDEO_BUCKET) unless --dry-run")
-        entries = publish_videos_to_s3(
+        config = load_config()
+        # A publisher that takes no target never sees --dry-run, so honouring
+        # the flag would be a claim we cannot make: it would really transfer.
+        if args.dry_run and getattr(artifact_publisher_class(args.publisher, config), "from_target", None) is None:
+            parser.error(
+                f"--dry-run cannot be honoured by publisher {args.publisher!r}: "
+                "it takes no target, so it never sees the flag and would publish for real"
+            )
+        publisher = resolve_artifact_publisher(
+            args.publisher,
+            PublishTarget(
+                bucket=args.bucket,
+                endpoint_url=args.endpoint_url,
+                base_url=args.video_base_url,
+                dry_run=args.dry_run,
+            ),
+            config,
+        )
+        entries = _video_manifest_entries(
             args.base_dir,
             args.head_dir,
-            bucket=args.bucket,
-            prefix=args.prefix,
-            pr_number=args.pr_number,
-            run_id=args.run_id,
-            endpoint_url=args.endpoint_url,
-            dry_run=args.dry_run,
+            args.prefix,
+            args.pr_number,
+            args.run_id,
         )
+        published = [publisher.publish(Path(entry["source"]), entry["key"]) for entry in entries]
+        # Both lists come from what the publisher actually reported, never from
+        # what it was offered. A dry run declines everything by design, so its
+        # declines are not failures — which is exactly why one is refused above
+        # for a publisher that cannot see the flag: past that guard, an
+        # unstored artifact on a real publish is always a genuine refusal.
+        results = list(zip(entries, published, strict=True))
+        declined = [] if args.dry_run else [artifact for _, artifact in results if not artifact.published]
+        stored = [entry for entry, artifact in results if args.dry_run or artifact.published]
         if args.out is not None:
             root = args.out / "pr" / args.pr_number / args.run_id if args.pr_number and args.run_id else args.out
             root.mkdir(parents=True, exist_ok=True)
-            (root / "video-manifest.json").write_text(json.dumps(entries, indent=2) + "\n", encoding="utf-8")
-        # Optionally rewrite video links in reports when a base URL is known
-        if args.video_base_url:
-            url_map = build_video_url_map(
-                args.base_dir,
-                args.head_dir,
-                args.video_base_url,
-                pr_number=args.pr_number,
-                run_id=args.run_id,
-                prefix=args.prefix,
-            )
+            (root / "video-manifest.json").write_text(json.dumps(stored, indent=2) + "\n", encoding="utf-8")
+        # Rewrite video links in reports for whatever the publisher could
+        # address, reading the URLs it reported rather than predicting them:
+        # only the store knows how a key maps onto an address, and a link one
+        # would never serve is worse in a report than no rewrite at all. A dry
+        # run reports where evidence would land, so its URLs count too.
+        url_map = url_map_from_published(published, include_unstored=args.dry_run)
+        if url_map:
             for report_path in [
                 *args.base_dir.rglob("report.md"),
                 *args.head_dir.rglob("report.md"),
@@ -293,11 +470,20 @@ def main(argv: list[str] | None = None) -> int:
                     new_text = rewrite_report_video_links(text, url_map)
                     if new_text != text:
                         report_path.write_text(new_text, encoding="utf-8")
-        print(
-            f"{len(entries)} videos {'(dry-run) ' if args.dry_run else ''}published"
-            + (f" to s3://{args.bucket}/{args.prefix}" if args.bucket else "")
-        )
-        return 0
+        for artifact in declined:
+            print(f"not published: {artifact.source}" + (f" ({artifact.detail})" if artifact.detail else ""))
+        # Only the s3 publisher's destination has a scheme we can spell. Naming
+        # any other store's bucket as an s3 URL would report a location that
+        # does not exist, so name the publisher and let it own its addresses.
+        if args.publisher == "s3":
+            destination = f" to s3://{args.bucket}/{args.prefix}" if args.bucket else ""
+        else:
+            destination = f" via {args.publisher}"
+        print(f"{len(stored)} videos {'(dry-run) ' if args.dry_run else ''}published{destination}")
+        # Any refusal fails the command. A batch that stored most of its
+        # evidence and quietly dropped the rest is the same false success as
+        # one that stored none, only harder to notice.
+        return 1 if declined else 0
     raise AssertionError(args.command)
 
 

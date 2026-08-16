@@ -77,6 +77,41 @@ class AssertionResult:
 
 
 @dataclass(frozen=True)
+class PublishedArtifact:
+    """The outcome of handing one local evidence file to an artifact store.
+
+    ``source`` is the local path exactly as the caller supplied it, and it is
+    the reason this is a result object rather than a bare URL: a report links
+    to evidence by local path, so rewriting those links needs the pairing of
+    source and URL, not the URL alone.
+
+    ``url`` is empty when the store took the bytes but cannot name a public
+    address for them, and ``published`` is false when it did not take them at
+    all — a dry run, an unsupported file, or a failure the publisher chose to
+    report rather than raise. ``detail`` says which. The two conditions warrant
+    different things: a link rewrite needs an artifact that is both published
+    and addressable, while a manifest entry needs only that it was published,
+    because bytes that were stored but cannot be named still belong in the
+    record of what was stored.
+    """
+
+    source: Path
+    key: str
+    url: str = ""
+    published: bool = True
+    detail: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "source": self.source.as_posix(),
+            "key": self.key,
+            "url": self.url,
+            "published": self.published,
+            "detail": self.detail,
+        }
+
+
+@dataclass(frozen=True)
 class RunResult:
     recipe_name: str
     passed: bool

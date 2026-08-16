@@ -134,6 +134,22 @@ What happens when publishing:
 3. When `--video-base-url` is set, `report.md` / `latest-report.md` links for
    `session.mp4` are rewritten to `{base_url}/pr/{pr}/{run}/{scope}/...`.
 
+The upload itself goes through the `ArtifactPublisher` protocol. `s3` is the
+default and is what the table above configures; `--publisher <name>` (or
+`TERM_PROOF_ARTIFACT_PUBLISHER`) selects any other publisher registered under
+`artifact_publishers` in `.termproof/config.yaml`, which is how evidence is sent
+to a store that is not S3-compatible. `--bucket` is a precondition of the `s3`
+publisher rather than of publishing, so another publisher is free to run without
+it. Whichever publisher runs, the manifest and the count record what was
+actually stored, any declined artifact is reported with its `detail`, and the
+command exits non-zero if anything was declined — a partial publish is a failed
+publish, not a smaller success. Report links are rewritten to the URLs the
+publisher itself reported, so a store that maps keys into its own namespace, or
+that stores bytes it cannot address, is never credited with a link it would not
+serve. `--dry-run` is refused by a publisher that takes no target, because such
+a publisher never sees the flag and would publish for real. See
+`docs/plugin-protocols.md`.
+
 The PR comment (`termproof.ci_evidence comment`) accepts `--video-base-url` and
 rewrites video links the same way it rewrites screenshot links. When
 `TERM_PROOF_VIDEO_BASE_URL` is set in CI, the existing screenshot flow needs no

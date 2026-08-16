@@ -4,3 +4,5 @@ assertions:
   screen_count: termproof_my_plugin.assertions:ScreenCount
 reporters:
   json_summary: termproof_my_plugin.reporters:JsonSummaryReporter
+artifact_publishers:
+  my_store: termproof_my_plugin.publishers:MyStore
