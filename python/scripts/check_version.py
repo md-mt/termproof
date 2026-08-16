@@ -24,8 +24,11 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).parent.parent
+REPO_ROOT = ROOT.parent
 PYPROJECT = ROOT / "pyproject.toml"
-CHANGELOG = ROOT / "CHANGELOG.md"
+# One changelog at the repository root: both implementations share a version
+# train, so a release number has one history entry, not two.
+CHANGELOG = REPO_ROOT / "CHANGELOG.md"
 ACTION = ROOT / "action.yml"
 FORMULA = ROOT / "Formula" / "termproof.rb"
 

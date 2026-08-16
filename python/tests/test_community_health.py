@@ -321,7 +321,7 @@ class SupportRoutingTest(unittest.TestCase):
     URL_RE = re.compile(r"https?://")
 
     def test_support_md_has_no_discussions_link(self) -> None:
-        support = (ROOT / "SUPPORT.md").read_text(encoding="utf-8")
+        support = (REPO_ROOT / "SUPPORT.md").read_text(encoding="utf-8")
         self.assertNotIn("discussions", support.lower())
 
     def test_config_yml_has_no_discussions_link(self) -> None:
@@ -333,14 +333,14 @@ class SupportRoutingTest(unittest.TestCase):
         """No tracked document may link to md-mt/termproof's own Discussions."""
         tracked = subprocess.run(
             ["git", "ls-files", "*.md", "*.yml", "*.yaml"],
-            cwd=ROOT,
+            cwd=REPO_ROOT,
             capture_output=True,
             text=True,
             check=True,
         ).stdout.splitlines()
         self.assertTrue(tracked, "expected tracked markdown/yaml documents")
         for rel in tracked:
-            path = ROOT / rel
+            path = REPO_ROOT / rel
             with self.subTest(file=rel):
                 text = path.read_text(encoding="utf-8", errors="replace").lower()
                 self.assertNotIn(
@@ -374,7 +374,7 @@ class SupportRoutingTest(unittest.TestCase):
 
 class SecurityPolicyTest(unittest.TestCase):
     def test_security_supported_versions_table_has_0_2(self) -> None:
-        security = (ROOT / "SECURITY.md").read_text(encoding="utf-8")
+        security = (REPO_ROOT / "SECURITY.md").read_text(encoding="utf-8")
         self.assertIn("0.2.x", security)
         self.assertIn(":white_check_mark:", security)
 

@@ -28,7 +28,7 @@ class CodeOfConductTest(unittest.TestCase):
     """BLOCKING: CODE_OF_CONDUCT.md must have a concrete enforcement contact."""
 
     def test_enforcement_section_has_concrete_email(self) -> None:
-        coc = _read(ROOT / "CODE_OF_CONDUCT.md")
+        coc = _read(REPO_ROOT / "CODE_OF_CONDUCT.md")
         # Split on "## Enforcement\n" (not "## Enforcement Responsibilities")
         parts = coc.split("## Enforcement\n")
         self.assertGreater(len(parts), 1,
@@ -39,7 +39,7 @@ class CodeOfConductTest(unittest.TestCase):
                       "concrete email address (e.g. md@mt.com)")
 
     def test_enforcement_does_not_reference_missing_files(self) -> None:
-        coc = _read(ROOT / "CODE_OF_CONDUCT.md")
+        coc = _read(REPO_ROOT / "CODE_OF_CONDUCT.md")
         parts = coc.split("## Enforcement\n")
         self.assertGreater(len(parts), 1)
         enforcement = parts[1].split("\n## ")[0]
@@ -55,12 +55,12 @@ class SECURITYTest(unittest.TestCase):
     """BLOCKING: A SECURITY.md must exist with a reporting contact."""
 
     def test_security_md_exists(self) -> None:
-        path = ROOT / "SECURITY.md"
+        path = REPO_ROOT / "SECURITY.md"
         self.assertTrue(path.is_file(),
                         f"SECURITY.md must exist at {path}")
 
     def test_security_md_has_contact(self) -> None:
-        sec = _read(ROOT / "SECURITY.md")
+        sec = _read(REPO_ROOT / "SECURITY.md")
         self.assertIn("@", sec, "SECURITY.md must contain a contact email")
 
 
