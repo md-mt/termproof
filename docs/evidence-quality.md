@@ -19,8 +19,10 @@
 >   and fingerprints the attributed grid rather than the screen text.
 >
 > Still open: no font ships with TermProof, the browser half of SVG font
-> embedding is still unverified, and per-step screenshots are still rendered
-> from plain text (see the last section).
+> embedding is still unverified, per-step screenshots are still rendered from
+> plain text (see the last section), and **dim still does not survive the
+> cast-replay path** — the finding below about SGR 2 is unchanged, and it is now
+> pinned by `test_dim_does_not_survive_the_cast_replay_path`.
 
 TermProof's whole value proposition is that the artifact it produces is a
 faithful record of what happened in the terminal. Two independent research

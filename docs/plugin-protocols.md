@@ -41,6 +41,12 @@ literal `"default"`, a pyte colour name such as `"red"`, or a bare `RRGGBB`
 hex string; `attributed.cell_colors(cell, style)` resolves one to concrete CSS
 colours, applying reverse video.
 
+`dim` is the one field that depends on where the grid came from. A grid parsed
+from SGR text sets it; one read from a `pyte.Screen` — which is how `final.svg`
+and the video are produced — never does, because pyte 0.8.2 models no dim/faint
+attribute. Treat `cell.dim` as authoritative when set and absent otherwise; do
+not infer that a cell is not dim.
+
 When the method is present and the pipeline has a grid to offer, TermProof calls
 it in preference to `render`, so nothing is lost re-parsing text that the
 terminal emulator already parsed. This is additive: a renderer that defines only

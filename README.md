@@ -292,7 +292,7 @@ ffmpeg -y -loglevel error -i session.agg.gif \
   -pix_fmt yuv420p -movflags +faststart session.mp4
 ```
 
-The `attributed_rsvg` video backend skips `agg` entirely and renders each frame from the same attributed grid the screenshots use, so a video frame and a screenshot of the same moment are the same image. It needs `rsvg-convert` and `ffmpeg`.
+The `attributed_rsvg` video backend skips `agg` entirely and renders each frame from the same attributed grid `final.svg` is rendered from, so a video frame and the final screenshot of the same moment are the same image. This does not extend to the per-step screenshots under `steps/`, which are still rendered from plain text and are monochrome. It needs `rsvg-convert` and `ffmpeg`.
 
 If you specifically want a cast that the asciinema CLI wrote, install the extra and select that backend:
 

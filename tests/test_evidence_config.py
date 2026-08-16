@@ -446,6 +446,15 @@ class StepScreenshotDedupTest(unittest.TestCase):
 
         Comparing `step.screen` as a string cannot see this, which is why dedup
         fingerprints the grid the screenshot is rendered from.
+
+        Coverage of `_render_step_screens` as a helper, NOT of the shipped
+        pipeline. The SGR escapes below are injected by hand; `StepResult.screen`
+        is `session.screen`, which is pyte's already-flattened `display` and
+        never contains an escape. So this branch of the fingerprint cannot fire
+        on a real run today. It is worth keeping because it pins the behaviour
+        the moment `StepResult` starts carrying a grid --- see
+        `test_a_real_step_screen_carries_no_escapes` below, which is what pins
+        the present-day reality.
         """
         step_dir = self._dedup_step_dir(
             [
@@ -459,6 +468,7 @@ class StepScreenshotDedupTest(unittest.TestCase):
         self.assertIn("#ff7b72", written[1].read_text(encoding="utf-8"))
 
     def test_identically_styled_screens_still_dedup(self) -> None:
+        """Helper coverage, on the same terms as the test above."""
         step_dir = self._dedup_step_dir(
             [
                 StepResult("first", True, "", "\x1b[31msame\x1b[0m"),
@@ -466,6 +476,32 @@ class StepScreenshotDedupTest(unittest.TestCase):
             ]
         )
         self.assertEqual(1, len(list(step_dir.glob("*.svg"))))
+
+    def test_a_real_step_screen_carries_no_escapes(self) -> None:
+        """The present-day limit, pinned so the two tests above cannot mislead.
+
+        A step screenshot is rendered from `StepResult.screen`, which the runner
+        fills from `session.screen` -> `screen_text` -> pyte's `display`. That is
+        already flattened, so no colour reaches a step image however colourful
+        the session was. `final.svg` is unaffected: it renders from the
+        attributed replay of the cast.
+
+        When `StepResult` grows a grid, this test is the one that should fail.
+        """
+        import pyte
+
+        from termproof.screen import screen_text
+
+        screen = pyte.Screen(20, 2)
+        pyte.Stream(screen).feed("\x1b[31mred\x1b[0m \x1b[1mbold\x1b[0m")
+        text = screen_text(screen)
+        self.assertEqual("red bold", text)
+        self.assertNotIn("\x1b", text)
+
+        step_dir = self._dedup_step_dir([StepResult("only", True, "", text)])
+        rendered = next(iter(step_dir.glob("*.svg"))).read_text(encoding="utf-8")
+        defaults = SvgRenderConfig()
+        self.assertEqual({defaults.bg, defaults.fg}, set(_FILL.findall(rendered)))
 
     def test_dedup_compares_against_the_previous_step_only(self) -> None:
         """A screen that reappears after a different one is rendered again."""

@@ -40,6 +40,19 @@ gets text. Do not make it required: third-party renderers are written against
 the text-only protocol, and `docs/plugin-protocols.md` promises they keep
 working.
 
+Two limits on what the grid actually carries. Both are pinned by tests; check
+them before writing "colour in every artifact" anywhere:
+
+- **Only `final.svg` and the `attributed_rsvg` video render from the grid.** Step
+  screenshots render from `StepResult.screen`, which is pyte's flattened
+  `display`, so they are monochrome — and they are the large majority of the
+  rendered corpus. The dedup tests that inject SGR escapes into a `StepResult`
+  are helper coverage of `_render_step_screens`, not evidence that a real step
+  screenshot has colour.
+- **Dim (SGR 2) is lost on the cast-replay path**, because pyte 0.8.2's `Char`
+  has no dim field. A grid parsed from SGR text does carry it. Do not list dim
+  as a supported attribute of a screenshot without saying which path.
+
 The defaults are load-bearing: `tests/test_evidence_config.py` replays every
 `session.cast` under `examples/artifacts/` and asserts the re-rendered SVG is
 byte-identical to the checked-in one. Changing a default breaks that test by

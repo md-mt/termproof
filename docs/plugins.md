@@ -48,7 +48,7 @@ session_backend: tmux
 
 | Name | Output | Notes |
 | --- | --- | --- |
-| `svg` | SVG | Default. Colour and text attributes, one `<text>` per cell. |
+| `svg` | SVG | Default. Colour and text attributes, one `<text>` per cell. Dim is carried only when the grid is parsed from SGR text, not when it is replayed from a cast. |
 | `png_rsvg` | PNG | Rasterizes the same SVG with `rsvg-convert`, so the two cannot drift. Needs `librsvg`. |
 | `png` | PNG | Draws text with Pillow. No colour or attributes, but needs no external tool. |
 
@@ -61,7 +61,7 @@ termproof run .termproof/recipes --screen-renderer png_rsvg
 | Name | Notes |
 | --- | --- |
 | `agg_ffmpeg` | Default. Shells out to `agg`, then `ffmpeg`. |
-| `attributed_rsvg` | Renders each frame from the same attributed grid the screenshots use, so a video frame and a screenshot of the same moment are the same image. One rasterizer call per frame, so slower. Needs `rsvg-convert` and `ffmpeg`. |
+| `attributed_rsvg` | Renders each frame from the same attributed grid `final.svg` uses, so a video frame and the final screenshot of the same moment are the same image. Not the per-step screenshots, which are still rendered from plain text. One rasterizer call per distinct frame, so slower. Needs `rsvg-convert` and `ffmpeg`. |
 
 ## Listing
 

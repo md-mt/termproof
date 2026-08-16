@@ -9,23 +9,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **An attributed screen model, and colour in the final screenshot and video.**
-  `termproof.attributed` keeps a per-cell grid — foreground and background,
-  bold, dim, italic, underline, strikethrough, reverse, and double-width
-  handling — instead of a flat string. The SVG renderer emits one `<text>` per
-  cell positioned at `x = col * cell_w`, so column alignment no longer depends
-  on whichever font the viewer resolves, and a red error no longer renders
-  identically to ordinary prose. A grid can be read from a live `pyte.Screen`
-  (`screen.screen_attributed`), from a recorded cast
+- **An attributed screen model, and colour in `final.svg` and the
+  `attributed_rsvg` video.** `termproof.attributed` keeps a per-cell grid —
+  foreground and background, bold, italic, underline, strikethrough, reverse,
+  and double-width handling — instead of a flat string. The SVG renderer emits
+  one `<text>` per cell positioned at `x = col * cell_w`, so column alignment no
+  longer depends on whichever font the viewer resolves, and a red error no
+  longer renders identically to ordinary prose. A grid can be read from a live
+  `pyte.Screen` (`screen.screen_attributed`), from a recorded cast
   (`screen.replay_cast_attributed`), or parsed out of text that still carries
   SGR escapes. Canvas geometry is unchanged: for the default 80x24 the old and
   new formulas both give 756x516.
 
-  **Not yet the per-step screenshots.** `final.svg` and the `attributed_rsvg`
-  video render from the grid and carry colour; the images under `steps/` render
-  from `StepResult.screen`, which is pyte's already-flattened `display`, so they
-  are still monochrome. See `docs/evidence-quality.md` for what closing that
-  needs.
+  Two limits, both pinned by tests rather than left to be discovered:
+
+  - **Per-step screenshots are not included.** `final.svg` and the
+    `attributed_rsvg` video render from the grid and carry colour; the images
+    under `steps/` render from `StepResult.screen`, which is pyte's
+    already-flattened `display`, so they are still monochrome. On the shipped
+    recipes that is 124 of the 146 regenerated corpus SVGs.
+  - **Dim (SGR 2) does not survive the cast-replay path.** pyte 0.8.2's `Char`
+    has no dim/faint field, so the attribute is consumed by the emulator before
+    the grid is built. A grid parsed directly from SGR text does carry dim.
+    Supporting it on the replay path means modelling SGR 2 in the emulator
+    layer.
+
+  See `docs/evidence-quality.md` for both.
 - **An optional `render_attributed` method on the renderer protocol.** A
   renderer that defines it is handed the grid instead of text. Additive: a
   renderer written against the text-only protocol keeps working unchanged. See

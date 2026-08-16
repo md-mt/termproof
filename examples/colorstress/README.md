@@ -10,10 +10,16 @@ box drawing, wide CJK characters and an animated progress bar.
 uv run termproof run examples/colorstress --video
 ```
 
-Since 0.3.0 the renderers draw it in colour. `termproof/attributed.py` keeps a
-per-cell grid — foreground and background, bold, dim, italic, underline,
-strikethrough, reverse, double width — and `screen_svg` emits one `<text>` per
-cell, so the screenshot looks like what the operator saw.
+Since 0.3.0 `final.svg` and the `attributed_rsvg` video are drawn in colour.
+`termproof/attributed.py` keeps a per-cell grid — foreground and background,
+bold, italic, underline, strikethrough, reverse, double width — and `screen_svg`
+emits one `<text>` per cell, so the screenshot looks like what the operator saw.
+
+Two attributes this fixture emits do *not* come through, both by known
+limitation rather than oversight: the per-step screenshots under `steps/` are
+still rendered from plain text, and dim (SGR 2) is dropped on the cast-replay
+path because pyte has no field for it. Both are pinned by tests and described in
+[docs/evidence-quality.md](../../docs/evidence-quality.md).
 
 The fixture's job did not end there; it changed. It is now the regression
 surface that keeps colour working. A recorded run lives at
