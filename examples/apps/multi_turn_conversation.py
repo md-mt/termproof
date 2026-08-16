@@ -48,7 +48,7 @@ def respond(text: str) -> None:
         emit(
             [
                 "assistant> Running the verification pipeline.",
-                "assistant> Recording terminal session with asciinema rec.",
+                "assistant> Recording terminal session to an asciinema-format cast.",
                 "assistant> Replaying the cast into final.txt and final.svg.",
                 "assistant> Rendering MP4 with agg plus ffmpeg.",
                 "assistant> Writing result.json and report.md.",
