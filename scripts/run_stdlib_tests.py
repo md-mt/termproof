@@ -28,6 +28,8 @@ STDLIB_ONLY = {
     "termproof.config": None,
     "termproof.rsvg": "tests/test_rsvg.py",
     "termproof.cast_video": "tests/test_cast_video.py",
+    "termproof.cast": None,
+    "termproof.tmux_session": "tests/test_tmux_session.py",
 }
 
 

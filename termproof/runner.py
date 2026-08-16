@@ -31,6 +31,7 @@ SESSION_BACKEND_ALIASES = {
     "pexpect": "termproof.builtin_session:PexpectBackend",
     "pexpect_asciinema": "termproof.builtin_session:PexpectAsciinemaBackend",
     "docker": "termproof.builtin_session:DockerSessionBackend",
+    "tmux": "termproof.tmux_session:TmuxBackend",
 }
 
 

@@ -30,6 +30,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the same image. Slower than `agg_ffmpeg` — one rasterizer call per frame —
   and encodes `yuv444p` rather than `yuv420p`, because 4:2:0 chroma subsampling
   smears the edges of coloured text. `agg_ffmpeg` remains the default.
+- **A `tmux` session backend.** A pty is a byte pipe, so the pty backend has to
+  reconstruct the screen with `pyte` — accurate, but a second emulator's opinion
+  of what the first would have shown, and most likely to diverge for programs
+  that repaint whole frames on the alternate screen. tmux owns a real grid, and
+  `capture-pane` returns what is on it, with attributes. Set
+  `session_backend: tmux`. The cast is recorded from `pipe-pane`, so it keeps
+  the session's real timings.
 - **`asciinema` is now an optional extra, `termproof[record]`.** See Changed.
 - **An `evidence:` block in `.termproof/config.yaml`.** The SVG and PNG
   renderers and the video pipeline no longer hardcode their rendering
