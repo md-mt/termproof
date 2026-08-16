@@ -1,0 +1,31 @@
+  bg  40  41  42  43  44  45  46  47
+  bgbright 100101102103104105106107
+256-colour  6x6x6 cube (16-231) then greyscale ramp (232-255)
+
+
+
+
+24-bit truecolour  bg sweep then fg sweep
+
+  ████████████████████████████████████████████████████████████████████████
+PALETTE READY
+
+colour> attrs
+
+attributes
+  bold  dim  italic  underline  reverse  strike  bold-red  dim-green  ul-truecolour
+unicode  box drawing, CJK wide cells, emoji
+  ┏━━━┳━━━┓  ╔═╗  ╭─╮
+  ┃ A ┃ B ┃  ║ ║  │ │
+  ┗━━━┻━━━┛  ╚═╝  ╰─╯
+  中文宽字符 | 日本語テキスト | 한국어 | 🚀 ✔ ✗
+ATTRS READY
+
+colour> animate
+
+  ⠙ indexing                                          100%
+ANIMATE READY
+
+colour> exit
+
+COLOUR STRESS COMPLETE

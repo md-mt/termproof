@@ -1,0 +1,2 @@
+colour stress fixture ready; commands: palette, attrs, animate, exit
+colour>
