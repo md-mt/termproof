@@ -131,6 +131,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`attributed_rsvg` now names what to install when a tool is missing.** It
   reported which of `rsvg-convert` / `ffmpeg` it could not find but not what to
   do about it, unlike `png_rsvg`, which already named the alternative.
+- **`attributed_rsvg` holds the closing frame.** `evidence.video.last_frame_duration`
+  reached `agg_ffmpeg` but not this backend, so the final screen — the state the
+  run ended in — occupied a single frame, 42ms at 24fps. It is now held for 3.0s
+  by default, matching agg. A frame identical to the one before it is written by
+  copying the rendered PNG rather than rasterizing again, so the hold, and any
+  idle stretch, costs disk instead of rasterizer calls.
 
 ### Removed
 
