@@ -286,6 +286,83 @@ class StepScreenScopeTest(unittest.TestCase):
             self.assertIn("#ff0000", path.read_text(encoding="utf-8"))
 
 
+class RendererProtocolCompatibilityTest(unittest.TestCase):
+    """`render_attributed` is optional; the text-only protocol still works.
+
+    `tests/test_runner.py` pins that a renderer with no `from_config` is still
+    *constructed*. This pins the other half: one with no `render_attributed` is
+    still *called*, through `render`, even though the pipeline now has a grid to
+    offer. A third-party renderer written against the published protocol must
+    not need editing for this release.
+    """
+
+    class TextOnlyRenderer:
+        name = "text_only"
+        extension = "svg"
+
+        def __init__(self) -> None:
+            self.calls: list[str] = []
+
+        def render(self, text: str, output_path: Path, cols: int, rows: int) -> None:
+            self.calls.append(text)
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            output_path.write_text(text, encoding="utf-8")
+
+    class AttributedRenderer(TextOnlyRenderer):
+        name = "attributed"
+
+        def render_attributed(
+            self, screen: AttributedScreen, output_path: Path, cols: int, rows: int
+        ) -> None:
+            self.calls.append("attributed")
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            output_path.write_text(screen.to_text(trim_right=True), encoding="utf-8")
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.output = Path(self._tmp.name) / "shot.svg"
+        self.screen = attributed_screen_from_ansi_text("\x1b[31mred\x1b[0m", columns=80, rows=24)
+
+    def test_a_text_only_renderer_is_called_with_the_text(self) -> None:
+        renderer = self.TextOnlyRenderer()
+        evidence._render_screen(
+            "red", self.output, 80, 24, renderer, SvgRenderConfig(), screen=self.screen
+        )
+        self.assertEqual(["red"], renderer.calls)
+        self.assertEqual("red", self.output.read_text(encoding="utf-8"))
+
+    def test_a_renderer_that_takes_a_grid_is_given_one(self) -> None:
+        renderer = self.AttributedRenderer()
+        evidence._render_screen(
+            "red", self.output, 80, 24, renderer, SvgRenderConfig(), screen=self.screen
+        )
+        self.assertEqual(["attributed"], renderer.calls)
+
+    def test_a_grid_capable_renderer_falls_back_when_there_is_no_grid(self) -> None:
+        renderer = self.AttributedRenderer()
+        evidence._render_screen(
+            "red", self.output, 80, 24, renderer, SvgRenderConfig(), screen=None
+        )
+        self.assertEqual(["red"], renderer.calls)
+
+    def test_a_text_only_renderer_survives_the_whole_pipeline(self) -> None:
+        run_dir = Path(self._tmp.name) / "run"
+        run_dir.mkdir()
+        (run_dir / "session.cast").write_text(
+            json.dumps({"version": 2, "width": 80, "height": 24}) + "\n", encoding="utf-8"
+        )
+        renderer = self.TextOnlyRenderer()
+        artifacts = evidence.render_artifacts(
+            run_dir,
+            render_video=False,
+            steps=[StepResult("only step", True, "", "hello")],
+            screen_renderer=renderer,
+        )
+        self.assertTrue(Path(artifacts["screenshot"]).exists())
+        self.assertEqual("hello", (run_dir / "steps" / "01-only-step.svg").read_text(encoding="utf-8"))
+
+
 class StepScreenshotDedupTest(unittest.TestCase):
     STEPS = [
         StepResult("wait for prompt", True, "", "screen one"),
