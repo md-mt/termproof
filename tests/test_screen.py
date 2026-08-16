@@ -32,31 +32,57 @@ class ScreenTest(unittest.TestCase):
             self.assertEqual("red", screen.rows[0][0].fg)
             self.assertEqual("default", screen.rows[0][3].fg)
 
-    def test_dim_does_not_survive_the_cast_replay_path(self) -> None:
-        """Known limitation, pinned so the claim cannot quietly come back.
+    def test_the_emulator_still_exposes_no_dim_attribute(self) -> None:
+        """The precondition of the dim limitation, asserted where it can fail.
 
-        pyte 0.8.2's ``Char`` has no ``dim``/``faint`` field -- its attributes
-        are (data, fg, bg, bold, italics, underscore, strikethrough, reverse,
-        blink) -- so SGR 2 is consumed by the emulator and never reaches
-        ``_cell_from_pyte_char``. This is the path `final.svg` and the
-        `attributed_rsvg` video use, so dim is lost on both, and the SVG carries
-        no ``opacity``. Supporting it means modelling SGR 2 in the emulator
-        layer, not in this package. See docs/evidence-quality.md.
+        Dim is dropped on the cast-replay path because pyte models no dim/faint
+        attribute, so SGR 2 is consumed by the emulator and there is nothing for
+        ``_cell_from_pyte_char`` to read. That is a fact about *pyte*, and it is
+        the only place a guard can bite: asserting on the resulting
+        ``AttributedCell`` instead would be a tautology, because
+        ``_cell_from_pyte_char`` never sets ``dim`` and the cell therefore reads
+        ``False`` no matter what the emulator did.
+
+        When pyte grows the field, this fails -- which is the signal to carry it
+        through and drop the limitation from the docs, not to relax the test.
         """
+        import pyte
+
+        screen = pyte.Screen(20, 1)
+        pyte.Stream(screen).feed("\x1b[2mdim\x1b[0m")
+        char = screen.buffer[0][0]
+        self.assertEqual("d", char.data, "sanity: the cell under test is the dim one")
+        for field in ("dim", "faint"):
+            self.assertFalse(
+                hasattr(char, field),
+                f"pyte now exposes {field!r}: carry it through _cell_from_pyte_char, "
+                "update docs/evidence-quality.md and the CHANGELOG, and delete this guard",
+            )
+
+    def test_dim_does_not_reach_the_rendered_screenshot(self) -> None:
+        """The user-visible consequence of the limitation above.
+
+        Distinct from a guard: this pins what `final.svg` and the
+        `attributed_rsvg` video actually contain today. It fails if dim ever
+        starts rendering on this path, which is the direction we want to hear
+        about; `test_the_emulator_still_exposes_no_dim_attribute` is what
+        catches the silent direction.
+        """
+        from termproof.builtin_renderers import SvgRenderer
+
         with tempfile.TemporaryDirectory() as tmp:
             cast_path = Path(tmp) / "session.cast"
             with CastRecorder(cast_path, 80, 24, ["demo"]) as recorder:
                 recorder.output("\x1b[2mdim\x1b[0m \x1b[1mbold\x1b[0m")
             screen, cols, rows = replay_cast_attributed(cast_path)
-            self.assertFalse(screen.rows[0][0].dim, "pyte gained a dim field; carry it through")
             # Not a blanket failure of the path: bold from the same cast survives.
             self.assertTrue(screen.rows[0][4].bold)
 
             svg_path = Path(tmp) / "final.svg"
-            from termproof.builtin_renderers import SvgRenderer
-
             SvgRenderer().render_attributed(screen, svg_path, cols, rows)
-            self.assertNotIn("opacity", svg_path.read_text(encoding="utf-8"))
+            svg = svg_path.read_text(encoding="utf-8")
+            self.assertNotIn("opacity", svg)
+            self.assertIn('font-weight="700"', svg)
 
     def test_dim_does_survive_when_the_grid_is_built_from_sgr_text(self) -> None:
         """The limitation is pyte's, not the model's.
