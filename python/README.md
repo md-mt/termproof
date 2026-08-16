@@ -1,74 +1,34 @@
-# TermProof
+# TermProof — Python implementation
 
-[![CI](https://github.com/md-mt/termproof/actions/workflows/ci.yml/badge.svg)](https://github.com/md-mt/termproof/actions/workflows/ci.yml)
-[![Release](https://github.com/md-mt/termproof/actions/workflows/release.yml/badge.svg)](https://github.com/md-mt/termproof/actions/workflows/release.yml)
+[![Python CI](https://github.com/md-mt/termproof/actions/workflows/python-ci.yml/badge.svg)](https://github.com/md-mt/termproof/actions/workflows/python-ci.yml)
+[![Release (Python)](https://github.com/md-mt/termproof/actions/workflows/python-release.yml/badge.svg)](https://github.com/md-mt/termproof/actions/workflows/python-release.yml)
 [![Verified by TermProof](https://img.shields.io/badge/verified%20by-TermProof-0a7a2e?style=flat-square)](https://github.com/md-mt/termproof)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue?logo=python)](https://www.python.org)
-![Stars](https://img.shields.io/github/stars/md-mt/termproof?style=social)
-![Forks](https://img.shields.io/github/forks/md-mt/termproof?style=social)
 
-> **Evidence-first verification for terminal and TUI applications.** No more "trust me, it works in my terminal." Record the real session, replay it, and ship the proof.
+> **Evidence-first verification for terminal and TUI applications.** No more
+> "trust me, it works in my terminal." Record the real session, replay it, and
+> ship the proof.
 
-TermProof is a harness that drives your TUI from JSON recipes, records the actual terminal as an [asciinema v2 cast](https://docs.asciinema.org/manual/asciicast/v2/), replays the cast into screenshots and text snapshots, optionally renders a 60-fps MP4 via [`agg`](https://github.com/asciinema/agg) + `ffmpeg`, and writes Markdown and JSON reports. Your reviewers inspect evidence instead of trusting a log line.
+This is the **Python implementation** of TermProof — the shipped product and
+the behavioural oracle the [Rust implementation](../rust) is measured against.
+Both live in [`md-mt/termproof`](https://github.com/md-mt/termproof); the
+[repository README](https://github.com/md-mt/termproof#readme) is the front
+door, covers both implementations and says which to reach for. This page is
+the Python-specific reference.
 
----
+TermProof is a harness that drives your TUI from JSON recipes, records the
+actual terminal as an
+[asciinema v2 cast](https://docs.asciinema.org/manual/asciicast/v2/), replays
+the cast into screenshots and text snapshots, optionally renders a 60-fps MP4
+via [`agg`](https://github.com/asciinema/agg) + `ffmpeg`, and writes Markdown
+and JSON reports. Your reviewers inspect evidence instead of trusting a log
+line.
 
-## What is this?
+Product-agnostic by design. Pi coding-agent workflows are included as the
+flagship showcase because they exercise realistic multi-turn agent UI flows.
 
-- **You ship a TUI** — built with Textual, Bubble Tea, Ratatui, Ink, or plain curses.
-- **You write a recipe** — JSON that says: launch the binary, wait for `dashboard>`, type `open`, wait for `DASHBOARD READY`, assert it appeared.
-- **TermProof runs it** — real PTY, real asciinema cast, deterministic, CI-friendly. No external recorder to install.
-- **You get proof** — `session.cast`, `final.svg`, `final.txt`, `session.mp4`, per-step screenshots, `result.json`, `report.md`. Upload the folder as a CI artifact and link it from the PR.
-
-Product-agnostic by design. Pi coding-agent workflows are included as the flagship showcase because they exercise realistic multi-turn agent UI flows.
-
-## Why not X?
-
-| Tool | Approach | Where it falls short for TUI evidence |
-| --- | --- | --- |
-| **Screenshots in docs** | Manual `screencap` | Stale within one PR; no replay; no assertion. |
-| **expect / pexpect alone** | Scripted PTY driving | No cast, no video, no per-step screenshots, no report. |
-| **Playwright / Cypress** | Browser DOM automation | Designed for web; cannot drive terminal PTY, ANSI, or Ink renderers. |
-| **VHS (Charm)** | Tape files → GIF | Great for demos, not for assertions, CI gates, or evidence bundles. |
-| **Asciinema alone** | Manual `asciinema rec` | No driving, no assertions, no report pipeline. |
-| **TermProof** | Recipe → PTY → cast → screenshots → video → report → artifact | Assertions, deterministic runs, PR comments, evidence archives. |
-
-If you want demo GIFs, use VHS. If you want **verifiable, reviewable, replayable proof that your TUI behaves**, use TermProof.
-
-## Demo
-
-Portable non-Pi TUI (included in this repo) — no Pi binary required:
-
-```bash
-uv run termproof run examples/generic --video
-open .termproof/runs/<run-id>/session.mp4
-open .termproof/runs/<run-id>/final.svg
-cat .termproof/runs/<run-id>/report.md
-```
-
-**Final screenshot** from `examples/generic` (checked-in evidence):
-
-![Generic TUI final screenshot](examples/artifacts/generic-tui-workflow/final.svg)
-
-Pi coding-agent showcase (deterministic fixtures, reproducible on any runner):
-
-```bash
-uv run termproof run examples/pi_workflow_guarded_edit.recipe.json --video --video-fps 60 --out .termproof/ci
-cat .termproof/ci/latest-report.md
-```
-
-Sample artifacts are checked into `examples/artifacts/` so you can inspect without running anything:
-
-- [`latest-pi-workflows-report.md`](examples/artifacts/latest-pi-workflows-report.md) — full report with assertion tables
-- [`generic-tui-workflow/final.svg`](examples/artifacts/generic-tui-workflow/final.svg) — final screenshot from `examples/generic`
-- `pi-workflow-guarded-edit/session.mp4` — edited flow (when artifacts are present)
-
-> Full evidence packs (screenshots, casts, videos, reports) are published as `termproof-ci-evidence` on every PR and as `termproof-release-evidence.tgz` on each release tag.
-
-> **GitHub Pages demo:** Once Pages is enabled on this repository (`ENABLE_PAGES=true` + Settings → Pages → Source: GitHub Actions), the rendered site will be at https://md-mt.github.io/termproof/. For now, preview locally with `python3 -m http.server 8000 --directory site`.
-
-## 3-command quickstart
+## Quickstart
 
 Install (Python 3.11+):
 
@@ -78,21 +38,42 @@ brew install termproof
 # or from GitHub with pip
 pip install git+https://github.com/md-mt/termproof.git
 # or from source
-git clone https://github.com/md-mt/termproof.git && cd termproof
+git clone https://github.com/md-mt/termproof.git && cd termproof/python
 uv run termproof --help
 ```
 
-Create a recipe pack for your TUI:
+Create a recipe pack for your TUI, then run it with video evidence:
 
 ```bash
 termproof init .termproof/recipes --name my-tui --command "my-tui"
-```
-
-Run it with video evidence:
-
-```bash
 termproof run .termproof/recipes --video --out .termproof/runs
 ```
+
+The portable non-Pi example in this repository needs no Pi binary:
+
+```bash
+uv run termproof run examples/generic --video
+open .termproof/runs/<run-id>/session.mp4
+open .termproof/runs/<run-id>/final.svg
+cat .termproof/runs/<run-id>/report.md
+```
+
+Pi coding-agent showcase (deterministic fixtures, reproducible on any runner):
+
+```bash
+uv run termproof run examples/pi_workflow_guarded_edit.recipe.json --video --video-fps 60 --out .termproof/ci
+cat .termproof/ci/latest-report.md
+```
+
+Sample artifacts are checked into `examples/artifacts/` so you can inspect
+without running anything:
+
+- [`latest-pi-workflows-report.md`](examples/artifacts/latest-pi-workflows-report.md)
+  — full report with assertion tables
+- [`generic-tui-workflow/final.svg`](examples/artifacts/generic-tui-workflow/final.svg)
+  — final screenshot from `examples/generic`
+
+## What a run writes
 
 Each run writes under `.termproof/runs/<run-id>/` (or the `--out` you provide):
 
@@ -130,93 +111,53 @@ Each run writes under `.termproof/runs/<run-id>/` (or the `--out` you provide):
 }
 ```
 
-Step actions: `wait_for_text`, `wait_for_idle`, `send_text`, `send_line`, `press`, `sleep`, `wait_for_count`
-Assertions: `output_contains`, `output_not_contains`, `screen_contains`, `screen_not_contains`, `step_screen_contains`, `exit_code`, `file_exists`, `file_contains`
+Step actions: `wait_for_text`, `wait_for_idle`, `send_text`, `send_line`,
+`press`, `sleep`, `wait_for_count`
+Assertions: `output_contains`, `output_not_contains`, `screen_contains`,
+`screen_not_contains`, `step_screen_contains`, `exit_code`, `file_exists`,
+`file_contains`
 
-See [`docs/recipe-packs.md`](docs/recipe-packs.md) for layout and [`examples/generic/generic_tui.recipe.json`](examples/generic/generic_tui.recipe.json) for a minimal working recipe.
+Recipes are discovered as `*.recipe.json`. See
+[`docs/recipe-packs.md`](docs/recipe-packs.md) for pack layout and
+[`examples/generic/generic_tui.recipe.json`](examples/generic/generic_tui.recipe.json)
+for a minimal working recipe. The format itself is specified independently of
+this implementation, in [`spec/`](../spec).
 
-## CI snippet
+## CI
 
-Copy-paste for GitHub Actions. Identical to what this repository uses:
-
-```yaml
-- name: Install agg + ffmpeg
-  run: |
-    sudo apt-get update && sudo apt-get install -y ffmpeg
-    if ! command -v agg >/dev/null 2>&1; then
-      cargo install --locked --git https://github.com/asciinema/agg --tag v1.9.0
-    fi
-
-- name: Run TermProof
-  run: |
-    uv run termproof run .termproof/recipes --video --video-fps 60 --out .termproof/ci
-
-- name: Upload TermProof evidence
-  uses: actions/upload-artifact@v4
-  if: always()
-  with:
-    name: termproof-ci-evidence
-    path: .termproof/ci
-    if-no-files-found: ignore
-
-- name: Publish report to summary
-  if: always()
-  run: cat .termproof/ci/latest-report.md >> "$GITHUB_STEP_SUMMARY"
-```
-
-This repo also posts a sticky **TermProof CI Report** comment on every PR with
-the run link, base-commit report, head report, and behavioral delta. Release
-tags package the same receipt-backed report as `termproof-release-evidence.tgz`.
-For same-repository PRs, screenshot links are copied to the `termproof-evidence`
+The [repository README](https://github.com/md-mt/termproof#use-it-in-ci) has
+the copy-paste GitHub Actions snippet. This repository posts a sticky
+**TermProof CI Report** comment on every PR with the run link, base-commit
+report, head report, and behavioural delta; release tags package the same
+receipt-backed report as `termproof-release-evidence.tgz`. For
+same-repository PRs, screenshot links are copied to the `termproof-evidence`
 branch and rewritten to raw GitHub URLs so they are directly viewable from the
 comment. Videos remain in the workflow artifact until hosted video evidence is
-implemented in [#69](https://github.com/md-mt/termproof/issues/69).
-See [`.github/workflows/ci.yml`](.github/workflows/ci.yml) for the full
-implementation.
-
-Reuse as a GitLab template or CircleCI orb by porting the same three steps — no Docker image required (see [#27](https://github.com/md-mt/termproof/issues/27) for generic image).
-
-## Verified by TermProof badge
-
-If you verify your TUI with TermProof, add the badge to your README:
-
-[![Verified by TermProof](https://img.shields.io/badge/verified%20by-TermProof-0a7a2e?style=flat-square)](https://github.com/md-mt/termproof)
-
-Markdown:
-
-```md
-[![Verified by TermProof](https://img.shields.io/badge/verified%20by-TermProof-0a7a2e?style=flat-square)](https://github.com/md-mt/termproof)
-```
-
-HTML:
-
-```html
-<a href="https://github.com/md-mt/termproof"><img src="https://img.shields.io/badge/verified%20by-TermProof-0a7a2e?style=flat-square" alt="Verified by TermProof"></a>
-```
-
-See [`docs/verified-badge.md`](docs/verified-badge.md) for variants (flat, plastic, for-the-badge) and usage guidelines.
-
-## Community & plugins
-
-- **Plugin directory:** [`docs/plugins.md`](docs/plugins.md) — community step/assertion/session/reporters/video backends.
-- **Contributing:** [`CONTRIBUTING.md`](CONTRIBUTING.md) — ladder, setup, PR-only process.
-- **Code of Conduct:** [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) — Contributor Covenant 2.1.
-- **Pages demo:** Preview locally with `python3 -m http.server 8000 --directory site`. When Pages is enabled on this repo, the rendered site will be at https://md-mt.github.io/termproof/.
-- **Docs site:** [`docs-site`](docs-site) — VitePress documentation source and build.
-- **Examples:** [`examples/generic`](examples/generic) — portable TUI; `examples/pi_workflow_*.recipe.json` — Pi agent showcase.
-- **Docs:** [`docs/install/homebrew.md`](docs/install/homebrew.md) · [`docs/recipe-packs.md`](docs/recipe-packs.md) · [`docs/guides/textual.md`](docs/guides/textual.md) · [`docs/guides/bubbletea.md`](docs/guides/bubbletea.md) · [`docs/guides/ratatui.md`](docs/guides/ratatui.md) · [`docs/releases.md`](docs/releases.md) · [`docs/evidence-quality.md`](docs/evidence-quality.md) · [`docs/plugins.md`](docs/plugins.md) · [`docs/verified-badge.md`](docs/verified-badge.md) · [`docs/ci/gitlab.md`](docs/ci/gitlab.md) · [`docs/ci/circleci.md`](docs/ci/circleci.md) · [`docs/ci/docker.md`](docs/ci/docker.md)
+implemented in [#69](https://github.com/md-mt/termproof/issues/69). See
+[`.github/workflows/python-ci.yml`](../.github/workflows/python-ci.yml) for the
+full implementation, and [`docs/ci/`](docs/ci) for GitLab, CircleCI and Docker.
 
 ## Upgrading from tui-verifier
 
-TermProof is the renamed distribution, import package, and CLI: install `termproof`, import `termproof`, invoke `termproof`.
+TermProof is the renamed distribution, import package, and CLI: install
+`termproof`, import `termproof`, invoke `termproof`.
 
-Existing project and user configuration remains readable without being modified. During migration, configuration is loaded in order: built-ins, legacy `~/.config/tui-verifier/config.yaml`, `~/.config/termproof/config.yaml`, legacy `.tui-verifier/config.yaml`, then `.termproof/config.yaml`. A value in the new location takes precedence over the legacy value.
+Existing project and user configuration remains readable without being
+modified. During migration, configuration is loaded in order: built-ins, legacy
+`~/.config/tui-verifier/config.yaml`, `~/.config/termproof/config.yaml`, legacy
+`.tui-verifier/config.yaml`, then `.termproof/config.yaml`. A value in the new
+location takes precedence over the legacy value.
 
-Plugin references using `tui_verifier.*:ClassName` are translated to `termproof.*:ClassName` at load time. This narrow compat path is intentionally limited to configured plugin references; the legacy CLI and import package are not shipped.
+Plugin references using `tui_verifier.*:ClassName` are translated to
+`termproof.*:ClassName` at load time. This narrow compat path is intentionally
+limited to configured plugin references; the legacy CLI and import package are
+not shipped.
 
 ## Configuration
 
-Optional configuration lives in `~/.config/termproof/config.yaml` (user) or `.termproof/config.yaml` (project). The `defaults` block exposes the post-script idle wait cap:
+Optional configuration lives in `~/.config/termproof/config.yaml` (user) or
+`.termproof/config.yaml` (project). The `defaults` block exposes the
+post-script idle wait cap:
 
 ```yaml
 defaults:
@@ -227,9 +168,23 @@ defaults:
   idle_cap_seconds: 3.0
 ```
 
-`idle_cap_seconds` is the documented replacement for the former hard-coded 3-second idle cap in `runner.py`. Defaults to `3.0` to preserve existing behavior; raise it (or set `null`) for TUIs that take longer to settle. The value must be a finite, nonnegative number: negative, NaN, or infinite values are rejected at config load.
+`idle_cap_seconds` is the documented replacement for the former hard-coded
+3-second idle cap in `runner.py`. Defaults to `3.0` to preserve existing
+behavior; raise it (or set `null`) for TUIs that take longer to settle. The
+value must be a finite, nonnegative number: negative, NaN, or infinite values
+are rejected at config load.
 
-The idle wait — both the `wait_for_idle` step and this post-script wait — starts measuring at the session's **first byte of output**, so a session that has produced no output is never treated as idle. The trade: a target that stays alive and never emits anything is never idle. A `wait_for_idle` step over such a target fails with `no output observed from the session` after its `timeout_seconds`, and the post-script wait burns its full budget — with `idle_cap_seconds: null` that is the whole recipe `timeout_seconds`, so prefer a finite cap for targets that may be silent. Once the first byte has arrived, quiescence is measured on rendered screen text only: terminal-title updates, colour changes, and repaints that redraw the same characters all count as quiet.
+The idle wait — both the `wait_for_idle` step and this post-script wait —
+starts measuring at the session's **first byte of output**, so a session that
+has produced no output is never treated as idle. The trade: a target that stays
+alive and never emits anything is never idle. A `wait_for_idle` step over such
+a target fails with `no output observed from the session` after its
+`timeout_seconds`, and the post-script wait burns its full budget — with
+`idle_cap_seconds: null` that is the whole recipe `timeout_seconds`, so prefer
+a finite cap for targets that may be silent. Once the first byte has arrived,
+quiescence is measured on rendered screen text only: terminal-title updates,
+colour changes, and repaints that redraw the same characters all count as
+quiet.
 
 ### Evidence rendering
 
@@ -276,13 +231,19 @@ uv pip install dist/termproof-*.whl
 termproof --help
 ```
 
-See [`docs/releases.md`](docs/releases.md) for versioning and release flow.
+See [`docs/releases.md`](docs/releases.md) for versioning and release flow. The
+version train is shared with the Rust implementation and the history is in the
+[root changelog](../CHANGELOG.md); the release paths are separate, and a Python
+release is tagged `py-v<version>`.
 
 ## Why the cast comes first
 
-The cast is the source of truth. Screenshots, videos, assertions and reports all derive from the same recording, so reviewers inspect what happened instead of trusting a private terminal session.
+The cast is the source of truth. Screenshots, videos, assertions and reports
+all derive from the same recording, so reviewers inspect what happened instead
+of trusting a private terminal session.
 
-The default `pexpect` session backend writes the asciinema v2 cast itself, from the PTY output it is already reading — nothing extra to install. Rendering it:
+The default `pexpect` session backend writes the asciinema v2 cast itself, from
+the PTY output it is already reading — nothing extra to install. Rendering it:
 
 ```bash
 cat session.exitcode
@@ -292,9 +253,14 @@ ffmpeg -y -loglevel error -i session.agg.gif \
   -pix_fmt yuv420p -movflags +faststart session.mp4
 ```
 
-The `attributed_rsvg` video backend skips `agg` entirely and renders each frame from the same attributed grid `final.svg` is rendered from, so a video frame and the final screenshot of the same moment are the same image. This does not extend to the per-step screenshots under `steps/`, which are still rendered from plain text and are monochrome. It needs `rsvg-convert` and `ffmpeg`.
+The `attributed_rsvg` video backend skips `agg` entirely and renders each frame
+from the same attributed grid `final.svg` is rendered from, so a video frame and
+the final screenshot of the same moment are the same image. This does not extend
+to the per-step screenshots under `steps/`, which are still rendered from plain
+text and are monochrome. It needs `rsvg-convert` and `ffmpeg`.
 
-If you specifically want a cast that the asciinema CLI wrote, install the extra and select that backend:
+If you specifically want a cast that the asciinema CLI wrote, install the extra
+and select that backend:
 
 ```bash
 pip install 'termproof[record]'
@@ -304,3 +270,22 @@ pip install 'termproof[record]'
 # .termproof.yaml
 session_backend: pexpect_asciinema
 ```
+
+## Documentation
+
+- [`docs/install/homebrew.md`](docs/install/homebrew.md) ·
+  [`docs/recipe-packs.md`](docs/recipe-packs.md) ·
+  [`docs/recipe-format-v1.md`](docs/recipe-format-v1.md)
+- Framework guides: [Textual](docs/guides/textual.md) ·
+  [Bubble Tea](docs/guides/bubbletea.md) · [Ratatui](docs/guides/ratatui.md)
+- [`docs/releases.md`](docs/releases.md) ·
+  [`docs/evidence-quality.md`](docs/evidence-quality.md) ·
+  [`docs/plugins.md`](docs/plugins.md) ·
+  [`docs/verified-badge.md`](docs/verified-badge.md)
+- CI: [GitLab](docs/ci/gitlab.md) · [CircleCI](docs/ci/circleci.md) ·
+  [Docker](docs/ci/docker.md)
+- [`docs-site`](docs-site) — VitePress documentation source and build.
+
+Project-level documents — contributing, support, security, the code of
+conduct, the changelog and the recipe specification — live at the repository
+root.

@@ -65,10 +65,17 @@ class SECURITYTest(unittest.TestCase):
 
 
 class ReadmeTest(unittest.TestCase):
-    """BLOCKING: README must have valid install commands, embedded demo, and badges."""
+    """BLOCKING: the front door must have valid install commands, an embedded
+    demo, and badges.
+
+    The front door is the repository-root README. It used to be
+    ``python/README.md``, which is now the Python package page that PyPI
+    renders — still a claim surface, and still checked below, but no longer
+    the first thing a stranger reads.
+    """
 
     def test_install_command_is_working(self) -> None:
-        readme = _read(ROOT / "README.md")
+        readme = _read(REPO_ROOT / "README.md")
         # Must not claim a PyPI install that doesn't exist
         self.assertNotRegex(readme, r"^pip install termproof$",
                             "README must not use `pip install termproof` (not on PyPI)")
@@ -81,14 +88,14 @@ class ReadmeTest(unittest.TestCase):
             "README must provide a working install path (git URL or from-source)")
 
     def test_forks_badge_present(self) -> None:
-        readme = _read(ROOT / "README.md")
+        readme = _read(REPO_ROOT / "README.md")
         self.assertIn("Forks", readme,
                       "README must include a GitHub forks badge")
         self.assertIn("img.shields.io/github/forks", readme,
                       "README must include a shields.io forks badge URL")
 
     def test_demo_has_embedded_screenshot(self) -> None:
-        readme = _read(ROOT / "README.md")
+        readme = _read(REPO_ROOT / "README.md")
         # Must embed at least one SVG or PNG screenshot in the Demo section
         demo_section = readme.split("## Demo")[1].split("## ")[0] if "## Demo" in readme else ""
         self.assertTrue(
@@ -96,13 +103,37 @@ class ReadmeTest(unittest.TestCase):
             "README Demo section must embed a real screenshot (![alt](path/to/file.svg))")
 
     def test_demo_references_existing_artifact(self) -> None:
-        """The generic-tui-workflow/final.svg that README links to must exist."""
-        svg_path = ROOT / "examples/artifacts/generic-tui-workflow/final.svg"
-        self.assertTrue(svg_path.is_file(),
-                        f"README references {svg_path.relative_to(ROOT)} but it does not exist")
+        """Every relative image the front door embeds must resolve."""
+        readme = _read(REPO_ROOT / "README.md")
+        embedded = [
+            src for src in re.findall(r"!\[[^\]]*\]\(([^)]+)\)", readme)
+            if not src.startswith("http")
+        ]
+        self.assertTrue(embedded, "README must embed at least one local image")
+        for src in embedded:
+            with self.subTest(src=src):
+                self.assertTrue(
+                    (REPO_ROOT / src).is_file(),
+                    f"README embeds {src} but it does not exist",
+                )
+
+    def test_package_readme_install_command_is_working(self) -> None:
+        """python/README.md is what PyPI renders; its install must work too."""
+        readme = _read(ROOT / "README.md")
+        self.assertNotRegex(readme, r"^pip install termproof$",
+                            "python/README.md must not use `pip install termproof` (not on PyPI)")
+        self.assertTrue(
+            "git+https://github.com/md-mt/termproof.git" in readme or
+            "git clone https://github.com/md-mt/termproof.git" in readme,
+            "python/README.md must provide a working install path")
+
+    def test_package_readme_points_at_the_front_door(self) -> None:
+        """One project: the package page must route a reader to the root."""
+        readme = _read(ROOT / "README.md")
+        self.assertIn("https://github.com/md-mt/termproof#readme", readme)
 
     def test_pages_url_is_gated(self) -> None:
-        readme = _read(ROOT / "README.md")
+        readme = _read(REPO_ROOT / "README.md")
         # Must not claim the Pages URL is live without qualification
         pages_url = "https://md-mt.github.io/termproof/"
         pages_index = readme.find(pages_url)

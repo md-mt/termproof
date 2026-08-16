@@ -185,7 +185,6 @@ class PublicClaimsTest(unittest.TestCase):
         # so each tree named here is asserted separately: a prefix that stops
         # matching must fail rather than quietly shrink the sweep.
         for required in (
-            "rust/README.md",
             "rust/docs/status-and-parity.md",
             "rust/crates/termproof/README.md",
             "rust/Cargo.toml",
@@ -209,6 +208,7 @@ class PublicClaimsTest(unittest.TestCase):
         # prefix asserted above, so a glob that stopped matching `*.md` at the
         # root would leave every one of them unchecked and still pass.
         for required in (
+            "README.md",
             "CHANGELOG.md",
             "CONTRIBUTING.md",
             "CODE_OF_CONDUCT.md",
