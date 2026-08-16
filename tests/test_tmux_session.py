@@ -80,6 +80,21 @@ class TmuxSessionTest(unittest.TestCase):
         recorded = "".join(str(event[2]) for event in self._cast_events())
         self.assertIn("\x1b[32m", recorded)
 
+    def test_the_cast_keeps_carriage_returns(self) -> None:
+        """A cast with the CRs translated away replays as a staircase.
+
+        Reading the pipe in Python's default text mode applies universal-newline
+        translation, which turns every `\\r\\n` into `\\n` and every bare `\\r`
+        into `\\n`. Nothing about the recording looks wrong -- the bytes are all
+        there -- but pyte then never returns the cursor to column 0, so the
+        replayed screen steps diagonally and any `\\r`-redrawn progress line is
+        lost.
+        """
+        with self._session(["sh", "-c", "printf '10%%\\rdone\\n'"]) as session:
+            session.wait_for_exit(10.0)
+        recorded = "".join(str(event[2]) for event in self._cast_events())
+        self.assertIn("\r", recorded)
+
     def test_the_cast_header_describes_the_grid(self) -> None:
         with self._session(["sh", "-c", "printf 'x\\n'"], cols=100, rows=30) as session:
             session.wait_for_exit(10.0)

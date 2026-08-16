@@ -298,7 +298,11 @@ class TmuxSession:
         # Opening a fifo for reading blocks until a writer appears, which is why
         # this runs on its own thread and is started before `pipe-pane`.
         try:
-            with open(fifo, encoding="utf-8", errors="replace") as pipe:
+            # newline="": no universal-newline translation. The default would
+            # rewrite every "\r\n" to "\n" and every bare "\r" to "\n", and a
+            # cast without carriage returns replays as a staircase -- pyte never
+            # returns the cursor to column 0.
+            with open(fifo, encoding="utf-8", errors="replace", newline="") as pipe:
                 while not self._stop.is_set():
                     chunk = pipe.read(4096)
                     if not chunk:
