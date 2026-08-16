@@ -1,0 +1,76 @@
+name: Rust
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  rust:
+    name: fmt, clippy, test (Rust ${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master (2026-08-05)
+        with:
+          toolchain: "1.96.0"
+          components: rustfmt, clippy
+      - name: fmt
+        run: cargo fmt --check --all
+      - name: clippy
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+      - name: test
+        run: cargo test --workspace
+      # `--all-features` cannot catch a feature that only builds alongside
+      # another, which is the failure mode an undeclared `dep:` produces. So
+      # check the whole powerset rather than a sample (#27, extended for
+      # `schema` in #28 and for `junit` in #34). `json-schema` implies `schema`,
+      # so some combinations resolve to the same set as others — they are run
+      # anyway, because what is being checked is that every combination a
+      # consumer can *write* compiles, not every set cargo can resolve.
+      # `default` and `--all-features` are the same set today and the steps
+      # above already cover them.
+      #
+      # The list is enumerated from FEATURES rather than written out, so adding
+      # a feature grows the matrix by construction and cannot be half-extended:
+      # four features is sixteen combinations, and the count is printed so a
+      # silently shrinking matrix is visible in the log.
+      - name: clippy and test each feature combination
+        run: |
+          set -eux
+          FEATURES=(evidence junit json-schema schema)
+          total=$((1 << ${#FEATURES[@]}))
+          echo "feature powerset: $total combinations"
+          for mask in $(seq 0 $((total - 1))); do
+            combo=""
+            for i in "${!FEATURES[@]}"; do
+              if (( (mask >> i) & 1 )); then
+                combo="${combo:+$combo,}${FEATURES[$i]}"
+              fi
+            done
+            cargo clippy -p termproof --all-targets \
+              --no-default-features --features "$combo" -- -D warnings
+            cargo test -p termproof --no-default-features --features "$combo"
+          done
+      # A widened requirement is a claim that the code works at the bottom of
+      # the range, and nothing above tests that: the committed lockfile resolves
+      # every range to its top. So each floor widened in #28 is pinned here and
+      # the suite is run against it. Rewriting the requirement to `=` beats
+      # `cargo update --precise`, which cannot name a crate the graph contains
+      # twice — which is exactly the fancy-regex case this widening exists to
+      # let a consumer collapse. Last step in the job: it dirties Cargo.toml
+      # and Cargo.lock, and the checkout is thrown away straight after.
+      - name: test at the declared dependency floors
+        run: |
+          set -eux
+          perl -pi -e 's{^fancy-regex = .*}{fancy-regex = "=0.16.2"}' Cargo.toml
+          perl -pi -e 's{^jsonschema = .*}{jsonschema = "=0.32.0"}' Cargo.toml
+          cargo test --workspace

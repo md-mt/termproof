@@ -1,0 +1,118 @@
+[package]
+name = "termproof"
+description = "Evidence-first verification for TUI and terminal applications: recipe model, schema, steps, assertions, orchestration, terminal sessions and the evidence pipeline"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+readme = "README.md"
+documentation = "https://docs.rs/termproof"
+# crates.io caps both lists at five, so these are the union of what the three
+# merged crates carried, trimmed to the five that describe the whole library
+# rather than any one former crate.
+keywords = ["terminal", "tui", "testing", "verification", "pty"]
+categories = [
+    "development-tools::testing",
+    "development-tools",
+    "command-line-interface",
+    "os::unix-apis",
+    "visualization",
+]
+# The differential tests replay `harness/corpus/`, which lives at the repository
+# root and is deliberately not shipped (~150 KB of recorded oracle output that no
+# consumer of the library needs). Without the corpus these two tests cannot run,
+# so they stay out of the tarball too. Every other test here is self-contained.
+exclude = ["tests/differential_steps.rs", "tests/differential_assertions.rs"]
+
+# Features gate public modules, so `docs.rs` must build with all of them on or
+# the published documentation silently loses `evidence` and `validation`.
+[package.metadata.docs.rs]
+all-features = true
+
+[lints]
+workspace = true
+
+# Feature names carry a one-line description and the issue that justifies them
+# (docs/engineering-baseline.md §7). All four are default-on, so no consumer
+# sees a change by not asking for one. `evidence` and `json-schema` are from
+# #27: every consumer used to compile all 18 dependencies whether or not it
+# used them. `schema` is from #28, `junit` from #34.
+#
+# There is deliberately no `terminal`/`core` split. `terminal` is the base layer
+# the crate root is built on — `recipe`, `steps`, `runner`, `execution` and
+# `build_info` all depend on it, and nothing in `terminal` depends on the root —
+# so a build without it is not the crate. It would also save no dependency:
+# `portable-pty` and `vt100` are needed by any build that drives a terminal,
+# which is every build.
+[features]
+default = ["evidence", "junit", "json-schema", "schema"]
+
+# The evidence pipeline: stills, video, Markdown reports, baselines, visual
+# diff and upload. Gates the whole `evidence` module (#27).
+evidence = ["dep:image", "dep:avt"]
+
+# JUnit XML reports: the `junit` module and the `generate_junit` re-exports in
+# `evidence` (#34).
+#
+# #34 proposed `junit = ["evidence", "dep:quick-junit"]`, and the code says the
+# implication is not needed. `generate_junit` takes a `&[RunResult]` and reads
+# nothing else — no renderer, no collector, no artifact of any kind; the
+# `artifacts` map it prints is a `BTreeMap<String, String>` on `RunResult` that
+# a caller can populate without this crate's evidence layer at all. So the
+# function moved to a root `junit` module and this feature stands alone, which
+# also makes `junit` on its own cost `quick-junit` and nothing else instead of
+# `image` and `avt` as well. `evidence::report::generate_junit` and
+# `evidence::generate_junit` are kept as re-exports, so every path that
+# resolved at 0.3.1 still resolves under `default`.
+junit = ["dep:quick-junit"]
+
+# JSON Schema *validation*: recipe validation and the `json_schema` built-in
+# assertion. Implies `schema`, because validating a recipe means validating it
+# against the schema `schema` generates — there is no other source for it (#27).
+json-schema = ["dep:jsonschema", "schema"]
+
+# JSON Schema *generation*: the `schema` module, and the derived `JsonSchema`
+# impls on `Recipe`, `Config` and the types they contain.
+#
+# #27 left this unconditional and said why: four crates against `json-schema`'s
+# 87. That arithmetic is still right and is not why this feature exists. It
+# exists because `schemars` is the one dependency that reaches this crate's
+# public API — the derives put `JsonSchema` on published types — so a consumer
+# on `schemars` 1.x cannot deduplicate by pinning the way it can for every other
+# entry in the workspace manifest. It has to carry both majors. Off, this crate
+# does not name `schemars` at all and that second copy is simply gone, which is
+# an answer we can give without a breaking change to the types (#28).
+#
+# The cost is real and was correctly called invasive when it was a side quest:
+# seven `cfg_attr` derives and fifteen `cfg_attr` helper attributes in
+# `recipe.rs` and `config.rs`, because `#[schemars(...)]` is an inert attribute
+# the derive registers and will not compile without it.
+schema = ["dep:schemars"]
+
+# The union of what termproof-core, termproof-terminal and termproof-evidence
+# each declared, minus `ab_glyph`, which no code ever referenced (#27).
+# `tempfile` was a dev-dependency of termproof-terminal and a regular dependency
+# of the other two, so the regular dependency subsumes it.
+[dependencies]
+avt = { workspace = true, optional = true }
+chrono.workspace = true
+fancy-regex.workspace = true
+globset.workspace = true
+image = { workspace = true, optional = true }
+jsonschema = { workspace = true, optional = true }
+portable-pty.workspace = true
+quick-junit = { workspace = true, optional = true }
+regex.workspace = true
+schemars = { workspace = true, optional = true }
+serde.workspace = true
+serde_json.workspace = true
+serde_yaml.workspace = true
+sha2.workspace = true
+tempfile.workspace = true
+thiserror.workspace = true
+unicode-normalization.workspace = true
+unicode-width.workspace = true
+vt100.workspace = true
