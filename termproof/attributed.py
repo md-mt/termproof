@@ -255,14 +255,17 @@ class SvgStyle:
     font_family: str = FONT_STACK
     fg: str = DEFAULT_FG
     bg: str = DEFAULT_BG
+    # Floors for a very small grid, so a two-line screen is not a sliver.
+    min_width: int = 0
+    min_height: int = 0
 
     @property
     def width(self) -> int:
-        return int(self.columns * self.cell_w) + 2 * self.padding
+        return max(self.min_width, int(self.columns * self.cell_w) + 2 * self.padding)
 
     @property
     def height(self) -> int:
-        return int(self.rows * self.cell_h) + 2 * self.padding
+        return max(self.min_height, int(self.rows * self.cell_h) + 2 * self.padding)
 
 
 def attributed_screen_from_lines(
