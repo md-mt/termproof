@@ -9,9 +9,10 @@ from pathlib import Path
 from typing import Any
 
 from .agg_bundle import resolve_agg
+from .attributed import AttributedScreen, attributed_screen_from_ansi_text
 from .config import EvidenceConfig, SvgRenderConfig, VideoConfig
 from .models import RunResult, StepResult
-from .screen import render_svg, replay_cast
+from .screen import replay_cast_both
 
 STEPS_MANIFEST_NAME = "steps-manifest.json"
 
@@ -36,13 +37,21 @@ def render_artifacts(
 ) -> dict[str, str]:
     evidence_config = evidence_config or EvidenceConfig()
     cast_path = run_dir / "session.cast"
-    final_text, cols, rows = replay_cast(cast_path)
+    final_text, final_screen, cols, rows = replay_cast_both(cast_path)
     final_txt = run_dir / "final.txt"
     screenshot_ext = _screen_extension(screen_renderer)
     final_screenshot = run_dir / f"final.{screenshot_ext}"
     final_txt.write_text(final_text + "\n", encoding="utf-8")
     _render_screen(
-        final_text, final_screenshot, cols, rows, screen_renderer, evidence_config.svg
+        final_text,
+        final_screenshot,
+        cols,
+        rows,
+        screen_renderer,
+        evidence_config.svg,
+        # Straight off the emulator, so the screenshot keeps colour that a
+        # round-trip through `final.txt` would already have thrown away.
+        screen=final_screen,
     )
     artifacts = {
         "cast": str(cast_path),
@@ -118,11 +127,20 @@ def _render_screen(
     rows: int,
     screen_renderer: Any,
     svg_config: SvgRenderConfig,
+    screen: AttributedScreen | None = None,
 ) -> None:
-    if screen_renderer is not None:
-        screen_renderer.render(text, output_path, cols, rows)
+    if screen_renderer is None:
+        from .builtin_renderers import SvgRenderer
+
+        screen_renderer = SvgRenderer(svg_config)
+    # A renderer that can take a grid gets one, so nothing is lost re-parsing
+    # text. Third-party renderers written against the text-only protocol keep
+    # working untouched.
+    render_attributed = getattr(screen_renderer, "render_attributed", None)
+    if screen is not None and render_attributed is not None:
+        render_attributed(screen, output_path, cols, rows)
     else:
-        render_svg(text, output_path, cols, rows, svg_config)
+        screen_renderer.render(text, output_path, cols, rows)
 
 
 def _render_step_screens(
@@ -141,14 +159,20 @@ def _render_step_screens(
     step_dir = run_dir / "steps"
     step_dir.mkdir(parents=True, exist_ok=True)
     manifest: list[dict[str, Any]] = []
-    previous_screen: str | None = None
+    previous_fingerprint: str | None = None
     previous_screenshot = ""
     for index, step in enumerate(steps, start=1):
         safe_name = "".join(ch if ch.isalnum() or ch in "-_" else "-" for ch in step.name)
         path_base = step_dir / f"{index:02d}-{safe_name}"
         (path_base.with_suffix(".txt")).write_text(step.screen + "\n", encoding="utf-8")
         screenshot_path = path_base.with_suffix(f".{screenshot_ext}")
-        unchanged = dedup and step.screen == previous_screen
+        # Fingerprint the grid the screenshot is rendered from, not the text.
+        # Two steps then share an image exactly when the image would be
+        # identical — a colour-only change is a change, which comparing
+        # `step.screen` as a string cannot express.
+        screen = attributed_screen_from_ansi_text(step.screen, columns=cols, rows=rows)
+        fingerprint = screen.render_fingerprint()
+        unchanged = dedup and fingerprint == previous_fingerprint
         if unchanged:
             # The step still happened and still has a screen; the manifest says
             # which already-written image represents it. Not dropped (that would
@@ -157,7 +181,13 @@ def _render_step_screens(
             screenshot_name = previous_screenshot
         else:
             _render_screen(
-                step.screen, screenshot_path, cols, rows, screen_renderer, config.svg
+                step.screen,
+                screenshot_path,
+                cols,
+                rows,
+                screen_renderer,
+                config.svg,
+                screen=screen,
             )
             screenshot_name = screenshot_path.name
         manifest.append(
@@ -167,7 +197,7 @@ def _render_step_screens(
                 "unchanged_from_previous": unchanged,
             }
         )
-        previous_screen = step.screen
+        previous_fingerprint = fingerprint
         previous_screenshot = screenshot_name
     if dedup:
         (step_dir / STEPS_MANIFEST_NAME).write_text(

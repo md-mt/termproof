@@ -319,6 +319,45 @@ class StepScreenshotDedupTest(unittest.TestCase):
             manifest,
         )
 
+    def _dedup_step_dir(self, steps: list[StepResult]) -> Path:
+        run_dir = Path(self._tmp.name)
+        evidence._render_step_screens(
+            run_dir,
+            steps,
+            80,
+            24,
+            SvgRenderer(),
+            "svg",
+            EvidenceConfig(dedup_step_screenshots=True),
+        )
+        return run_dir / "steps"
+
+    def test_a_colour_only_change_is_not_treated_as_unchanged(self) -> None:
+        """Same text, different colour: two images, not one reused.
+
+        Comparing `step.screen` as a string cannot see this, which is why dedup
+        fingerprints the grid the screenshot is rendered from.
+        """
+        step_dir = self._dedup_step_dir(
+            [
+                StepResult("idle", True, "", "\x1b[32mstatus\x1b[0m"),
+                StepResult("failed", True, "", "\x1b[31mstatus\x1b[0m"),
+            ]
+        )
+        written = sorted(step_dir.glob("*.svg"))
+        self.assertEqual(2, len(written))
+        self.assertIn("#7ee787", written[0].read_text(encoding="utf-8"))
+        self.assertIn("#ff7b72", written[1].read_text(encoding="utf-8"))
+
+    def test_identically_styled_screens_still_dedup(self) -> None:
+        step_dir = self._dedup_step_dir(
+            [
+                StepResult("first", True, "", "\x1b[31msame\x1b[0m"),
+                StepResult("second", True, "", "\x1b[31msame\x1b[0m"),
+            ]
+        )
+        self.assertEqual(1, len(list(step_dir.glob("*.svg"))))
+
     def test_dedup_compares_against_the_previous_step_only(self) -> None:
         """A screen that reappears after a different one is rendered again."""
         steps = [

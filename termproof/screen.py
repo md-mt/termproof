@@ -9,7 +9,7 @@ from .attributed import AttributedScreen, attributed_screen_from_pyte
 from .config import SvgRenderConfig
 
 
-def replay_cast(cast_path: Path) -> tuple[str, int, int]:
+def _replay(cast_path: Path) -> tuple[pyte.Screen, int, int]:
     with cast_path.open(encoding="utf-8") as file:
         header = json.loads(file.readline())
         cols = int(header.get("width", 100))
@@ -20,6 +20,11 @@ def replay_cast(cast_path: Path) -> tuple[str, int, int]:
             event = json.loads(line)
             if len(event) >= 3 and event[1] == "o":
                 stream.feed(event[2])
+    return screen, cols, rows
+
+
+def replay_cast(cast_path: Path) -> tuple[str, int, int]:
+    screen, cols, rows = _replay(cast_path)
     return screen_text(screen), cols, rows
 
 
@@ -29,17 +34,18 @@ def replay_cast_attributed(cast_path: Path) -> tuple[AttributedScreen, int, int]
     The text-only :func:`replay_cast` discards colour, which is most of what a
     TUI uses to say what state it is in.
     """
-    with cast_path.open(encoding="utf-8") as file:
-        header = json.loads(file.readline())
-        cols = int(header.get("width", 100))
-        rows = int(header.get("height", 30))
-        screen = pyte.Screen(cols, rows)
-        stream = pyte.Stream(screen)
-        for line in file:
-            event = json.loads(line)
-            if len(event) >= 3 and event[1] == "o":
-                stream.feed(event[2])
+    screen, cols, rows = _replay(cast_path)
     return screen_attributed(screen), cols, rows
+
+
+def replay_cast_both(cast_path: Path) -> tuple[str, AttributedScreen, int, int]:
+    """Replay once, returning the text and the attributed grid together.
+
+    Two replays of the same cast cannot disagree, but they do cost twice as
+    much, and a caller that wants both wants them from the same final state.
+    """
+    screen, cols, rows = _replay(cast_path)
+    return screen_text(screen), screen_attributed(screen), cols, rows
 
 
 def screen_text(screen: pyte.Screen) -> str:
