@@ -164,7 +164,6 @@ class PublicClaimsTest(unittest.TestCase):
         # The three surfaces that each escaped a round, plus package metadata.
         for required in (
             "python/README.md",
-            "python/CHANGELOG.md",
             "python/AGENTS.md",
             "python/site/index.html",
             "python/docs/plugins.md",
@@ -203,6 +202,20 @@ class PublicClaimsTest(unittest.TestCase):
                 0,
                 f"no surface under {tree} is being checked",
             )
+
+        # The repository root is the front door: it is the first prose a
+        # stranger reads and the last place a withdrawn claim should survive.
+        # Named individually because a root document is not under any tree
+        # prefix asserted above, so a glob that stopped matching `*.md` at the
+        # root would leave every one of them unchecked and still pass.
+        for required in (
+            "CHANGELOG.md",
+            "CONTRIBUTING.md",
+            "CODE_OF_CONDUCT.md",
+            "SECURITY.md",
+            "SUPPORT.md",
+        ):
+            self.assertIn(required, names, f"{required} is not being checked")
 
     def test_no_surface_carries_a_withdrawn_claim(self) -> None:
         offenders = []
