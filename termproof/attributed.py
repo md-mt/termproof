@@ -384,6 +384,12 @@ def cell_colors(cell: AttributedCell, style: SvgStyle | None = None) -> tuple[st
 
 
 def _cell_from_pyte_char(char: Any) -> AttributedCell:
+    # `dim` is deliberately absent. pyte 0.8.2's Char models
+    # (data, fg, bg, bold, italics, underscore, strikethrough, reverse, blink)
+    # and has no dim/faint field, so SGR 2 is consumed by the emulator and never
+    # reaches here. Reading it back would need SGR 2 modelled in the emulator
+    # layer. `attributed_screen_from_ansi_text` does carry dim, because it parses
+    # the escapes itself. Pinned by `test_dim_does_not_survive_the_cast_replay_path`.
     text = getattr(char, "data", " ")
     return AttributedCell(
         text=text,
