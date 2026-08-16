@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import tempfile
 import unittest
 from pathlib import Path
@@ -9,6 +10,7 @@ from unittest import mock
 from PIL import Image, ImageDraw, ImageFont
 
 from termproof import evidence
+from termproof.attributed import AttributedScreen, attributed_screen_from_ansi_text
 from termproof.builtin_renderers import PngRenderer, SvgRenderer
 from termproof.builtin_video import AggFfmpegBackend
 from termproof.config import (
@@ -19,10 +21,11 @@ from termproof.config import (
     VideoConfig,
 )
 from termproof.models import StepResult
-from termproof.screen import render_svg, replay_cast
+from termproof.screen import render_svg, replay_cast_attributed
 
 ROOT = Path(__file__).resolve().parents[1]
 ARTIFACTS = ROOT / "examples" / "artifacts"
+_FILL = re.compile(r'fill="(#[0-9a-fA-F]{6})"')
 
 
 def _builtin_evidence() -> EvidenceConfig:
@@ -30,29 +33,45 @@ def _builtin_evidence() -> EvidenceConfig:
 
 
 class CorpusByteIdentityTest(unittest.TestCase):
-    """The acceptance gate for making the rendering parameters configurable.
+    """The renderer's output is pinned to the checked-in corpus.
 
-    Every screenshot checked in under ``examples/artifacts/`` was produced by
-    the pre-configuration renderers. Replaying each recorded cast and
-    re-rendering it with no configuration present must reproduce those files
-    byte for byte, or the extracted defaults have drifted from the literals
-    they replaced and the checked-in corpus would need regenerating.
+    This gate began as the acceptance test for moving the rendering parameters
+    into config: the extracted defaults had to reproduce the pre-configuration
+    screenshots byte for byte. Attributed rendering deliberately changed the
+    markup shape -- one ``<text>`` per cell rather than one per line -- so the
+    corpus was regenerated and the gate's purpose changed with it. It now pins
+    the renderer's output to those files: any change to the geometry, the
+    palette, the escaping or the defaults has to be accompanied by a
+    regenerated corpus, which puts the new bytes in the diff where a reviewer
+    can see them.
+
+    Each pair is rendered through the same path ``evidence.render_artifacts``
+    uses for that artifact -- ``final.svg`` from the attributed replay of the
+    cast, step screenshots from their recorded screen text. Pinning a path the
+    pipeline does not use would gate nothing.
     """
 
-    def _rendered_pairs(self) -> list[tuple[str, int, int, Path]]:
-        pairs: list[tuple[str, int, int, Path]] = []
+    def _rendered_pairs(self) -> list[tuple[AttributedScreen, int, int, Path]]:
+        pairs: list[tuple[AttributedScreen, int, int, Path]] = []
         for cast_path in sorted(ARTIFACTS.rglob("session.cast")):
             run_dir = cast_path.parent
             final_svg = run_dir / "final.svg"
             if not final_svg.exists():
                 continue
-            text, cols, rows = replay_cast(cast_path)
-            pairs.append((text, cols, rows, final_svg))
+            screen, cols, rows = replay_cast_attributed(cast_path)
+            pairs.append((screen, cols, rows, final_svg))
             for step_txt in sorted((run_dir / "steps").glob("*.txt")):
                 step_svg = step_txt.with_suffix(".svg")
                 if step_svg.exists():
-                    screen = step_txt.read_text(encoding="utf-8").removesuffix("\n")
-                    pairs.append((screen, cols, rows, step_svg))
+                    text = step_txt.read_text(encoding="utf-8").removesuffix("\n")
+                    pairs.append(
+                        (
+                            attributed_screen_from_ansi_text(text, columns=cols, rows=rows),
+                            cols,
+                            rows,
+                            step_svg,
+                        )
+                    )
         return pairs
 
     def test_corpus_is_present(self) -> None:
@@ -63,21 +82,34 @@ class CorpusByteIdentityTest(unittest.TestCase):
         renderer = SvgRenderer.from_config(_builtin_evidence())
         with tempfile.TemporaryDirectory() as tmp:
             output = Path(tmp) / "candidate.svg"
-            for text, cols, rows, expected in self._rendered_pairs():
-                renderer.render(text, output, cols, rows)
+            for screen, cols, rows, expected in self._rendered_pairs():
+                renderer.render_attributed(screen, output, cols, rows)
                 self.assertEqual(
                     expected.read_bytes(),
                     output.read_bytes(),
                     f"default config no longer reproduces {expected.relative_to(ROOT)}",
                 )
 
-    def test_screen_render_svg_matches_the_renderer_it_duplicates(self) -> None:
-        """``screen.render_svg`` is a duplicate; the two must not diverge."""
+    def test_the_corpus_still_holds_a_screen_that_is_not_monochrome(self) -> None:
+        """A corpus of only-grey screens could not catch a fall back to plain text.
+
+        `examples/colorstress` is the entry that carries colour; without it the
+        byte-identity gate above would pass just as happily against a renderer
+        that had thrown every attribute away.
+        """
+        fills = set()
+        for screen, _, _, expected in self._rendered_pairs():
+            if "colour-stress" in expected.parent.name:
+                fills.update(_FILL.findall(expected.read_text(encoding="utf-8")))
+        self.assertGreater(len(fills), 20, "the colour-stress corpus entry is missing or monochrome")
+
+    def test_screen_render_svg_is_a_wrapper_over_the_renderer(self) -> None:
+        """``screen.render_svg`` delegates; it must not regrow into a second copy."""
         renderer = SvgRenderer.from_config(_builtin_evidence())
         with tempfile.TemporaryDirectory() as tmp:
             from_function = Path(tmp) / "function.svg"
             from_renderer = Path(tmp) / "renderer.svg"
-            for text, cols, rows, _ in self._rendered_pairs()[:20]:
+            for text, cols, rows in (("plain", 80, 24), ("\x1b[31mred\x1b[0m", 100, 30)):
                 render_svg(text, from_function, cols, rows)
                 renderer.render(text, from_renderer, cols, rows)
                 self.assertEqual(from_function.read_bytes(), from_renderer.read_bytes())
