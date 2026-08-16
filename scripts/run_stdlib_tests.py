@@ -27,6 +27,7 @@ STDLIB_ONLY = {
     "termproof.attributed": "tests/test_attributed.py",
     "termproof.config": None,
     "termproof.rsvg": "tests/test_rsvg.py",
+    "termproof.cast_video": "tests/test_cast_video.py",
 }
 
 

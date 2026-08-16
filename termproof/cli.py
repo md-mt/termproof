@@ -43,7 +43,7 @@ def main(argv: list[str] | None = None) -> int:
     run_parser.add_argument("--screen-renderer", default="svg",
                             help="screen renderer to use (default: svg, also: png, png_rsvg)")
     run_parser.add_argument("--video-backend", default="agg_ffmpeg",
-                            help="video backend to use (default: agg_ffmpeg)")
+                            help="video backend to use (default: agg_ffmpeg, also: attributed_rsvg)")
     run_parser.add_argument("--diff", action="store_true",
                             help="compare final screenshots against baselines")
     run_parser.add_argument("--baseline-dir", type=Path, default=Path(".termproof/baselines"),
@@ -101,7 +101,7 @@ def main(argv: list[str] | None = None) -> int:
     demo_parser.add_argument("--screen-renderer", default="svg",
                              help="screen renderer (default: svg, also: png, png_rsvg)")
     demo_parser.add_argument("--video-backend", default="agg_ffmpeg",
-                             help="video backend (default: agg_ffmpeg)")
+                             help="video backend (default: agg_ffmpeg, also: attributed_rsvg)")
     args = parser.parse_args(argv)
 
     if args.command == "run":

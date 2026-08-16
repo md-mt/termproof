@@ -54,6 +54,7 @@ BUILTIN_DEFAULTS: dict[str, Any] = {
     },
     "video_backends": {
         "agg_ffmpeg": "termproof.builtin_video:AggFfmpegBackend",
+        "attributed_rsvg": "termproof.cast_video:RsvgFfmpegBackend",
     },
     "session_backend": "termproof.builtin_session:PexpectAsciinemaBackend",
     "docker": {
