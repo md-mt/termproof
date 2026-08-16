@@ -7,8 +7,16 @@ bypassing ``termproof/__init__.py`` so the third-party imports never happen.
 
     python3 scripts/run_stdlib_tests.py
 
-It is a convenience, not a substitute: ``pytest`` over ``tests/`` remains the
-real suite.
+It began as scaffolding for a machine that could not install packages, and it
+earns its place as a gate. Every module in :data:`STDLIB_ONLY` documents itself
+as depending on the standard library alone — :mod:`termproof.attributed` reads a
+``pyte.Screen`` structurally rather than importing pyte, precisely so it can —
+and nothing else holds them to it. Adding ``import pyte`` to one of them leaves
+the full suite green, because the full suite has pyte installed, and fails here.
+The CI job that runs it therefore installs nothing on purpose.
+
+It is a gate, not a substitute: ``unittest discover`` over ``tests/`` remains
+the real suite.
 """
 
 from __future__ import annotations
