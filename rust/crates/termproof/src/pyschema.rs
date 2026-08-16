@@ -17,7 +17,7 @@
 //!    so this reaches the same verdict and says so in TermProof's words. The
 //!    FR-016 prefixes — `schema validation failed`, `invalid schema:` — are
 //!    unreserved contract and are preserved exactly; only the interpolated
-//!    clause is ours. `harness/README.md` records the divergence.
+//!    clause is ours. `conformance/README.md` records the divergence.
 //!
 //! Every message here renders the instance through [`crate::pyrepr`], never
 //! Rust's `Debug` (constitution Principle VIII, restated as FR-025).
@@ -65,7 +65,7 @@ fn dotted_path(pointer: &str) -> String {
 /// needs the enclosing subschema, which the Rust crate does not hand back with
 /// the error. It only ever separates two non-`type` errors sitting under
 /// differently-typed subschemas; everywhere else it is constant and drops out.
-/// Approximating it as constant is recorded in `harness/README.md` rather than
+/// Approximating it as constant is recorded in `conformance/README.md` rather than
 /// hidden.
 type Relevance = (isize, Vec<PathPart>, bool);
 

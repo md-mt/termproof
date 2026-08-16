@@ -83,7 +83,7 @@ Thanks for Textual — it's the reason this tool exists.
 
 - Repo: https://github.com/md-mt/termproof
 - Demo artifacts: `examples/artifacts/pi-workflow-guarded-edit/session.mp4` (60-second demo)
-- CI evidence: latest `termproof-ci-evidence` from https://github.com/md-mt/termproof/actions/workflows/ci.yml
+- CI evidence: latest `termproof-ci-evidence` from https://github.com/md-mt/termproof/actions/workflows/python-ci.yml
 - Badge: `docs/verified-badge.md` — `Verified by TermProof` (lands in t_1b2bfea8 lane; link to README badge section until then)
 
 ## Follow-up Plan

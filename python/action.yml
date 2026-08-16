@@ -20,8 +20,9 @@ inputs:
   engine:
     description: |
       Engine to use (auto, python). Auto reuses a `termproof` already on PATH.
-      `rust` is no longer accepted — the Rust engine moved to
-      https://github.com/md-mt/termproof-rust and does not publish releases yet.
+      `rust` is not accepted — this action installs the Python package. The
+      Rust implementation lives at https://github.com/md-mt/termproof under
+      rust/ and is installed separately.
     required: false
     default: "auto"
 
@@ -43,7 +44,7 @@ runs:
         engine="${{ inputs.engine }}"
         case "$engine" in
           rust)
-            echo "::error::engine: rust is no longer supported by this action. The Rust engine moved to https://github.com/md-mt/termproof-rust, which has not published a release yet. Use engine: python (or auto) until it does."
+            echo "::error::engine: rust is not supported by this action, which installs the Python package. The Rust implementation lives at https://github.com/md-mt/termproof under rust/ and is installed separately. Use engine: python (or auto)."
             exit 1
             ;;
           auto|python) ;;

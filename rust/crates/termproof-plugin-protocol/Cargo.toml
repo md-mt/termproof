@@ -10,7 +10,7 @@ homepage.workspace = true
 authors.workspace = true
 readme = "README.md"
 # Not docs.rs: this crate is not published, so there would be nothing there.
-documentation = "https://github.com/md-mt/termproof-rust#readme"
+documentation = "https://github.com/md-mt/termproof#readme"
 keywords = ["terminal", "plugin", "protocol", "jsonl", "ipc"]
 categories = ["development-tools::testing", "encoding", "api-bindings"]
 # Held back from crates.io on purpose — see docs/publishing.md. The metadata

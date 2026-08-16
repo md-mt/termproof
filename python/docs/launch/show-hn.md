@@ -131,7 +131,7 @@ HN doesn't embed images in the submission itself, but link in comments or host:
 Preferred canonical demo link after v0.2 release:
 
 - `https://github.com/md-mt/termproof/tree/main/examples/artifacts` (checked-in evidence)
-- `https://github.com/md-mt/termproof/actions/workflows/ci.yml` → latest run → `termproof-ci-evidence` artifact
+- `https://github.com/md-mt/termproof/actions/workflows/python-ci.yml` → latest run → `termproof-ci-evidence` artifact
 - `https://md-mt.github.io/termproof/` when Pages lands (#16) — update this file in follow-up PR
 
 ## Posting Checklist

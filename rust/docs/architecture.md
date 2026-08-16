@@ -57,11 +57,11 @@ behavioural oracle. The port is measured against it, not merged with it:
   checked-in snapshot (`tests/snapshots/recipe_schema_v1.json`, guarded by
   `tests/schema_snapshot.rs`) — a local structural stability check, not a
   parity claim.
-- **The differential harnesses** (`harness/`) record the oracle's verdicts
+- **The differential harnesses** (`conformance/`) record the oracle's verdicts
   over checked-in corpora and replay the same cases through the port. They
   assert a floor rather than equality, and the counts and residual
   divergences are documented in `docs/status-and-parity.md` and
-  `harness/README.md`. CI runs them as part of `cargo test --workspace`.
+  `conformance/README.md`. CI runs them as part of `cargo test --workspace`.
 - **The `py*` shims** are the port's answer to behaviours that are really
   CPython's or libc's — regex dialect, `repr` rendering, path semantics,
   schema error selection. They are where the port gets closest to the oracle
@@ -163,5 +163,5 @@ runner on `SessionDriver` rather than asking the recipe format for `when`.
   lint, error, tracing, dependency, feature and unsafe-code policy.
 - [`docs/conditional-recipes.md`](conditional-recipes.md) — why the recipe
   format stays linear, what a consumer with a branching scenario uses instead.
-- [`harness/README.md`](../harness/README.md) — the differential harnesses,
+- [`conformance/README.md`](../../conformance/README.md) — the differential harnesses,
   the corpora, and how to regenerate expectations.

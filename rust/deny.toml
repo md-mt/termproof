@@ -1,5 +1,5 @@
 # Deny policy for the workspace, enforced by `cargo deny check` in
-# .github/workflows/security.yml on every pull request, on push to main, and
+# .github/workflows/rust-security.yml on every pull request, on push to main, and
 # weekly (advisories land without a code change; the licence/bans/sources
 # checks compare the graph, which a weekly run re-reads from the committed
 # lockfile).

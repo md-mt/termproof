@@ -4,7 +4,7 @@ TermProof CI integrations run recipes, upload `.termproof/runs`, and surface rep
 
 ## GitHub Actions
 
-Use the reusable action in `action.yml` or copy the workflow pattern from `.github/workflows/ci.yml`.
+Use the reusable action in `action.yml` or copy the workflow pattern from `.github/workflows/python-ci.yml`.
 
 ## GitLab CI
 

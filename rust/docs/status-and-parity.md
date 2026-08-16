@@ -4,12 +4,12 @@ This page is the deep version of the README's maturity notice. It is written
 to be read **before** you depend on anything in this repository, and it is
 kept deliberately honest: what the port measures, what it does not, and where
 it is known to diverge from the Python implementation. The
-[`harness/README.md`](../harness/README.md) is the authority on every number
+[`conformance/README.md`](../../conformance/README.md) is the authority on every number
 here — this page summarises it, it does not replace it.
 
 ## What this port is
 
-`termproof-rust` is a Rust reimplementation of
+The Rust workspace under `rust/` is a reimplementation of
 [TermProof](https://github.com/md-mt/termproof). The Python implementation at
 `md-mt/termproof` is the **shipped product and the behavioural oracle**. This
 port is **in progress** and is **not a drop-in replacement**: there is **no
@@ -34,8 +34,8 @@ test replays the same cases through the port and reports agreement.
 
 | Layer | Oracle | Port | Corpus |
 |---|---|---|---|
-| Steps | `harness/probe_steps.py` | `crates/termproof/tests/differential_steps.rs` | `harness/corpus/cases.json` |
-| Assertions | `harness/probe_assertions.py` | `crates/termproof/tests/differential_assertions.rs` | `harness/corpus/assertion_cases.json` |
+| Steps | `conformance/probe_steps.py` | `crates/termproof/tests/differential_steps.rs` | `conformance/corpus/cases.json` |
+| Assertions | `conformance/probe_assertions.py` | `crates/termproof/tests/differential_assertions.rs` | `conformance/corpus/assertion_cases.json` |
 
 The harnesses assert a **floor rather than equality**: agreement can rise but
 must never fall, and panics and cases that never return are asserted at zero
@@ -54,7 +54,7 @@ remaining gaps are open decisions that are not the port's to make (see
 | Ran against a real child | the port drove a pseudo-terminal, as the oracle does | 28 / 115 |
 
 Up from 26 of 115 when the harness first ran. The remaining 33 cases are
-enumerated in `harness/README.md`.
+enumerated in `conformance/README.md`.
 
 ## Assertion layer
 

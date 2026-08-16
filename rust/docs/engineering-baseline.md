@@ -99,7 +99,7 @@ and this document is updated.
   workable version costs every vendoring consumer a duplicate copy of the
   crate, so one that sits higher than it has to carries a comment in
   `Cargo.toml` naming the API or behaviour that put it there (#28). The
-  `test at the declared dependency floors` step in `.github/workflows/rust.yml`
+  `test at the declared dependency floors` step in `.github/workflows/rust-ci.yml`
   runs the suite at each floor, so a floor that stops being true fails CI.
 - A comment in `Cargo.toml` records the reason but does not publish it. The
   manifest is not what a consumer weighing the dependency reads — crates.io
@@ -122,7 +122,7 @@ and this document is updated.
   `regex` 1.13.1 (corpus-selected engine per spec §5.3, declared as
   `default-features = false` with explicit `std`+`unicode` features).
 - Since PR4, `cargo deny check` is a required gate
-  (`.github/workflows/security.yml`), covering advisories, licences, bans and
+  (`.github/workflows/rust-security.yml`), covering advisories, licences, bans and
   sources against `deny.toml`. It runs on every pull request, on push to
   `main`, and weekly on a schedule (new RustSec advisories land without a code
   change; the weekly run re-reads the committed lockfile against a fresh
@@ -313,12 +313,12 @@ workspace README in the same change.
   change the convention would call a minor bump; it is caught here before a
   release, not by the first consumer who fails to compile.
 - **Package verification.** PR CI runs `cargo package -p termproof` and
-  `.github/scripts/verify-package-contents.sh`, which asserts the tarball
+  `.github/scripts/rust/verify-package-contents.sh`, which asserts the tarball
   carries the snapshot test and its fixture (issue #33's promise) and does
-  not carry the differential tests or `harness/` (which cannot run without
+  not carry the differential tests or `conformance/` (which cannot run without
   the repository).
 - **Release archives.** `release-rust.yml` smoke-tests every archive before
-  upload: `.github/scripts/verify-release-archive.sh` verifies the sha256,
+  upload: `.github/scripts/rust/verify-release-archive.sh` verifies the sha256,
   extracts the tarball, and asserts `termproof --version` reports exactly the
   workspace version. The attestation subject is verified against the archive
   digest, so a green build-provenance attestation always names the archive it

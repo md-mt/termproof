@@ -2,7 +2,7 @@
 
 Status: Active
 Owner: termproof maintainers (`@md-mt`)
-Scope: the `md-mt/termproof-rust` GitHub repository
+Scope: the `md-mt/termproof` GitHub repository
 Baseline date: 2026-08-16 (main at `e6efcb5`)
 
 This document records the repository's GitHub governance: metadata,
@@ -192,34 +192,34 @@ Commands (all read-only):
 
 ```sh
 # Metadata
-gh repo view md-mt/termproof-rust --json homepageUrl,repositoryTopics,hasIssuesEnabled,hasWikiEnabled,hasProjectsEnabled,hasDiscussionsEnabled,mergeCommitAllowed,rebaseMergeAllowed,squashMergeAllowed,deleteBranchOnMerge
+gh repo view md-mt/termproof --json homepageUrl,repositoryTopics,hasIssuesEnabled,hasWikiEnabled,hasProjectsEnabled,hasDiscussionsEnabled,mergeCommitAllowed,rebaseMergeAllowed,squashMergeAllowed,deleteBranchOnMerge
 
 # Ruleset and branch protection
-gh api repos/md-mt/termproof-rust/rulesets
-gh api repos/md-mt/termproof-rust/branches/main/protection
+gh api repos/md-mt/termproof/rulesets
+gh api repos/md-mt/termproof/branches/main/protection
 
 # Vulnerability settings (admin token; record 2xx vs 4xx per endpoint)
-gh api -i repos/md-mt/termproof-rust/vulnerability-alerts
-gh api -i repos/md-mt/termproof-rust/automated-security-fixes
-gh api repos/md-mt/termproof-rust/dependabot/alerts
+gh api -i repos/md-mt/termproof/vulnerability-alerts
+gh api -i repos/md-mt/termproof/automated-security-fixes
+gh api repos/md-mt/termproof/dependabot/alerts
 
 # Baseline CI health on the current head of main — the five Rust/Security
 # gate checks (plus Dependabot config checks). The Publish jobs never run on
 # main, so this command alone cannot verify the full required-check contract.
-gh api repos/md-mt/termproof-rust/commits/main/check-runs --jq '.check_runs[].name'
+gh api repos/md-mt/termproof/commits/main/check-runs --jq '.check_runs[].name'
 
 # Required PR gate checks — audit from a PR head, where all eight run.
 # Pick any open or recent PR (44 in the baseline, or the newest merged one):
-gh pr checks 44 --repo md-mt/termproof-rust --json name,state,workflow
+gh pr checks 44 --repo md-mt/termproof --json name,state,workflow
 # or directly against a PR head commit:
-gh api repos/md-mt/termproof-rust/commits/<pr-head-sha>/check-runs --jq '.check_runs[].name'
+gh api repos/md-mt/termproof/commits/<pr-head-sha>/check-runs --jq '.check_runs[].name'
 
 # After the ruleset exists, verify the eight configured contexts from the
 # ruleset JSON itself (the settings-change task records the ruleset id):
-gh api repos/md-mt/termproof-rust/rulesets --jq '.[] | select(.name == "main") | .rules[] | select(.type == "required_status_checks") | .parameters.required_status_checks[].context'
+gh api repos/md-mt/termproof/rulesets --jq '.[] | select(.name == "main") | .rules[] | select(.type == "required_status_checks") | .parameters.required_status_checks[].context'
 
 # Community health
-gh api repos/md-mt/termproof-rust/community/profile --jq .health_percentage
+gh api repos/md-mt/termproof/community/profile --jq .health_percentage
 ```
 
 Expected after the settings change: homepage `https://docs.rs/termproof`;

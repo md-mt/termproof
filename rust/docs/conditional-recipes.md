@@ -179,7 +179,7 @@ Two limits on that argument, so it is not over-read:
 - It is not an argument against new surface generally. `termproof::terminal` and
   `termproof::evidence` grow without oracle coverage and that is fine, because
   the harness measures the step and assertion layers and never claimed to
-  measure those (`harness/README.md`, "What the corpus does and does not
+  measure those (`conformance/README.md`, "What the corpus does and does not
   measure"). The objection is specific to a *second way of saying what a recipe
   does*, because the recipe is the artefact the two runtimes share.
 - It is contingent, not permanent. If the oracle grows branching, branching

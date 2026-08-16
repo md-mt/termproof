@@ -5,11 +5,14 @@ The canonical version lives in `pyproject.toml`. This script verifies that
 `CHANGELOG.md` contains an entry for it. It also checks that `action.yml` and
 `Formula/termproof.rb` reference the same version.
 
-The `rust/Cargo.toml` half of this check went away with the Rust workspace,
-which now lives in https://github.com/md-mt/termproof-rust and versions itself.
+The Rust workspace is back in this repository and shares the version train,
+so `rust/Cargo.toml` is checked against the same number: one version means one
+point in the project's history for both implementations, and a drift between
+the two manifests is what would quietly break that.
 
-The `--fix` flag went with it: rewriting `rust/Cargo.toml` was the only thing
-it did.
+There is no `--fix` flag. A bump is a release decision, and the Rust
+auto-release workflow already owns rewriting `rust/Cargo.toml`
+(`.github/scripts/rust/version-bump.py`).
 
 Usage:
   python scripts/check_version.py              # check all sources
@@ -31,6 +34,7 @@ PYPROJECT = ROOT / "pyproject.toml"
 CHANGELOG = REPO_ROOT / "CHANGELOG.md"
 ACTION = ROOT / "action.yml"
 FORMULA = ROOT / "Formula" / "termproof.rb"
+CARGO = REPO_ROOT / "rust" / "Cargo.toml"
 
 
 def parse_pyproject_version() -> str:
@@ -50,8 +54,33 @@ def check_changelog(version: str) -> bool:
     return False
 
 
+def parse_cargo_version() -> str:
+    """The `[workspace.package]` version every Rust crate inherits."""
+    text = CARGO.read_text(encoding="utf-8")
+    section = text.split("[workspace.package]", 1)
+    if len(section) != 2:
+        raise SystemExit(f"[workspace.package] not found in {CARGO}")
+    m = re.search(r'^version\s*=\s*"([^"]+)"', section[1], re.MULTILINE)
+    if not m:
+        raise SystemExit(f"version not found under [workspace.package] in {CARGO}")
+    return m.group(1)
+
+
+def check_cargo(version: str) -> bool:
+    cargo_version = parse_cargo_version()
+    if cargo_version == version:
+        return True
+    print(
+        f"version drift: pyproject.toml is {version}, "
+        f"rust/Cargo.toml is {cargo_version}",
+        file=sys.stderr,
+    )
+    return False
+
+
 def check_action(version: str) -> bool:
-    # Non-strict: action.yml version pin is not enforced; drift is covered by pyproject ↔ Cargo check
+    # Non-strict: action.yml version pin is not enforced; drift is covered by
+    # the pyproject <-> Cargo check.
     return True
 
 
@@ -63,10 +92,21 @@ def main() -> int:
         print(f"Hint: add ## [{py_ver}] to CHANGELOG.md (see Keep a Changelog)", file=sys.stderr)
         ok = False
 
+    if not check_cargo(py_ver):
+        print(
+            "Hint: the two implementations share one version train. Bump both "
+            "manifests, or neither.",
+            file=sys.stderr,
+        )
+        ok = False
+
     check_action(py_ver)
 
     if ok:
-        print(f"version {py_ver} consistent across pyproject.toml and CHANGELOG.md")
+        print(
+            f"version {py_ver} consistent across pyproject.toml, "
+            "rust/Cargo.toml and CHANGELOG.md"
+        )
         return 0
     return 1
 

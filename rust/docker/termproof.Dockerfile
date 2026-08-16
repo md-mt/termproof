@@ -77,7 +77,7 @@ FROM debian:bookworm-slim@sha256:abd67ffcfa541b485a3dff59865ab629aa048a6c613e639
 
 LABEL org.opencontainers.image.title="termproof" \
       org.opencontainers.image.description="Evidence-first verification for TUI and terminal applications (Rust implementation)" \
-      org.opencontainers.image.source="https://github.com/md-mt/termproof-rust" \
+      org.opencontainers.image.source="https://github.com/md-mt/termproof" \
       org.opencontainers.image.licenses="MIT"
 
 ENV TERM=xterm-256color
