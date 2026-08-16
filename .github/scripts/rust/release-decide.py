@@ -5,9 +5,9 @@ Read-only. Runs `git` and `cargo metadata`; writes nothing, tags nothing,
 publishes nothing. Emits one JSON object on stdout so the same command that the
 scheduled workflow runs can be run by hand against any range:
 
-    .github/scripts/release-decide.py                      # last release tag → HEAD
-    .github/scripts/release-decide.py --from A --to B      # any range
-    .github/scripts/release-decide.py --to B               # first-release path
+    .github/scripts/rust/release-decide.py                 # last release tag -> HEAD
+    .github/scripts/rust/release-decide.py --from A --to B # any range
+    .github/scripts/rust/release-decide.py --to B          # first-release path
 
 The two questions it answers are independent, and both must come back yes.
 
@@ -26,7 +26,7 @@ The two questions it answers are independent, and both must come back yes.
    crates.io, but the CLI is what the binary release is built from, so a
    change to it does reach a consumer.
 
-   Everything else does not: `.github/`, `docs/`, `specs/`, `harness/`, the
+   Everything else does not: `.github/`, `docs/`, `spec/`, `conformance/`, the
    root `README.md` and the root `LICENSE`. None of them are packaged and none
    of them change what a consumer downloads, so a release cut for one of them
    would be a version whose diff is empty from the outside. Note that a crate's
@@ -72,13 +72,19 @@ import sys
 
 # Repository-root files that are not inside any crate but do change what gets
 # built or published. Everything else outside a member directory does not.
+RUST_ROOT = os.environ.get("TERMPROOF_RUST_ROOT", "rust")
+TAG_PREFIX = os.environ.get("TERMPROOF_RUST_TAG_PREFIX", "rs-v")
+BASELINE_TAG_PREFIX = os.environ.get("TERMPROOF_RUST_BASELINE_TAG_PREFIX", "rs-baseline-v")
+
 ROOT_RELEVANT = ("Cargo.toml", "Cargo.lock", "rust-toolchain.toml")
 
 # The subject this automation gives its own version-bump commit. Anything
 # matching is the automation's own voice and never justifies the next release.
 BUMP_SUBJECT = re.compile(r"^chore\(release\):")
 
-RELEASE_TAG = re.compile(r"^v\d+\.\d+\.\d+$")
+RELEASE_TAG = re.compile(
+    rf"^(?:{re.escape(TAG_PREFIX)}|{re.escape(BASELINE_TAG_PREFIX)})\d+\.\d+\.\d+$"
+)
 
 CONVENTIONAL = re.compile(
     r"^(?P<type>[A-Za-z]+)"
@@ -113,7 +119,15 @@ def git(*args):
 
 def cargo_metadata():
     out = subprocess.run(
-        ["cargo", "metadata", "--no-deps", "--format-version", "1"],
+        [
+            "cargo",
+            "metadata",
+            "--manifest-path",
+            os.path.join(RUST_ROOT, "Cargo.toml"),
+            "--no-deps",
+            "--format-version",
+            "1",
+        ],
         check=True,
         capture_output=True,
         text=True,
@@ -123,12 +137,12 @@ def cargo_metadata():
 
 def relevant_paths(meta):
     """Git pathspecs for everything a release can ship, derived from the manifests."""
-    root = meta["workspace_root"]
+    repo = git("rev-parse", "--show-toplevel").strip()
     dirs = {
-        os.path.relpath(os.path.dirname(pkg["manifest_path"]), root)
+        os.path.relpath(os.path.dirname(pkg["manifest_path"]), repo)
         for pkg in meta["packages"]
     }
-    return sorted(dirs) + list(ROOT_RELEVANT)
+    return sorted(dirs) + [os.path.join(RUST_ROOT, path) for path in ROOT_RELEVANT]
 
 
 def last_release_tag(head):
@@ -138,7 +152,16 @@ def last_release_tag(head):
     last release, and taking it would silently shorten the range.
     """
     try:
-        described = git("describe", "--tags", "--abbrev=0", "--match", "v*.*.*", head)
+        described = git(
+            "describe",
+            "--tags",
+            "--abbrev=0",
+            "--match",
+            f"{TAG_PREFIX}*.*.*",
+            "--match",
+            f"{BASELINE_TAG_PREFIX}*.*.*",
+            head,
+        )
     except subprocess.CalledProcessError:
         return None
     tag = described.strip()
@@ -232,12 +255,13 @@ def render_notes(commits, version, base_tag, repo):
         lines.append("")
 
     if repo:
+        tag = f"{TAG_PREFIX}{version}"
         if base_tag:
             lines.append(
-                f"**Full changelog:** https://github.com/{repo}/compare/{base_tag}...v{version}"
+                f"**Full changelog:** https://github.com/{repo}/compare/{base_tag}...{tag}"
             )
         else:
-            lines.append(f"**Full changelog:** https://github.com/{repo}/commits/v{version}")
+            lines.append(f"**Full changelog:** https://github.com/{repo}/commits/{tag}")
         lines.append("")
 
     lines.append(
@@ -329,7 +353,7 @@ def main():
         "head": head,
         "current_version": current,
         "next_version": nxt,
-        "tag": f"v{nxt}",
+        "tag": f"{TAG_PREFIX}{nxt}",
         "bump": level,
         "commit_count": len(commits),
         "commits": commits,

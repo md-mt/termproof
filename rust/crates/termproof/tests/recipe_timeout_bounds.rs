@@ -1,7 +1,7 @@
 //! `timeout_seconds` at the recipe level is recipe-controlled input too.
 //!
-//! `specs/001-recipe-format/spec.md` FR-026 puts nothing-may-panic on the load
-//! path, and `specs/002-builtin-steps/spec.md` FR-007 says the same of a step's
+//! `spec/001-recipe-format/spec.md` FR-026 puts nothing-may-panic on the load
+//! path, and `spec/002-builtin-steps/spec.md` FR-007 says the same of a step's
 //! own duration: clamp the deadline, do not take the process down. The recipe's
 //! whole-run timeout is the same value from the same file and the same reading
 //! applies — `Duration::from_secs_f64` panics on NaN and above roughly `1.8e19`.

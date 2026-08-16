@@ -1,6 +1,6 @@
 //! `wait_for_regex` speaks Python 3's `re` dialect, not the `regex` crate's.
 //!
-//! `specs/002-builtin-steps/spec.md` FR-019 tabulates thirteen patterns that
+//! `spec/002-builtin-steps/spec.md` FR-019 tabulates thirteen patterns that
 //! were executed against the oracle and MUST hold. Three of them the `regex`
 //! crate cannot express at all — it has no lookaround and no backreferences —
 //! and three more it disagrees with silently, which is worse: the recipe

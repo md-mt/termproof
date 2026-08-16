@@ -56,7 +56,7 @@ all = "warn"
 # higher than it needs to be costs a vendoring consumer a second copy of the
 # crate for nothing, so where one sits above the oldest workable version there
 # is a comment naming the API that put it there (#28). The `test at the declared
-# dependency floors` step in .github/workflows/rust.yml runs the suite at each
+# dependency floors` step in .github/workflows/rust-ci.yml runs the suite at each
 # floor, so a floor that stops being true fails CI rather than rotting quietly.
 [workspace.dependencies]
 termproof = { path = "crates/termproof", version = "0.3.3" }

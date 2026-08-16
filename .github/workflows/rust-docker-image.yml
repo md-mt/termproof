@@ -4,14 +4,14 @@
 # ## What proves the image works
 #
 # A pull request builds the image and does not push it, and then runs a real
-# recipe *inside the image it just built* — `docker/smoke/run-smoke.sh`, which
+# recipe *inside the image it just built* — `rust/docker/smoke/run-smoke.sh`, which
 # is baked in so the same command reproduces the check by hand. That recipe
 # drives `rsvg-convert` and `ffmpeg` on a pseudo-terminal and asserts on the
 # PNG, the MP4 and the evidence TermProof wrote, not on the exit code alone.
 #
 # The order matters: the smoke step is a `needs`-free step in the same job,
 # after the build and before any push, so an image that cannot run a recipe
-# never reaches the registry. `docker/termproof.Dockerfile` explains which
+# never reaches the registry. `rust/docker/termproof.Dockerfile` explains which
 # external programs are in the image and which are deliberately not.
 #
 # ## Tags
@@ -25,14 +25,20 @@
 #
 # The built-in `GITHUB_TOKEN` with `packages: write`. There is no new secret
 # and nothing to rotate. `contents: read` is the default and stays explicit.
-name: Docker Image
+name: Docker Image (Rust)
 
 on:
   pull_request:
+    paths:
+      - "rust/**"
+      - ".github/workflows/rust-docker-image.yml"
   push:
     branches: [main]
+    paths:
+      - "rust/**"
+      - ".github/workflows/rust-docker-image.yml"
     tags:
-      - "v*.*.*"
+      - "rs-v*.*.*"
   workflow_dispatch:
 
 permissions:
@@ -74,8 +80,8 @@ jobs:
       - name: Build the image
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
-          context: .
-          file: docker/termproof.Dockerfile
+          context: rust
+          file: rust/docker/termproof.Dockerfile
           platforms: linux/amd64
           load: true
           push: false

@@ -1,8 +1,8 @@
 //! The port half of the cross-runtime differential harness.
 //!
-//! Replays `harness/corpus/cases.json` — whose expectations were recorded from
-//! the Python implementation by `harness/probe_steps.py` — through the Rust
-//! steps, and reports how many cases agree. See `harness/README.md` for what
+//! Replays `conformance/corpus/cases.json` — whose expectations were recorded from
+//! the Python implementation by `conformance/probe_steps.py` — through the Rust
+//! steps, and reports how many cases agree. See `conformance/README.md` for what
 //! the corpus does and does not measure, and for the three deliberate
 //! compromises in its construction.
 //!
@@ -296,7 +296,7 @@ fn run_case(step: JsonValue, spec: Spec, index: usize) -> Outcome {
 
 fn corpus_path() -> PathBuf {
     // CARGO_MANIFEST_DIR is crates/termproof.
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../harness/corpus/steps.expected.json")
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../conformance/corpus/steps.expected.json")
 }
 
 #[test]

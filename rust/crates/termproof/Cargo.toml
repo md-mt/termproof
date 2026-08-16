@@ -21,7 +21,7 @@ categories = [
     "os::unix-apis",
     "visualization",
 ]
-# The differential tests replay `harness/corpus/`, which lives at the repository
+# The differential tests replay `conformance/corpus/`, which lives at the repository
 # root and is deliberately not shipped (~150 KB of recorded oracle output that no
 # consumer of the library needs). Without the corpus these two tests cannot run,
 # so they stay out of the tarball too. Every other test here is self-contained.

@@ -27,8 +27,9 @@ from pathlib import Path
 import yaml
 
 ROOT = Path(__file__).resolve().parent.parent
-DEPENDABOT_YML = ROOT / ".github" / "dependabot.yml"
-WORKFLOW_DIR = ROOT / ".github" / "workflows"
+REPO_ROOT = ROOT.parent
+DEPENDABOT_YML = REPO_ROOT / ".github" / "dependabot.yml"
+WORKFLOW_DIR = REPO_ROOT / ".github" / "workflows"
 
 UPDATE_TYPES = ("patch", "minor", "major")
 

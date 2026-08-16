@@ -3,17 +3,21 @@ name: Documentation Site
 on:
   pull_request:
     paths:
-      - "docs-site/**"
-      - "docs/**"
-      - "README.md"
+      - "python/docs-site/**"
+      - "python/docs/**"
+      - "python/README.md"
+      - "spec/**"
+      - "conformance/**"
       - ".github/workflows/docs-site.yml"
   push:
     branches:
       - main
     paths:
-      - "docs-site/**"
-      - "docs/**"
-      - "README.md"
+      - "python/docs-site/**"
+      - "python/docs/**"
+      - "python/README.md"
+      - "spec/**"
+      - "conformance/**"
       - ".github/workflows/docs-site.yml"
   workflow_dispatch:
 
@@ -51,26 +55,26 @@ jobs:
         uses: actions/configure-pages@v6
 
       - name: Install docs dependencies
-        run: npm ci --prefix docs-site
+        run: npm ci --prefix python/docs-site
 
       - name: Validate case-study scaffolding (RUST-030 / #35)
-        run: python3 scripts/validate_case_studies.py
+        run: python3 python/scripts/validate_case_studies.py
 
       - name: Build docs site
-        run: npm run --prefix docs-site docs:build
+        run: npm run --prefix python/docs-site docs:build
 
       - name: Upload docs site artifact
         uses: actions/upload-artifact@v7
         with:
           name: termproof-docs-site
-          path: docs-site/.vitepress/dist
+          path: python/docs-site/.vitepress/dist
           if-no-files-found: error
 
       - name: Upload Pages artifact
         if: github.event_name != 'pull_request' && vars.ENABLE_PAGES == 'true'
         uses: actions/upload-pages-artifact@v5
         with:
-          path: docs-site/.vitepress/dist
+          path: python/docs-site/.vitepress/dist
 
   # Deployment is explicitly opt-in so repos without Pages enabled do not fail CI.
   # Set repository variable ENABLE_PAGES=true and enable Pages

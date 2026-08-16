@@ -1,7 +1,7 @@
 //! Durations are read with a Python `float()` coercion, and only
 //! `wait_for_regex` range-checks the result.
 //!
-//! `specs/002-builtin-steps/spec.md` FR-004: every duration-valued key —
+//! `spec/002-builtin-steps/spec.md` FR-004: every duration-valued key -
 //! `timeout_seconds` on three steps, `stable_seconds` on `wait_for_idle`,
 //! `seconds` on `sleep` — "is read with a Python `float()` coercion. It
 //! therefore accepts JSON numbers, numeric JSON strings (`"0.05"`), and

@@ -27,15 +27,15 @@ The harness is two halves that meet at a checked-in corpus.
 Splitting it this way means the measurement is reproducible in CI without a
 Python interpreter, and the recorded expectations carry the environment they
 were observed in — several details are CPython-, libc- and `ptyprocess`-version
-dependent (`specs/002-builtin-steps/spec.md` FR-004, FR-008, FR-016).
+dependent (`spec/002-builtin-steps/spec.md` FR-004, FR-008, FR-016).
 
 ## Regenerating the expectations
 
 ```sh
-cd /path/to/python/termproof
+cd /path/to/termproof/python
 TERMPROOF_PYTHON_REPO=$PWD uv run python \
-    /path/to/termproof-rust/harness/probe_steps.py \
-    > /path/to/termproof-rust/harness/corpus/steps.expected.json
+    ../conformance/probe_steps.py \
+    > ../conformance/corpus/steps.expected.json
 ```
 
 Only regenerate deliberately: the file is the oracle's testimony, and quietly
@@ -65,7 +65,7 @@ still has to move a number; a wording-only fix moves the first alone.
 
 The panic and never-returned counts are asserted at zero rather than ratcheted.
 Recipe-controlled input taking the process down is not a divergence to be traded
-off against agreement — see `specs/002-builtin-steps/spec.md` FR-007.
+off against agreement — see `spec/002-builtin-steps/spec.md` FR-007.
 
 Full agreement is **not** required, because the remaining gap is one open
 decision that is not the port's to make plus two rows that belong to another
@@ -107,7 +107,7 @@ knowable direction:
 3. **A step object with no `action` is absent from the corpus.** It kills the
    Python run outright — the runner's own exception handler reads
    `step["action"]` as its first line — so there is no oracle verdict to record.
-   `specs/002-builtin-steps/spec.md` FR-025 supersedes the oracle here and
+   `spec/002-builtin-steps/spec.md` FR-025 supersedes the oracle here and
    OQ-008 leaves the replacement diagnostic undecided.
 
 ## Known residual
@@ -133,7 +133,7 @@ port reaches the same verdict by the same route and says so in its own words.
 rows where the two runtimes disagree on `passed`. The oracle accepts both — it
 derives the control byte arithmetically — and the port's key table refuses
 anything not named in it. That is the `termproof::terminal` mapping rather than the
-step layer's (`specs/002-builtin-steps/spec.md` FR-016), and the shape the port
+step layer's (`spec/002-builtin-steps/spec.md` FR-016), and the shape the port
 should adopt is open as OQ-005, because `ctrl-1` produces a byte the oracle
 itself would not call meaningful.
 
@@ -151,7 +151,7 @@ fixed, and the heuristic behind it is OQ-004.
 # Assertion semantics
 
 A second corpus, same shape, for the eight built-in assertions
-(`specs/003-builtin-assertions/spec.md`).
+(`spec/003-builtin-assertions/spec.md`).
 
 ## Shape
 
@@ -193,15 +193,15 @@ paired positive case.
 `@FX` is the fixture root: substituted in before a case runs and substituted
 back out of the recorded detail, so an absolute path in `file_exists` or
 `schema file unreadable:` is comparable across machines. This is the
-`specs/OBSERVATION-LOG.md` §4 constraint, honoured rather than worked around.
+`spec/OBSERVATION-LOG.md` §4 constraint, honoured rather than worked around.
 
 ## Regenerating the expectations
 
 ```sh
-cd /path/to/python/termproof
+cd /path/to/termproof/python
 TERMPROOF_PYTHON_REPO=$PWD uv run python \
-    /path/to/termproof-rust/harness/probe_assertions.py \
-    > /path/to/termproof-rust/harness/corpus/assertions.expected.json
+    ../conformance/probe_assertions.py \
+    > ../conformance/corpus/assertions.expected.json
 ```
 
 Only regenerate deliberately: the file is the oracle's testimony, and quietly
@@ -260,7 +260,7 @@ first, so it still has to move a number; a wording-only fix moves the first
 alone.
 
 Containment, panics and never-returned are asserted rather than ratcheted.
-`specs/003-builtin-assertions/spec.md` FR-020 says no assertion and no assertion
+`spec/003-builtin-assertions/spec.md` FR-020 says no assertion and no assertion
 input may terminate the run, which is not a property to be traded off against
 agreement.
 

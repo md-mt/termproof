@@ -52,12 +52,12 @@ pending publisher → GitHub):
 - PyPI project name: `termproof`
 - Owner: `md-mt`
 - Repository: `termproof`
-- Workflow: `release.yml`
+- Workflow: `python-release.yml`
 - Environment: `pypi`
 
 > PyPI matches the OIDC claim `job_workflow_ref` against the workflow filename
 > and the `environment` claim against the GitHub environment. Both must match
-> exactly. Keep `.github/workflows/release.yml` with `permissions: id-token: write`
+> exactly. Keep `.github/workflows/python-release.yml` with `permissions: id-token: write`
 > and `jobs.release.environment: pypi` — see `tests/test_release_docs.py` for the
 > regression guard. If the workflow file is renamed or the environment name
 > changes, update the PyPI publisher to match or publishing will fail with

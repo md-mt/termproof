@@ -12,6 +12,7 @@ from pathlib import Path
 
 # Path to the worktree root (same as tests/ directory parent)
 ROOT = Path(__file__).resolve().parent.parent
+REPO_ROOT = ROOT.parent
 
 
 def _read(path: Path) -> str:
@@ -154,7 +155,7 @@ class PagesWorkflowTest(unittest.TestCase):
     """BLOCKING: pages.yml must copy artifacts into _site and validate links."""
 
     def test_build_step_copies_curated_artifacts(self) -> None:
-        yml = _read(ROOT / ".github/workflows/pages.yml")
+        yml = _read(REPO_ROOT / ".github/workflows/pages.yml")
         # Must copy from site/artifacts/ (not examples/artifacts/)
         # The build step should reference site/artifacts for curated evidence
         build_section = yml.split("Build site preview")[1].split("Upload Pages artifact")[0] \
@@ -163,12 +164,12 @@ class PagesWorkflowTest(unittest.TestCase):
                       "pages.yml must reference site/artifacts/ (curated evidence pack)")
 
     def test_link_validation_step_exists(self) -> None:
-        yml = _read(ROOT / ".github/workflows/pages.yml")
+        yml = _read(REPO_ROOT / ".github/workflows/pages.yml")
         self.assertIn("Validate relative links", yml,
                       "pages.yml must have a link validation step")
 
     def test_pr_trigger_present(self) -> None:
-        yml = _read(ROOT / ".github/workflows/pages.yml")
+        yml = _read(REPO_ROOT / ".github/workflows/pages.yml")
         self.assertIn("pull_request:", yml,
                       "pages.yml must trigger on pull_request for validation")
 
@@ -177,7 +178,7 @@ class PagesWorkflowTest(unittest.TestCase):
         deploy to Pages at all.  docs-site.yml is the single authoritative
         github-pages deployer, so the legacy workflow must contain no deploy
         job, no Pages deploy action, and no github-pages environment."""
-        yml = _read(ROOT / ".github/workflows/pages.yml")
+        yml = _read(REPO_ROOT / ".github/workflows/pages.yml")
         self.assertNotIn("actions/deploy-pages@", yml,
                          "pages.yml must not deploy to Pages (docs-site.yml is "
                          "the single authoritative deployer)")
@@ -190,7 +191,7 @@ class PagesWorkflowTest(unittest.TestCase):
         """pages.yml remains a build-validation workflow: it must still build
         the site preview, validate relative links, and upload a generic preview
         artifact, but must not run a deploy job."""
-        yml = _read(ROOT / ".github/workflows/pages.yml")
+        yml = _read(REPO_ROOT / ".github/workflows/pages.yml")
         self.assertIn("Build site preview", yml)
         self.assertIn("Validate relative links", yml)
         self.assertIn("actions/upload-artifact@", yml,

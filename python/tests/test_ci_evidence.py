@@ -13,7 +13,10 @@ from termproof.ci_evidence import compose_pr_comment, load_receipt, run_target
 from termproof.evidence_publish import prepare_screenshot_evidence, rewrite_screenshot_links
 
 ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = ROOT.parent
 RECEIPT = ROOT / "docs" / "ci" / "evidence-receipt.json"
+CI_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "python-ci.yml"
+RELEASE_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "python-release.yml"
 
 
 class CiEvidenceReceiptTest(unittest.TestCase):
@@ -36,10 +39,8 @@ class CiEvidenceReceiptTest(unittest.TestCase):
         self.assertIn("/issues/69", receipt["screenshots"]["video_issue"])
 
     def test_workflows_are_receipt_backed(self) -> None:
-        ci_text = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
-        release_text = (ROOT / ".github" / "workflows" / "release.yml").read_text(
-            encoding="utf-8"
-        )
+        ci_text = CI_WORKFLOW.read_text(encoding="utf-8")
+        release_text = RELEASE_WORKFLOW.read_text(encoding="utf-8")
         receipt = load_receipt(RECEIPT)
 
         self.assertIn("python -m termproof.ci_evidence run ci", ci_text)
@@ -52,7 +53,7 @@ class CiEvidenceReceiptTest(unittest.TestCase):
 
     def test_pr_comment_step_posts_composed_report(self) -> None:
         workflow = yaml.safe_load(
-            (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+            CI_WORKFLOW.read_text(encoding="utf-8")
         )
         steps = workflow["jobs"]["verify"]["steps"]
         names = [step["name"] for step in steps]

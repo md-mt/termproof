@@ -1,14 +1,18 @@
-name: Release
+name: Release (Python)
 
 on:
   push:
     tags:
-      - "v*.*.*"
+      - "py-v*.*.*"
   workflow_dispatch:
 
 permissions:
   contents: write
   id-token: write
+
+defaults:
+  run:
+    working-directory: python
 
 jobs:
   release:
@@ -61,8 +65,8 @@ jobs:
           .pkg-test/bin/pip install dist/*.whl
           (
             cd /tmp
-            "$GITHUB_WORKSPACE/.pkg-test/bin/termproof" --help
-            "$GITHUB_WORKSPACE/.pkg-test/bin/python" -c "import termproof; from pathlib import Path; assert 'site-packages' in str(Path(termproof.__file__))"
+            "$GITHUB_WORKSPACE/python/.pkg-test/bin/termproof" --help
+            "$GITHUB_WORKSPACE/python/.pkg-test/bin/python" -c "import termproof; from pathlib import Path; assert 'site-packages' in str(Path(termproof.__file__))"
           )
 
       - name: Run release generic and Pi agent UI verification
@@ -92,30 +96,32 @@ jobs:
         if: always()
         with:
           name: termproof-release-evidence
-          path: .termproof/release
+          path: python/.termproof/release
           if-no-files-found: ignore
 
       - name: Upload package artifacts
         uses: actions/upload-artifact@v7
         with:
           name: termproof-dist
-          path: dist/*
+          path: python/dist/*
 
       - name: Create GitHub release
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.ref, 'refs/tags/py-v')
         uses: softprops/action-gh-release@v3
         with:
-          body_path: release-notes.md
+          body_path: python/release-notes.md
           files: |
-            dist/*
-            termproof-release-evidence.tgz
+            python/dist/*
+            python/termproof-release-evidence.tgz
 
       - name: Publish to PyPI
-        if: startsWith(github.ref, 'refs/tags/v') && vars.ENABLE_PYPI == 'true'
+        if: startsWith(github.ref, 'refs/tags/py-v') && vars.ENABLE_PYPI == 'true'
         uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: python/dist/
 
       - name: Note skipped PyPI publish
-        if: startsWith(github.ref, 'refs/tags/v') && vars.ENABLE_PYPI != 'true'
+        if: startsWith(github.ref, 'refs/tags/py-v') && vars.ENABLE_PYPI != 'true'
         run: |
           {
             echo "## PyPI Publish"

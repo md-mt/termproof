@@ -21,6 +21,8 @@
 # See docs/publishing.md.
 set -euo pipefail
 
+cd "$(git rev-parse --show-toplevel)/rust"
+
 : "${ORDER:?ORDER must be set to the space-separated publish order}"
 : "${VERSION:?VERSION must be set to the workspace version}"
 

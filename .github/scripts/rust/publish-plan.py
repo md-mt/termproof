@@ -18,14 +18,25 @@ docs/publishing.md.
 """
 
 import json
+import os
 import subprocess
 import sys
+
+RUST_ROOT = os.environ.get("TERMPROOF_RUST_ROOT", "rust")
 
 
 def load_members():
     """Workspace members only — `--no-deps` excludes the dependency graph."""
     out = subprocess.run(
-        ["cargo", "metadata", "--no-deps", "--format-version", "1"],
+        [
+            "cargo",
+            "metadata",
+            "--manifest-path",
+            os.path.join(RUST_ROOT, "Cargo.toml"),
+            "--no-deps",
+            "--format-version",
+            "1",
+        ],
         check=True,
         capture_output=True,
         text=True,

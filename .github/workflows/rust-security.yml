@@ -10,12 +10,20 @@
 # Job names here are stable and explicit on purpose: repository rulesets
 # reference required checks by name, so a name that changed between runs
 # would silently stop gating. Keep them stable.
-name: Security
+name: Security (Rust)
 
 on:
   pull_request:
+    paths:
+      - "rust/**"
+      - ".github/scripts/rust/**"
+      - ".github/workflows/rust-security.yml"
   push:
     branches: [main]
+    paths:
+      - "rust/**"
+      - ".github/scripts/rust/**"
+      - ".github/workflows/rust-security.yml"
   schedule:
     # Monday 07:00 UTC — same slot as the Auto-release workflow, so the two
     # scheduled passes over the repository do not land on top of each other.
@@ -24,6 +32,10 @@ on:
 
 permissions:
   contents: read
+
+defaults:
+  run:
+    working-directory: rust
 
 concurrency:
   group: security-${{ github.ref }}
@@ -78,4 +90,4 @@ jobs:
       - name: cargo package -p termproof
         run: cargo package -p termproof
       - name: Verify tarball contents
-        run: .github/scripts/verify-package-contents.sh
+        run: ../.github/scripts/rust/verify-package-contents.sh

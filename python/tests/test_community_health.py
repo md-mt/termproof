@@ -27,9 +27,10 @@ from termproof.config import VerifierConfig
 from termproof.recipe_schema import validate_recipe_mapping
 
 ROOT = Path(__file__).resolve().parent.parent
-ISSUE_TEMPLATE_DIR = ROOT / ".github" / "ISSUE_TEMPLATE"
-GITHUB_YAML_FILES = sorted((ROOT / ".github").rglob("*.yml")) + sorted(
-    (ROOT / ".github").rglob("*.yaml")
+REPO_ROOT = ROOT.parent
+ISSUE_TEMPLATE_DIR = REPO_ROOT / ".github" / "ISSUE_TEMPLATE"
+GITHUB_YAML_FILES = sorted((REPO_ROOT / ".github").rglob("*.yml")) + sorted(
+    (REPO_ROOT / ".github").rglob("*.yaml")
 )
 
 # GitHub issue-template chooser schema (SchemaStore github-issue-config.json):
@@ -130,7 +131,7 @@ class GitHubYamlParseTest(unittest.TestCase):
     def test_every_github_yaml_file_parses_to_mapping(self) -> None:
         self.assertTrue(GITHUB_YAML_FILES, "expected .github YAML files")
         for path in GITHUB_YAML_FILES:
-            with self.subTest(file=str(path.relative_to(ROOT))):
+            with self.subTest(file=str(path.relative_to(REPO_ROOT))):
                 data = _load_yaml(path)  # raises on syntax error
                 self.assertIsInstance(
                     data,
@@ -143,7 +144,7 @@ class GitHubYamlParseTest(unittest.TestCase):
 class FundingConfigTest(unittest.TestCase):
     """FUNDING.yml must be a valid GitHub funding mapping (SchemaStore)."""
 
-    FUNDING_YML = ROOT / ".github" / "FUNDING.yml"
+    FUNDING_YML = REPO_ROOT / ".github" / "FUNDING.yml"
     FUNDING_SCHEMA = ROOT / "scripts" / "schemas" / "github-funding.json"
 
     def setUp(self) -> None:

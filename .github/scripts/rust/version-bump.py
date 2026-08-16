@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Write a new version into the root manifest, then prove it took.
 
-    .github/scripts/version-bump.py 0.2.2
-    .github/scripts/version-bump.py 0.2.2 --check   # report, change nothing
+    .github/scripts/rust/version-bump.py 0.2.2
+    .github/scripts/rust/version-bump.py 0.2.2 --check   # report, change nothing
 
 Two places in the root `Cargo.toml` carry the version and must move together,
 per the version-bump rule in docs/publishing.md:
@@ -26,10 +26,13 @@ you which ones did not move.
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
 from pathlib import Path
+
+RUST_ROOT = os.environ.get("TERMPROOF_RUST_ROOT", "rust")
 
 SEMVER = re.compile(r"^\d+\.\d+\.\d+$")
 SECTION = re.compile(r"^\s*\[([^\]]+)\]\s*$")
@@ -44,7 +47,15 @@ INLINE_VERSION = re.compile(r'(?P<lead>\bversion\s*=\s*")(?P<ver>[^"]+)(?P<tail>
 
 def cargo_metadata():
     out = subprocess.run(
-        ["cargo", "metadata", "--no-deps", "--format-version", "1"],
+        [
+            "cargo",
+            "metadata",
+            "--manifest-path",
+            os.path.join(RUST_ROOT, "Cargo.toml"),
+            "--no-deps",
+            "--format-version",
+            "1",
+        ],
         check=True,
         capture_output=True,
         text=True,
@@ -123,7 +134,7 @@ def main():
     # Cargo.lock, leaving every third-party pin exactly where it was. Without
     # it the lockfile still claims the old version and the release commit is
     # internally inconsistent.
-    subprocess.run(["cargo", "update", "-w"], check=True)
+    subprocess.run(["cargo", "update", "-w", "--manifest-path", str(manifest)], check=True)
 
     after = cargo_metadata()
     stale = sorted(p["name"] for p in after["packages"] if p["version"] != new)

@@ -2,7 +2,7 @@
 # published. Nothing else in this repository uploads to a registry.
 #
 # The publish set and its order are derived at run time from `cargo metadata`
-# by .github/scripts/publish-plan.py: the crates whose `publish` is not false,
+# by .github/scripts/rust/publish-plan.py: the crates whose `publish` is not false,
 # topologically ordered. Holding a crate back, adding one, or merging several
 # into one is a manifest change, and this workflow follows it without an edit.
 # Nothing here names a crate.
@@ -30,13 +30,17 @@
 # of the same name could be defined, it does not move the one that exists.
 #
 # See docs/publishing.md.
-name: Publish (crates.io)
+name: Publish Rust crates
 
 on:
   release:
     types: [published]
   workflow_dispatch:
   pull_request:
+    paths:
+      - "rust/**"
+      - ".github/scripts/rust/**"
+      - ".github/workflows/rust-publish-crates.yml"
 
 permissions:
   contents: read
@@ -48,6 +52,7 @@ concurrency:
 jobs:
   plan:
     name: Plan
+    if: github.event_name != 'release' || startsWith(github.event.release.tag_name, 'rs-v')
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.plan.outputs.version }}
@@ -61,7 +66,7 @@ jobs:
       - name: Derive the publish set and order
         id: plan
         run: |
-          PLAN="$(.github/scripts/publish-plan.py)"
+          PLAN="$(.github/scripts/rust/publish-plan.py)"
           VERSION="$(jq -r .version <<<"$PLAN")"
           ORDER="$(jq -r '.order | join(" ")' <<<"$PLAN")"
           HELD="$(jq -r '.held | join(" ")' <<<"$PLAN")"
@@ -79,8 +84,8 @@ jobs:
 
       # A tag and a manifest that disagree is the commonest way a release goes
       # out mislabelled, and it is the cheapest thing to check — so it runs
-      # before the test suite, not after it. The required format is `v<version>`
-      # because release-rust.yml already triggers on `v*.*.*`; accepting a bare
+      # before the test suite, not after it. The required format is `rs-v<version>`
+      # because rust-release.yml already triggers on `rs-v*.*.*`; accepting a bare
       # `0.2.1` too would let a tag exist that publishes crates but never builds
       # the binaries, which is a worse outcome than a rejected tag.
       - name: Refuse a tag that disagrees with the manifest
@@ -89,14 +94,15 @@ jobs:
           TAG: ${{ github.event.release.tag_name }}
           VERSION: ${{ steps.plan.outputs.version }}
         run: |
-          if [ "$TAG" != "v$VERSION" ]; then
-            echo "::error::release tag '$TAG' does not match the workspace version '$VERSION' — expected 'v$VERSION'. Fix the tag, or bump the version in Cargo.toml and re-cut the release."
+          if [ "$TAG" != "rs-v$VERSION" ]; then
+            echo "::error::release tag '$TAG' does not match the workspace version '$VERSION' — expected 'rs-v$VERSION'. Fix the tag, or bump the version in Cargo.toml and re-cut the release."
             exit 1
           fi
           echo "tag '$TAG' matches workspace version '$VERSION'"
 
   gate:
     name: Gate
+    if: github.event_name != 'release' || startsWith(github.event.release.tag_name, 'rs-v')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -105,13 +111,13 @@ jobs:
           toolchain: "1.96.0"
           components: rustfmt, clippy
       - name: fmt
-        run: cargo fmt --check --all
+        run: cargo fmt --manifest-path rust/Cargo.toml --check --all
       - name: clippy
-        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+        run: cargo clippy --manifest-path rust/Cargo.toml --workspace --all-targets --all-features -- -D warnings
       - name: test
-        run: cargo test --workspace
+        run: cargo test --manifest-path rust/Cargo.toml --workspace
       - name: build
-        run: cargo build --workspace --release
+        run: cargo build --manifest-path rust/Cargo.toml --workspace --release
 
   # Verifies every publishable package by building it from its own tarball,
   # with the not-yet-published ones overlaid in a temporary local registry.
@@ -130,7 +136,7 @@ jobs:
           toolchain: "1.96.0"
 
       - name: Dry run
-        run: cargo publish --dry-run --workspace
+        run: cargo publish --dry-run --workspace --manifest-path rust/Cargo.toml
 
   # The only job in this repository that uploads to a registry, and the only
   # one in an environment. See the header for why it is not the dry run's `if:`
@@ -138,7 +144,7 @@ jobs:
   publish:
     name: Publish
     needs: [plan, gate]
-    if: github.event_name == 'release'
+    if: github.event_name == 'release' && startsWith(github.event.release.tag_name, 'rs-v')
     runs-on: ubuntu-latest
     environment: crates-io
     steps:
@@ -152,4 +158,4 @@ jobs:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
           ORDER: ${{ needs.plan.outputs.order }}
           VERSION: ${{ needs.plan.outputs.version }}
-        run: .github/scripts/publish.sh
+        run: .github/scripts/rust/publish.sh

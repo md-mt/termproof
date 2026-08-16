@@ -1,6 +1,6 @@
 //! `send_line` must not report success for input it never sent.
 //!
-//! `specs/002-builtin-steps/spec.md` FR-013: `send_line` reads `text`,
+//! `spec/002-builtin-steps/spec.md` FR-013: `send_line` reads `text`,
 //! defaulting to `""`, and writes `text + "\r"`. FR-022 records what the oracle
 //! does when `text` is present but not a string — `"text": 5` and
 //! `"text": null` both fail the step.

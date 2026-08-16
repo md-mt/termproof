@@ -8,8 +8,9 @@ from pathlib import Path
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = ROOT.parent
 DOCS = ROOT / "docs" / "releases.md"
-WORKFLOW = ROOT / ".github" / "workflows" / "release.yml"
+WORKFLOW = REPO_ROOT / ".github" / "workflows" / "python-release.yml"
 RECEIPT = ROOT / "docs" / "ci" / "evidence-receipt.json"
 
 
@@ -43,7 +44,7 @@ class ReleaseDocsTest(unittest.TestCase):
 
         self.assertIn("Owner: `md-mt`", text)
         self.assertIn("Repository: `termproof`", text)
-        self.assertIn("Workflow: `release.yml`", text)
+        self.assertIn("Workflow: `python-release.yml`", text)
         self.assertIn("Environment: `pypi`", text)
         self.assertIn("ENABLE_PYPI", text)
         self.assertIn("invalid-publisher", text)
@@ -68,14 +69,14 @@ class ReleaseDocsTest(unittest.TestCase):
 
         publish_step = next(step for step in steps if step["name"] == "Publish to PyPI")
         self.assertEqual(
-            "startsWith(github.ref, 'refs/tags/v') && vars.ENABLE_PYPI == 'true'",
+            "startsWith(github.ref, 'refs/tags/py-v') && vars.ENABLE_PYPI == 'true'",
             publish_step["if"],
         )
         self.assertEqual("pypa/gh-action-pypi-publish@release/v1", publish_step["uses"])
 
         skip_step = next(step for step in steps if step["name"] == "Note skipped PyPI publish")
         self.assertEqual(
-            "startsWith(github.ref, 'refs/tags/v') && vars.ENABLE_PYPI != 'true'",
+            "startsWith(github.ref, 'refs/tags/py-v') && vars.ENABLE_PYPI != 'true'",
             skip_step["if"],
         )
         self.assertIn("ENABLE_PYPI", skip_step["run"])

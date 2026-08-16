@@ -34,9 +34,10 @@ import jsonschema
 import yaml
 
 ROOT = Path(__file__).resolve().parent.parent
-BUG_REPORT = ROOT / ".github" / "ISSUE_TEMPLATE" / "bug_report.md"
-CONFIG_YML = ROOT / ".github" / "ISSUE_TEMPLATE" / "config.yml"
-FUNDING_YML = ROOT / ".github" / "FUNDING.yml"
+REPO_ROOT = ROOT.parent
+BUG_REPORT = REPO_ROOT / ".github" / "ISSUE_TEMPLATE" / "bug_report.md"
+CONFIG_YML = REPO_ROOT / ".github" / "ISSUE_TEMPLATE" / "config.yml"
+FUNDING_YML = REPO_ROOT / ".github" / "FUNDING.yml"
 SCHEMA_DIR = Path(__file__).resolve().parent / "schemas"
 DEFAULT_ISSUE_CONFIG_SCHEMA = SCHEMA_DIR / "github-issue-config.json"
 DEFAULT_FUNDING_SCHEMA = SCHEMA_DIR / "github-funding.json"
@@ -162,7 +163,9 @@ def main() -> int:
 
     # 5. Every YAML under .github parses.
     yaml_ok = True
-    for path in sorted((ROOT / ".github").rglob("*.yml")) + sorted((ROOT / ".github").rglob("*.yaml")):
+    for path in sorted((REPO_ROOT / ".github").rglob("*.yml")) + sorted(
+        (REPO_ROOT / ".github").rglob("*.yaml")
+    ):
         try:
             yaml.safe_load(path.read_text(encoding="utf-8"))
         except yaml.YAMLError as error:

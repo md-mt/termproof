@@ -26,12 +26,12 @@ requirement came from:
 |---|---|
 | `SCHEMA` | `docs/recipe-schema-v1.json` in the Python repo — a published JSON Schema |
 | `DOC` | `docs/recipe-format-v1.md` |
-| `OBSERVED` | A recorded run of the Python implementation; see `specs/OBSERVATION-LOG.md` |
+| `OBSERVED` | A recorded run of the Python implementation; see `spec/OBSERVATION-LOG.md` |
 | `TEST` | A test in the Python repo that encodes the intent |
 | `SOURCE` | Read from Python source because nothing higher was available — treat with suspicion |
 
 Open questions are collected in [Open Questions](#open-questions) and in
-`specs/OBSERVATION-LOG.md`. There are several. Finding them is the point.
+`spec/OBSERVATION-LOG.md`. There are several. Finding them is the point.
 
 ---
 

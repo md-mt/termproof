@@ -9,10 +9,11 @@ from pathlib import Path
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = ROOT.parent
 DOCS_SITE = ROOT / "docs-site"
 CONFIG = DOCS_SITE / ".vitepress" / "config.mts"
-WORKFLOW = ROOT / ".github" / "workflows" / "docs-site.yml"
-LEGACY_PAGES_WORKFLOW = ROOT / ".github" / "workflows" / "pages.yml"
+WORKFLOW = REPO_ROOT / ".github" / "workflows" / "docs-site.yml"
+LEGACY_PAGES_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "pages.yml"
 
 
 def _evaluate_github_condition(
@@ -77,8 +78,8 @@ class DocsSiteTest(unittest.TestCase):
         text = WORKFLOW.read_text(encoding="utf-8")
 
         self.assertIn("pull_request", workflow[True])
-        self.assertIn("npm run --prefix docs-site docs:build", text)
-        self.assertIn("docs-site/.vitepress/dist", text)
+        self.assertIn("npm run --prefix python/docs-site docs:build", text)
+        self.assertIn("python/docs-site/.vitepress/dist", text)
 
 
 class DocsSiteDeployTest(unittest.TestCase):
@@ -103,8 +104,8 @@ class DocsSiteDeployTest(unittest.TestCase):
 
     def test_docs_site_workflow_uses_npm_ci(self) -> None:
         text = WORKFLOW.read_text(encoding="utf-8")
-        self.assertIn("npm ci --prefix docs-site", text)
-        self.assertNotIn("npm install --prefix docs-site --no-package-lock", text)
+        self.assertIn("npm ci --prefix python/docs-site", text)
+        self.assertNotIn("npm install --prefix python/docs-site --no-package-lock", text)
 
     def test_docs_site_workflow_pins_pages_actions(self) -> None:
         text = WORKFLOW.read_text(encoding="utf-8")
@@ -348,8 +349,8 @@ class CrossWorkflowPagesDeployerTest(unittest.TestCase):
         authoritative docs-site.yml push trigger."""
         workflow = self._workflows()["docs-site.yml"]
         push_paths = workflow.get(True, {}).get("push", {}).get("paths", [])
-        self.assertIn("docs/**", push_paths)
-        self.assertIn("README.md", push_paths)
+        self.assertIn("python/docs/**", push_paths)
+        self.assertIn("python/README.md", push_paths)
 
 
 if __name__ == "__main__":

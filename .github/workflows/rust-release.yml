@@ -41,7 +41,7 @@ name: Release (Rust)
 
 on:
   push:
-    tags: ["v*.*.*"]
+    tags: ["rs-v*.*.*"]
   workflow_dispatch:
 
 permissions:
@@ -75,14 +75,14 @@ jobs:
           toolchain: "1.96.0"
           targets: ${{ matrix.target }}
       - name: Build release
-        run: cargo build --release --target ${{ matrix.target }}
+        run: cargo build --manifest-path rust/Cargo.toml --release --target ${{ matrix.target }}
 
       - name: Package
         env:
           ARCHIVE: ${{ matrix.archive }}
         run: |
           mkdir -p dist
-          cp target/${{ matrix.target }}/release/termproof dist/termproof
+          cp rust/target/${{ matrix.target }}/release/termproof dist/termproof
           tar -czf "dist/$ARCHIVE" -C dist termproof
           # The loose binary was only ever an input to the tarball. Leaving it
           # in `dist/` puts a file named `termproof` in all three artifacts,
@@ -104,8 +104,8 @@ jobs:
         env:
           ARCHIVE: ${{ matrix.archive }}
         run: |
-          VERSION="$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name == "termproof") | .version')"
-          .github/scripts/verify-release-archive.sh "dist/$ARCHIVE" "$VERSION"
+          VERSION="$(cargo metadata --manifest-path rust/Cargo.toml --no-deps --format-version 1 | jq -r '.packages[] | select(.name == "termproof") | .version')"
+          .github/scripts/rust/verify-release-archive.sh "dist/$ARCHIVE" "$VERSION"
 
       - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         id: attest
@@ -149,7 +149,7 @@ jobs:
   attach:
     name: Attach to release
     needs: build
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/rs-v')
     runs-on: ubuntu-latest
     permissions:
       contents: write

@@ -12,13 +12,13 @@
 
 ## Reading this spec
 
-Tags and authorities are as defined in `specs/001-recipe-format/spec.md` §"Reading this spec":
+Tags and authorities are as defined in `spec/001-recipe-format/spec.md` §"Reading this spec":
 `[BEHAVIOURAL]` / `[BYTE-EXACT]`, with an **Authority** of `SCHEMA`, `DOC`, `OBSERVED`, `TEST`
 or `SOURCE`.
 
 Everything marked `OBSERVED` was recorded by executing the Python assertion implementations
 under CPython 3.12 with `jsonschema` 4.26.0, against real files on disk. The probe harness and
-raw output are in `specs/OBSERVATION-LOG.md`.
+raw output are in `spec/OBSERVATION-LOG.md`.
 
 Issue #1 (RUST-008, "Implement built-in assertions") lives in this spec.
 

@@ -8,10 +8,11 @@
 #
 # Required: the snapshot test and its fixture ship (issue #33 added the
 # snapshot on the promise that consumers could run it), and the differential
-# tests — which replay harness/corpus/ and cannot run without it — do not.
+# tests, which replay the root conformance corpus and cannot run without it,
+# do not.
 set -euo pipefail
 
-cd "$(git rev-parse --show-toplevel)"
+cd "$(git rev-parse --show-toplevel)/rust"
 
 LIST="$(cargo package -p termproof --list --allow-dirty)"
 
@@ -33,12 +34,12 @@ do
 done
 
 # Absent: repository-only artifacts that must not reach consumers. The
-# differential tests replay harness/corpus/, which lives at the repository
-# root and is not shipped; a tarball that carries them cannot run them.
+# differential tests replay the root conformance corpus, which is not shipped;
+# a tarball that carries them cannot run them.
 for forbidden in \
   tests/differential_steps.rs \
   tests/differential_assertions.rs \
-  harness/
+  conformance/
 do
   if grep -q "^${forbidden}" <<<"$LIST"; then
     echo "::error::termproof tarball must not contain $forbidden" >&2

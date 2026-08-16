@@ -1,6 +1,6 @@
 //! A large finite duration is legal input, and must not take the process down.
 //!
-//! `specs/002-builtin-steps/spec.md` FR-007: the oracle accepts `1e19` and
+//! `spec/002-builtin-steps/spec.md` FR-007: the oracle accepts `1e19` and
 //! `1e300` on every waiting step and simply waits. A Rust implementation "MUST
 //! NOT panic, saturate silently, or reject the value; the correct behaviour is
 //! to clamp the internal deadline to the far future and keep waiting."

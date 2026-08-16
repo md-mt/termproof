@@ -1,10 +1,24 @@
-name: CI
+name: Python CI
 
 on:
   pull_request:
+    paths:
+      - "python/**"
+      - "spec/**"
+      - "conformance/**"
+      - ".github/workflows/python-ci.yml"
   push:
     branches:
       - main
+    paths:
+      - "python/**"
+      - "spec/**"
+      - "conformance/**"
+      - ".github/workflows/python-ci.yml"
+
+defaults:
+  run:
+    working-directory: python
 
 permissions:
   contents: write
@@ -187,8 +201,8 @@ jobs:
           .pkg-test/bin/pip install dist/*.whl
           (
             cd /tmp
-            "$GITHUB_WORKSPACE/.pkg-test/bin/termproof" --help
-            "$GITHUB_WORKSPACE/.pkg-test/bin/python" -c "import termproof; from pathlib import Path; assert 'site-packages' in str(Path(termproof.__file__))"
+            "$GITHUB_WORKSPACE/python/.pkg-test/bin/termproof" --help
+            "$GITHUB_WORKSPACE/python/.pkg-test/bin/python" -c "import termproof; from pathlib import Path; assert 'site-packages' in str(Path(termproof.__file__))"
           )
 
       - name: Run base TUI verification for PR comparison
@@ -344,9 +358,9 @@ jobs:
         with:
           name: termproof-ci-evidence
           path: |
-            .termproof/ci
-            .termproof/pr-base
-            .termproof/ci-pr-comment.md
+            python/.termproof/ci
+            python/.termproof/pr-base
+            python/.termproof/ci-pr-comment.md
           if-no-files-found: ignore
 
       - name: Comment TUI verification report on PR
@@ -357,7 +371,7 @@ jobs:
           script: |
             const fs = require('fs');
             const marker = '<!-- termproof-ci-report -->';
-            const body = fs.readFileSync('.termproof/ci-pr-comment.md', 'utf8');
+            const body = fs.readFileSync('python/.termproof/ci-pr-comment.md', 'utf8');
             const { owner, repo } = context.repo;
             const issue_number = context.payload.pull_request.number;
             const comments = await github.paginate(github.rest.issues.listComments, {
@@ -389,7 +403,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: termproof-dist
-          path: dist/*
+          path: python/dist/*
 
   wheel:
     name: bundled agg (${{ matrix.target }})
@@ -423,8 +437,8 @@ jobs:
           .wheel-test/bin/pip install dist/*.whl
           (
             cd /tmp
-            "$GITHUB_WORKSPACE/.wheel-test/bin/python" -c 'from termproof.agg_bundle import bundled_agg_path; p=bundled_agg_path(); assert p.is_file(); print(p)'
-            "$GITHUB_WORKSPACE/.wheel-test/bin/termproof" --help
+            "$GITHUB_WORKSPACE/python/.wheel-test/bin/python" -c 'from termproof.agg_bundle import bundled_agg_path; p=bundled_agg_path(); assert p.is_file(); print(p)'
+            "$GITHUB_WORKSPACE/python/.wheel-test/bin/termproof" --help
           )
       - name: Inspect cross-built wheel
         if: matrix.smoke == 'inspect'
@@ -449,4 +463,4 @@ jobs:
       - uses: actions/upload-artifact@v7
         with:
           name: termproof-${{ matrix.target }}-wheel
-          path: dist/*.whl
+          path: python/dist/*.whl

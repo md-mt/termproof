@@ -1,9 +1,9 @@
 //! The port half of the assertion differential harness.
 //!
-//! Replays `harness/corpus/assertion_cases.json` — whose expectations were
-//! recorded from the Python implementation by `harness/probe_assertions.py` —
+//! Replays `conformance/corpus/assertion_cases.json` — whose expectations were
+//! recorded from the Python implementation by `conformance/probe_assertions.py` —
 //! through the Rust assertions, and reports how many cases agree. See
-//! `harness/README.md` for what the corpus does and does not measure.
+//! `conformance/README.md` for what the corpus does and does not measure.
 //!
 //! Each case runs on its own thread behind a wall-clock budget, so a case that
 //! panics or never returns is recorded rather than taking the measurement down
@@ -11,7 +11,7 @@
 //!
 //! Eighteen cases have no oracle verdict at all: the Python implementation
 //! raises out of `evaluate_assertions` and discards every result already
-//! collected. `specs/003-builtin-assertions/spec.md` FR-020 supersedes the
+//! collected. `spec/003-builtin-assertions/spec.md` FR-020 supersedes the
 //! oracle there, so those are asserted to be *contained* — a returned failing
 //! result — rather than compared.
 //!
@@ -257,7 +257,8 @@ fn expected_results(expected: &JsonValue) -> Vec<(String, bool, String)> {
 
 fn corpus_path() -> PathBuf {
     // CARGO_MANIFEST_DIR is crates/termproof.
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../harness/corpus/assertions.expected.json")
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../../conformance/corpus/assertions.expected.json")
 }
 
 #[test]

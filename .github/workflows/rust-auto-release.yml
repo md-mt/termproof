@@ -14,7 +14,7 @@
 # the CLI is what the binary release is built from, so a change to it does
 # reach someone.
 #
-# These do **not** count: `.github/`, `docs/`, `specs/`, `harness/`, the root
+# These do **not** count: `.github/`, `docs/`, `spec/`, `conformance/`, the root
 # `README.md`, the root `LICENSE`. None are packaged. A release cut for one of
 # them would carry a version number whose diff, from outside the repository, is
 # empty — and crates.io never gives a version number back. A crate's *own*
@@ -76,8 +76,8 @@
 # installation token both work; an App is preferable because it is not tied to
 # a person leaving.
 #
-# See .github/scripts/release-decide.py for the decision logic in full.
-name: Auto-release
+# See .github/scripts/rust/release-decide.py for the decision logic in full.
+name: Auto-release (Rust)
 
 on:
   schedule:
@@ -99,7 +99,7 @@ on:
 # run killed between `git push` and `gh release create` leaves a bumped main
 # with no release on it.
 concurrency:
-  group: auto-release
+  group: rust-auto-release
   cancel-in-progress: false
 
 permissions:
@@ -131,9 +131,9 @@ jobs:
           FORCE: ${{ inputs.force }}
         run: |
           if [ "$FORCE" = "true" ]; then
-            .github/scripts/release-decide.py --force > decision.json
+            .github/scripts/rust/release-decide.py --force > decision.json
           else
-            .github/scripts/release-decide.py > decision.json
+            .github/scripts/rust/release-decide.py > decision.json
           fi
           jq 'del(.notes, .changed_paths, .commits)' decision.json
 
@@ -201,13 +201,13 @@ jobs:
           toolchain: "1.96.0"
           components: rustfmt, clippy
       - name: fmt
-        run: cargo fmt --check --all
+        run: cargo fmt --manifest-path rust/Cargo.toml --check --all
       - name: clippy
-        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+        run: cargo clippy --manifest-path rust/Cargo.toml --workspace --all-targets --all-features -- -D warnings
       - name: test
-        run: cargo test --workspace
+        run: cargo test --manifest-path rust/Cargo.toml --workspace
       - name: package
-        run: cargo publish --dry-run --workspace
+        run: cargo publish --dry-run --workspace --manifest-path rust/Cargo.toml
 
   release:
     name: Release ${{ needs.decide.outputs.tag }}
@@ -254,7 +254,7 @@ jobs:
 
       - name: Bump the workspace version
         if: needs.decide.outputs.first_release != 'true'
-        run: .github/scripts/version-bump.py "${{ needs.decide.outputs.version }}"
+        run: .github/scripts/rust/version-bump.py "${{ needs.decide.outputs.version }}"
 
       # Exactly the check publish-crates.yml makes on `release: published`,
       # made here instead — where a mismatch costs a failed run rather than a
@@ -263,8 +263,8 @@ jobs:
         env:
           TAG: ${{ needs.decide.outputs.tag }}
         run: |
-          VERSION="$(.github/scripts/publish-plan.py | jq -r .version)"
-          if [ "$TAG" != "v$VERSION" ]; then
+          VERSION="$(.github/scripts/rust/publish-plan.py | jq -r .version)"
+          if [ "$TAG" != "rs-v$VERSION" ]; then
             echo "::error::would tag '$TAG' but the manifest says '$VERSION'; publish-crates.yml would refuse this release"
             exit 1
           fi

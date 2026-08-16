@@ -1,7 +1,7 @@
 //! Every value a `detail` embeds is rendered with Python's `repr`.
 //!
 //! Constitution Principle VIII, restated as FR-028 of
-//! `specs/002-builtin-steps/spec.md`: no Rust `Debug` rendering appears in any
+//! `spec/002-builtin-steps/spec.md`: no Rust `Debug` rendering appears in any
 //! `detail`. The port used `{:?}` throughout, which is close enough to `repr`
 //! to look right and differs in four ways that all reach the report — quoting,
 //! the apostrophe flip, the `.0` on integral floats, and the tuple's trailing

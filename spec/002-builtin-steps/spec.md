@@ -12,13 +12,13 @@
 
 ## Reading this spec
 
-Tags and authorities are as defined in `specs/001-recipe-format/spec.md` §"Reading this spec":
+Tags and authorities are as defined in `spec/001-recipe-format/spec.md` §"Reading this spec":
 `[BEHAVIOURAL]` / `[BYTE-EXACT]`, with an **Authority** of `SCHEMA`, `DOC`, `OBSERVED`, `TEST`
 or `SOURCE`.
 
 Everything marked `OBSERVED` was recorded by executing the Python step implementations under
 CPython 3.12 with `pexpect` 4.9.0 and `ptyprocess` 0.7.0. The probe harnesses, the raw output,
-and what each probe could and could not see are in `specs/OBSERVATION-LOG.md`.
+and what each probe could and could not see are in `spec/OBSERVATION-LOG.md`.
 
 Issue #2 (RUST-009, "Contain step and execution failures") lives in this spec.
 
@@ -562,7 +562,7 @@ diff the detail strings literally.
 - The probes drove the step classes with a stub session for everything except the cases noted
   as real-child in FR-022 and FR-011. The stub's wait loops were transcribed from
   `session.py`, so any divergence between the stub and the real session would show up as a
-  wrong observation. `specs/OBSERVATION-LOG.md` records which rows came from which.
+  wrong observation. `spec/OBSERVATION-LOG.md` records which rows came from which.
 - `screen` fidelity — wrapping, scrollback, escape-sequence coverage — belongs to the terminal
   emulator and is out of scope for this spec set.
 - Steps are the only writers to the child. Nothing else injects input during a run.
