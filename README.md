@@ -131,7 +131,7 @@ Each run writes under `.termproof/runs/<run-id>/` (or the `--out` you provide):
 ```
 
 Step actions: `wait_for_text`, `wait_for_idle`, `send_text`, `send_line`, `press`, `sleep`, `wait_for_count`
-Assertions: `output_contains`, `output_not_contains`, `screen_contains`, `screen_not_contains`, `exit_code`, `file_exists`, `file_contains`
+Assertions: `output_contains`, `output_not_contains`, `screen_contains`, `screen_not_contains`, `step_screen_contains`, `exit_code`, `file_exists`, `file_contains`
 
 See [`docs/recipe-packs.md`](docs/recipe-packs.md) for layout and [`examples/generic/generic_tui.recipe.json`](examples/generic/generic_tui.recipe.json) for a minimal working recipe.
 

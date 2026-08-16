@@ -74,6 +74,12 @@
   ],
   "assertions": [
     {
+      "type": "step_screen_contains",
+      "name": "dashboard was on screen mid-run",
+      "step": "wait for dashboard",
+      "value": "DASHBOARD READY"
+    },
+    {
       "type": "output_contains",
       "value": "DASHBOARD READY"
     },

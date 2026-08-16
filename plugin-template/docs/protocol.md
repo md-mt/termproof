@@ -20,6 +20,7 @@ Most protocols require a `name` class attribute and a single method:
 
 - Step: execute(session, step, index) -> StepResult
 - Assertion: evaluate(recipe, assertion, screen, raw_output, exit_code) -> AssertionResult
+- Step-aware assertion: evaluate(recipe, assertion, screen, raw_output, exit_code, *, steps=None) -> AssertionResult
 - Reporter: generate(results, build_info, before_after) -> str
 - ScreenRenderer: render(text, output_path, cols, rows) -> None
 - VideoBackend: render(cast_path, output_path, fps) -> None
@@ -57,8 +58,18 @@ ship one.
 
 ## Context availability for assertions
 
-Assertions receive only the final state of the run. The following are **NOT**
-available at assertion evaluation time and must not be relied upon:
+Available at assertion evaluation time:
+
+- **Final screen** and **final raw output** — the `screen` and `raw_output`
+  arguments
+- **Exit code** — `None` when the target had not exited
+- **The recipe** — including `command.cwd`, which is what the file assertions
+  resolve their relative paths against
+- **Per-step screens** — the `steps` argument, one `StepResult` per step that
+  ran, in order, each carrying the screen captured after that step, as plain
+  text. Opt in by declaring the parameter (see below).
+
+The following are **NOT** available and must not be relied upon:
 
 - **Run directory** — no filesystem path to the current run's artifacts
 - **Elapsed time / duration** — `RunResult.duration_seconds` is computed after
@@ -67,11 +78,50 @@ available at assertion evaluation time and must not be relied upon:
   stale prior runs at best, nothing at worst
 - **Accumulated raw output** — assertion receives the final raw output, not
   the incremental stream
+- **Screen attributes** — every screen an assertion sees, final or per-step, is
+  flattened text. Colour, bold and reverse video are available to renderers via
+  `render_attributed`, not to assertions
 
 Plugin authors should not attempt filesystem-based workarounds. To enforce
 timing constraints, use TermProof core features (e.g. recipe-level
-`timeout_seconds`). For counting and content checks, the `screen` and
-`raw_output` strings are the correct inputs.
+`timeout_seconds`).
+
+### Opting into per-step screens
+
+An assertion whose subject is a state the target passes through and then leaves
+— a dialog that was dismissed, a screen that was shown mid-flow — cannot read it
+off the final screen. Declare a `steps` parameter and TermProof passes the
+per-step screens:
+
+```python
+def evaluate(
+    self, recipe, assertion, screen, raw_output, exit_code, *, steps=None
+) -> AssertionResult:
+    match = next((s for s in steps or [] if s.name == assertion["step"]), None)
+```
+
+Rules worth knowing:
+
+- **Declaring `steps` is the whole opt-in.** An assertion that does not declare
+  it is called with the original five arguments, exactly as before, and needs no
+  source change.
+- **`**kwargs` alone does not opt in.** An assertion that forwards unrecognised
+  arguments to another assertion would otherwise pass `steps` into one that
+  cannot accept it.
+- **Give `steps` a default of `None`.** Then the same assertion also runs on a
+  TermProof that predates the argument.
+- **`None` is not the same as `[]`.** `None` means the execution mode supplied
+  no per-step screens — report that rather than treating it as a run with no
+  steps. The built-in scripted modes always supply them; the agent-driven mode
+  produces its assertions from the agent's own report and does not go through
+  the assertion registry at all.
+- **`StepResult.name` is what `step` matches**: the recipe step's `name` when it
+  sets one, and `"<index>:<action>"` when it does not.
+- Steps after a failing step do not run, so they are absent from the list.
+
+`StepScreenMatches` in `src/termproof_my_plugin/step_assertions.py` is a worked
+example; `ScreenCount` in `src/termproof_my_plugin/assertions.py` is deliberately
+left on the original signature to show the two coexisting in one plugin.
 
 ## Version and deprecation policy
 

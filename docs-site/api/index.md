@@ -18,6 +18,7 @@ Stable protocols cover:
 
 - `StepAction`
 - `AssertionType`
+- `StepAwareAssertionType`
 - `ExecutionMode`
 - `Reporter`
 - `ScreenRenderer`

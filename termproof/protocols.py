@@ -40,6 +40,35 @@ class AssertionType(Protocol):
         ...
 
 
+class StepAwareAssertionType(Protocol):
+    """An assertion that also sees the screen captured after each step.
+
+    Implementations satisfy ``AssertionType`` as well: ``steps`` is keyword-only
+    and defaults to ``None``, so a caller that predates it invokes them exactly
+    as before. TermProof passes ``steps`` only to evaluators that declare the
+    parameter, which is why an assertion written against ``AssertionType`` keeps
+    working without source changes.
+
+    ``steps`` is ``None`` when the execution mode did not supply per-step
+    screens — an assertion that needs them should report that rather than
+    assume an empty run.
+    """
+
+    name: str
+
+    def evaluate(
+        self,
+        recipe: Recipe,
+        assertion: dict[str, Any],
+        screen: str,
+        raw_output: str,
+        exit_code: int | None,
+        *,
+        steps: list[StepResult] | None = None,
+    ) -> AssertionResult:
+        ...
+
+
 class ExecutionMode(Protocol):
     name: str
 
@@ -140,6 +169,7 @@ __all__ = [
     "ScreenRenderer",
     "SessionBackend",
     "StepAction",
+    "StepAwareAssertionType",
     "SvgRenderConfig",
     "VideoBackend",
     "VideoConfig",

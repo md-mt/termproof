@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import inspect
 import time
 from dataclasses import replace
+from functools import cache
 from pathlib import Path
 from typing import Any
 
@@ -47,6 +49,24 @@ def _build_assertion_registry(config: VerifierConfig) -> Registry[Any]:
         cls = import_class(qualname)
         registry.register(name, lambda c=cls: c())
     return registry
+
+
+@cache
+def _evaluate_wants_steps(evaluate: Any) -> bool:
+    """Whether an assertion's ``evaluate`` opts into the per-step screens.
+
+    Opting in means declaring a parameter named ``steps``, the same shape of
+    opt-in as ``from_config`` on evidence plugins. A bare ``**kwargs`` does not
+    count: an assertion that forwards unrecognised arguments to another
+    assertion written against the older signature would break if we passed
+    ``steps`` into it.
+    """
+    try:
+        parameters = inspect.signature(evaluate).parameters
+    except (TypeError, ValueError):
+        return False
+    parameter = parameters.get("steps")
+    return parameter is not None and parameter.kind is not inspect.Parameter.POSITIONAL_ONLY
 
 
 def _build_reporter_registry(config: VerifierConfig) -> Registry[Any]:
@@ -305,12 +325,16 @@ class VerificationRunner:
         screen: str,
         raw_output: str,
         exit_code: int | None,
+        *,
+        steps: list[StepResult] | None = None,
     ) -> list[AssertionResult]:
         assertions = list(recipe.assertions)
         if recipe.expect_exit_code is not None:
             assertions.append({"type": "exit_code", "value": recipe.expect_exit_code})
         return [
-            self._evaluate_assertion(recipe, assertion, screen, raw_output, exit_code)
+            self._evaluate_assertion(
+                recipe, assertion, screen, raw_output, exit_code, steps=steps
+            )
             for assertion in assertions
         ]
 
@@ -346,8 +370,12 @@ class VerificationRunner:
         screen: str,
         raw_output: str,
         exit_code: int | None,
+        *,
+        steps: list[StepResult] | None = None,
     ) -> list[AssertionResult]:
-        return self.evaluate_assertions(recipe, screen, raw_output, exit_code)
+        return self.evaluate_assertions(
+            recipe, screen, raw_output, exit_code, steps=steps
+        )
 
     def _evaluate_assertion(
         self,
@@ -356,13 +384,18 @@ class VerificationRunner:
         screen: str,
         raw_output: str,
         exit_code: int | None,
+        *,
+        steps: list[StepResult] | None = None,
     ) -> AssertionResult:
         kind = assertion["type"]
         try:
             evaluator = self.assertion_registry.get(kind)
         except KeyError as err:
             raise ValueError(f"unknown assertion type: {kind}") from err
-        return evaluator.evaluate(recipe, assertion, screen, raw_output, exit_code)
+        evaluate = evaluator.evaluate
+        if _evaluate_wants_steps(getattr(evaluate, "__func__", evaluate)):
+            return evaluate(recipe, assertion, screen, raw_output, exit_code, steps=steps)
+        return evaluate(recipe, assertion, screen, raw_output, exit_code)
 
 
 def _with_renderer_argv(recipe: Recipe, renderer_argv: list[str]) -> Recipe:

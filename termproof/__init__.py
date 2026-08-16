@@ -35,6 +35,7 @@ from .protocols import (
     ScreenRenderer,
     SessionBackend,
     StepAction,
+    StepAwareAssertionType,
     VideoBackend,
 )
 from .registry import Registry
@@ -62,6 +63,7 @@ __all__ = [
     "ScreenRenderer",
     "SessionBackend",
     "StepAction",
+    "StepAwareAssertionType",
     "StepResult",
     "SvgRenderConfig",
     "SvgStyle",

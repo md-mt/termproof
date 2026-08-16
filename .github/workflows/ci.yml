@@ -161,7 +161,7 @@ jobs:
           uv pip install --python plugin-template/.pkg-test/bin/python --no-deps plugin-template/dist/*.whl
           plugin-template/.pkg-test/bin/python -c "
           import termproof_my_plugin
-          expected = {'JsonSummaryReporter', 'ScreenCount', 'WaitForRegex', 'MyStore'}
+          expected = {'JsonSummaryReporter', 'MyStore', 'ScreenCount', 'StepScreenMatches', 'WaitForRegex'}
           actual = set(termproof_my_plugin.__all__)
           assert actual == expected, f'__all__ mismatch: {actual} != {expected}'
           print('__all__ verified:', termproof_my_plugin.__all__)

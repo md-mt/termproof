@@ -3,11 +3,13 @@
 from .assertions import ScreenCount
 from .publishers import MyStore
 from .reporters import JsonSummaryReporter
+from .step_assertions import StepScreenMatches
 from .steps import WaitForRegex
 
 __all__ = [
     "JsonSummaryReporter",
     "MyStore",
     "ScreenCount",
+    "StepScreenMatches",
     "WaitForRegex",
 ]

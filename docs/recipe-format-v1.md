@@ -58,6 +58,32 @@ The formal JSON Schema is published at [`recipe-schema-v1.json`](recipe-schema-v
 
 Recipes that verify JSON-producing CLIs can use the built-in `json_schema` assertion. Set `schema` to either an inline JSON Schema object or a recipe-relative schema file path.
 
+## Asserting on an intermediate screen
+
+`screen_contains` reads the last screen of the run. To assert on a state the
+target passes through and then leaves, name the step whose screen to read:
+
+```json
+{
+  "steps": [
+    { "name": "open the palette", "action": "wait_for_text", "text": "Command palette" },
+    { "name": "dismiss", "action": "press", "key": "escape" }
+  ],
+  "assertions": [
+    { "type": "step_screen_contains", "step": "open the palette", "value": "Command palette" },
+    { "type": "screen_not_contains", "value": "Command palette" }
+  ]
+}
+```
+
+`step` matches the step's `name`. A step without one is named `"<index>:<action>"`,
+so naming the steps you assert on is worth doing.
+
+Recipes are not required to give their steps distinct names, and `step` reads the
+screen of the **first** step whose name matches. Two steps sharing a name is
+therefore a silently confusing assertion rather than an error — keep the name of
+any step you assert on unique within the recipe.
+
 ## Migrating v0.x recipes
 
 Existing recipes usually need only one edit:

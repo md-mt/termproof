@@ -22,6 +22,7 @@ class ProtocolApiTests(unittest.TestCase):
                 "ScreenRenderer",
                 "SessionBackend",
                 "StepAction",
+                "StepAwareAssertionType",
                 "SvgRenderConfig",
                 "VideoBackend",
                 "VideoConfig",
@@ -39,6 +40,18 @@ class ProtocolApiTests(unittest.TestCase):
             ),
             protocols.AssertionType.evaluate: (
                 ["self", "recipe", "assertion", "screen", "raw_output", "exit_code"],
+                "AssertionResult",
+            ),
+            protocols.StepAwareAssertionType.evaluate: (
+                [
+                    "self",
+                    "recipe",
+                    "assertion",
+                    "screen",
+                    "raw_output",
+                    "exit_code",
+                    "steps",
+                ],
                 "AssertionResult",
             ),
             protocols.ExecutionMode.execute: (
@@ -74,6 +87,23 @@ class ProtocolApiTests(unittest.TestCase):
             signature = inspect.signature(method)
             self.assertEqual(parameters, list(signature.parameters))
             self.assertEqual(return_annotation, signature.return_annotation)
+
+    def test_step_aware_assertions_extend_the_assertion_protocol_additively(self) -> None:
+        """``steps`` must be optional, and only on the extended protocol.
+
+        An assertion implementing ``StepAwareAssertionType`` also satisfies
+        ``AssertionType``, so it keeps working on a TermProof that never passes
+        ``steps``; and ``AssertionType`` itself is untouched, so an assertion
+        written against it needs no source change.
+        """
+        steps = inspect.signature(protocols.StepAwareAssertionType.evaluate).parameters[
+            "steps"
+        ]
+        self.assertIs(inspect.Parameter.KEYWORD_ONLY, steps.kind)
+        self.assertIsNone(steps.default)
+        self.assertNotIn(
+            "steps", inspect.signature(protocols.AssertionType.evaluate).parameters
+        )
 
     def test_legacy_protocol_import_locations_reexport_public_protocols(self) -> None:
         from termproof.agent_driven import AgentRunner

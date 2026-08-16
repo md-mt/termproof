@@ -6,8 +6,9 @@ from typing import Any
 
 import jsonschema
 
-from .models import AssertionResult, Recipe
+from .models import AssertionResult, Recipe, StepResult
 from .protocols import AssertionType as AssertionType
+from .protocols import StepAwareAssertionType as StepAwareAssertionType
 
 
 def _contains(
@@ -137,6 +138,54 @@ class ScreenNotContains:
             False,
             assertion.get("detail"),
         )
+
+
+class StepScreenContains:
+    """Assert a substring is on the screen captured after a named step.
+
+    ``screen_contains`` can only see the last screen of the run, so a state the
+    target passes through and then leaves is not expressible with it. This
+    assertion names the step whose screen to read::
+
+        {
+          "type": "step_screen_contains",
+          "step": "open the palette",
+          "value": "Command palette"
+        }
+
+    ``step`` matches ``StepResult.name``, which is the recipe step's ``name``
+    when it sets one and ``"<index>:<action>"`` when it does not.
+    """
+
+    name = "step_screen_contains"
+
+    def evaluate(
+        self,
+        recipe: Recipe,
+        assertion: dict[str, Any],
+        screen: str,
+        raw_output: str,
+        exit_code: int | None,
+        *,
+        steps: list[StepResult] | None = None,
+    ) -> AssertionResult:
+        name = assertion.get("name", self.name)
+        step_name = str(assertion["step"])
+        if steps is None:
+            return AssertionResult(
+                name,
+                False,
+                "per-step screens were not supplied by the execution mode",
+            )
+        match = next((step for step in steps if step.name == step_name), None)
+        if match is None:
+            ran = ", ".join(repr(step.name) for step in steps) or "no steps ran"
+            return AssertionResult(name, False, f"no step named {step_name!r}: {ran}")
+        value = assertion["value"]
+        detail = assertion.get("detail") or (
+            f"screen after {step_name!r} contains {value!r}"
+        )
+        return AssertionResult(name, value in match.screen, detail)
 
 
 class ExitCode:
