@@ -1,0 +1,72 @@
+[
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260816-061229-004886-generic-tui-workflow-default/session.mp4",
+    "path": "20260816-061229-004886-generic-tui-workflow-default/session.mp4"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260816-061236-537996-colour-stress-default/session.mp4",
+    "path": "20260816-061236-537996-colour-stress-default/session.mp4"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260816-061240-038536-multi-turn-conversation-default/session.mp4",
+    "path": "20260816-061240-038536-multi-turn-conversation-default/session.mp4"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260816-061300-856246-pi-workflow-readonly-review-default/session.mp4",
+    "path": "20260816-061300-856246-pi-workflow-readonly-review-default/session.mp4"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260816-061310-758935-pi-workflow-guarded-edit-default/session.mp4",
+    "path": "20260816-061310-758935-pi-workflow-guarded-edit-default/session.mp4"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260816-061320-097366-pi-workflow-session-resume-export-default/session.mp4",
+    "path": "20260816-061320-097366-pi-workflow-session-resume-export-default/session.mp4"
+  },
+  {
+    "scope": "base",
+    "source": ".termproof/pr-base/20260816-061327-428964-pi-workflow-model-context-default/session.mp4",
+    "path": "20260816-061327-428964-pi-workflow-model-context-default/session.mp4"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260816-061335-803185-generic-tui-workflow-default/session.mp4",
+    "path": "20260816-061335-803185-generic-tui-workflow-default/session.mp4"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260816-061339-865773-colour-stress-default/session.mp4",
+    "path": "20260816-061339-865773-colour-stress-default/session.mp4"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260816-061343-253942-multi-turn-conversation-default/session.mp4",
+    "path": "20260816-061343-253942-multi-turn-conversation-default/session.mp4"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260816-061403-982245-pi-workflow-readonly-review-default/session.mp4",
+    "path": "20260816-061403-982245-pi-workflow-readonly-review-default/session.mp4"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260816-061413-823885-pi-workflow-guarded-edit-default/session.mp4",
+    "path": "20260816-061413-823885-pi-workflow-guarded-edit-default/session.mp4"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260816-061423-192025-pi-workflow-session-resume-export-default/session.mp4",
+    "path": "20260816-061423-192025-pi-workflow-session-resume-export-default/session.mp4"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260816-061430-468954-pi-workflow-model-context-default/session.mp4",
+    "path": "20260816-061430-468954-pi-workflow-model-context-default/session.mp4"
+  }
+]
