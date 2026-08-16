@@ -36,11 +36,32 @@ docker:
 The backend runs each recipe command with `docker run --rm --interactive --tty`.
 Recipe `command.env` values are passed into the container alongside `docker.env`.
 
-Built-in screen renderers include `svg` and `png`:
+There is also a built-in tmux session backend, which takes the screen from a
+real terminal emulator's grid rather than reconstructing it from the pty byte
+stream with pyte. It needs `tmux` on `PATH`:
+
+```yaml
+session_backend: tmux
+```
+
+## Built-in screen renderers
+
+| Name | Output | Notes |
+| --- | --- | --- |
+| `svg` | SVG | Default. Colour and text attributes, one `<text>` per cell. |
+| `png_rsvg` | PNG | Rasterizes the same SVG with `rsvg-convert`, so the two cannot drift. Needs `librsvg`. |
+| `png` | PNG | Draws text with Pillow. No colour or attributes, but needs no external tool. |
 
 ```bash
-termproof run .termproof/recipes --screen-renderer png
+termproof run .termproof/recipes --screen-renderer png_rsvg
 ```
+
+## Built-in video backends
+
+| Name | Notes |
+| --- | --- |
+| `agg_ffmpeg` | Default. Shells out to `agg`, then `ffmpeg`. |
+| `attributed_rsvg` | Renders each frame from the same attributed grid the screenshots use, so a video frame and a screenshot of the same moment are the same image. One rasterizer call per frame, so slower. Needs `rsvg-convert` and `ffmpeg`. |
 
 ## Listing
 

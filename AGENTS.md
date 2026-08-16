@@ -27,20 +27,43 @@ Renderers and video backends reach that config through the optional
 [`docs/plugin-protocols.md`](docs/plugin-protocols.md);
 `runner._construct_evidence_plugin` is the call site.
 
-`termproof/screen.py:render_svg` is a deliberate duplicate of
-`builtin_renderers.SvgRenderer`. Any change to one must be applied to both;
-`tests/test_evidence_config.py` pins them together until the duplicate is
-removed in a separate structural change.
+`termproof/screen.py:render_svg` is a thin wrapper over
+`builtin_renderers.SvgRenderer` — it constructs the renderer and calls it. There
+is one renderer, not two copies to keep in step, so a rendering change goes in
+`SvgRenderer` (or in `attributed.screen_svg` beneath it) and reaches both entry
+points. `tests/test_evidence_config.py` pins that the wrapper stays a wrapper.
+
+Renderers may implement an optional `render_attributed(screen, ...)` alongside
+`render(text, ...)`; `evidence._render_screen` prefers it when the pipeline has
+a grid. It is additive — a renderer with only `render` still works and still
+gets text. Do not make it required: third-party renderers are written against
+the text-only protocol, and `docs/plugin-protocols.md` promises they keep
+working.
 
 The defaults are load-bearing: `tests/test_evidence_config.py` replays every
 `session.cast` under `examples/artifacts/` and asserts the re-rendered SVG is
 byte-identical to the checked-in one. Changing a default breaks that test by
-design — the checked-in corpus is the contract.
+design — the checked-in corpus is the contract. Each artifact is re-rendered
+through the same path `evidence.render_artifacts` uses for it, so the gate pins
+what the product actually writes; do not "simplify" it back to rendering
+everything from text.
 
 ## Why `examples/colorstress/` exists
 
-`screen.py` flattens pyte's buffer to plain text, so all colour and attributes
-are discarded before any renderer runs. Every other example recipe is
-monochrome, so no test in the corpus could detect that. The colour-stress
-fixture is the only recipe that can. Do not "simplify" it to a plain TUI. See
+Screenshots render from an attributed per-cell grid, so colour and text
+attributes survive into the SVG. Every other example recipe drives a monochrome
+TUI, which means byte-identity against the rest of the corpus would hold just as
+well for a renderer that had thrown every attribute away — the bytes would be
+wrong in a consistent, reproducible way, and no assertion would notice.
+
+`examples/colorstress/` is the only corpus entry that can catch a regression
+back to monochrome. Its recorded run under
+`examples/artifacts/colour-stress/` emits 16-colour, 256-colour and 24-bit
+truecolour cells, the full set of SGR attributes, box drawing and wide CJK
+characters, and its `final.svg` carries several hundred distinct fill colours.
+`CorpusByteIdentityTest.test_the_corpus_still_holds_a_screen_that_is_not_monochrome`
+fails if that entry goes missing or goes grey.
+
+Do not "simplify" the fixture to a plain TUI, and do not drop its corpus entry
+to make a rendering diff smaller. See
 [`docs/evidence-quality.md`](docs/evidence-quality.md).

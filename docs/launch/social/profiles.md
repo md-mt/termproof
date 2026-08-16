@@ -49,7 +49,7 @@ Character counts: A = 140, B = 110. Use A for launch.
 
 ### Long Bio (for GitHub org, Mastodon, Bluesky profile extended)
 
-> TermProof verifies terminal and TUI applications with replayable evidence. JSON recipes drive real PTY sessions, record asciinema casts, replay into SVG screenshots, text snapshots, 60-fps MP4 via agg+ffmpeg, and Markdown/JSON reports. Upload `.termproof/runs` as CI artifact — reviewers inspect proof, not just logs. Works with Textual, Bubble Tea, Ratatui, Ink, or any CLI. MIT. `pip install termproof`. (423 graphemes — Mastodon/GitHub; Bluesky 256-grapheme description limit requires the shorter variant below)
+> TermProof verifies terminal and TUI applications with replayable evidence. JSON recipes drive real PTY sessions, record asciinema-format casts, replay into SVG screenshots, text snapshots, 60-fps MP4 via agg+ffmpeg, and Markdown/JSON reports. Upload `.termproof/runs` as CI artifact — reviewers inspect proof, not just logs. Works with Textual, Bubble Tea, Ratatui, Ink, or any CLI. MIT. `pip install termproof`. (412 graphemes — Mastodon/GitHub; Bluesky 256-grapheme description limit requires the shorter variant below)
 
 ### Bluesky Description (≤256 graphemes)
 

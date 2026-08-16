@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **An attributed screen model, and colour in every rendered artifact.**
+- **An attributed screen model, and colour in the final screenshot and video.**
   `termproof.attributed` keeps a per-cell grid — foreground and background,
   bold, dim, italic, underline, strikethrough, reverse, and double-width
   handling — instead of a flat string. The SVG renderer emits one `<text>` per
@@ -20,6 +20,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`screen.replay_cast_attributed`), or parsed out of text that still carries
   SGR escapes. Canvas geometry is unchanged: for the default 80x24 the old and
   new formulas both give 756x516.
+
+  **Not yet the per-step screenshots.** `final.svg` and the `attributed_rsvg`
+  video render from the grid and carry colour; the images under `steps/` render
+  from `StepResult.screen`, which is pyte's already-flattened `display`, so they
+  are still monochrome. See `docs/evidence-quality.md` for what closing that
+  needs.
+- **An optional `render_attributed` method on the renderer protocol.** A
+  renderer that defines it is handed the grid instead of text. Additive: a
+  renderer written against the text-only protocol keeps working unchanged. See
+  [`docs/plugin-protocols.md`](docs/plugin-protocols.md).
 - **`png_rsvg`, a PNG renderer that rasterizes the attributed SVG.** Unlike the
   Pillow-based `png` renderer it keeps colour and styling, and it cannot drift
   from the `svg` output because it renders the same document. Needs
@@ -90,6 +100,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **One SVG renderer instead of two.** `screen.render_svg` was a second copy of
   `builtin_renderers.SvgRenderer`, with a comment saying the two had to be kept
   in step. It is now a wrapper over the renderer.
+- **The rendered corpus under `examples/artifacts/` is regenerated.** All 146
+  checked-in SVGs differ, because the markup shape changed from one `<text>` per
+  line to one per cell. No session was re-recorded — the `session.cast` files
+  are untouched and the only input that changed is the renderer. A recorded run
+  of `examples/colorstress` joins the corpus as the entry that can catch a
+  regression back to monochrome; every other recipe drives a monochrome TUI.
 
 - **`wait_for_idle` no longer treats a session that has produced no output as
   idle.** The stable window is armed by the first byte the session emits, so a
@@ -103,6 +119,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   idle`. Once armed, quiescence is still measured on rendered screen text
   alone, so terminal-title ticks, colour-only animation and idempotent repaints
   go idle exactly as before.
+
+### Fixed
+
+- **The `tmux` backend recorded casts with every carriage return stripped.** The
+  `pipe-pane` fifo was read in Python's default text mode, whose universal-newline
+  translation rewrites `\r\n` to `\n` and a bare `\r` to `\n`. Nothing looked
+  missing — every glyph and every escape sequence was recorded — but replaying
+  the cast never returned the cursor to column 0, so `final.svg` and `final.txt`
+  came out as a diagonal staircase and `\r`-redrawn progress lines were lost.
+- **`attributed_rsvg` now names what to install when a tool is missing.** It
+  reported which of `rsvg-convert` / `ffmpeg` it could not find but not what to
+  do about it, unlike `png_rsvg`, which already named the alternative.
 
 ### Removed
 

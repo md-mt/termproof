@@ -1,6 +1,26 @@
 # Evidence quality: what the research found
 
-**Last updated:** 2026-08-09
+**Last updated:** 2026-08-15
+
+> **Status, 0.3.0.** This page is the record of what the research measured, and
+> it is kept in the tense it was written in. Three of the things it describes as
+> defects or as deferred have since been done, and the sections below have not
+> been rewritten around them:
+>
+> - **The attributed-grid path is implemented** (`termproof/attributed.py`). The
+>   `svg` renderer draws colour and text attributes, and `render_attributed` is
+>   the optional renderer method the research proposed. "The defect" below
+>   describes what `screen_text` still does — it is still the source of
+>   `final.txt` and of the text handed to assertions — but it is no longer the
+>   only path a renderer sees.
+> - **The GIF-free direct-frame video backend exists** as the opt-in
+>   `attributed_rsvg` backend, and remains opt-in for the reason given below.
+> - **Step-screenshot dedup exists**, opt-in via `evidence.dedup_step_screenshots`,
+>   and fingerprints the attributed grid rather than the screen text.
+>
+> Still open: no font ships with TermProof, the browser half of SVG font
+> embedding is still unverified, and per-step screenshots are still rendered
+> from plain text (see the last section).
 
 TermProof's whole value proposition is that the artifact it produces is a
 faithful record of what happened in the terminal. Two independent research
@@ -166,13 +186,16 @@ no effect.
 
 ## What is deferred, and why
 
-**The attributed-grid path is not implemented.** It is the largest win and the
-smallest diff, but it needs an additive change to the renderer interface
-(`render_grid` alongside `render`), so it is a separate change. Until it lands,
-the colour settings above cannot do what the research recommends. Verified
-during the research: the attributed grid flattens byte-identically to the
-pipeline's own recorded text for all 44 screens across all four recipes, so no
-assertion changes when it does land.
+**Per-step screenshots are still rendered from plain text.** `final.svg` is
+rendered from the attributed replay of the cast and carries colour.
+`StepResult.screen`, though, is `session.screen` — pyte's `display`, already
+flattened — so the images under `steps/` are monochrome even though the
+renderer drawing them is not. Closing this needs the session to hand each step
+an attributed grid alongside its text, and it needs an answer for how the
+corpus pins those images: a step screenshot is a moment during a live session,
+and `CorpusByteIdentityTest` can only replay what is checked in, which for a
+step is its plain-text `.txt`. `TmuxSession.screen_attributed()` is the seam a
+fix would build on.
 
 **No font ships with TermProof.** `evidence.png.font_path` loads a TrueType face
 when you give it one, but bundling a default requires a licence decision (DejaVu

@@ -19,6 +19,34 @@ TermProof exposes stable plugin protocols from `termproof.protocols`.
 
 `ScreenRenderer` plugins can optionally set `extension = "png"` (or another file extension) so evidence artifacts use that screenshot filename suffix.
 
+### Optional: `render_attributed`
+
+`render` receives the screen as a string, which cannot express colour, bold or
+reverse video. A `ScreenRenderer` may additionally define:
+
+```python
+def render_attributed(
+    self,
+    screen: AttributedScreen,
+    output_path: Path,
+    cols: int,
+    rows: int,
+) -> None: ...
+```
+
+`AttributedScreen` (from `termproof.attributed`) is a per-cell grid: every
+`AttributedCell` carries its glyph plus `fg`, `bg`, `bold`, `dim`, `italic`,
+`underline`, `strikethrough`, `reverse` and `width`. Colours are either the
+literal `"default"`, a pyte colour name such as `"red"`, or a bare `RRGGBB`
+hex string; `attributed.cell_colors(cell, style)` resolves one to concrete CSS
+colours, applying reverse video.
+
+When the method is present and the pipeline has a grid to offer, TermProof calls
+it in preference to `render`, so nothing is lost re-parsing text that the
+terminal emulator already parsed. This is additive: a renderer that defines only
+`render` keeps working unchanged and keeps receiving the screen as text. Both
+builtin `svg` and `png_rsvg` implement it; `png` does not.
+
 `ScreenRenderer` and `VideoBackend` plugins can optionally define a
 `from_config(cls, evidence: EvidenceConfig) -> Self` classmethod. When it is
 present TermProof calls it instead of the zero-argument constructor, so the

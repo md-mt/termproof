@@ -10,11 +10,18 @@ box drawing, wide CJK characters and an animated progress bar.
 uv run termproof run examples/colorstress --video
 ```
 
-Today's screen renderers draw it in flat monochrome. That is the defect this
-fixture exists to expose, not a bug in the fixture: `termproof/screen.py`
-flattens the terminal buffer to plain text, so colour and attributes are
-discarded before any renderer is called. Fixing that needs an additive change
-to the renderer interface and is deliberately not done here — this pack is the
-regression surface that has to exist first. See
-[docs/evidence-quality.md](../../docs/evidence-quality.md) for what was measured
-and what is deferred.
+Since 0.3.0 the renderers draw it in colour. `termproof/attributed.py` keeps a
+per-cell grid — foreground and background, bold, dim, italic, underline,
+strikethrough, reverse, double width — and `screen_svg` emits one `<text>` per
+cell, so the screenshot looks like what the operator saw.
+
+The fixture's job did not end there; it changed. It is now the regression
+surface that keeps colour working. A recorded run lives at
+[`examples/artifacts/colour-stress/`](../artifacts/colour-stress/) and is
+replayed by `CorpusByteIdentityTest`: `final.svg` is pinned byte for byte, and a
+second assertion fails if this entry ever renders monochrome. Every other recipe
+in the corpus drives a monochrome TUI, so without this one a renderer that
+discarded every attribute would still pass the whole suite.
+
+Do not simplify this pack to a plain TUI. See
+[docs/evidence-quality.md](../../docs/evidence-quality.md).
