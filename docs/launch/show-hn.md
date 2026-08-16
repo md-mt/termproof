@@ -20,7 +20,7 @@ HN title limit: 80 chars recommended. All titles pass.
 
 TUI frameworks are booming — Textual, Bubble Tea, Ratatui, Ink — but testing story is "trust me, it works in my terminal." Manual screenshots go stale in one PR. `expect` gives you no cast, no video, no per-step screenshots. Playwright/Cypress can't drive a PTY. VHS is great for demos, not for assertions or CI gates.
 
-TermProof: write a JSON recipe that drives your TUI in a real PTY, records the full session with asciinema, replays it into `final.svg`/`final.txt`, per-step screenshots, optional 60-fps MP4 via agg+ffmpeg, and a `report.md` + `result.json`. Upload the folder as a CI artifact. Reviewers inspect evidence instead of trusting a log line.
+TermProof: write a JSON recipe that drives your TUI in a real PTY, records the full session as an asciinema-format cast, replays it into `final.svg`/`final.txt`, per-step screenshots, optional 60-fps MP4 via agg+ffmpeg, and a `report.md` + `result.json`. Upload the folder as a CI artifact. Reviewers inspect evidence instead of trusting a log line.
 
 ## Draft Body (HN Markdown)
 
@@ -28,7 +28,7 @@ TermProof: write a JSON recipe that drives your TUI in a real PTY, records the f
 
 I built TermProof — an evidence-first verification harness for terminal/TUI apps.
 
-It drives your TUI from a JSON recipe (wait_for_text, send_line, press, etc.), records the real terminal session with asciinema, replays the cast into screenshots, text snapshots, MP4 via agg+ffmpeg, and writes Markdown + JSON reports. Instead of "trust me, works in my terminal", you ship proof.
+It drives your TUI from a JSON recipe (wait_for_text, send_line, press, etc.), records the real terminal session as an asciinema-format cast, replays the cast into screenshots, text snapshots, MP4 via agg+ffmpeg, and writes Markdown + JSON reports. Instead of "trust me, works in my terminal", you ship proof.
 
 **What it looks like:**
 

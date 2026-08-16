@@ -5,6 +5,8 @@ from dataclasses import dataclass, field, fields
 from pathlib import Path
 from typing import Any, get_args, get_type_hints
 
+from .attributed import SvgStyle
+
 try:
     import yaml
 except ImportError:
@@ -48,11 +50,13 @@ BUILTIN_DEFAULTS: dict[str, Any] = {
     "screen_renderers": {
         "svg": "termproof.builtin_renderers:SvgRenderer",
         "png": "termproof.builtin_renderers:PngRenderer",
+        "png_rsvg": "termproof.rsvg:RsvgPngRenderer",
     },
     "video_backends": {
         "agg_ffmpeg": "termproof.builtin_video:AggFfmpegBackend",
+        "attributed_rsvg": "termproof.cast_video:RsvgFfmpegBackend",
     },
-    "session_backend": "termproof.builtin_session:PexpectAsciinemaBackend",
+    "session_backend": "termproof.builtin_session:PexpectBackend",
     "docker": {
         "image": "",
         "workdir": "/workspace",
@@ -130,6 +134,22 @@ class SvgRenderConfig:
     font_family: str = "ui-monospace,SFMono-Regular,Menlo,Consolas,monospace"
     fg: str = "#e6edf3"
     bg: str = "#101418"
+
+    def style(self, cols: int, rows: int) -> SvgStyle:
+        """Geometry for a *cols* x *rows* grid, shared by every SVG-backed renderer."""
+        return SvgStyle(
+            columns=cols,
+            rows=rows,
+            cell_w=float(self.char_width),
+            cell_h=float(self.line_height),
+            font_px=self.font_size,
+            padding=self.padding,
+            font_family=self.font_family,
+            fg=self.fg,
+            bg=self.bg,
+            min_width=320,
+            min_height=160,
+        )
 
 
 @dataclass(frozen=True)

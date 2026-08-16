@@ -12,6 +12,26 @@ permissions:
   pull-requests: write
 
 jobs:
+  stdlib:
+    # Deliberately installs nothing. `termproof.attributed` and the other
+    # pure-model modules document themselves as depending on the standard
+    # library alone, and this is what holds them to it: an `import pyte` added
+    # to one of them fails here while the full suite, which has pyte installed,
+    # stays green. Runs in seconds and needs no toolchain, so it goes first.
+    name: Stdlib-only modules
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+
+      - name: Run the stdlib-only test subset with no packages installed
+        run: python scripts/run_stdlib_tests.py
+
   lint:
     name: Lint and type-check
     runs-on: ubuntu-latest

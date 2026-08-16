@@ -1,16 +1,21 @@
 from __future__ import annotations
 
-import html
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
+from .attributed import AttributedScreen, attributed_screen_from_ansi_text, screen_svg
 from .config import EvidenceConfig, PngRenderConfig, SvgRenderConfig
 from .protocols import ScreenRenderer as ScreenRenderer
 
 
 class SvgRenderer:
-    """SVG screen renderer."""
+    """SVG screen renderer.
+
+    Renders through the attributed grid, so a screen that still carries SGR
+    escapes comes out in colour. Plain text renders exactly as an unstyled
+    grid, which is what it always was.
+    """
 
     name = "svg"
     extension = "svg"
@@ -29,22 +34,26 @@ class SvgRenderer:
         cols: int,
         rows: int,
     ) -> None:
-        config = self.config
-        width = max(320, cols * config.char_width + config.padding * 2)
-        height = max(160, rows * config.line_height + config.padding * 2)
-        visible_lines = text.splitlines()[:rows] or [""]
-        output_path.parent.mkdir(parents=True, exist_ok=True)
+        self.render_attributed(
+            attributed_screen_from_ansi_text(text, columns=cols, rows=rows),
+            output_path,
+            cols,
+            rows,
+        )
 
-        parts = [
-            f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">',
-            f'<rect width="100%" height="100%" fill="{config.bg}"/>',
-            f'<style>text{{font:{config.font_size}px {config.font_family};fill:{config.fg};white-space:pre}}</style>',
-        ]
-        for index, line in enumerate(visible_lines):
-            y = config.padding + config.line_height * (index + 1)
-            parts.append(f'<text x="{config.padding}" y="{y}">{html.escape(line)}</text>')
-        parts.append("</svg>")
-        output_path.write_text("\n".join(parts) + "\n", encoding="utf-8")
+    def render_attributed(
+        self,
+        screen: AttributedScreen,
+        output_path: Path,
+        cols: int,
+        rows: int,
+    ) -> None:
+        """Render an already-attributed grid, keeping every attribute."""
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(
+            screen_svg(screen, self.config.style(cols, rows)) + "\n",
+            encoding="utf-8",
+        )
 
 
 class PngRenderer:

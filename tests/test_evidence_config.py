@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import tempfile
 import unittest
 from pathlib import Path
@@ -9,6 +10,7 @@ from unittest import mock
 from PIL import Image, ImageDraw, ImageFont
 
 from termproof import evidence
+from termproof.attributed import AttributedScreen, attributed_screen_from_ansi_text
 from termproof.builtin_renderers import PngRenderer, SvgRenderer
 from termproof.builtin_video import AggFfmpegBackend
 from termproof.config import (
@@ -19,10 +21,11 @@ from termproof.config import (
     VideoConfig,
 )
 from termproof.models import StepResult
-from termproof.screen import render_svg, replay_cast
+from termproof.screen import render_svg, replay_cast_attributed
 
 ROOT = Path(__file__).resolve().parents[1]
 ARTIFACTS = ROOT / "examples" / "artifacts"
+_FILL = re.compile(r'fill="(#[0-9a-fA-F]{6})"')
 
 
 def _builtin_evidence() -> EvidenceConfig:
@@ -30,29 +33,45 @@ def _builtin_evidence() -> EvidenceConfig:
 
 
 class CorpusByteIdentityTest(unittest.TestCase):
-    """The acceptance gate for making the rendering parameters configurable.
+    """The renderer's output is pinned to the checked-in corpus.
 
-    Every screenshot checked in under ``examples/artifacts/`` was produced by
-    the pre-configuration renderers. Replaying each recorded cast and
-    re-rendering it with no configuration present must reproduce those files
-    byte for byte, or the extracted defaults have drifted from the literals
-    they replaced and the checked-in corpus would need regenerating.
+    This gate began as the acceptance test for moving the rendering parameters
+    into config: the extracted defaults had to reproduce the pre-configuration
+    screenshots byte for byte. Attributed rendering deliberately changed the
+    markup shape -- one ``<text>`` per cell rather than one per line -- so the
+    corpus was regenerated and the gate's purpose changed with it. It now pins
+    the renderer's output to those files: any change to the geometry, the
+    palette, the escaping or the defaults has to be accompanied by a
+    regenerated corpus, which puts the new bytes in the diff where a reviewer
+    can see them.
+
+    Each pair is rendered through the same path ``evidence.render_artifacts``
+    uses for that artifact -- ``final.svg`` from the attributed replay of the
+    cast, step screenshots from their recorded screen text. Pinning a path the
+    pipeline does not use would gate nothing.
     """
 
-    def _rendered_pairs(self) -> list[tuple[str, int, int, Path]]:
-        pairs: list[tuple[str, int, int, Path]] = []
+    def _rendered_pairs(self) -> list[tuple[AttributedScreen, int, int, Path]]:
+        pairs: list[tuple[AttributedScreen, int, int, Path]] = []
         for cast_path in sorted(ARTIFACTS.rglob("session.cast")):
             run_dir = cast_path.parent
             final_svg = run_dir / "final.svg"
             if not final_svg.exists():
                 continue
-            text, cols, rows = replay_cast(cast_path)
-            pairs.append((text, cols, rows, final_svg))
+            screen, cols, rows = replay_cast_attributed(cast_path)
+            pairs.append((screen, cols, rows, final_svg))
             for step_txt in sorted((run_dir / "steps").glob("*.txt")):
                 step_svg = step_txt.with_suffix(".svg")
                 if step_svg.exists():
-                    screen = step_txt.read_text(encoding="utf-8").removesuffix("\n")
-                    pairs.append((screen, cols, rows, step_svg))
+                    text = step_txt.read_text(encoding="utf-8").removesuffix("\n")
+                    pairs.append(
+                        (
+                            attributed_screen_from_ansi_text(text, columns=cols, rows=rows),
+                            cols,
+                            rows,
+                            step_svg,
+                        )
+                    )
         return pairs
 
     def test_corpus_is_present(self) -> None:
@@ -63,21 +82,34 @@ class CorpusByteIdentityTest(unittest.TestCase):
         renderer = SvgRenderer.from_config(_builtin_evidence())
         with tempfile.TemporaryDirectory() as tmp:
             output = Path(tmp) / "candidate.svg"
-            for text, cols, rows, expected in self._rendered_pairs():
-                renderer.render(text, output, cols, rows)
+            for screen, cols, rows, expected in self._rendered_pairs():
+                renderer.render_attributed(screen, output, cols, rows)
                 self.assertEqual(
                     expected.read_bytes(),
                     output.read_bytes(),
                     f"default config no longer reproduces {expected.relative_to(ROOT)}",
                 )
 
-    def test_screen_render_svg_matches_the_renderer_it_duplicates(self) -> None:
-        """``screen.render_svg`` is a duplicate; the two must not diverge."""
+    def test_the_corpus_still_holds_a_screen_that_is_not_monochrome(self) -> None:
+        """A corpus of only-grey screens could not catch a fall back to plain text.
+
+        `examples/colorstress` is the entry that carries colour; without it the
+        byte-identity gate above would pass just as happily against a renderer
+        that had thrown every attribute away.
+        """
+        fills = set()
+        for screen, _, _, expected in self._rendered_pairs():
+            if "colour-stress" in expected.parent.name:
+                fills.update(_FILL.findall(expected.read_text(encoding="utf-8")))
+        self.assertGreater(len(fills), 20, "the colour-stress corpus entry is missing or monochrome")
+
+    def test_screen_render_svg_is_a_wrapper_over_the_renderer(self) -> None:
+        """``screen.render_svg`` delegates; it must not regrow into a second copy."""
         renderer = SvgRenderer.from_config(_builtin_evidence())
         with tempfile.TemporaryDirectory() as tmp:
             from_function = Path(tmp) / "function.svg"
             from_renderer = Path(tmp) / "renderer.svg"
-            for text, cols, rows, _ in self._rendered_pairs()[:20]:
+            for text, cols, rows in (("plain", 80, 24), ("\x1b[31mred\x1b[0m", 100, 30)):
                 render_svg(text, from_function, cols, rows)
                 renderer.render(text, from_renderer, cols, rows)
                 self.assertEqual(from_function.read_bytes(), from_renderer.read_bytes())
@@ -254,6 +286,83 @@ class StepScreenScopeTest(unittest.TestCase):
             self.assertIn("#ff0000", path.read_text(encoding="utf-8"))
 
 
+class RendererProtocolCompatibilityTest(unittest.TestCase):
+    """`render_attributed` is optional; the text-only protocol still works.
+
+    `tests/test_runner.py` pins that a renderer with no `from_config` is still
+    *constructed*. This pins the other half: one with no `render_attributed` is
+    still *called*, through `render`, even though the pipeline now has a grid to
+    offer. A third-party renderer written against the published protocol must
+    not need editing for this release.
+    """
+
+    class TextOnlyRenderer:
+        name = "text_only"
+        extension = "svg"
+
+        def __init__(self) -> None:
+            self.calls: list[str] = []
+
+        def render(self, text: str, output_path: Path, cols: int, rows: int) -> None:
+            self.calls.append(text)
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            output_path.write_text(text, encoding="utf-8")
+
+    class AttributedRenderer(TextOnlyRenderer):
+        name = "attributed"
+
+        def render_attributed(
+            self, screen: AttributedScreen, output_path: Path, cols: int, rows: int
+        ) -> None:
+            self.calls.append("attributed")
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            output_path.write_text(screen.to_text(trim_right=True), encoding="utf-8")
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.output = Path(self._tmp.name) / "shot.svg"
+        self.screen = attributed_screen_from_ansi_text("\x1b[31mred\x1b[0m", columns=80, rows=24)
+
+    def test_a_text_only_renderer_is_called_with_the_text(self) -> None:
+        renderer = self.TextOnlyRenderer()
+        evidence._render_screen(
+            "red", self.output, 80, 24, renderer, SvgRenderConfig(), screen=self.screen
+        )
+        self.assertEqual(["red"], renderer.calls)
+        self.assertEqual("red", self.output.read_text(encoding="utf-8"))
+
+    def test_a_renderer_that_takes_a_grid_is_given_one(self) -> None:
+        renderer = self.AttributedRenderer()
+        evidence._render_screen(
+            "red", self.output, 80, 24, renderer, SvgRenderConfig(), screen=self.screen
+        )
+        self.assertEqual(["attributed"], renderer.calls)
+
+    def test_a_grid_capable_renderer_falls_back_when_there_is_no_grid(self) -> None:
+        renderer = self.AttributedRenderer()
+        evidence._render_screen(
+            "red", self.output, 80, 24, renderer, SvgRenderConfig(), screen=None
+        )
+        self.assertEqual(["red"], renderer.calls)
+
+    def test_a_text_only_renderer_survives_the_whole_pipeline(self) -> None:
+        run_dir = Path(self._tmp.name) / "run"
+        run_dir.mkdir()
+        (run_dir / "session.cast").write_text(
+            json.dumps({"version": 2, "width": 80, "height": 24}) + "\n", encoding="utf-8"
+        )
+        renderer = self.TextOnlyRenderer()
+        artifacts = evidence.render_artifacts(
+            run_dir,
+            render_video=False,
+            steps=[StepResult("only step", True, "", "hello")],
+            screen_renderer=renderer,
+        )
+        self.assertTrue(Path(artifacts["screenshot"]).exists())
+        self.assertEqual("hello", (run_dir / "steps" / "01-only-step.svg").read_text(encoding="utf-8"))
+
+
 class StepScreenshotDedupTest(unittest.TestCase):
     STEPS = [
         StepResult("wait for prompt", True, "", "screen one"),
@@ -318,6 +427,81 @@ class StepScreenshotDedupTest(unittest.TestCase):
             ],
             manifest,
         )
+
+    def _dedup_step_dir(self, steps: list[StepResult]) -> Path:
+        run_dir = Path(self._tmp.name)
+        evidence._render_step_screens(
+            run_dir,
+            steps,
+            80,
+            24,
+            SvgRenderer(),
+            "svg",
+            EvidenceConfig(dedup_step_screenshots=True),
+        )
+        return run_dir / "steps"
+
+    def test_a_colour_only_change_is_not_treated_as_unchanged(self) -> None:
+        """Same text, different colour: two images, not one reused.
+
+        Comparing `step.screen` as a string cannot see this, which is why dedup
+        fingerprints the grid the screenshot is rendered from.
+
+        Coverage of `_render_step_screens` as a helper, NOT of the shipped
+        pipeline. The SGR escapes below are injected by hand; `StepResult.screen`
+        is `session.screen`, which is pyte's already-flattened `display` and
+        never contains an escape. So this branch of the fingerprint cannot fire
+        on a real run today. It is worth keeping because it pins the behaviour
+        the moment `StepResult` starts carrying a grid --- see
+        `test_a_real_step_screen_carries_no_escapes` below, which is what pins
+        the present-day reality.
+        """
+        step_dir = self._dedup_step_dir(
+            [
+                StepResult("idle", True, "", "\x1b[32mstatus\x1b[0m"),
+                StepResult("failed", True, "", "\x1b[31mstatus\x1b[0m"),
+            ]
+        )
+        written = sorted(step_dir.glob("*.svg"))
+        self.assertEqual(2, len(written))
+        self.assertIn("#7ee787", written[0].read_text(encoding="utf-8"))
+        self.assertIn("#ff7b72", written[1].read_text(encoding="utf-8"))
+
+    def test_identically_styled_screens_still_dedup(self) -> None:
+        """Helper coverage, on the same terms as the test above."""
+        step_dir = self._dedup_step_dir(
+            [
+                StepResult("first", True, "", "\x1b[31msame\x1b[0m"),
+                StepResult("second", True, "", "\x1b[31msame\x1b[0m"),
+            ]
+        )
+        self.assertEqual(1, len(list(step_dir.glob("*.svg"))))
+
+    def test_a_real_step_screen_carries_no_escapes(self) -> None:
+        """The present-day limit, pinned so the two tests above cannot mislead.
+
+        A step screenshot is rendered from `StepResult.screen`, which the runner
+        fills from `session.screen` -> `screen_text` -> pyte's `display`. That is
+        already flattened, so no colour reaches a step image however colourful
+        the session was. `final.svg` is unaffected: it renders from the
+        attributed replay of the cast.
+
+        When `StepResult` grows a grid, this test is the one that should fail.
+        """
+        import pyte
+
+        from termproof.screen import screen_text
+
+        screen = pyte.Screen(20, 2)
+        pyte.Stream(screen).feed("\x1b[31mred\x1b[0m \x1b[1mbold\x1b[0m")
+        text = screen_text(screen)
+        self.assertEqual("red bold", text)
+        self.assertNotIn("\x1b", text)
+
+        step_dir = self._dedup_step_dir([StepResult("only", True, "", text)])
+        rendered = next(iter(step_dir.glob("*.svg"))).read_text(encoding="utf-8")
+        defaults = SvgRenderConfig()
+        self.assertEqual({defaults.bg, defaults.fg}, set(_FILL.findall(rendered)))
 
     def test_dedup_compares_against_the_previous_step_only(self) -> None:
         """A screen that reappears after a different one is rendered again."""

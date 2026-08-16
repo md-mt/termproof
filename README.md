@@ -10,7 +10,7 @@
 
 > **Evidence-first verification for terminal and TUI applications.** No more "trust me, it works in my terminal." Record the real session, replay it, and ship the proof.
 
-TermProof is a harness that drives your TUI from JSON recipes, records the actual terminal with [`asciinema`](https://docs.asciinema.org/), replays the cast into screenshots and text snapshots, optionally renders a 60-fps MP4 via [`agg`](https://github.com/asciinema/agg) + `ffmpeg`, and writes Markdown and JSON reports. Your reviewers inspect evidence instead of trusting a log line.
+TermProof is a harness that drives your TUI from JSON recipes, records the actual terminal as an [asciinema v2 cast](https://docs.asciinema.org/manual/asciicast/v2/), replays the cast into screenshots and text snapshots, optionally renders a 60-fps MP4 via [`agg`](https://github.com/asciinema/agg) + `ffmpeg`, and writes Markdown and JSON reports. Your reviewers inspect evidence instead of trusting a log line.
 
 ---
 
@@ -18,7 +18,7 @@ TermProof is a harness that drives your TUI from JSON recipes, records the actua
 
 - **You ship a TUI** — built with Textual, Bubble Tea, Ratatui, Ink, or plain curses.
 - **You write a recipe** — JSON that says: launch the binary, wait for `dashboard>`, type `open`, wait for `DASHBOARD READY`, assert it appeared.
-- **TermProof runs it** — real PTY, real asciinema cast, deterministic, CI-friendly.
+- **TermProof runs it** — real PTY, real asciinema cast, deterministic, CI-friendly. No external recorder to install.
 - **You get proof** — `session.cast`, `final.svg`, `final.txt`, `session.mp4`, per-step screenshots, `result.json`, `report.md`. Upload the folder as a CI artifact and link it from the PR.
 
 Product-agnostic by design. Pi coding-agent workflows are included as the flagship showcase because they exercise realistic multi-turn agent UI flows.
@@ -278,13 +278,13 @@ termproof --help
 
 See [`docs/releases.md`](docs/releases.md) for versioning and release flow.
 
-## Why asciinema first?
+## Why the cast comes first
 
-The cast is the source of truth. The pipeline:
+The cast is the source of truth. Screenshots, videos, assertions and reports all derive from the same recording, so reviewers inspect what happened instead of trusting a private terminal session.
+
+The default `pexpect` session backend writes the asciinema v2 cast itself, from the PTY output it is already reading — nothing extra to install. Rendering it:
 
 ```bash
-asciinema rec --overwrite --stdin --quiet --cols "$COLS" --rows "$ROWS" \
-  --command "$TARGET_COMMAND" session.cast
 cat session.exitcode
 agg --quiet --fps-cap 60 session.cast session.agg.gif
 ffmpeg -y -loglevel error -i session.agg.gif \
@@ -292,4 +292,15 @@ ffmpeg -y -loglevel error -i session.agg.gif \
   -pix_fmt yuv420p -movflags +faststart session.mp4
 ```
 
-Screenshots, videos, assertions, and reports all derive from the same recording. Reviewers inspect what happened instead of trusting a private terminal session.
+The `attributed_rsvg` video backend skips `agg` entirely and renders each frame from the same attributed grid `final.svg` is rendered from, so a video frame and the final screenshot of the same moment are the same image. This does not extend to the per-step screenshots under `steps/`, which are still rendered from plain text and are monochrome. It needs `rsvg-convert` and `ffmpeg`.
+
+If you specifically want a cast that the asciinema CLI wrote, install the extra and select that backend:
+
+```bash
+pip install 'termproof[record]'
+```
+
+```yaml
+# .termproof.yaml
+session_backend: pexpect_asciinema
+```

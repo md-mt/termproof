@@ -15,7 +15,7 @@
 
 Subject: TermProof — CI evidence for Textual apps?
 
-> Hi Textual team — I built TermProof, an evidence-first verifier for TUI apps. Records real PTY sessions via asciinema, replays into SVG screenshots + MP4 + Markdown report. Upload `termproof-ci-evidence` on every PR so reviewers see the proof. 60-second demo: `uv run termproof run examples/generic --video`. Might help catch Textual widget regressions in CI. Happy to help wire your first recipe. Repo: https://github.com/md-mt/termproof — Maintained by MD.
+> Hi Textual team — I built TermProof, an evidence-first verifier for TUI apps. Records real PTY sessions to asciinema-format casts, replays into SVG screenshots + MP4 + Markdown report. Upload `termproof-ci-evidence` on every PR so reviewers see the proof. 60-second demo: `uv run termproof run examples/generic --video`. Might help catch Textual widget regressions in CI. Happy to help wire your first recipe. Repo: https://github.com/md-mt/termproof — Maintained by MD.
 
 ## Long-form Version (GitHub Discussion / Email)
 

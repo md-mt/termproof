@@ -5,10 +5,73 @@ All notable changes to TermProof are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.3.0] - Unreleased
 
 ### Added
 
+- **An attributed screen model, and colour in `final.svg` and the
+  `attributed_rsvg` video.** `termproof.attributed` keeps a per-cell grid —
+  foreground and background, bold, italic, underline, strikethrough, reverse,
+  and double-width handling — instead of a flat string. The SVG renderer emits
+  one `<text>` per cell positioned at `x = col * cell_w`, so column alignment no
+  longer depends on whichever font the viewer resolves, and a red error no
+  longer renders identically to ordinary prose. A grid can be read from a live
+  `pyte.Screen` (`screen.screen_attributed`), from a recorded cast
+  (`screen.replay_cast_attributed`), or parsed out of text that still carries
+  SGR escapes. Canvas geometry is unchanged: for the default 80x24 the old and
+  new formulas both give 756x516.
+
+  Two limits, both pinned by tests rather than left to be discovered:
+
+  - **Per-step screenshots are not included.** `final.svg` and the
+    `attributed_rsvg` video render from the grid and carry colour; the images
+    under `steps/` render from `StepResult.screen`, which is pyte's
+    already-flattened `display`, so they are still monochrome. On the shipped
+    recipes that is 124 of the 146 regenerated corpus SVGs.
+  - **Dim (SGR 2) does not survive the cast-replay path.** pyte 0.8.2's `Char`
+    has no dim/faint field, so the attribute is consumed by the emulator before
+    the grid is built. A grid parsed directly from SGR text does carry dim.
+    Supporting it on the replay path means modelling SGR 2 in the emulator
+    layer.
+
+  See `docs/evidence-quality.md` for both.
+- **An optional `render_attributed` method on the renderer protocol.** A
+  renderer that defines it is handed the grid instead of text. Additive: a
+  renderer written against the text-only protocol keeps working unchanged. See
+  [`docs/plugin-protocols.md`](docs/plugin-protocols.md).
+- **`png_rsvg`, a PNG renderer that rasterizes the attributed SVG.** Unlike the
+  Pillow-based `png` renderer it keeps colour and styling, and it cannot drift
+  from the `svg` output because it renders the same document. Needs
+  `rsvg-convert`; `png` remains the default. Every external call goes through a
+  `ToolRunner` seam, so a host with its own subprocess policy can supply one.
+- **`attributed_rsvg`, a video backend that renders frames from the same
+  attributed grid `final.svg` uses.** A video frame and the final screenshot of
+  the same moment are then the same image. Not the per-step screenshots, which
+  are still rendered from plain text. Slower than `agg_ffmpeg` — one rasterizer
+  call per *distinct* frame — and encodes `yuv444p` rather than `yuv420p`,
+  because 4:2:0 chroma subsampling smears the edges of coloured text.
+  `agg_ffmpeg` remains the default.
+- **A `tmux` session backend.** A pty is a byte pipe, so the pty backend has to
+  reconstruct the screen with `pyte` — accurate, but a second emulator's opinion
+  of what the first would have shown, and most likely to diverge for programs
+  that repaint whole frames on the alternate screen. tmux owns a real grid, and
+  `capture-pane` returns what is on it, with attributes. Set
+  `session_backend: tmux`. The cast is recorded from `pipe-pane`, so it keeps
+  the session's real timings.
+- **`termproof.selection`, for running only the recipes a change could have
+  broken.** A recipe's `ci_paths` are matched against the files a diff touched.
+  `select_names` takes `(name, ci_paths)` pairs rather than recipe objects, so a
+  host whose recipes are classes can use it too; `select_recipes` is the wrapper
+  for this package's model. An `always` set runs regardless, and `harness_paths`
+  falls back to that set when the change is to the harness itself — the
+  path-to-recipe mapping is then exactly what is in question.
+- **`BuildInfo.from_binary` and `BuildInfo.from_source_build`.** `from_command`
+  resolves a name on PATH, which does not describe a binary built for the run.
+  A source build records `build_target` (what produced it) and `source_ref` (a
+  PR number, diff number or tag), and `verify_provenance` requires both plus a
+  binary that exists — previously any commit at all was enough, including the
+  working tree's, which says nothing about what was tested.
+- **`asciinema` is now an optional extra, `termproof[record]`.** See Changed.
 - **An `evidence:` block in `.termproof/config.yaml`.** The SVG and PNG
   renderers and the video pipeline no longer hardcode their rendering
   parameters: `evidence.svg` (character width, line height, padding, font size
@@ -29,6 +92,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   recommended values.
 
 ### Changed
+
+- **The default session backend records the cast itself.** `pexpect` (new
+  default) spawns the child directly and writes the asciinema v2 cast from the
+  PTY output it is already reading. The `asciinema` CLI is no longer required
+  to run TermProof, and has moved out of the base dependencies into a
+  `termproof[record]` extra. The previous behaviour is still available as the
+  `pexpect_asciinema` backend, for when the cast has to be one asciinema itself
+  wrote — install the extra and set `session_backend: pexpect_asciinema`.
+  `asciinema` was never imported, only shelled out to, and it was the one
+  dependency most likely to be missing in a vendored or offline environment.
+- **Step-screenshot dedup compares the rendered grid, not the screen text.**
+  Two consecutive steps whose screens differed only in colour compared equal, so
+  the second reused the first's image — and a colour change is frequently the
+  whole signal. Dedup now fingerprints the attributed grid the screenshot is
+  rendered from. For screens with no escapes the fingerprint is a function of
+  the text alone, so behaviour is unchanged there.
+- **One SVG renderer instead of two.** `screen.render_svg` was a second copy of
+  `builtin_renderers.SvgRenderer`, with a comment saying the two had to be kept
+  in step. It is now a wrapper over the renderer.
+- **The rendered corpus under `examples/artifacts/` is regenerated.** All 146
+  checked-in SVGs differ, because the markup shape changed from one `<text>` per
+  line to one per cell. No session was re-recorded — the `session.cast` files
+  are untouched and the only input that changed is the renderer. A recorded run
+  of `examples/colorstress` joins the corpus as the entry that can catch a
+  regression back to monochrome; every other recipe drives a monochrome TUI.
+
 - **`wait_for_idle` no longer treats a session that has produced no output as
   idle.** The stable window is armed by the first byte the session emits, so a
   session that has emitted nothing at all can no longer have its blank initial
@@ -41,6 +130,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   idle`. Once armed, quiescence is still measured on rendered screen text
   alone, so terminal-title ticks, colour-only animation and idempotent repaints
   go idle exactly as before.
+
+### Fixed
+
+- **The `tmux` backend recorded casts with every carriage return stripped.** The
+  `pipe-pane` fifo was read in Python's default text mode, whose universal-newline
+  translation rewrites `\r\n` to `\n` and a bare `\r` to `\n`. Nothing looked
+  missing — every glyph and every escape sequence was recorded — but replaying
+  the cast never returned the cursor to column 0, so `final.svg` and `final.txt`
+  came out as a diagonal staircase and `\r`-redrawn progress lines were lost.
+- **`attributed_rsvg` now names what to install when a tool is missing.** It
+  reported which of `rsvg-convert` / `ffmpeg` it could not find but not what to
+  do about it, unlike `png_rsvg`, which already named the alternative.
+- **`attributed_rsvg` holds the closing frame.** `evidence.video.last_frame_duration`
+  reached `agg_ffmpeg` but not this backend, so the final screen — the state the
+  run ended in — occupied a single frame, 42ms at 24fps. It is now held for 3.0s
+  by default, matching agg. A frame identical to the one before it is written by
+  copying the rendered PNG rather than rasterizing again, so the hold, and any
+  idle stretch, costs disk instead of rasterizer calls.
 
 ### Removed
 

@@ -29,7 +29,7 @@ class PluginsCliTest(unittest.TestCase):
         self.assertIn("steps\twait_for_text\ttermproof.builtin_steps:WaitForText", text)
         self.assertIn("assertions\tjson_schema\ttermproof.builtin_assertions:JsonSchema", text)
         self.assertIn(
-            "session_backend\tactive\ttermproof.builtin_session:PexpectAsciinemaBackend",
+            "session_backend\tactive\ttermproof.builtin_session:PexpectBackend",
             text,
         )
 

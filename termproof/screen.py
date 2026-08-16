@@ -1,15 +1,15 @@
 from __future__ import annotations
 
-import html
 import json
 from pathlib import Path
 
 import pyte
 
+from .attributed import AttributedScreen, attributed_screen_from_pyte
 from .config import SvgRenderConfig
 
 
-def replay_cast(cast_path: Path) -> tuple[str, int, int]:
+def _replay(cast_path: Path) -> tuple[pyte.Screen, int, int]:
     with cast_path.open(encoding="utf-8") as file:
         header = json.loads(file.readline())
         cols = int(header.get("width", 100))
@@ -20,7 +20,32 @@ def replay_cast(cast_path: Path) -> tuple[str, int, int]:
             event = json.loads(line)
             if len(event) >= 3 and event[1] == "o":
                 stream.feed(event[2])
+    return screen, cols, rows
+
+
+def replay_cast(cast_path: Path) -> tuple[str, int, int]:
+    screen, cols, rows = _replay(cast_path)
     return screen_text(screen), cols, rows
+
+
+def replay_cast_attributed(cast_path: Path) -> tuple[AttributedScreen, int, int]:
+    """Replay a cast and return the final screen with its attributes intact.
+
+    The text-only :func:`replay_cast` discards colour, which is most of what a
+    TUI uses to say what state it is in.
+    """
+    screen, cols, rows = _replay(cast_path)
+    return screen_attributed(screen), cols, rows
+
+
+def replay_cast_both(cast_path: Path) -> tuple[str, AttributedScreen, int, int]:
+    """Replay once, returning the text and the attributed grid together.
+
+    Two replays of the same cast cannot disagree, but they do cost twice as
+    much, and a caller that wants both wants them from the same final state.
+    """
+    screen, cols, rows = _replay(cast_path)
+    return screen_text(screen), screen_attributed(screen), cols, rows
 
 
 def screen_text(screen: pyte.Screen) -> str:
@@ -28,6 +53,11 @@ def screen_text(screen: pyte.Screen) -> str:
     while lines and not lines[-1]:
         lines.pop()
     return "\n".join(lines)
+
+
+def screen_attributed(screen: pyte.Screen) -> AttributedScreen:
+    """Read *screen* as an attributed grid, colour and styles included."""
+    return attributed_screen_from_pyte(screen)
 
 
 def render_svg(
@@ -39,22 +69,9 @@ def render_svg(
 ) -> None:
     """Render a screen to SVG.
 
-    Deliberately duplicates ``builtin_renderers.SvgRenderer``; the two must be
-    kept in step until the duplicate is removed in a separate structural change.
+    Thin wrapper over :class:`~termproof.builtin_renderers.SvgRenderer`. There
+    is one renderer behind both entry points, not two copies to keep in step.
     """
-    config = config or SvgRenderConfig()
-    width = max(320, cols * config.char_width + config.padding * 2)
-    height = max(160, rows * config.line_height + config.padding * 2)
-    visible_lines = text.splitlines()[:rows] or [""]
-    output_path.parent.mkdir(parents=True, exist_ok=True)
+    from .builtin_renderers import SvgRenderer
 
-    parts = [
-        f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">',
-        f'<rect width="100%" height="100%" fill="{config.bg}"/>',
-        f'<style>text{{font:{config.font_size}px {config.font_family};fill:{config.fg};white-space:pre}}</style>',
-    ]
-    for index, line in enumerate(visible_lines):
-        y = config.padding + config.line_height * (index + 1)
-        parts.append(f'<text x="{config.padding}" y="{y}">{html.escape(line)}</text>')
-    parts.append("</svg>")
-    output_path.write_text("\n".join(parts) + "\n", encoding="utf-8")
+    SvgRenderer(config).render(text, output_path, cols, rows)

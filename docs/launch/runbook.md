@@ -61,7 +61,7 @@ Tone: concise, evidence-driven, no marketing fluff, show `session.cast` → repl
 
 Example reply template:
 
-> Good Q — TermProof records the real PTY via asciinema (source of truth) then replays to `final.svg`, per-step screenshots, MP4 via agg+ffmpeg, and `report.md`. So reviewers inspect `termproof-ci-evidence` artifact, not just logs. Your [Textual/Bubble Tea/Ratatui/Ink] app would be:
+> Good Q — TermProof records the real PTY to an asciinema-format cast (source of truth) then replays to `final.svg`, per-step screenshots, MP4 via agg+ffmpeg, and `report.md`. So reviewers inspect `termproof-ci-evidence` artifact, not just logs. Your [Textual/Bubble Tea/Ratatui/Ink] app would be:
 > ```json
 > { recipe snippet }
 > ```

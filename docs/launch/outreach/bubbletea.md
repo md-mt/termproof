@@ -13,7 +13,7 @@
 
 ## Short Template
 
-> I built TermProof (like Cypress for terminal apps) — JSON recipes drive your TUI in real PTY, record asciinema casts, replay to SVG screenshots + MP4 + Markdown report. Complements VHS for CI evidence. 60s demo: `termproof run examples/generic --video` → `session.mp4`. Repo https://github.com/md-mt/termproof. Happy to draft a recipe for a Bubble Tea example + GH Action. MIT.
+> I built TermProof (like Cypress for terminal apps) — JSON recipes drive your TUI in real PTY, record asciinema-format casts, replay to SVG screenshots + MP4 + Markdown report. Complements VHS for CI evidence. 60s demo: `termproof run examples/generic --video` → `session.mp4`. Repo https://github.com/md-mt/termproof. Happy to draft a recipe for a Bubble Tea example + GH Action. MIT.
 
 ## Long-form Version
 

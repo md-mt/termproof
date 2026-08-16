@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>TermProof — evidence-first TUI verification</title>
-<meta name="description" content="TermProof records real terminal sessions with asciinema, replays into screenshots and MP4, and writes Markdown + JSON reports.">
+<meta name="description" content="TermProof records real terminal sessions to asciinema-format casts, replays them into screenshots and MP4, and writes Markdown + JSON reports.">
 <link rel="stylesheet" href="assets/style.css">
 </head>
 <body>
@@ -24,7 +24,7 @@
 <main>
   <section class="hero">
     <h1>Don't trust the log.<br><span>Ship the proof.</span></h1>
-    <p>TermProof is an evidence-first harness for terminal and TUI apps. It drives your TUI from JSON recipes, records the real PTY with asciinema, replays the cast into SVGs and MP4s, and writes reviewable reports. Pi agent workflows are the flagship showcase.</p>
+    <p>TermProof is an evidence-first harness for terminal and TUI apps. It drives your TUI from JSON recipes, records the real PTY to an asciinema-format cast, replays it into SVGs and MP4s, and writes reviewable reports. Pi agent workflows are the flagship showcase.</p>
     <div class="badges">
       <img alt="CI" src="https://github.com/md-mt/termproof/actions/workflows/ci.yml/badge.svg">
       <img alt="Verified by TermProof" src="https://img.shields.io/badge/verified%20by-TermProof-0a7a2e?style=flat-square">
@@ -39,8 +39,8 @@
   <section>
     <h2>What is it?</h2>
     <div class="card-grid">
-      <div class="card"><h3>Recipe → PTY → Cast</h3><p>JSON recipes describe how to drive your TUI. The runner spawns a real pexpect PTY — not a mock — and <code>asciinema</code> records the session. The cast is the source of truth.</p></div>
-      <div class="card"><h3>Screenshots + Video</h3><p>Every step writes a screenshot and text snapshot. With <code>--video</code>, agg + ffmpeg render a 60-fps MP4 from the same cast. Same recording, multiple renderers.</p></div>
+      <div class="card"><h3>Recipe → PTY → Cast</h3><p>JSON recipes describe how to drive your TUI. The runner spawns a real pexpect PTY — not a mock — and writes the session out in asciinema v2 format itself; the <code>asciinema</code> CLI is optional, behind <code>termproof[record]</code>. The cast is the source of truth.</p></div>
+      <div class="card"><h3>Screenshots + Video</h3><p>Every step writes a screenshot and text snapshot. <code>final.svg</code> is rendered in colour from the terminal grid; the per-step images are rendered from plain text. With <code>--video</code>, agg + ffmpeg render a 60-fps MP4 from the same cast.</p></div>
       <div class="card"><h3>Reports + PR Comments</h3><p><code>latest-report.md</code> embeds assertion tables and evidence links. CI posts a sticky comment on every PR and uploads <code>termproof-ci-evidence</code>.</p></div>
     </div>
   </section>

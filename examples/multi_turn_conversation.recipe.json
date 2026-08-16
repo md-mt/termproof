@@ -6,7 +6,7 @@
   "determinism": "deterministic",
   "checks": [
     "multi-turn conversation renders",
-    "asciinema evidence is recorded",
+    "asciinema-format cast evidence is recorded",
     "video contains multiple terminal states"
   ],
   "renderers": {
