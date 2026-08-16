@@ -23,5 +23,19 @@ second assertion fails if this entry ever renders monochrome. Every other recipe
 in the corpus drives a monochrome TUI, so without this one a renderer that
 discarded every attribute would still pass the whole suite.
 
+## Before and after
+
+Both files are the same recorded session — `examples/artifacts/colour-stress/session.cast`
+— replayed through the two renderers:
+
+| | File | Distinct fill colours |
+| --- | --- | --- |
+| 0.2.x, one `<text>` per line | [`before-monochrome.svg`](before-monochrome.svg) | 1 |
+| 0.3.0, one `<text>` per cell | [`../artifacts/colour-stress/final.svg`](../artifacts/colour-stress/final.svg) | 400 |
+
+`before-monochrome.svg` is kept only as that comparison. It is not part of the
+corpus and no test renders it; regenerating it means replaying the same cast
+through the 0.2.x `screen.render_svg`.
+
 Do not simplify this pack to a plain TUI. See
 [docs/evidence-quality.md](../../docs/evidence-quality.md).
