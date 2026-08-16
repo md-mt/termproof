@@ -19,7 +19,6 @@ classifiers = [
   "Topic :: Software Development :: Testing",
 ]
 dependencies = [
-  "asciinema>=2.4.0",
   "imageio-ffmpeg>=0.6.0",
   "jsonschema>=4.0",
   "pexpect>=4.9.0",
@@ -27,6 +26,14 @@ dependencies = [
   "pyte>=0.8.2",
   "pyyaml>=6.0",
 ]
+
+# `asciinema` is a CLI, never imported. The default session backend records the
+# cast itself, so it is only needed by `PexpectAsciinemaBackend`. Keeping it out
+# of the base install matters for consumers that vendor their dependencies —
+# every one of the six above is commonly already present, and this was the only
+# package termproof would have introduced from scratch.
+[project.optional-dependencies]
+record = ["asciinema>=2.4.0"]
 
 [project.urls]
 Homepage = "https://github.com/md-mt/termproof"

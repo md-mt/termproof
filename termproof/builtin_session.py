@@ -8,8 +8,14 @@ from .protocols import SessionBackend as SessionBackend
 from .session import TerminalSession
 
 
-class PexpectAsciinemaBackend:
-    """pexpect + asciinema backend (current behavior)."""
+class PexpectBackend:
+    """pexpect backend that records the cast itself.
+
+    Spawns the child directly and writes the ``.cast`` from the pty output it
+    is already reading, so no external recorder is involved.
+    """
+
+    name = "pexpect"
 
     def create_session(
         self,
@@ -20,7 +26,28 @@ class PexpectAsciinemaBackend:
         cols: int,
         rows: int,
     ) -> TerminalSession:
-        return TerminalSession(argv, cast_path, cwd, env, cols, rows)
+        return TerminalSession(argv, cast_path, cwd, env, cols, rows, recorder="internal")
+
+
+class PexpectAsciinemaBackend:
+    """pexpect backend that delegates recording to the ``asciinema`` CLI.
+
+    Needs asciinema on PATH — ``pip install 'termproof[record]'``. Use it when
+    the cast has to be one asciinema itself wrote.
+    """
+
+    name = "pexpect_asciinema"
+
+    def create_session(
+        self,
+        argv: list[str],
+        cast_path: Path,
+        cwd: str | None,
+        env: dict[str, str],
+        cols: int,
+        rows: int,
+    ) -> TerminalSession:
+        return TerminalSession(argv, cast_path, cwd, env, cols, rows, recorder="asciinema")
 
 
 class DockerSessionBackend:

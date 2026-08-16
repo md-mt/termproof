@@ -9,7 +9,15 @@ from pathlib import Path
 import pexpect
 import pyte
 
+from .cast import CastRecorder
 from .screen import screen_text
+
+#: How a session produces its ``.cast`` file.
+#:
+#: ``"internal"`` records the pty itself — no external binary, and the child is
+#: spawned directly. ``"asciinema"`` wraps the child in ``asciinema rec``, which
+#: needs the CLI installed but produces a file that tool wrote.
+RECORDERS = ("internal", "asciinema")
 
 KEYS = {
     "enter": "\r",
@@ -32,8 +40,12 @@ class TerminalSession:
         env: dict[str, str],
         cols: int,
         rows: int,
+        recorder: str = "internal",
     ) -> None:
+        if recorder not in RECORDERS:
+            raise ValueError(f"unknown recorder {recorder!r}; expected one of {RECORDERS}")
         self.argv = argv
+        self.recorder = recorder
         self.cast_path = cast_path
         self.exit_code_path = cast_path.with_suffix(".exitcode")
         self.cwd = cwd
@@ -49,18 +61,24 @@ class TerminalSession:
         merged_env.update(env)
         self.child: pexpect.spawn | None = None
         self._env = merged_env
+        self._cast: CastRecorder | None = None
 
     def __enter__(self) -> TerminalSession:
         self.cast_path.parent.mkdir(parents=True, exist_ok=True)
         self.cast_path.unlink(missing_ok=True)
         self.exit_code_path.unlink(missing_ok=True)
-        command = asciinema_rec_command(
-            self.argv,
-            self.cast_path,
-            self.exit_code_path,
-            self.cols,
-            self.rows,
-        )
+        if self.recorder == "asciinema":
+            command = asciinema_rec_command(
+                self.argv,
+                self.cast_path,
+                self.exit_code_path,
+                self.cols,
+                self.rows,
+            )
+        else:
+            command = shell_recorded_command(self.argv, self.exit_code_path)
+            self._cast = CastRecorder(self.cast_path, self.cols, self.rows, self.argv)
+            self._cast.__enter__()
         self.child = pexpect.spawn(
             command[0],
             command[1:],
@@ -80,6 +98,8 @@ class TerminalSession:
         return screen_text(self._screen)
 
     def send_text(self, text: str) -> None:
+        if self._cast is not None:
+            self._cast.input(text)
         self._require_child().send(text)
 
     def send_line(self, text: str) -> None:
@@ -163,6 +183,8 @@ class TerminalSession:
                 return
             self.raw_output += chunk
             self._stream.feed(chunk)
+            if self._cast is not None:
+                self._cast.output(chunk)
             timeout = 0
 
     def is_alive(self) -> bool:
@@ -178,6 +200,9 @@ class TerminalSession:
             if not self.child.closed and self.child.isalive():
                 self.child.close(force=True)
             self._collect_exit_code()
+            if self._cast is not None:
+                self._cast.__exit__()
+                self._cast = None
 
     def _collect_exit_code(self) -> int | None:
         child = self._require_child()
@@ -230,6 +255,16 @@ def asciinema_rec_command(
         recorded_command(argv, exit_code_path),
         str(cast_path),
     ]
+
+
+def shell_recorded_command(argv: list[str], exit_code_path: Path) -> list[str]:
+    """argv wrapped in a shell that records the child's exit status.
+
+    The status has to reach a file: the shell is what pexpect reaps, so the
+    child's own code would otherwise be lost.
+    """
+    shell = shutil.which("sh") or "/bin/sh"
+    return [shell, "-c", recorded_command(argv, exit_code_path)]
 
 
 def recorded_command(argv: list[str], exit_code_path: Path) -> str:

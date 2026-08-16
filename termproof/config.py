@@ -56,7 +56,7 @@ BUILTIN_DEFAULTS: dict[str, Any] = {
         "agg_ffmpeg": "termproof.builtin_video:AggFfmpegBackend",
         "attributed_rsvg": "termproof.cast_video:RsvgFfmpegBackend",
     },
-    "session_backend": "termproof.builtin_session:PexpectAsciinemaBackend",
+    "session_backend": "termproof.builtin_session:PexpectBackend",
     "docker": {
         "image": "",
         "workdir": "/workspace",

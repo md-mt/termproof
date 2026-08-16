@@ -9,6 +9,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **An attributed screen model, and colour in every rendered artifact.**
+  `termproof.attributed` keeps a per-cell grid — foreground and background,
+  bold, dim, italic, underline, strikethrough, reverse, and double-width
+  handling — instead of a flat string. The SVG renderer emits one `<text>` per
+  cell positioned at `x = col * cell_w`, so column alignment no longer depends
+  on whichever font the viewer resolves, and a red error no longer renders
+  identically to ordinary prose. A grid can be read from a live `pyte.Screen`
+  (`screen.screen_attributed`), from a recorded cast
+  (`screen.replay_cast_attributed`), or parsed out of text that still carries
+  SGR escapes. Canvas geometry is unchanged: for the default 80x24 the old and
+  new formulas both give 756x516.
+- **`png_rsvg`, a PNG renderer that rasterizes the attributed SVG.** Unlike the
+  Pillow-based `png` renderer it keeps colour and styling, and it cannot drift
+  from the `svg` output because it renders the same document. Needs
+  `rsvg-convert`; `png` remains the default. Every external call goes through a
+  `ToolRunner` seam, so a host with its own subprocess policy can supply one.
+- **`attributed_rsvg`, a video backend that renders frames from the same
+  attributed grid.** A video frame and a screenshot of the same moment are then
+  the same image. Slower than `agg_ffmpeg` — one rasterizer call per frame —
+  and encodes `yuv444p` rather than `yuv420p`, because 4:2:0 chroma subsampling
+  smears the edges of coloured text. `agg_ffmpeg` remains the default.
+- **`asciinema` is now an optional extra, `termproof[record]`.** See Changed.
 - **An `evidence:` block in `.termproof/config.yaml`.** The SVG and PNG
   renderers and the video pipeline no longer hardcode their rendering
   parameters: `evidence.svg` (character width, line height, padding, font size
@@ -29,6 +51,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   recommended values.
 
 ### Changed
+
+- **The default session backend records the cast itself.** `pexpect` (new
+  default) spawns the child directly and writes the asciinema v2 cast from the
+  PTY output it is already reading. The `asciinema` CLI is no longer required
+  to run TermProof, and has moved out of the base dependencies into a
+  `termproof[record]` extra. The previous behaviour is still available as the
+  `pexpect_asciinema` backend, for when the cast has to be one asciinema itself
+  wrote — install the extra and set `session_backend: pexpect_asciinema`.
+  `asciinema` was never imported, only shelled out to, and it was the one
+  dependency most likely to be missing in a vendored or offline environment.
+- **Step-screenshot dedup compares the rendered grid, not the screen text.**
+  Two consecutive steps whose screens differed only in colour compared equal, so
+  the second reused the first's image — and a colour change is frequently the
+  whole signal. Dedup now fingerprints the attributed grid the screenshot is
+  rendered from. For screens with no escapes the fingerprint is a function of
+  the text alone, so behaviour is unchanged there.
+- **One SVG renderer instead of two.** `screen.render_svg` was a second copy of
+  `builtin_renderers.SvgRenderer`, with a comment saying the two had to be kept
+  in step. It is now a wrapper over the renderer.
+
 - **`wait_for_idle` no longer treats a session that has produced no output as
   idle.** The stable window is armed by the first byte the session emits, so a
   session that has emitted nothing at all can no longer have its blank initial
