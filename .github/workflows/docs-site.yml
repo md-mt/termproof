@@ -1,4 +1,4 @@
-name: Documentation Site
+name: Docs site
 
 on:
   pull_request:

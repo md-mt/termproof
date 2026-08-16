@@ -30,7 +30,7 @@
 # of the same name could be defined, it does not move the one that exists.
 #
 # See docs/publishing.md.
-name: Publish Rust crates
+name: Publish crates (Rust)
 
 on:
   release:
@@ -46,7 +46,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: publish-crates-${{ github.ref }}
+  group: rust-publish-crates-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:

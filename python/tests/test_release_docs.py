@@ -99,8 +99,14 @@ class ReleaseDocsTest(unittest.TestCase):
 
     def test_release_workflow_retains_trusted_publisher_claims(self) -> None:
         workflow = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
-        self.assertEqual("write", workflow["permissions"]["id-token"])
-        self.assertEqual("pypi", workflow["jobs"]["release"]["environment"])
+        release = workflow["jobs"]["release"]
+        # `id-token: write` is PyPI trusted publishing and `contents: write`
+        # creates the GitHub release. Both sit on the job rather than the
+        # workflow, matching Release (Rust); the workflow default is read.
+        self.assertEqual("read", workflow["permissions"]["contents"])
+        self.assertEqual("write", release["permissions"]["id-token"])
+        self.assertEqual("write", release["permissions"]["contents"])
+        self.assertEqual("pypi", release["environment"])
 
     def test_smoke_install_script_exists_and_is_executable(self) -> None:
         script = ROOT / "scripts" / "smoke-install.sh"

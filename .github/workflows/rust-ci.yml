@@ -1,4 +1,4 @@
-name: Rust
+name: CI (Rust)
 
 on:
   pull_request:
@@ -19,9 +19,15 @@ on:
 permissions:
   contents: read
 
+# Matches CI (Python): supersede a pull request's earlier runs, never a run on
+# `main`.
+concurrency:
+  group: rust-ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   rust:
-    name: fmt, clippy, test (Rust ${{ matrix.os }})
+    name: Lint, type-check and test (${{ matrix.os }})
     strategy:
       fail-fast: false
       matrix:

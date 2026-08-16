@@ -1,3 +1,17 @@
+# Builds the Python implementation's container image and publishes it to
+# GitHub's registry at ghcr.io/<owner>/termproof.
+#
+# Its Rust sibling (rust-docker-image.yml) publishes a *different* image, from
+# a different context, with a different base and a different binary inside —
+# two images is the intent, not duplication to be collapsed. What the two do
+# share is the tag scheme (branch, tag, `sha-` prefix, `latest` only on the
+# default branch), the credential (the built-in GITHUB_TOKEN with
+# `packages: write`, nothing to rotate), the concurrency shape and the GHA
+# build cache, and those are written the same way in both files.
+#
+# The one thing they deliberately do not share: the Rust image is smoke-tested
+# by running a real recipe inside the freshly built image before anything is
+# pushed. This one is not. See #170.
 name: Docker Image (Python)
 
 on:
@@ -17,12 +31,18 @@ on:
 
 permissions:
   contents: read
-  packages: write
+
+concurrency:
+  group: python-docker-image-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   docker:
-    name: Build TermProof image
+    name: Build and publish the image
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
 
     steps:
       - name: Check out repository
@@ -58,3 +78,5 @@ jobs:
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

@@ -334,11 +334,14 @@ workspace README in the same change.
   reaches the registry that has not passed that run.
 - **Windows is not supported.** The tested matrix is Linux x86-64, macOS
   x86-64 and macOS arm64 (build-only for arm64). Windows is documented as
-  unverified in the README and gets no badge and no claim until a real
-  Windows job with working PTY behaviour passes CI. This is a deliberate
+  unverified in the repository README and gets no badge and no claim until a
+  real Windows job with working PTY behaviour passes CI. This is a deliberate
   scope decision (spec §3), not an oversight.
 - **Stable job names.** The checks a repository ruleset requires are named
-  explicitly and stably in every workflow (`fmt, clippy, test (Rust
-  ubuntu-latest)`, `cargo deny (advisories, licenses, bans, sources)`, …). A
+  explicitly and stably in every workflow (`Lint, type-check and test
+  (ubuntu-latest)`, `Dependency and licence policy (cargo deny)`, …). A
   ruleset entry that names a job by a name that changes between runs would
-  silently stop gating, so workflow job names are part of the contract.
+  silently stop gating, so workflow job names are part of the contract, and
+  `governance.md` §5 is the list — for both implementations, since a ruleset
+  on `main` is one list rather than one per language. Renaming a job means
+  editing that table in the same PR.

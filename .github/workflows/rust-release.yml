@@ -47,6 +47,12 @@ on:
 permissions:
   contents: read
 
+# Matches Release (Python): one at a time per ref, never cancelled — a run
+# killed between the build and the attach leaves a release with no binaries.
+concurrency:
+  group: rust-release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   build:
     name: Build ${{ matrix.target }}
