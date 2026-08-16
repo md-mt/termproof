@@ -217,12 +217,25 @@ class RsvgFfmpegBackendTest(unittest.TestCase):
         self._backend().render(self.cast, out, 4)
         self.assertTrue(out.parent.is_dir())
 
-    def test_a_missing_tool_names_itself(self) -> None:
+    def test_a_missing_tool_names_itself_and_the_alternative(self) -> None:
         backend = self._backend(rsvg_path=None)
         with mock.patch("shutil.which", return_value=None):
             with self.assertRaises(RuntimeError) as raised:
                 backend.render(self.cast, self.tmp / "out.mp4", 4)
-        self.assertIn("rsvg-convert", str(raised.exception))
+        message = str(raised.exception)
+        self.assertIn("rsvg-convert", message)
+        self.assertIn("librsvg", message)
+        self.assertIn("agg_ffmpeg", message)
+
+    def test_a_missing_ffmpeg_names_itself_and_the_alternative(self) -> None:
+        """The second tool must be as diagnosable as the first."""
+        backend = self._backend(ffmpeg_path=None)
+        with mock.patch("shutil.which", return_value=None):
+            with self.assertRaises(RuntimeError) as raised:
+                backend.render(self.cast, self.tmp / "out.mp4", 4)
+        message = str(raised.exception)
+        self.assertIn("ffmpeg", message)
+        self.assertIn("agg_ffmpeg", message)
 
     def test_a_rasterizer_failure_propagates(self) -> None:
         def failing(executable: str, args: list[str], timeout: int) -> None:

@@ -29,6 +29,10 @@ from .rsvg import DEFAULT_TIMEOUT_SECONDS, RSVG_CONVERT, ToolRunner, run_tool
 FFMPEG = "ffmpeg"
 FFMPEG_TIMEOUT_SECONDS = 300
 
+# What to install for each tool, so a missing-tool error is actionable rather
+# than only descriptive.
+_PACKAGE_FOR_TOOL = {RSVG_CONVERT: "librsvg", FFMPEG: "ffmpeg"}
+
 # A cast records wall-clock time, so a session that sat idle for two minutes
 # would spend two minutes of video on an unchanging screen. Clamping each gap
 # keeps the pacing watchable without dropping any state the terminal passed
@@ -157,7 +161,8 @@ class RsvgFfmpegBackend:
         resolved = shutil.which(tool)
         if resolved is None:
             raise RuntimeError(
-                f"{tool} is required by the {self.name!r} video backend but was not found on PATH."
+                f"{tool} is required by the {self.name!r} video backend but was not found on PATH. "
+                f"Install {_PACKAGE_FOR_TOOL[tool]}, or use the default 'agg_ffmpeg' video backend."
             )
         return resolved
 
