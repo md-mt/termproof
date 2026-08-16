@@ -21,9 +21,12 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 
-# Modules whose only imports are stdlib, paired with the tests that cover them.
+# Modules whose only imports are stdlib, in dependency order, paired with the
+# tests that cover them. `config` imports yaml behind a try/except, so it counts.
 STDLIB_ONLY = {
     "termproof.attributed": "tests/test_attributed.py",
+    "termproof.config": None,
+    "termproof.rsvg": "tests/test_rsvg.py",
 }
 
 
@@ -47,6 +50,8 @@ def main() -> int:
     suite = unittest.TestSuite()
     for module_name, test_path in STDLIB_ONLY.items():
         _load(module_name, ROOT / (module_name.replace(".", "/") + ".py"))
+        if test_path is None:
+            continue
         test_module = _load(Path(test_path).stem, ROOT / test_path)
         suite.addTests(unittest.defaultTestLoader.loadTestsFromModule(test_module))
 

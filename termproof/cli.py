@@ -41,7 +41,7 @@ def main(argv: list[str] | None = None) -> int:
     run_parser.add_argument("--xml-path", type=Path, default=None,
                             help="write JUnit XML report to this path (implies --reporter junit_xml)")
     run_parser.add_argument("--screen-renderer", default="svg",
-                            help="screen renderer to use (default: svg)")
+                            help="screen renderer to use (default: svg, also: png, png_rsvg)")
     run_parser.add_argument("--video-backend", default="agg_ffmpeg",
                             help="video backend to use (default: agg_ffmpeg)")
     run_parser.add_argument("--diff", action="store_true",
@@ -99,7 +99,7 @@ def main(argv: list[str] | None = None) -> int:
     demo_parser.add_argument("--xml-path", type=Path, default=None,
                              help="additional path to write JUnit XML report")
     demo_parser.add_argument("--screen-renderer", default="svg",
-                             help="screen renderer (default: svg)")
+                             help="screen renderer (default: svg, also: png, png_rsvg)")
     demo_parser.add_argument("--video-backend", default="agg_ffmpeg",
                              help="video backend (default: agg_ffmpeg)")
     args = parser.parse_args(argv)

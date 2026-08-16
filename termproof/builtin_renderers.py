@@ -4,31 +4,9 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
-from .attributed import (
-    AttributedScreen,
-    SvgStyle,
-    attributed_screen_from_ansi_text,
-    screen_svg,
-)
+from .attributed import AttributedScreen, attributed_screen_from_ansi_text, screen_svg
 from .config import EvidenceConfig, PngRenderConfig, SvgRenderConfig
 from .protocols import ScreenRenderer as ScreenRenderer
-
-
-def svg_style(config: SvgRenderConfig, cols: int, rows: int) -> SvgStyle:
-    """Map the configured SVG geometry onto an :class:`SvgStyle`."""
-    return SvgStyle(
-        columns=cols,
-        rows=rows,
-        cell_w=float(config.char_width),
-        cell_h=float(config.line_height),
-        font_px=config.font_size,
-        padding=config.padding,
-        font_family=config.font_family,
-        fg=config.fg,
-        bg=config.bg,
-        min_width=320,
-        min_height=160,
-    )
 
 
 class SvgRenderer:
@@ -73,7 +51,7 @@ class SvgRenderer:
         """Render an already-attributed grid, keeping every attribute."""
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_text(
-            screen_svg(screen, svg_style(self.config, cols, rows)) + "\n",
+            screen_svg(screen, self.config.style(cols, rows)) + "\n",
             encoding="utf-8",
         )
 
