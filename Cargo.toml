@@ -17,7 +17,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.3.2"
+version = "0.3.3"
 edition = "2021"
 rust-version = "1.96"
 license = "MIT"
@@ -59,7 +59,7 @@ all = "warn"
 # dependency floors` step in .github/workflows/rust.yml runs the suite at each
 # floor, so a floor that stops being true fails CI rather than rotting quietly.
 [workspace.dependencies]
-termproof = { path = "crates/termproof", version = "0.3.2" }
+termproof = { path = "crates/termproof", version = "0.3.3" }
 regex = { version = "1.13.1", default-features = false, features = ["std", "unicode"] }
 # Floor 0.16, tested at 0.16.2. `jsonschema` 0.33 asks for `^0.16` itself, so a
 # caret on 0.19 put two copies of a backtracking regex engine in the graph of
@@ -187,4 +187,4 @@ avt = "0.16"
 chrono = "0.4"
 globset = "0.4"
 clap = { version = "4.5", features = ["derive"] }
-termproof-plugin-protocol = { path = "crates/termproof-plugin-protocol", version = "0.3.2" }
+termproof-plugin-protocol = { path = "crates/termproof-plugin-protocol", version = "0.3.3" }
