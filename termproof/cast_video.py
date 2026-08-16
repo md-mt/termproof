@@ -6,8 +6,11 @@ screenshots use, rasterizes each frame with ``rsvg-convert``, and stitches them
 with ``ffmpeg``. A frame of the video and a screenshot of the same moment are
 then the same image, which matters when a reviewer is comparing them.
 
-The cost is one rasterizer call per frame, so this is slower than ``agg``. It
-buys consistency and needs no Rust toolchain or bundled binary.
+The cost is one rasterizer call per *distinct* frame, so this is slower than
+``agg``. It buys consistency and needs no Rust toolchain or bundled binary. A
+frame identical to the one before it is written by copying the rendered PNG,
+which matters because an idle session and the closing hold are both long runs
+of a single unchanging screen.
 
 Needs ``rsvg-convert`` and ``ffmpeg`` on PATH.
 """
@@ -42,6 +45,12 @@ DEFAULT_IDLE_TIME_LIMIT = 1.0
 # 2 fps sampled a 30s session 59 times and missed every transient state. 24 is
 # the lowest rate at which the reference recording reads correctly.
 DEFAULT_FPS = 24
+
+# How long to hold the closing screen. The last frame is the state the run ended
+# in, which is the one a reviewer opened the video for; at 24fps a single frame
+# shows it for 42ms. Matches agg's own `--last-frame-duration` default, so the
+# two video backends end a recording the same way.
+DEFAULT_LAST_FRAME_DURATION = 3.0
 
 
 class ScreenReplay(Protocol):
@@ -96,6 +105,7 @@ def frames_from_cast(
     *,
     fps: int = DEFAULT_FPS,
     idle_time_limit: float = DEFAULT_IDLE_TIME_LIMIT,
+    last_frame_duration: float = DEFAULT_LAST_FRAME_DURATION,
     columns: int = 100,
     rows: int = 30,
     replay_factory: ReplayFactory = _pyte_replay,
@@ -103,7 +113,8 @@ def frames_from_cast(
     """Sample the replayed session at *fps*, clamping idle gaps.
 
     The final screen is always the last frame, so a recording never ends on a
-    state the session had already left.
+    state the session had already left, and it is repeated for
+    *last_frame_duration* seconds so it can actually be read.
     """
     header, events = read_cast(cast_path)
     replay = replay_factory(int(header.get("width", columns)), int(header.get("height", rows)))
@@ -125,6 +136,15 @@ def frames_from_cast(
     final = replay.snapshot()
     if not frames or frames[-1] != final:
         frames.append(final)
+
+    # Hold the closing screen. Only the frames already at the tail count towards
+    # the hold; an identical screen from earlier in the session is a different
+    # moment. `render` writes the repeats by copying the rendered PNG, so this
+    # costs disk rather than one rasterizer call per frame.
+    held = 0
+    while held < len(frames) and frames[-1 - held] == final:
+        held += 1
+    frames.extend([final] * (max(1, round(last_frame_duration * fps)) - held))
     return frames
 
 
@@ -138,6 +158,7 @@ class RsvgFfmpegBackend:
     svg: SvgRenderConfig | None = None
     video: VideoConfig | None = None
     idle_time_limit: float = DEFAULT_IDLE_TIME_LIMIT
+    last_frame_duration: float = DEFAULT_LAST_FRAME_DURATION
     rsvg_path: str | None = None
     ffmpeg_path: str | None = None
     runner: ToolRunner = run_tool
@@ -152,6 +173,11 @@ class RsvgFfmpegBackend:
                 DEFAULT_IDLE_TIME_LIMIT
                 if evidence.video.idle_time_limit is None
                 else evidence.video.idle_time_limit
+            ),
+            last_frame_duration=(
+                DEFAULT_LAST_FRAME_DURATION
+                if evidence.video.last_frame_duration is None
+                else evidence.video.last_frame_duration
             ),
         )
 
@@ -205,6 +231,7 @@ class RsvgFfmpegBackend:
             cast_path,
             fps=fps,
             idle_time_limit=self.idle_time_limit,
+            last_frame_duration=self.last_frame_duration,
             replay_factory=self.replay_factory,
         )
         if not frames:
@@ -215,15 +242,23 @@ class RsvgFfmpegBackend:
         style = svg_config.style(columns, rows)
         with tempfile.TemporaryDirectory(prefix="termproof-frames-") as tmpdir:
             scratch = Path(tmpdir)
+            previous: tuple[AttributedScreen, Path] | None = None
             for index, frame in enumerate(frames):
-                svg_path = scratch / f"frame-{index:05d}.svg"
                 png_path = scratch / f"frame-{index:05d}.png"
+                # ffmpeg needs a contiguous sequence, so a repeated screen still
+                # needs its own file -- but not its own rasterizer call. An idle
+                # session and the closing hold are both long runs of one screen.
+                if previous is not None and previous[0] == frame:
+                    shutil.copyfile(previous[1], png_path)
+                    continue
+                svg_path = scratch / f"frame-{index:05d}.svg"
                 svg_path.write_text(screen_svg(frame, style), encoding="utf-8")
                 self.runner(
                     rsvg,
                     ["--output", str(png_path), str(svg_path)],
                     DEFAULT_TIMEOUT_SECONDS,
                 )
+                previous = (frame, png_path)
             self.runner(
                 ffmpeg,
                 self.ffmpeg_args(str(scratch / "frame-%05d.png"), output_path, fps),
@@ -234,6 +269,7 @@ class RsvgFfmpegBackend:
 __all__ = [
     "DEFAULT_FPS",
     "DEFAULT_IDLE_TIME_LIMIT",
+    "DEFAULT_LAST_FRAME_DURATION",
     "FFMPEG",
     "ReplayFactory",
     "RsvgFfmpegBackend",

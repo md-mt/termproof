@@ -96,6 +96,13 @@ class FrameTimingTest(unittest.TestCase):
         self.cast = Path(self._tmp.name) / "s.cast"
 
     def _frames(self, events: list[tuple[float, str]], **kwargs: object) -> list[AttributedScreen]:
+        """Frames with no closing hold, so counts here are the sampling alone.
+
+        The hold is a fixed tail; leaving it on would add a constant to every
+        expected count in this class and obscure what each case is measuring.
+        `test_the_final_frame_is_held_rather_than_flashed` covers it.
+        """
+        kwargs.setdefault("last_frame_duration", 0.0)
         _write_cast(self.cast, events)
         return frames_from_cast(self.cast, replay_factory=_fake_factory, **kwargs)  # type: ignore[arg-type]
 
@@ -130,6 +137,25 @@ class FrameTimingTest(unittest.TestCase):
 
     def test_a_cast_with_no_output_still_yields_one_frame(self) -> None:
         self.assertEqual(1, len(self._frames([], fps=24)))
+
+    def test_the_final_frame_is_held_rather_than_flashed(self) -> None:
+        """The last frame is the one a reviewer opened the video for.
+
+        Without a hold it occupies a single frame -- 42ms at 24fps -- so the
+        state the run ended in is gone before it can be read. `agg_ffmpeg` gets
+        this from agg's own `--last-frame-duration`, which this backend was
+        ignoring.
+        """
+        frames = self._frames([(0.0, "a"), (0.5, "b")], fps=4, last_frame_duration=2.0)
+        self.assertEqual(8, sum(1 for frame in frames if frame == frames[-1]))
+
+    def test_a_screen_repeated_earlier_does_not_shorten_the_hold(self) -> None:
+        """Only the tail counts: an identical screen mid-session is another moment."""
+        frames = self._frames([(0.0, "a"), (5.0, "")], fps=2, last_frame_duration=1.0)
+        tail = 0
+        while tail < len(frames) and frames[-1 - tail] == frames[-1]:
+            tail += 1
+        self.assertGreaterEqual(tail, 2)
 
     def test_grid_size_comes_from_the_cast_header(self) -> None:
         _write_cast(self.cast, [(0.0, "x")], width=132, height=50)
@@ -216,6 +242,42 @@ class RsvgFfmpegBackendTest(unittest.TestCase):
         out = self.tmp / "nested" / "out.mp4"
         self._backend().render(self.cast, out, 4)
         self.assertTrue(out.parent.is_dir())
+
+    def test_the_hold_does_not_re_rasterize_the_same_frame(self) -> None:
+        """A 3s hold at 24fps is 72 identical frames; rasterizing each is waste."""
+        present: list[str] = []
+
+        def runner(executable: str, args: list[str], timeout: int) -> None:
+            if executable == "/fake/ffmpeg":
+                # The scratch directory is deleted on return, so the encoder's
+                # view of it has to be captured while it still exists.
+                present.extend(
+                    sorted(p.name for p in Path(args[args.index("-i") + 1]).parent.glob("*.png"))
+                )
+                return
+            self.runner(executable, args, timeout)
+
+        expected = frames_from_cast(
+            self.cast, fps=4, last_frame_duration=2.0, replay_factory=_fake_factory
+        )
+        self._backend(last_frame_duration=2.0, runner=runner).render(
+            self.cast, self.tmp / "out.mp4", 4
+        )
+        # Every frame the encoder needs exists, contiguously numbered...
+        self.assertEqual(len(expected), len(present))
+        self.assertEqual(
+            [f"frame-{i:05d}.png" for i in range(len(expected))], present
+        )
+        # ...but the held frame was rasterized once, not once per repeat.
+        self.assertLess(len(self.runner.calls), len(expected))
+
+    def test_a_configured_last_frame_duration_is_honoured(self) -> None:
+        from termproof.config import EvidenceConfig
+
+        backend = RsvgFfmpegBackend.from_config(
+            EvidenceConfig(video=VideoConfig(last_frame_duration=5.0))
+        )
+        self.assertEqual(5.0, backend.last_frame_duration)
 
     def test_a_missing_tool_names_itself_and_the_alternative(self) -> None:
         backend = self._backend(rsvg_path=None)
