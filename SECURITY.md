@@ -57,7 +57,7 @@ list is here rather than split across two policies.
 | Distribution | Published today | A fix reaches consumers by |
 | --- | --- | --- |
 | `termproof` on PyPI | no — gated behind the `ENABLE_PYPI` repository variable | a new `py-v*` release, once the gate is on |
-| `termproof` crate on crates.io | yes, through `0.3.2` (`0.2.1`, `0.3.0`, `0.3.1`, `0.3.2`, all unyanked) | a new `rs-v*` release |
+| `termproof` crate on crates.io | yes, through `0.3.3` (`0.2.1`, `0.3.0`, `0.3.1`, `0.3.2`, `0.3.3`, all unyanked) | a new `rs-v*` release |
 | `termproof-cli`, `termproof-plugin-protocol` crates | no — held back with `publish = false` | source, or a release binary |
 | Rust CLI binaries | attached to each `rs-v*` GitHub release | re-download |
 | `ghcr.io/md-mt/termproof`, `ghcr.io/md-mt/termproof-rust` | on every push to `main` and every release tag | re-pull |
