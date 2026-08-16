@@ -5,6 +5,13 @@ bold, reverse video. This module keeps a per-cell grid so a screenshot looks
 like what the operator saw, and so two screens that differ only in colour
 compare as different.
 
+Which artifacts actually get that today: ``final.svg`` and the
+``attributed_rsvg`` video, both built from a grid. Per-step screenshots are
+rendered from ``StepResult.screen``, which is already flattened, so they are
+monochrome. Dim is carried by :func:`attributed_screen_from_ansi_text` but not
+by :func:`attributed_screen_from_pyte`, because pyte models no dim attribute.
+See ``docs/evidence-quality.md``.
+
 Depends on the standard library alone; :func:`attributed_screen_from_pyte`
 reads a ``pyte.Screen`` structurally rather than importing it.
 """

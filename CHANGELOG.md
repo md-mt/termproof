@@ -45,10 +45,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `rsvg-convert`; `png` remains the default. Every external call goes through a
   `ToolRunner` seam, so a host with its own subprocess policy can supply one.
 - **`attributed_rsvg`, a video backend that renders frames from the same
-  attributed grid.** A video frame and a screenshot of the same moment are then
-  the same image. Slower than `agg_ffmpeg` — one rasterizer call per frame —
-  and encodes `yuv444p` rather than `yuv420p`, because 4:2:0 chroma subsampling
-  smears the edges of coloured text. `agg_ffmpeg` remains the default.
+  attributed grid `final.svg` uses.** A video frame and the final screenshot of
+  the same moment are then the same image. Not the per-step screenshots, which
+  are still rendered from plain text. Slower than `agg_ffmpeg` — one rasterizer
+  call per *distinct* frame — and encodes `yuv444p` rather than `yuv420p`,
+  because 4:2:0 chroma subsampling smears the edges of coloured text.
+  `agg_ffmpeg` remains the default.
 - **A `tmux` session backend.** A pty is a byte pipe, so the pty backend has to
   reconstruct the screen with `pyte` — accurate, but a second emulator's opinion
   of what the first would have shown, and most likely to diverge for programs

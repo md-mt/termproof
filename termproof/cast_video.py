@@ -1,10 +1,14 @@
 """MP4 recordings rendered frame by frame from the attributed grid.
 
 ``AggFfmpegBackend`` shells out to ``agg``, which draws the terminal its own
-way. This backend replays the cast into the same attributed screen the
-screenshots use, rasterizes each frame with ``rsvg-convert``, and stitches them
-with ``ffmpeg``. A frame of the video and a screenshot of the same moment are
-then the same image, which matters when a reviewer is comparing them.
+way. This backend replays the cast into the same attributed screen ``final.svg``
+is rendered from, rasterizes each frame with ``rsvg-convert``, and stitches them
+with ``ffmpeg``. A frame of the video and the *final* screenshot of the same
+moment are then the same image, which matters when a reviewer is comparing them.
+
+That correspondence does not extend to the per-step screenshots under
+``steps/``: those are rendered from ``StepResult.screen``, which is already
+flattened to plain text, so they are monochrome. See ``docs/evidence-quality.md``.
 
 The cost is one rasterizer call per *distinct* frame, so this is slower than
 ``agg``. It buys consistency and needs no Rust toolchain or bundled binary. A
