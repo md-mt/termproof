@@ -156,25 +156,37 @@ same trap.
 
 ## Tag format
 
-**`v<version>` — `v0.3.2`, not `0.3.2`.** A tag in any other form fails the
-release before anything is uploaded.
+**`rs-v<version>` — `rs-v0.3.4`, not `v0.3.4` and not `0.3.4`.** A tag in any
+other form fails the release before anything is uploaded.
 
-Both forms are common in the wild, so this is a choice rather than a rule.
-`v`-prefixed wins because `.github/workflows/rust-release.yml` already triggers
-on `v*.*.*` to build the binaries. Accepting a bare `0.2.1` as well would allow
-a tag that publishes the crates but never builds the binaries — a release that
-is half-done and looks complete. One format, and it is the one already in use.
+The prefix is what keeps the two release paths apart in one repository. The
+Python package releases on `py-v<version>`; the Rust workspace releases on
+`rs-v<version>`. `.github/workflows/rust-release.yml` triggers on `rs-v*.*.*`
+to build the binaries and `rust-publish-crates.yml` refuses any release whose
+tag does not start `rs-v`, so an unprefixed tag would publish nothing and build
+nothing.
 
-The check is exact string equality against `v$VERSION`, where `$VERSION` comes
-from `cargo metadata`. So `v0.3.2` against a workspace at `0.3.2` passes;
-`0.3.2`, `V0.3.2`, `v0.3.2-rc1` and `v0.4.0` all fail with a message naming
-both values.
+Unprefixed `v<version>` tags exist in the history. They predate the
+consolidation — releases through `v0.3.3` were cut from the separate Rust
+repository, and this repository's own `v*` tags are Python releases from before
+the prefixes existed. They are history, not a format to reuse.
+
+The check is exact string equality against `rs-v$VERSION`, where `$VERSION`
+comes from `cargo metadata`. So `rs-v0.3.4` against a workspace at `0.3.4`
+passes; `0.3.4`, `v0.3.4`, `RS-V0.3.4`, `rs-v0.3.4-rc1` and `rs-v0.4.0` all
+fail with a message naming both values.
 
 ## Version-bump rule
 
-- **One version for the whole workspace.** All three crates inherit `version`
-  from `[workspace.package]` and are released together at the same number. The
-  plan script refuses to run if they ever disagree.
+- **One version for the whole workspace, and one shared with the Python
+  implementation.** All three crates inherit `version` from
+  `[workspace.package]` and are released together at the same number; the plan
+  script refuses to run if they ever disagree. That number is also
+  `python/pyproject.toml`'s: the two implementations share a version train, and
+  `python/scripts/check_version.py` fails CI when the two manifests or the root
+  `CHANGELOG.md` drift apart. `.github/scripts/rust/version-bump.py` moves all
+  three together, and the auto-release workflow re-runs the check before it
+  tags.
 - Bump `version` in the root `Cargo.toml` **and** the `version` on each
   internal dependency in `[workspace.dependencies]` in the same commit. These
   must never drift: the `path` is what a local build uses and the `version` is
@@ -188,8 +200,10 @@ both values.
 
 The workflow enforces the mechanical items; these are the ones it cannot.
 
-- [ ] The version bump and `Cargo.lock` are committed and on `main`.
-- [ ] The tag is `v<version>` and points at that commit.
+- [ ] The version bump and `Cargo.lock` are committed and on `main`, together
+      with the matching `python/pyproject.toml` bump and root `CHANGELOG.md`
+      heading — `python/scripts/check_version.py` is the check.
+- [ ] The tag is `rs-v<version>` and points at that commit.
 - [ ] `cargo package --list -p <crate>` for each publishable crate — read it,
       do not skim it. Anything large, generated, or repository-only does not
       belong in a tarball. PR CI does this check mechanically via
@@ -237,10 +251,11 @@ file is copied into each crate directory; keep the copies in sync with the root
 - `.github/workflows/rust-publish-crates.yml` — the only thing that uploads to a
   registry.
 - `.github/workflows/rust-release.yml` — builds and attests the `termproof`
-  binary for tagged releases. It does not publish to crates.io. It has run
-  successfully on every tag from `v0.2.1` through `v0.3.2`, attaching the
-  per-platform archives and checksums; its header notes the remaining
-  caveats. Since PR4, each archive is smoke-tested before upload
+  binary for tagged releases. It does not publish to crates.io. It ran
+  successfully on every tag from `v0.2.1` through `v0.3.3` in the separate Rust
+  repository this workspace came from, attaching the per-platform archives and
+  checksums; it has not yet run on an `rs-v*` tag here, because none has been
+  cut. Its header notes the remaining caveats. Since PR4, each archive is smoke-tested before upload
   (`.github/scripts/rust/verify-release-archive.sh`: checksum, extraction, and
   `termproof --version` matching the workspace version), and the attestation
   subject is verified against the archive digest.

@@ -178,6 +178,27 @@ jobs:
           fi
           echo "RELEASE_TOKEN is present"
 
+      # No `rs-v*` tag is reachable from `main`, so `release-decide.py` reports
+      # `first_release: true` and would release the version already in the
+      # manifest, unbumped, with notes enumerating the whole history. That was
+      # the right behaviour when this workflow lived in a repository with no
+      # releases; here, `0.3.3` is already published to crates.io and already
+      # has a GitHub release under the pre-consolidation `v0.3.3` tag, so the
+      # run would produce a duplicate.
+      #
+      # The intended fix is a baseline tag, which the script already supports:
+      # `rs-baseline-v<version>` on the commit the count should start from
+      # (TERMPROOF_RUST_BASELINE_TAG_PREFIX). Until one exists, a scheduled run
+      # stops here rather than releasing. A human who really does want the
+      # first release can still dispatch this workflow with `force`.
+      - name: Refuse an accidental first release
+        if: steps.decide.outputs.first_release == 'true' && !inputs.force
+        env:
+          VERSION: ${{ steps.decide.outputs.version }}
+        run: |
+          echo "::error::no rs-v* or rs-baseline-v* tag is reachable, so this run would release '$VERSION' unbumped with whole-history notes. Tag the baseline first — 'git tag rs-baseline-v$VERSION <commit> && git push origin rs-baseline-v$VERSION' — or dispatch this workflow with force if a first release really is intended."
+          exit 1
+
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: steps.decide.outputs.release == 'true'
         with:
@@ -252,9 +273,24 @@ jobs:
             exit 1
           fi
 
-      - name: Bump the workspace version
+      # Moves `rust/Cargo.toml`, `Cargo.lock`, `python/pyproject.toml` and the
+      # root `CHANGELOG.md` together. Bumping the Rust manifest alone would
+      # push a `main` that fails the repository's own version-train check,
+      # after the release had already gone out.
+      - name: Bump the version train
         if: needs.decide.outputs.first_release != 'true'
         run: .github/scripts/rust/version-bump.py "${{ needs.decide.outputs.version }}"
+
+      # The bump and the proof are two different failure modes: an edit that
+      # silently matched nothing leaves the train split just as surely as no
+      # edit at all. This is the same check CI (Python) runs on every pull
+      # request, run here where a failure costs a failed run rather than a
+      # published release. It runs on the first-release path too, where nothing
+      # was bumped, because a drift that predates this run is no better.
+      # `check_version.py` imports only the standard library, so the runner's
+      # python3 is enough — this job installs no Python toolchain.
+      - name: Verify the version train
+        run: python3 python/scripts/check_version.py
 
       # Exactly the check publish-crates.yml makes on `release: published`,
       # made here instead — where a mismatch costs a failed run rather than a
