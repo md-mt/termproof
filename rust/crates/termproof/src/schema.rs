@@ -68,40 +68,46 @@ pub fn generate_recipe_schema() -> serde_json::Value {
 /// The canonical recipe schema's path, relative to this crate's directory.
 ///
 /// The schema is owned by the Python implementation and both implementations
-/// now live in one repository, so it is three levels up from
-/// `rust/crates/termproof`. Resolved from `CARGO_MANIFEST_DIR` rather than the
-/// working directory, so it does not depend on where a test or a binary was
-/// invoked from. In a published tarball the join lands on a path that does not
-/// exist, which is the correct answer for a consumer: the schema is not
-/// vendored into the crate.
+/// live in one repository, so it is three levels up from
+/// `rust/crates/termproof`.
 const CANONICAL_SCHEMA_FROM_MANIFEST: &str = "../../../python/docs/recipe-schema-v1.json";
+
+/// Load the canonical recipe schema relative to a crate directory.
+///
+/// Split out from [`load_canonical_schema`] so the published-crate case is
+/// directly testable: a registry checkout is just a different `manifest_dir`,
+/// one that does not have the repository above it.
+fn load_canonical_schema_from(manifest_dir: &std::path::Path) -> Option<serde_json::Value> {
+    let path = manifest_dir.join(CANONICAL_SCHEMA_FROM_MANIFEST);
+    let content = std::fs::read_to_string(path).ok()?;
+    serde_json::from_str(&content).ok()
+}
 
 /// Load the canonical recipe schema, or `None` when it is not reachable.
 ///
 /// This is the seam the parity gate will compare `generate_recipe_schema()`
 /// against. Reaching the file is the precondition; agreeing with it is the
 /// gate, and that is still open work.
+///
+/// Resolved **only** from `CARGO_MANIFEST_DIR`, never from the working
+/// directory. That is a correctness property, not a tidiness one. This
+/// function had a `docs/recipe-schema-v1.json` cwd fallback, and in a
+/// published crate — where the manifest-relative path lands in the registry
+/// checkout and misses — it would have read whatever file of that name
+/// happened to sit in the consumer's working directory and returned it as the
+/// canonical TermProof schema. A wrong schema presented as canonical is worse
+/// than no schema, so the answer for a consumer is `None`, which is what the
+/// crate not vendoring the file means.
 #[allow(dead_code)]
 pub fn load_canonical_schema() -> Option<serde_json::Value> {
-    let from_manifest =
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(CANONICAL_SCHEMA_FROM_MANIFEST);
-    let candidates = [
-        from_manifest.as_path(),
-        // cwd = repository root
-        std::path::Path::new("python/docs/recipe-schema-v1.json"),
-        // cwd = the Python tree
-        std::path::Path::new("docs/recipe-schema-v1.json"),
-    ];
-    for candidate in candidates {
-        if candidate.exists() {
-            if let Ok(content) = std::fs::read_to_string(candidate) {
-                if let Ok(val) = serde_json::from_str(&content) {
-                    return Some(val);
-                }
-            }
-        }
-    }
-    None
+    load_canonical_schema_from(std::path::Path::new(env!("CARGO_MANIFEST_DIR")))
+}
+
+/// The manifest-relative lookup, exposed for the test that proves a packaged
+/// crate cannot be tricked into reading a consumer's file.
+#[doc(hidden)]
+pub fn load_canonical_schema_from_dir(manifest_dir: &std::path::Path) -> Option<serde_json::Value> {
+    load_canonical_schema_from(manifest_dir)
 }
 
 #[cfg(test)]

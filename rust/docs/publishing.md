@@ -1,7 +1,7 @@
 # Publishing to crates.io
 
-`termproof` is published on crates.io, currently through **0.3.2** (`0.2.1`,
-`0.3.0`, `0.3.1`, `0.3.2`, all unyanked). `termproof-cli` and
+`termproof` is published on crates.io, currently through **0.3.3** (`0.2.1`,
+`0.3.0`, `0.3.1`, `0.3.2`, `0.3.3`, all unyanked). `termproof-cli` and
 `termproof-plugin-protocol` are **not** published — they carry
 `publish = false` on purpose. **crates.io never releases a name once it is
 taken, even after a yank**, so read [What publishes, and what does
@@ -14,7 +14,7 @@ One crate is in scope, and it is the only one that has ever been published:
 
 | Crate | Publishes | Why |
 |---|---|---|
-| `termproof` | yes — published through `0.3.2` | the whole library: recipe model, steps, assertions, orchestration, terminal sessions, evidence pipeline |
+| `termproof` | yes — published through `0.3.3` | the whole library: recipe model, steps, assertions, orchestration, terminal sessions, evidence pipeline |
 | `termproof-cli` | **held** | `publish = false` |
 | `termproof-plugin-protocol` | **held** | `publish = false` |
 
@@ -22,7 +22,7 @@ One crate is in scope, and it is the only one that has ever been published:
 serving a plugin ecosystem that does not exist yet, and its shape will move as
 the port approaches parity. `termproof-cli` is held for now as a deliberate
 choice about what the published surface commits to — the releases that have
-shipped (`0.2.1` through `0.3.2`) carried the library only.
+shipped (`0.2.1` through `0.3.3`) carried the library only.
 
 Both keep complete metadata. Lifting `publish = false` is the only change
 needed to publish either of them — the release automation derives its set from
@@ -59,7 +59,7 @@ topologically sorted over its internal dependencies — and prints:
 
 ```console
 $ .github/scripts/rust/publish-plan.py
-{"version": "0.3.2", "order": ["termproof"], "held": ["termproof-cli", "termproof-plugin-protocol"]}
+{"version": "0.3.3", "order": ["termproof"], "held": ["termproof-cli", "termproof-plugin-protocol"]}
 ```
 
 The derivation agrees with what the manifests say. It also refuses two states

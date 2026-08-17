@@ -46,11 +46,16 @@ class DocumentedTagFormatTest(unittest.TestCase):
     PY_DOCS = ROOT / "docs" / "releases.md"
     RS_DOCS = REPO_ROOT / "rust" / "docs" / "publishing.md"
 
-    #: A `v0.3.4` or `v<version>` that is not preceded by `py-` or `rs-`, on a
-    #: line that reads as an instruction rather than as history.
-    UNPREFIXED_TAG = re.compile(r"(?<![-\w])v(?:\d+\.\d+\.\d+|<version>)")
-    INSTRUCTION = re.compile(
-        r"\b(push|create|tag is|tag such as|use)\b", re.IGNORECASE
+    #: An unprefixed release tag: `v0.3.4`, `v<version>` or `v*`, not preceded
+    #: by `py-` or `rs-` and not part of a longer word.
+    UNPREFIXED_TAG = re.compile(r"(?<![-\w])v(?:\d+\.\d+\.\d+|<version>|\*)")
+
+    #: Words that mark a mention as historical or as a rejection rather than an
+    #: instruction. Deliberately small and explicit.
+    HISTORICAL = re.compile(
+        r"\bnot\b|\bnever\b|\bfail|histor|predate|obsolete|no longer"
+        r"|pre-consolidation|deprecat",
+        re.IGNORECASE,
     )
 
     def _push_tag_filters(self, path: Path) -> list[str]:
@@ -70,28 +75,41 @@ class DocumentedTagFormatTest(unittest.TestCase):
         self.assertIn("py-v<version>", self.PY_DOCS.read_text(encoding="utf-8"))
         self.assertIn("rs-v<version>", self.RS_DOCS.read_text(encoding="utf-8"))
 
-    def test_no_release_document_instructs_an_unprefixed_tag(self) -> None:
+    def test_every_unprefixed_tag_mention_is_marked_historical(self) -> None:
+        """Inverted, because the verb-list version was evadable.
+
+        The first attempt looked for an unprefixed tag near one of a handful of
+        verbs — push, create, tag is, use. "Cut `v0.9.9` for the next release."
+        sailed through it, and any verb list has that hole: the next reviewer
+        finds `ship`, `roll`, `mint`.
+
+        So the burden is inverted. *Every* unprefixed release tag in these two
+        documents must sit in a paragraph that marks it as history or as a
+        rejected form; anything else is read as an instruction and fails.
+        Paragraph rather than line, because a historical framing routinely
+        wraps across lines. Someone could still evade by writing "not" into the
+        same paragraph as an instruction, but that produces prose that
+        contradicts itself in one breath, which a reader catches.
+        """
         offenders = []
         for path in (self.PY_DOCS, self.RS_DOCS):
-            for lineno, line in enumerate(
-                path.read_text(encoding="utf-8").splitlines(), start=1
-            ):
-                if not self.UNPREFIXED_TAG.search(line):
+            relative = path.relative_to(REPO_ROOT).as_posix()
+            text = path.read_text(encoding="utf-8")
+            offset = 0
+            for paragraph in text.split("\n\n"):
+                line = text[:offset].count("\n") + 1
+                offset += len(paragraph) + 2
+                if not self.UNPREFIXED_TAG.search(paragraph):
                     continue
-                if not self.INSTRUCTION.search(line):
+                if self.HISTORICAL.search(paragraph):
                     continue
-                # "not `v0.3.4`", "must not be used", "predate", "history" —
-                # naming the wrong form in order to rule it out is the point.
-                if re.search(r"\bnot\b|history|predate|obsolete", line, re.I):
-                    continue
-                offenders.append(
-                    f"{path.relative_to(REPO_ROOT).as_posix()}:{lineno}: {line.strip()}"
-                )
+                offenders.append(f"{relative}:{line}: {paragraph.strip()[:120]}")
         self.assertEqual(
             [],
             offenders,
-            "release docs must prescribe `py-v*` / `rs-v*`; an unprefixed tag "
-            "triggers no workflow:\n" + "\n".join(offenders),
+            "an unprefixed tag triggers no workflow, so every mention of one "
+            "must be marked as history or as a rejected form:\n"
+            + "\n".join(offenders),
         )
 
 

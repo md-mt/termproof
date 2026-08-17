@@ -77,7 +77,7 @@ This repo publishes that folder as `termproof-ci-evidence` on every PR and as `t
 **What works today:**
 
 - Plugin registry: steps, assertions, session backends, video backends, reporters, execution modes — all in `.termproof/config.yaml`
-- Pi coding-agent showcase: deterministic recipes for multi-turn agent UI flows (checked-in under `examples/`)
+- Example recipe sets, all checked in under `examples/`: a portable TUI, a colour-stress renderer, a multi-turn conversation, and Pi coding-agent flows
 - Portable demo: `examples/generic/generic_tui.py` — run without any Pi binary or API key
 - GitHub Actions: `termproof-ci-evidence` artifact + sticky PR comment with `latest-report.md`
 

@@ -6,7 +6,7 @@ This directory is the source for the GitHub Pages demo at https://md-mt.github.i
 
 - `index.html` — landing: what, comparison, demo, 3-command quickstart, CI snippet, badge, community.
 - `getting-started.html` — install, scaffold, run, recipe anatomy, steps, assertions.
-- `evidence.html` — sample evidence structure, checked-in artifacts, generic + Pi showcase, CI evidence.
+- `evidence.html` — sample evidence structure, checked-in artifacts, the generic and agent-UI example sets, CI evidence.
 - `comparison.html` — why TermProof vs screenshots / expect / Playwright / VHS / asciinema.
 - `plugins.html` — community plugin directory (mirrors `docs/plugins.md` but rendered as HTML).
 - `assets/style.css` — minimal dark theme, no dependencies.

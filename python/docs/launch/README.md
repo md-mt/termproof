@@ -23,7 +23,7 @@ These URLs are referenced across outreach and social copy. Update after v0.2 rel
 - **Recipe packs:** `https://github.com/md-mt/termproof/blob/main/docs/recipe-packs.md`
 - **Releases:** `https://github.com/md-mt/termproof/blob/main/docs/releases.md`
 - **Generic demo recipe:** `https://github.com/md-mt/termproof/tree/main/examples/generic`
-- **Pi workflow showcase:** `https://github.com/md-mt/termproof/tree/main/examples` (recipes `pi_workflow_*.recipe.json`)
+- **Agent-UI example recipes:** `https://github.com/md-mt/termproof/tree/main/examples` (recipes `pi_workflow_*.recipe.json`) — one example set among several, not the headline
 - **60-second demo (local):** run `uv run termproof run examples/generic --video` then open `.termproof/runs/<id>/session.mp4` and `final.svg`
 - **Tracked evidence artifacts:** `https://github.com/md-mt/termproof/tree/main/examples/artifacts` — e.g. `pi-workflow-guarded-edit/session.mp4`, `latest-pi-workflows-report.md`
 - **CI evidence artifact:** `termproof-ci-evidence` attached to every PR and `main` push (`https://github.com/md-mt/termproof/actions/workflows/python-ci.yml`)

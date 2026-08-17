@@ -28,8 +28,9 @@ line.
 Product-agnostic by design: TermProof knows nothing about the program it
 drives beyond what a recipe says. The examples reflect that — a portable TUI
 that needs no external binary, a colour-stress renderer, a multi-turn
-conversation, and a set of Pi coding-agent recipes that happen to exercise
-agent-UI flows. None of them is the point; the recipe format is.
+conversation, and a set of Pi coding-agent recipes for agent-UI flows. Each
+covers a different shape of terminal program; none of them is the point, and
+the recipe format is.
 
 ## Quickstart
 

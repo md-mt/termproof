@@ -70,6 +70,19 @@ def _matrix_values(job: dict, key: str) -> list[str]:
     return values
 
 
+def _substitute(name: str, key: str, value: str) -> str:
+    """Replace `${{ matrix.<key> }}` with `value`, leaving other refs alone.
+
+    A named function rather than a closure: a lambda here would capture the
+    loop variables it reads rather than their values at definition time
+    (ruff B023), which is only correct by accident when the loop body runs
+    eagerly.
+    """
+    return MATRIX_REF.sub(
+        lambda m: value if m.group(1) == key else m.group(0), name
+    )
+
+
 def _check_names(job_id: str, job: dict) -> set[str]:
     """The check names GitHub reports for a job, matrix legs expanded."""
     template = job.get("name", job_id)
@@ -80,11 +93,7 @@ def _check_names(job_id: str, job: dict) -> set[str]:
     for ref in refs:
         values = _matrix_values(job, ref)
         names = {
-            MATRIX_REF.sub(
-                lambda m, v=value: v if m.group(1) == ref else m.group(0), name
-            )
-            for name in names
-            for value in values
+            _substitute(name, ref, value) for name in names for value in values
         }
     return names
 
