@@ -32,6 +32,69 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.3.4] — 2026-08-17
+
+One project, one version. The two repositories became one: the Rust
+implementation was consolidated into `md-mt/termproof`, the repository root
+became a front door for the project rather than for one implementation, the
+community-health documents converged onto a single set, and the CI, release,
+container and documentation pipelines were renamed so each says which
+implementation it serves. Both artifacts move on one version number from here.
+Two registries still mean two tags, `py-v` and `rs-v`, but one version and one
+entry.
+
+**The two implementations did not change by the same amount, and neither
+changed much.** The Python package's runtime code did not change at all; the
+Rust crate's changed in one function. Read the sections below rather than
+assuming a release this size moved both.
+
+### Python — Changed
+
+- **The package's runtime code did not change.** `python/termproof/` is
+  byte-identical to the previous release — same modules, same CLI, same
+  behaviour. What follows is payload that ships beside it in the sdist and the
+  wheel, not a reason to expect the tool to behave differently.
+- **The README that ships in the sdist is rewritten** as the Python
+  implementation's reference rather than the project's front door, which is
+  the repository README now. It points at the Rust implementation, carries the
+  renamed CI and release badges, and drops the star and fork counts.
+- **The examples are presented as a set rather than a flagship showcase.**
+  `examples/generic` is self-contained and needs no external binary, so it is
+  the starting point; the colour-stress example, the multi-turn conversation
+  and the `pi_workflow_*` recipes are listed beside it as different shapes of
+  terminal program. The recipes themselves are unchanged. TermProof knows
+  nothing about the program it drives beyond what a recipe says, and naming one
+  example the flagship read as though it did.
+- **The agent-driven test fixture names no organisation.** The fake agent in
+  `tests/test_agent_driven.py` emitted a transcript carrying a company's name.
+  Nothing asserts on that text — it only has to be a multi-line string that
+  echoes part of the prompt — and the file ships in the sdist, so the payload
+  is neutral now.
+- **The documentation that ships beside the package** — the release, Docker
+  and launch pages — describes the consolidated layout and the renamed
+  workflows.
+
+### Rust — Changed
+
+- **Almost nothing in the crate's source moved, and what did is one function.**
+  Four files under `crates/termproof/src/` differ from the previous release.
+  Three carry doc-comment corrections only — `assertions.rs`, `pyschema.rs` and
+  `terminal/session.rs`, which referred to a `harness/` directory since renamed
+  to `conformance/` and to a two-repository layout that no longer exists. The
+  fourth is `schema.rs`, and its change is described under *Rust — Fixed*
+  below. Everything else that moved for Rust is documentation, CI and packaging
+  metadata. A consumer upgrading for any reason other than
+  `load_canonical_schema` should expect no behavioural difference.
+- **cargo:** `repository`, `homepage` and `documentation` name
+  `md-mt/termproof`. They named the Rust-only repository, which no longer holds
+  the source, so the links on crates.io and docs.rs pointed at the wrong place.
+  This is the substantive reason to publish the crate again.
+- **cargo:** `tests/canonical_schema.rs` is excluded from the package. It reads
+  `python/docs/recipe-schema-v1.json`, which sits outside the crate, so
+  shipping it would put a test in the tarball that cannot pass from there.
+
 ### Rust — Fixed
 
 - **release:** the auto-release moves the whole version train. It bumped
@@ -43,6 +106,15 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
   `python/docs/recipe-schema-v1.json`. Its candidate paths described
   side-by-side checkouts from before the two implementations shared a
   repository, so it returned `None` everywhere.
+
+  **This is the one behavioural change a consumer of the published crate can
+  observe.** The path is resolved from `CARGO_MANIFEST_DIR` alone. One of the
+  old candidates was `docs/recipe-schema-v1.json` relative to the working
+  directory, so the function could read whatever file of that name happened to
+  sit in a consumer's tree and hand it back as TermProof's canonical schema.
+  The crate does not vendor the schema, so `None` is the correct answer from a
+  registry checkout, and `None` is what it returns. `load_canonical_schema_from_dir`
+  is new and doc-hidden; it exists so a test can prove the packaged case.
 
 ## [0.3.3] — 2026-08-16
 
