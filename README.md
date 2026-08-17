@@ -25,7 +25,7 @@ oracle; the Rust implementation is an in-progress port measured against it.
 | | [Python](python) | [Rust](rust) |
 | --- | --- | --- |
 | Status | shipped product, behavioural oracle | in progress, **not at parity** |
-| Use it when | you want the full evidence pipeline — screenshots, video, reports, PR comments | you want a single static binary, a library, or JUnit output |
+| Use it when | you want the full evidence pipeline — screenshots, video, reports, PR comments | you want a single prebuilt CLI binary, a library, or JUnit output |
 | Distribution | Homebrew, git, source ([not yet on PyPI](#what-is-published)) | [`termproof` on crates.io](https://crates.io/crates/termproof), CLI from a git tag |
 | Recipes | `*.recipe.json` | JSON **and** YAML |
 | Read first | [`python/README.md`](python/README.md) | [`rust/docs/status-and-parity.md`](rust/docs/status-and-parity.md) |
@@ -173,7 +173,9 @@ The `termproof-cli` binary is deliberately not published to crates.io — the
 name is a one-way door and the binary is not ready to spend one. It installs
 from a release tag, and prebuilt archives for Linux x86-64, macOS x86-64 and
 macOS arm64 are attached to each Rust release with a `.sha256` and a provenance
-attestation. Releases through 0.3.3 were cut before consolidation; from here
+attestation. They are ordinary dynamically-linked builds — `gnu` on Linux, not
+`musl` — so they are not static binaries and do not run on a distribution with
+an older glibc than the runner's. Releases through 0.3.3 were cut before consolidation; from here
 they are tagged `rs-v*` in this repository. See
 [releases](https://github.com/md-mt/termproof/releases).
 
