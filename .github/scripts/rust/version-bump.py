@@ -137,8 +137,12 @@ def rewrite_pyproject(text, old, new):
     return "".join(out), edits
 
 
-#: `## [Unreleased]`, however it is capitalised.
-UNRELEASED_HEADING = re.compile(r"^##\s*\[Unreleased\]\s*$", re.IGNORECASE | re.MULTILINE)
+#: `## [Unreleased]`, however it is capitalised. Horizontal whitespace only:
+#: `\s` matches a newline, and a greedy `\s*$` swallows the blank line after
+#: the heading, gluing the promoted heading to the first entry under it.
+UNRELEASED_HEADING = re.compile(
+    r"^##[ \t]*\[Unreleased\][ \t]*$", re.IGNORECASE | re.MULTILINE
+)
 
 FRESH_UNRELEASED = """## [Unreleased]
 

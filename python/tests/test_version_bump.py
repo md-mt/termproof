@@ -127,6 +127,27 @@ class ChangelogPromotionTest(unittest.TestCase):
         self.assertEqual(1, len(edits), edits)
         self.assertIn("## [0.3.4] — 2026-09-01", out)
 
+    def test_the_promoted_heading_is_followed_by_a_blank_line(self) -> None:
+        """A `\\s*$` in the heading pattern swallows the newline after it.
+
+        The result renders as `## [0.3.4] — date` glued to the first `###`
+        under it, which some renderers do not read as a heading at all. The
+        first version of this test only checked the heading string was
+        present, so it passed while the file it produced was malformed.
+        """
+        pending = CHANGELOG.replace("Nothing yet.", "### Rust — Fixed\n\n- a fix")
+        out, _ = version_bump.promote_changelog(pending, "0.3.4", "2026-09-01")
+        self.assertIn("## [0.3.4] — 2026-09-01\n\n### Rust — Fixed", out)
+
+    def test_the_real_changelog_promotes_with_the_same_spacing(self) -> None:
+        text = (REPO_ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+        out, _ = version_bump.promote_changelog(text, "9.9.9", "2026-01-01")
+        after = out.split("## [9.9.9] — 2026-01-01", 1)[1]
+        self.assertTrue(
+            after.startswith("\n\n"),
+            f"promoted heading is not followed by a blank line: {after[:40]!r}",
+        )
+
     def test_a_fresh_unreleased_section_is_left_for_the_next_change(self) -> None:
         out, _ = version_bump.promote_changelog(CHANGELOG, "0.3.4", "2026-09-01")
         self.assertEqual(1, out.count("## [Unreleased]"))
@@ -212,17 +233,107 @@ class ReleaseWorkflowVerifiesTheTrainTest(unittest.TestCase):
         check_at = self.text.index("python/scripts/check_version.py")
         self.assertLess(bump_at, check_at)
 
+    def _guard(self) -> str:
+        guard = re.search(
+            r"name: Refuse an accidental first release.*?\n\n", self.text, re.DOTALL
+        )
+        self.assertIsNotNone(guard, "no first-release guard step in the workflow")
+        return guard.group(0)
+
     def test_a_first_release_is_refused_unless_forced(self) -> None:
         """No `rs-v*` tag exists, so an unguarded scheduled run would cut a
         duplicate `rs-v0.3.3` with whole-history notes. The guard names the
         baseline tag to create instead."""
         self.assertIn("rs-baseline-v", self.text)
-        guard = re.search(
-            r"name: Refuse an accidental first release.*?\n\n", self.text, re.DOTALL
+        guard = self._guard()
+        self.assertIn("first_release == 'true'", guard)
+        self.assertIn("inputs.force", guard)
+
+    def test_the_guard_does_not_fail_a_quiet_week_or_a_dry_run(self) -> None:
+        """`first_release` is true whenever no baseline tag exists — including
+        on a week that decided not to release, and on a dry run.
+
+        A guard keyed on `first_release` alone turns every quiet Monday red,
+        which is precisely what this workflow's "a quiet week is a success"
+        design exists to avoid, and breaks the dry run that the header calls
+        the safe way to ask what would happen. It has to be scoped the way the
+        RELEASE_TOKEN precondition beside it is.
+        """
+        guard = self._guard()
+        self.assertIn("release == 'true'", guard)
+        self.assertIn("!inputs.dry_run", guard)
+
+    def test_the_guard_is_scoped_like_the_token_precondition(self) -> None:
+        token = re.search(
+            r"name: Require a token that can trigger.*?\n\n", self.text, re.DOTALL
         )
-        self.assertIsNotNone(guard, "no first-release guard step in the workflow")
-        self.assertIn("first_release == 'true'", guard.group(0))
-        self.assertIn("inputs.force", guard.group(0))
+        self.assertIsNotNone(token)
+        for condition in ("release == 'true'", "!inputs.dry_run"):
+            self.assertIn(condition, token.group(0))
+            self.assertIn(condition, self._guard())
+
+
+class WorkflowContractsAreTriggeredTest(unittest.TestCase):
+    """This suite asserts on workflow files; CI must run when they change.
+
+    `test_release_docs.py` reads the tag filters out of both release workflows
+    and the crates publish guard, this file reads `version-bump.py` and the
+    auto-release workflow, `test_ci_evidence.py` and `test_docs_pages.py` read
+    others. All of that is dead weight if editing the file under test does not
+    run the test: the filter stopped at `python/**` plus this workflow itself,
+    so eight of the nine guarded paths triggered nothing.
+    """
+
+    CI = REPO_ROOT / ".github" / "workflows" / "python-ci.yml"
+
+    def _paths(self) -> list[str]:
+        import yaml
+
+        workflow = yaml.safe_load(self.CI.read_text(encoding="utf-8"))
+        pull_request = workflow[True]["pull_request"]["paths"]
+        push = workflow[True]["push"]["paths"]
+        self.assertEqual(
+            pull_request, push, "the two trigger lists must stay identical"
+        )
+        return pull_request
+
+    def test_workflow_and_script_changes_run_this_suite(self) -> None:
+        paths = self._paths()
+        self.assertIn(".github/workflows/**", paths)
+        self.assertIn(".github/scripts/**", paths)
+
+    def test_every_github_path_this_suite_reads_is_covered(self) -> None:
+        """Derived rather than listed, so a new guard cannot fall outside."""
+        paths = self._paths()
+        referenced = set()
+        for source in sorted((ROOT / "tests").glob("*.py")):
+            text = source.read_text(encoding="utf-8")
+            for match in re.finditer(r'"(\.github/[^"]+)"', text):
+                referenced.add(match.group(1))
+            for match in re.finditer(r'"workflows"\s*/\s*"([^"]+)"', text):
+                referenced.add(f".github/workflows/{match.group(1)}")
+            for match in re.finditer(
+                r'"scripts"\s*/\s*"rust"\s*/\s*"([^"]+)"', text
+            ):
+                referenced.add(f".github/scripts/rust/{match.group(1)}")
+        # Drop the f-string templates this scan finds in its own source.
+        referenced = {name for name in referenced if "{" not in name}
+        self.assertTrue(referenced, "expected this suite to read some .github paths")
+        uncovered = [
+            name
+            for name in sorted(referenced)
+            if not any(
+                name == pattern
+                or (pattern.endswith("/**") and name.startswith(pattern[:-2]))
+                for pattern in paths
+            )
+        ]
+        self.assertEqual(
+            [],
+            uncovered,
+            "these .github paths are asserted on by the Python suite but do not "
+            "trigger it:\n" + "\n".join(uncovered),
+        )
 
 
 if __name__ == "__main__":

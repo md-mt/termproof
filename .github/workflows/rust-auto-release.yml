@@ -191,8 +191,17 @@ jobs:
       # (TERMPROOF_RUST_BASELINE_TAG_PREFIX). Until one exists, a scheduled run
       # stops here rather than releasing. A human who really does want the
       # first release can still dispatch this workflow with `force`.
+      #
+      # Scoped exactly like the RELEASE_TOKEN precondition above, and for the
+      # same two reasons: a quiet week decides `release: false` and must stay
+      # green (that is this workflow's whole design), and a dry run is
+      # documented as the safe way to ask what would happen — the one thing
+      # someone reaches for while setting the baseline tag up.
       - name: Refuse an accidental first release
-        if: steps.decide.outputs.first_release == 'true' && !inputs.force
+        if: >-
+          steps.decide.outputs.release == 'true' &&
+          steps.decide.outputs.first_release == 'true' &&
+          !inputs.dry_run && !inputs.force
         env:
           VERSION: ${{ steps.decide.outputs.version }}
         run: |

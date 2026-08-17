@@ -8,6 +8,15 @@ name: CI (Python)
 # lived under `python/` and were covered by the `python/**` filter; at the root
 # they matched nothing, so a PR touching only them ran no workflow at all.
 #
+# `.github/workflows/**` and `.github/scripts/**` are here for the same reason
+# one step further out: this suite is where the workflow contracts are
+# asserted. `test_release_docs.py` reads the tag filters out of both release
+# workflows and the crates publish guard, `test_version_bump.py` reads
+# `version-bump.py` and the auto-release workflow, `test_ci_evidence.py` reads
+# this file and the Python release workflow, and `test_docs_pages.py` and
+# `test_docs_site.py` read the Pages and docs-site workflows. Eight of the nine
+# were outside this filter, so editing one ran nothing that reads it.
+#
 # The two lists are identical and written out twice: GitHub Actions does not
 # expand YAML anchors, so an alias here would be read as a literal string and
 # match nothing.
@@ -24,7 +33,8 @@ on:
       - "SECURITY.md"
       - "SUPPORT.md"
       - "rust/Cargo.toml"
-      - ".github/workflows/python-ci.yml"
+      - ".github/workflows/**"
+      - ".github/scripts/**"
   push:
     branches:
       - main
@@ -39,7 +49,8 @@ on:
       - "SECURITY.md"
       - "SUPPORT.md"
       - "rust/Cargo.toml"
-      - ".github/workflows/python-ci.yml"
+      - ".github/workflows/**"
+      - ".github/scripts/**"
 
 defaults:
   run:
