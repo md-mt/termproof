@@ -195,6 +195,14 @@ fail with a message naming both values.
 - Pre-1.0, treat a breaking change to any public API as a minor bump (`0.2.x` →
   `0.3.0`) and everything else as a patch bump.
 - Run `cargo update -w` after the bump so `Cargo.lock` matches, and commit it.
+- **After the publish**, move the "published through" claims onto the new
+  number. They are statements about crates.io, not about the manifest, so they
+  are correctly one release behind between the bump and the upload.
+  `python/tests/test_current_version_claims.py` sweeps every surface that makes
+  one — prose, workflow comments, Dockerfile headers — and fails when two of
+  them disagree, so a run of it names each place that has to move. It compares
+  the surfaces to each other rather than to the manifest, precisely so a bump
+  does not fail on its own.
 
 ## Before you cut a release
 
