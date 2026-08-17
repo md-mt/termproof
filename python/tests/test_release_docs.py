@@ -25,6 +25,76 @@ def _documented_release_command() -> list[str]:
     raise AssertionError("no `termproof run` command in the Local Release Check block")
 
 
+class DocumentedTagFormatTest(unittest.TestCase):
+    """The tag format the docs prescribe must be the one the workflows accept.
+
+    The consolidation prefixed the two release paths — `py-v*` for the Python
+    package, `rs-v*` for the Rust workspace — and both release documents went
+    on telling maintainers to push an unprefixed `v<version>`. A tag in that
+    form triggers nothing: `python-release.yml` and `rust-release.yml` filter
+    on the prefixes and `rust-publish-crates.yml` refuses a release whose tag
+    does not start `rs-v`. Nothing connected the prose to the filters, so the
+    drift was invisible until someone cut a release.
+
+    Unprefixed tags still appear in both documents as history. What this test
+    forbids is an *instruction* to use one.
+    """
+
+    PY_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "python-release.yml"
+    RS_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "rust-release.yml"
+    PUBLISH_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "rust-publish-crates.yml"
+    PY_DOCS = ROOT / "docs" / "releases.md"
+    RS_DOCS = REPO_ROOT / "rust" / "docs" / "publishing.md"
+
+    #: A `v0.3.4` or `v<version>` that is not preceded by `py-` or `rs-`, on a
+    #: line that reads as an instruction rather than as history.
+    UNPREFIXED_TAG = re.compile(r"(?<![-\w])v(?:\d+\.\d+\.\d+|<version>)")
+    INSTRUCTION = re.compile(
+        r"\b(push|create|tag is|tag such as|use)\b", re.IGNORECASE
+    )
+
+    def _push_tag_filters(self, path: Path) -> list[str]:
+        workflow = yaml.safe_load(path.read_text(encoding="utf-8"))
+        return workflow[True]["push"]["tags"]
+
+    def test_the_two_release_workflows_filter_on_distinct_prefixes(self) -> None:
+        self.assertEqual(["py-v*.*.*"], self._push_tag_filters(self.PY_WORKFLOW))
+        self.assertEqual(["rs-v*.*.*"], self._push_tag_filters(self.RS_WORKFLOW))
+
+    def test_the_crates_publish_guard_matches_the_rust_prefix(self) -> None:
+        text = self.PUBLISH_WORKFLOW.read_text(encoding="utf-8")
+        self.assertIn("startsWith(github.event.release.tag_name, 'rs-v')", text)
+        self.assertIn('"rs-v$VERSION"', text)
+
+    def test_the_docs_prescribe_the_prefix_the_workflow_accepts(self) -> None:
+        self.assertIn("py-v<version>", self.PY_DOCS.read_text(encoding="utf-8"))
+        self.assertIn("rs-v<version>", self.RS_DOCS.read_text(encoding="utf-8"))
+
+    def test_no_release_document_instructs_an_unprefixed_tag(self) -> None:
+        offenders = []
+        for path in (self.PY_DOCS, self.RS_DOCS):
+            for lineno, line in enumerate(
+                path.read_text(encoding="utf-8").splitlines(), start=1
+            ):
+                if not self.UNPREFIXED_TAG.search(line):
+                    continue
+                if not self.INSTRUCTION.search(line):
+                    continue
+                # "not `v0.3.4`", "must not be used", "predate", "history" —
+                # naming the wrong form in order to rule it out is the point.
+                if re.search(r"\bnot\b|history|predate|obsolete", line, re.I):
+                    continue
+                offenders.append(
+                    f"{path.relative_to(REPO_ROOT).as_posix()}:{lineno}: {line.strip()}"
+                )
+        self.assertEqual(
+            [],
+            offenders,
+            "release docs must prescribe `py-v*` / `rs-v*`; an unprefixed tag "
+            "triggers no workflow:\n" + "\n".join(offenders),
+        )
+
+
 class SharedVersionTrainTest(unittest.TestCase):
     """The two implementations share one version train.
 

@@ -9,8 +9,21 @@ end-to-end terminal verification run.
 - Minor releases add recipe fields, CLI commands, or artifact types.
 - Major releases can change recipe semantics or artifact contracts.
 
-The package version in `pyproject.toml` should match the release tag without
-the leading `v`.
+Both implementations share one version train, so the number in
+`python/pyproject.toml` and the number in `rust/Cargo.toml` must always agree —
+`scripts/check_version.py` enforces that in CI, along with a matching heading in
+the root [`CHANGELOG.md`](../../CHANGELOG.md).
+
+The *artifacts* are released independently, which is why the tags are prefixed:
+
+| Tag | Triggers | Ships |
+|---|---|---|
+| `py-v<version>` — e.g. `py-v0.3.4` | `.github/workflows/python-release.yml` | the wheel, the sdist, the release evidence, and PyPI when `ENABLE_PYPI` is set |
+| `rs-v<version>` — e.g. `rs-v0.3.4` | `.github/workflows/rust-release.yml` and, on the release it publishes, `rust-publish-crates.yml` | the CLI archives and the `termproof` crate |
+
+An unprefixed `v<version>` tag triggers nothing. Tags in that form exist in the
+history — they predate the consolidation, when this repository released only
+the Python package — and must not be used for a new release.
 
 ## Local Release Check
 
@@ -28,8 +41,10 @@ uv run termproof run examples/generic examples/colorstress \
 
 ## GitHub Release Flow
 
-1. Update `pyproject.toml`.
-2. Push a tag such as `v0.1.1`.
+1. Update `pyproject.toml` **and** `rust/Cargo.toml` to the new version, add a
+   `## [<version>]` heading to the root `CHANGELOG.md`, and confirm with
+   `uv run python scripts/check_version.py`.
+2. Push a `py-v<version>` tag, e.g. `py-v0.3.4`.
 3. GitHub Actions runs unit tests, builds the wheel and sdist, executes the
    receipt-backed portable TUI end-to-end suite, writes the verifier report to
    the run summary and release body, uploads evidence, and creates a GitHub
@@ -69,7 +84,7 @@ Repository variable gate:
   above is configured. The workflow still creates the GitHub release and attaches
   evidence, but it skips PyPI upload.
 - After trusted publishing is configured, set `ENABLE_PYPI=true` before pushing
-  the next release tag.
+  the next `py-v*` tag.
 - If PyPI reports `invalid-publisher`, unset `ENABLE_PYPI` again until the
   publisher claims match the configuration above.
 
@@ -160,6 +175,8 @@ for `termproof/videos/pr/*`), matching `docs/ci/evidence-receipt.json` →
 `hosting.retention_days`. The workflow artifact remains the canonical fallback —
 hosted URLs are additive, not a replacement. See [#69](https://github.com/md-mt/termproof/issues/69).
 
-The release workflow intentionally uses portable recipes for public CI. The Pi
-coding-agent recipes remain the showcase and can be run in environments where
-Pi is installed or where deterministic Pi-style fixtures are sufficient.
+The release workflow intentionally uses portable recipes for public CI —
+`examples/generic` and the other self-contained examples, which need no
+external binary. The `pi_workflow_*` recipes are one example set among several;
+they run from deterministic fixtures, so they work in public CI too, and they
+carry no special status in the release.
