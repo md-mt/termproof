@@ -14,7 +14,13 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
   so a release number means the same point in the project's history for both.
 - **Each heading is split by implementation** — `Python — Added`,
   `Rust — Changed`, and so on. A version with no section for an
-  implementation released nothing for it.
+  implementation changed nothing in it.
+- **A heading is a point in the project's history, not a receipt for two
+  artifacts.** Whichever release is cut first moves the shared version and
+  promotes everything pending under `[Unreleased]`, so a version can carry
+  entries for an implementation whose own artifact has not been published at
+  that number yet. What is actually published, and where, is in
+  [`SECURITY.md`](SECURITY.md#what-is-published-and-who-has-to-be-notified).
 - **The artifacts stay independent.** A release is cut per implementation and
   tagged `py-v<version>` or `rs-v<version>`; the Python package goes to PyPI
   and the `termproof` crate to crates.io. One version train, two release

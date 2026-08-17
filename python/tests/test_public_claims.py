@@ -46,6 +46,12 @@ SURFACE_GLOBS = (
     "*.md",
     "*.html",
     "*.py",
+    # Rust doc comments are a published surface: docs.rs renders them, and
+    # they are what a consumer of the crate reads. Four of them in this
+    # repository described a two-repository layout that no longer exists, and
+    # one carried a phrasing already withdrawn from the Python tree — none of
+    # which this sweep could see while it stopped at `.py`.
+    "*.rs",
     "*.toml",
     "*.rb",
     "*.yml",
@@ -189,6 +195,10 @@ class PublicClaimsTest(unittest.TestCase):
             "rust/crates/termproof/README.md",
             "rust/Cargo.toml",
             "rust/docker/termproof.Dockerfile",
+            # Rust source, so a glob that stopped matching `.rs` fails here
+            # rather than quietly halving the sweep.
+            "rust/crates/termproof/src/schema.rs",
+            "rust/crates/termproof/src/terminal/session.rs",
             "spec/001-recipe-format/spec.md",
             "conformance/README.md",
             "conformance/probe_steps.py",
