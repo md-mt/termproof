@@ -11,7 +11,8 @@
 #
 # The one thing they deliberately do not share: the Rust image is smoke-tested
 # by running a real recipe inside the freshly built image before anything is
-# pushed. This one is not. See #170.
+# pushed (see rust-docker-image.yml). This one is not — it builds and pushes.
+# Closing that gap is a behavioural change and is not made here.
 name: Docker Image (Python)
 
 on:
