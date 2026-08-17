@@ -26,7 +26,17 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
 
 ## [Unreleased]
 
-Nothing yet.
+### Rust — Fixed
+
+- **release:** the auto-release moves the whole version train. It bumped
+  `rust/Cargo.toml` alone, so a release would push a `main` whose Python
+  manifest and changelog were left behind and whose own drift check failed.
+  `version-bump.py` now moves `python/pyproject.toml` and this file too, and
+  the workflow verifies the train before it tags.
+- **schema:** `load_canonical_schema` reaches
+  `python/docs/recipe-schema-v1.json`. Its candidate paths described
+  side-by-side checkouts from before the two implementations shared a
+  repository, so it returned `None` everywhere.
 
 ## [0.3.3] — 2026-08-16
 
