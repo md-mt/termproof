@@ -72,7 +72,7 @@ both.
   publisher through an optional
   `from_target` classmethod, mirroring `from_config` for renderers, so
   credentials stay out of the checked-in config file. See
-  `docs/plugin-protocols.md`.
+  `python/docs/plugin-protocols.md`.
 - **Assertions can read the screen captured after each step.** Until now an
   assertion saw only the final screen, which makes anything about a state the
   run passes through and then leaves — a dialog that was dismissed, a mid-flow
@@ -93,7 +93,7 @@ both.
   keyword-only with a default of `None`, which also lets a step-aware assertion
   run unchanged on a TermProof that never passes it — `None` means the execution
   mode supplied no per-step screens, which is not the same as a run in which no
-  step ran. See `docs/plugin-protocols.md` and the `StepScreenMatches` example in
+  step ran. See `python/docs/plugin-protocols.md` and the `StepScreenMatches` example in
   `plugin-template/`.
 
 ### Rust — Added
@@ -171,11 +171,11 @@ the release notes; the commit list is on that release.
     Supporting it on the replay path means modelling SGR 2 in the emulator
     layer.
 
-  See `docs/evidence-quality.md` for both.
+  See `python/docs/evidence-quality.md` for both.
 - **An optional `render_attributed` method on the renderer protocol.** A
   renderer that defines it is handed the grid instead of text. Additive: a
   renderer written against the text-only protocol keeps working unchanged. See
-  [`docs/plugin-protocols.md`](docs/plugin-protocols.md).
+  [`python/docs/plugin-protocols.md`](python/docs/plugin-protocols.md).
 - **`png_rsvg`, a PNG renderer that rasterizes the attributed SVG.** Unlike the
   Pillow-based `png` renderer it keeps colour and styling, and it cannot drift
   from the `svg` output because it renders the same document. Needs
@@ -225,7 +225,7 @@ the release notes; the commit list is on that release.
   the screen to settle re-renders the screen already written. It stays off by
   default because it changes the artifact layout: a consumer that globs the step
   directory has to read the manifest instead. Every step keeps its own `.txt`
-  either way. See `docs/evidence-quality.md` for the research behind the
+  either way. See `python/docs/evidence-quality.md` for the research behind the
   recommended values.
 
 ### Python — Changed
@@ -248,11 +248,11 @@ the release notes; the commit list is on that release.
 - **One SVG renderer instead of two.** `screen.render_svg` was a second copy of
   `builtin_renderers.SvgRenderer`, with a comment saying the two had to be kept
   in step. It is now a wrapper over the renderer.
-- **The rendered corpus under `examples/artifacts/` is regenerated.** All 146
+- **The rendered corpus under `python/examples/artifacts/` is regenerated.** All 146
   checked-in SVGs differ, because the markup shape changed from one `<text>` per
   line to one per cell. No session was re-recorded — the `session.cast` files
   are untouched and the only input that changed is the renderer. A recorded run
-  of `examples/colorstress` joins the corpus as the entry that can catch a
+  of `python/examples/colorstress` joins the corpus as the entry that can catch a
   regression back to monochrome; every other recipe drives a monochrome TUI.
 
 - **`wait_for_idle` no longer treats a session that has produced no output as
@@ -301,7 +301,7 @@ the release notes; the commit list is on that release.
   - the `rust/` workspace, the `Rust` and `Release (Rust)` workflows, the
     `rust` build dependency in the Homebrew formula, and the
     `pyproject.toml` ↔ `rust/Cargo.toml` version drift check are gone.
-  - `docs/rust-reimplementation-spec.md`, `docs/rust-gates.md` and the docs-site
+  - `rust/docs/rust-reimplementation-spec.md`, `python/docs/rust-gates.md` and the docs-site
     Rust pages are gone; `/rust/` now explains the move.
 
   **There is no replacement yet.** `termproof-rust` has not published a release
@@ -422,7 +422,7 @@ workspace seed through the release automation (`#14`).
 #### Documentation & launch
 - **README** with comparison table, quickstart, demo instructions, and badge
 - **GitHub Pages** site with polished project landing
-- **Launch kit** (`docs/launch/`): HN Show post draft, outreach templates for 5 TUI frameworks (Bubble Tea, Ratatui, Textual, Ink, Charm), social media profiles and assets, launch runbook, pre-flight checklist
+- **Launch kit** (`python/docs/launch/`): HN Show post draft, outreach templates for 5 TUI frameworks (Bubble Tea, Ratatui, Textual, Ink, Charm), social media profiles and assets, launch runbook, pre-flight checklist
 - **Contributing guide** and **Code of Conduct**
 - **Verified by TermProof badge** for downstream projects
 
