@@ -47,14 +47,20 @@ every path in its scope. The two nested modules keep their own re-exports so
 
 ## The boundary to the Python oracle
 
-The Python implementation at `md-mt/termproof` is the shipped product and the
-behavioural oracle. The port is measured against it, not merged with it:
+The Python implementation under `python/` is the shipped product and the
+behavioural oracle. The port is measured against it, not merged with it. The
+boundary is one of ownership, not of repository: since consolidation both
+implementations live here, and the artifacts that define the contract are
+shared rather than remote.
 
-- **The recipe schema and the example corpus stay with the Python
-  repository.** They are the contract both implementations answer to.
-  `load_canonical_schema` in `termproof` therefore finds nothing in this
-  checkout. What the crate does pin is its *own* generated schema, to a
-  checked-in snapshot (`tests/snapshots/recipe_schema_v1.json`, guarded by
+- **The recipe schema and the example corpus are owned by the Python
+  implementation.** They are the contract both implementations answer to. The
+  schema is `python/docs/recipe-schema-v1.json`, which
+  `load_canonical_schema` in `termproof` reads; the corpus is the shared
+  `conformance/` tree at the repository root. Neither is vendored into the
+  crate, so the seam returns `None` from a published tarball. What the crate
+  does pin is its *own* generated schema, to a checked-in snapshot
+  (`tests/snapshots/recipe_schema_v1.json`, guarded by
   `tests/schema_snapshot.rs`) — a local structural stability check, not a
   parity claim.
 - **The differential harnesses** (`conformance/`) record the oracle's verdicts

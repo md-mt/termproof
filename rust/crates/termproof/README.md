@@ -199,9 +199,12 @@ it. `conformance/README.md` in the repository is the authority on the counts and
 the divergences; [`docs/status-and-parity.md`](../../docs/status-and-parity.md)
 carries the full inventory of what a run still cannot do.
 
-`load_canonical_schema` finds nothing in this repository: the canonical recipe
-schema and the example corpus stay with the Python repository on purpose, as
-the contract both implementations answer to.
+The canonical recipe schema and the example corpus are the contract both
+implementations answer to, and they are owned by the Python implementation.
+Both implementations now live in one repository, so `load_canonical_schema`
+reads that schema from `python/docs/recipe-schema-v1.json` and the corpus is
+the shared `conformance/` tree at the repository root. It is not vendored into
+this crate, so from a published tarball the seam still returns `None`.
 
 What this crate does pin is its *own* generated schema, to a checked-in
 snapshot (`tests/snapshots/recipe_schema_v1.json`, guarded by
@@ -210,7 +213,8 @@ key order is ignored but any structural drift in `generate_recipe_schema()`'s
 output — keywords, numbers, array order, `$ref` targets — fails the test, and
 re-blessing is a deliberate env-var flow (`TERM_PROOF_BLESS_SCHEMA=1`). It
 catches accidental changes to this crate's schema; it does not establish
-agreement with the canonical schema, which remains parity-gate work.
+agreement with the canonical schema. Comparing the two is parity-gate work,
+still open — reaching the file was the precondition, not the gate.
 
 ## Known gaps
 

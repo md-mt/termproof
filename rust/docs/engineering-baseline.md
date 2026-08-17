@@ -271,10 +271,13 @@ workspace README in the same change.
   convention used elsewhere in the crate.
 - What the snapshot does and does not prove: it **does** catch accidental
   changes to this crate's generated schema; it does **not** establish
-  agreement with the canonical schema, which lives outside this repository and
-  is not vendored here. That remains parity-gate work (the seam is
-  `schema::load_canonical_schema`, which returns `None` in every checkout
-  layout here today).
+  agreement with the canonical schema. That schema is owned by the Python
+  implementation and, since consolidation, sits in this repository at
+  `python/docs/recipe-schema-v1.json`; `schema::load_canonical_schema` reads
+  it from there and a unit test holds that path open. Comparing the two
+  schemas is parity-gate work and is still open — reaching the file is the
+  precondition, not the gate. It is not vendored into the crate, so the seam
+  returns `None` from a published tarball.
 - Every Rust pull request must pass locally, before push:
   `cargo fmt --check --all`, `cargo clippy --workspace --all-targets
   --all-features -- -D warnings`, and `cargo test --workspace`. Where the

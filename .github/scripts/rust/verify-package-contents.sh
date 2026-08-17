@@ -34,11 +34,13 @@ do
 done
 
 # Absent: repository-only artifacts that must not reach consumers. The
-# differential tests replay the root conformance corpus, which is not shipped;
-# a tarball that carries them cannot run them.
+# differential tests replay the root conformance corpus and the canonical-schema
+# test reads python/docs/recipe-schema-v1.json — neither is shipped, so a
+# tarball that carries those tests cannot run them.
 for forbidden in \
   tests/differential_steps.rs \
   tests/differential_assertions.rs \
+  tests/canonical_schema.rs \
   conformance/
 do
   if grep -q "^${forbidden}" <<<"$LIST"; then

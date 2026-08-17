@@ -12,9 +12,12 @@
 //! --test schema_snapshot` (see `docs/engineering-baseline.md` §10).
 //!
 //! The snapshot proves only that this crate's own output does not drift; it
-//! does not establish agreement with the canonical schema, which lives
-//! outside this repository and is not vendored here. That remains parity-gate
-//! work, and `load_canonical_schema` is the seam it will use.
+//! does not establish agreement with the canonical schema. That schema is
+//! owned by the Python implementation and, since the two implementations were
+//! consolidated, sits in the same repository at
+//! `python/docs/recipe-schema-v1.json` — `load_canonical_schema` reads it from
+//! there. Comparing the two is still parity-gate work; having the file
+//! reachable is the precondition, not the gate.
 
 use schemars::gen::{SchemaGenerator, SchemaSettings};
 
@@ -62,23 +65,34 @@ pub fn generate_recipe_schema() -> serde_json::Value {
     value
 }
 
-/// Load the checked-in canonical schema from `docs/recipe-schema-v1.json` if present.
+/// The canonical recipe schema's path, relative to this crate's directory.
 ///
-/// The canonical schema is owned by the Python implementation at
-/// https://github.com/md-mt/termproof and is deliberately not vendored here, so
-/// in this repository every candidate misses and this returns `None`. The
-/// candidates below are kept for the checkout layouts where the two trees sit
-/// side by side; sourcing the schema properly is parity-gate work.
+/// The schema is owned by the Python implementation and both implementations
+/// now live in one repository, so it is three levels up from
+/// `rust/crates/termproof`. Resolved from `CARGO_MANIFEST_DIR` rather than the
+/// working directory, so it does not depend on where a test or a binary was
+/// invoked from. In a published tarball the join lands on a path that does not
+/// exist, which is the correct answer for a consumer: the schema is not
+/// vendored into the crate.
+const CANONICAL_SCHEMA_FROM_MANIFEST: &str = "../../../python/docs/recipe-schema-v1.json";
+
+/// Load the canonical recipe schema, or `None` when it is not reachable.
+///
+/// This is the seam the parity gate will compare `generate_recipe_schema()`
+/// against. Reaching the file is the precondition; agreeing with it is the
+/// gate, and that is still open work.
 #[allow(dead_code)]
 pub fn load_canonical_schema() -> Option<serde_json::Value> {
-    for candidate in [
-        // When run one level below a checkout of the Python repository
-        std::path::Path::new("../docs/recipe-schema-v1.json"),
-        // When run with cwd = Python repository root
+    let from_manifest =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(CANONICAL_SCHEMA_FROM_MANIFEST);
+    let candidates = [
+        from_manifest.as_path(),
+        // cwd = repository root
+        std::path::Path::new("python/docs/recipe-schema-v1.json"),
+        // cwd = the Python tree
         std::path::Path::new("docs/recipe-schema-v1.json"),
-        // When run with cwd = <python-repo>/rust/crates/termproof
-        std::path::Path::new("../../../docs/recipe-schema-v1.json"),
-    ] {
+    ];
+    for candidate in candidates {
         if candidate.exists() {
             if let Ok(content) = std::fs::read_to_string(candidate) {
                 if let Ok(val) = serde_json::from_str(&content) {
