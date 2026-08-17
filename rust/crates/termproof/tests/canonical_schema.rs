@@ -12,6 +12,12 @@
 //! the package, for the same reason the differential tests are: it reads a
 //! path outside the crate. A consumer running `cargo test` against the
 //! published tarball would have no repository around it and no way to pass.
+//!
+//! `schema` is a feature, and CI runs the whole feature powerset, so the file
+//! compiles to nothing without it. An integration test cannot be gated from
+//! the manifest — the crate-level attribute is how a test binary opts out.
+
+#![cfg(feature = "schema")]
 
 use termproof::schema::load_canonical_schema;
 
