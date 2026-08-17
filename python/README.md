@@ -25,8 +25,11 @@ via [`agg`](https://github.com/asciinema/agg) + `ffmpeg`, and writes Markdown
 and JSON reports. Your reviewers inspect evidence instead of trusting a log
 line.
 
-Product-agnostic by design. Pi coding-agent workflows are included as the
-flagship showcase because they exercise realistic multi-turn agent UI flows.
+Product-agnostic by design: TermProof knows nothing about the program it
+drives beyond what a recipe says. The examples reflect that — a portable TUI
+that needs no external binary, a colour-stress renderer, a multi-turn
+conversation, and a set of Pi coding-agent recipes that happen to exercise
+agent-UI flows. None of them is the point; the recipe format is.
 
 ## Quickstart
 
@@ -49,7 +52,8 @@ termproof init .termproof/recipes --name my-tui --command "my-tui"
 termproof run .termproof/recipes --video --out .termproof/runs
 ```
 
-The portable non-Pi example in this repository needs no Pi binary:
+Or run one of the examples in this repository. `examples/generic` is a
+self-contained TUI and needs no external binary — start here:
 
 ```bash
 uv run termproof run examples/generic --video
@@ -58,7 +62,11 @@ open .termproof/runs/<run-id>/final.svg
 cat .termproof/runs/<run-id>/report.md
 ```
 
-Pi coding-agent showcase (deterministic fixtures, reproducible on any runner):
+The other examples cover different shapes of terminal program:
+`examples/colorstress` for attributed rendering,
+`examples/multi_turn_conversation.recipe.json` for a conversational flow, and
+the `examples/pi_workflow_*.recipe.json` set for an agent UI. All of them run
+from deterministic fixtures, so they reproduce on any runner:
 
 ```bash
 uv run termproof run examples/pi_workflow_guarded_edit.recipe.json --video --video-fps 60 --out .termproof/ci
