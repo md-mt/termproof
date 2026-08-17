@@ -38,12 +38,12 @@ defaults:
     working-directory: rust
 
 concurrency:
-  group: security-${{ github.ref }}
+  group: rust-security-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
   deny:
-    name: cargo deny (advisories, licenses, bans, sources)
+    name: Dependency and licence policy (cargo deny)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -54,7 +54,7 @@ jobs:
         run: cargo deny check
 
   semver:
-    name: cargo semver-checks (public API vs latest published termproof)
+    name: Public API compatibility (cargo semver-checks)
     # Unconditional in one Linux job: the plan's diff-gated alternative is
     # brittle (detecting "public Rust API changed" reliably is the hard part),
     # and the check is cheap enough to run on every PR.
@@ -69,14 +69,14 @@ jobs:
         with:
           tool: cargo-semver-checks@0.50.0
       # Compares the working tree against the latest version published on
-      # crates.io (termproof 0.3.2 today). Fails on any breaking change to a
+      # crates.io (termproof 0.3.3 today). Fails on any breaking change to a
       # public API — under 0.x that is any change the pre-1.0 convention
       # would call a minor bump (docs/publishing.md).
       - name: cargo semver-checks check-release
         run: cargo semver-checks check-release -p termproof
 
   package:
-    name: cargo package (termproof tarball + contents)
+    name: Package contents (cargo package)
     if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     steps:

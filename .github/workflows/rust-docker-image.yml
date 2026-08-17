@@ -44,8 +44,11 @@ on:
 permissions:
   contents: read
 
+# Namespaced per implementation. An unqualified `docker-image-<ref>` would put
+# this workflow and its Python sibling in one group, so a push touching both
+# trees would serialise two independent image builds behind each other.
 concurrency:
-  group: docker-image-${{ github.ref }}
+  group: rust-docker-image-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:

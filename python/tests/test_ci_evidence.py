@@ -55,10 +55,17 @@ class CiEvidenceReceiptTest(unittest.TestCase):
         workflow = yaml.safe_load(
             CI_WORKFLOW.read_text(encoding="utf-8")
         )
-        steps = workflow["jobs"]["verify"]["steps"]
+        verify = workflow["jobs"]["verify"]
+        steps = verify["steps"]
         names = [step["name"] for step in steps]
 
-        self.assertEqual("write", workflow["permissions"]["contents"])
+        # `contents: write` is what pushes to the evidence branch. It sits on
+        # this job rather than on the workflow, so the lint, test, stdlib and
+        # wheel jobs cannot reach a write token; assert it where it now lives,
+        # and assert the workflow default stayed read.
+        self.assertEqual("read", workflow["permissions"]["contents"])
+        self.assertEqual("write", verify["permissions"]["contents"])
+        self.assertEqual("write", verify["permissions"]["pull-requests"])
         self.assertIn("Run base TUI verification for PR comparison", names)
         self.assertIn("Prepare screenshot evidence branch payload", names)
         self.assertIn("Publish screenshot evidence branch", names)

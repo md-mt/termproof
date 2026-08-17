@@ -2,7 +2,7 @@
 
 TermProof ships a generic CI image from [`docker/termproof.Dockerfile`](../../docker/termproof.Dockerfile). The image includes TermProof, `agg`, and `ffmpeg`, so any CI system with Docker can run recipes and upload `.termproof/runs` as an artifact.
 
-The GitHub workflow [`.github/workflows/docker-image.yml`](../../.github/workflows/docker-image.yml) builds the image on pull requests and publishes `ghcr.io/md-mt/termproof` on `main`, release tags, and manual dispatch.
+The GitHub workflow [`.github/workflows/python-docker-image.yml`](../../../.github/workflows/python-docker-image.yml) builds the image on pull requests and publishes `ghcr.io/md-mt/termproof` on `main`, release tags, and manual dispatch.
 
 ## Usage
 

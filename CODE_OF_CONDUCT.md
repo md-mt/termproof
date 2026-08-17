@@ -61,13 +61,17 @@ appointed representative at an online or offline event.
 
 Instances of abusive, harassing, or otherwise unacceptable behavior may be
 reported to the community leaders responsible for enforcement — the
-maintainers of this repository — by opening an issue in this repository or by
-using GitHub's built-in reporting for the repository, its issues, or its
-pull requests. All complaints will be reviewed and investigated promptly and
-fairly.
+maintainers of this repository — at **md@mt.com**. All complaints will be
+reviewed and investigated promptly and fairly.
+
+For a report that should not reach a shared inbox, use GitHub's built-in
+reporting for the repository, its issues, or its pull requests instead.
 
 All community leaders are obligated to respect the privacy and security of the
 reporter of any incident.
+
+This Code of Conduct covers the whole repository — both implementations, the
+specification, the conformance corpus and every discussion around them.
 
 ## Enforcement Guidelines
 

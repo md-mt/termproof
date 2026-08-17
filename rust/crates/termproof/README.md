@@ -1,16 +1,14 @@
 # termproof
 
 Evidence-first verification for TUI and terminal applications — the library
-half of [TermProof](https://github.com/md-mt/termproof-rust).
+half of [TermProof](https://github.com/md-mt/termproof).
 
 > **Maturity: this port is in progress and is not at parity with the Python
 > implementation.** The Python implementation at
 > [`md-mt/termproof`](https://github.com/md-mt/termproof) is the shipped product
 > and the behavioural oracle for TermProof; there is no parity gate for this
 > port. Read
-> [the maturity section of the workspace README](https://github.com/md-mt/termproof-rust#maturity--read-this-before-using-it)
-> and
-> [docs/status-and-parity.md](../../docs/status-and-parity.md)
+> [status and parity](https://github.com/md-mt/termproof/blob/main/rust/docs/status-and-parity.md)
 > before depending on this crate.
 
 ## Layout
@@ -197,13 +195,16 @@ The step and assertion layers are measured against corpora recorded from the
 Python implementation. On those corpora the two runtimes reach 82/115 full
 agreement on steps and 124/147 on assertions. That is a layer-level number, not
 a product-level one — screen fidelity and whole-recipe execution are outside
-it. `harness/README.md` in the repository is the authority on the counts and
+it. `conformance/README.md` in the repository is the authority on the counts and
 the divergences; [`docs/status-and-parity.md`](../../docs/status-and-parity.md)
 carries the full inventory of what a run still cannot do.
 
-`load_canonical_schema` finds nothing in this repository: the canonical recipe
-schema and the example corpus stay with the Python repository on purpose, as
-the contract both implementations answer to.
+The canonical recipe schema and the example corpus are the contract both
+implementations answer to, and they are owned by the Python implementation.
+Both implementations now live in one repository, so `load_canonical_schema`
+reads that schema from `python/docs/recipe-schema-v1.json` and the corpus is
+the shared `conformance/` tree at the repository root. It is not vendored into
+this crate, so from a published tarball the seam still returns `None`.
 
 What this crate does pin is its *own* generated schema, to a checked-in
 snapshot (`tests/snapshots/recipe_schema_v1.json`, guarded by
@@ -212,7 +213,8 @@ key order is ignored but any structural drift in `generate_recipe_schema()`'s
 output — keywords, numbers, array order, `$ref` targets — fails the test, and
 re-blessing is a deliberate env-var flow (`TERM_PROOF_BLESS_SCHEMA=1`). It
 catches accidental changes to this crate's schema; it does not establish
-agreement with the canonical schema, which remains parity-gate work.
+agreement with the canonical schema. Comparing the two is parity-gate work,
+still open — reaching the file was the precondition, not the gate.
 
 ## Known gaps
 

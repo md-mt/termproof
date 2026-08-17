@@ -1,4 +1,4 @@
-name: Pages build validation
+name: Pages preview
 
 # NOTE: This workflow is build-validation only. It no longer deploys to
 # GitHub Pages. docs-site.yml is the single authoritative github-pages
@@ -14,15 +14,15 @@ on:
     paths:
       - "python/site/**"
       - "python/docs/**"
-      - "python/README.md"
       - "python/examples/artifacts/**"
+      - "README.md"
       - ".github/workflows/pages.yml"
   pull_request:
     paths:
       - "python/site/**"
       - "python/docs/**"
-      - "python/README.md"
       - "python/examples/artifacts/**"
+      - "README.md"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
 
@@ -30,8 +30,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: "pages-build"
-  cancel-in-progress: false
+  group: pages-preview-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build:
@@ -65,8 +65,9 @@ jobs:
             done
             echo "</ul>" >> _site/artifacts/index.html
           fi
-          # add README rendered copy (raw)
-          cp python/README.md _site/README.md || true
+          # add README rendered copy (raw) — the repository root's, which is
+          # the project's front door; python/README.md is the package page
+          cp README.md _site/README.md || true
           echo "Site built:"
           ls -la _site | head -40
           echo "----"

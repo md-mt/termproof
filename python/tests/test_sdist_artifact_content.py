@@ -32,7 +32,9 @@ _BUILD_OUTPUT_DIRS = frozenset({"target", "build", "dist", "__pycache__", ".pyte
 # silent edit to the baseline.
 _INTENTIONALLY_REMOVED = frozenset(
     {
-        # The Rust reimplementation moved to https://github.com/md-mt/termproof-rust.
+        # The Rust reimplementation spec belongs to the Rust workspace and
+        # lives at rust/docs/rust-reimplementation-spec.md; it is not part of
+        # the Python package.
         "docs/rust-reimplementation-spec.md",
     }
 )
@@ -68,8 +70,10 @@ class SdistArtifactContentTest(unittest.TestCase):
     That enumeration guarded one real invariant — no Rust build output leaking
     into the release artifact — and otherwise only ever caught "a human forgot
     to register a new file", at the cost of being a merge-conflict point in four
-    consecutive changes. The Rust workspace has moved to
-    https://github.com/md-mt/termproof-rust, so that invariant is now vacuous.
+    consecutive changes. The Rust workspace lives beside the Python package
+    rather than inside it, so `uv build` never sees it and that invariant is
+    satisfied by the layout — invariant 1 below is the cheap insurance that it
+    stays that way.
 
     What replaces it are the invariants the enumeration was standing in for:
 

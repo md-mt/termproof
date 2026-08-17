@@ -23,8 +23,10 @@ class DockerImageTest(unittest.TestCase):
         self.assertIn('ENTRYPOINT ["termproof"]', text)
 
     def test_dockerfile_ships_the_python_engine_only(self) -> None:
-        # The Rust engine moved to https://github.com/md-mt/termproof-rust. The
-        # only Rust in this image is the toolchain that builds `agg`.
+        # This image ships the Python implementation. The Rust one has its
+        # own image (`ghcr.io/md-mt/termproof-rust`, built from
+        # `rust/docker/`); the only Rust in this image is the toolchain that
+        # builds `agg`.
         text = DOCKERFILE.read_text(encoding="utf-8")
 
         self.assertNotIn("termproof-rust", text)

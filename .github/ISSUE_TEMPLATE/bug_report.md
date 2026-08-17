@@ -51,10 +51,16 @@ $ termproof --help
 
 ## Environment
 
-- TermProof version: <!-- e.g. 0.2.0 (run `termproof --version`) -->
-- Python version: <!-- run `python --version` -->
+- Implementation: <!-- Python (python/) or Rust (rust/) — TermProof has both -->
+- TermProof version: <!-- run `termproof --version` -->
+- Toolchain version: <!-- `python --version`, or `cargo --version` for the Rust CLI -->
 - OS / architecture: <!-- e.g. macOS 14 arm64, Ubuntu 24.04 x86_64 -->
-- `ffmpeg` / `agg` available: <!-- yes/no, only relevant for --video/render -->
+- `ffmpeg` / `agg` / `rsvg-convert` available: <!-- yes/no, only relevant for --video/render -->
+
+<!--
+If the two implementations disagree on the same recipe, that is a parity gap
+rather than a plain bug — use the "Parity gap" template instead.
+-->
 
 ## Additional context
 

@@ -45,7 +45,11 @@ class AgentDrivenTest(unittest.TestCase):
                         "prompt = sys.stdin.read()",
                         "print(json.dumps({",
                         "  'assertions': {'Pi launcher banner renders': True},",
-                        "  'transcript': 'Pi at Meta\\nMeta Launcher Options\\n' + prompt[:20],",
+                        # Neutral fixture text. Nothing below asserts on the
+                        # transcript's content — it only has to be a multi-line
+                        # string that echoes part of the prompt — so the payload
+                        # names no organisation. The sdist ships this file.
+                        "  'transcript': 'demo-tui 1.0\\nLauncher Options\\n' + prompt[:20],",
                         "}))",
                     ]
                 ),

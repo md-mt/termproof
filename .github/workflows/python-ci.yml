@@ -1,12 +1,40 @@
-name: Python CI
+name: CI (Python)
 
+# The root community-health documents are in the trigger list because this
+# workflow is what checks them: `tests/test_public_claims.py` sweeps the whole
+# repository for withdrawn claims, `test_docs_pages.py` reads the root README,
+# `test_community_health.py` reads SECURITY.md and SUPPORT.md, and
+# `check_version.py` reads the root CHANGELOG. Before consolidation those files
+# lived under `python/` and were covered by the `python/**` filter; at the root
+# they matched nothing, so a PR touching only them ran no workflow at all.
+#
+# `.github/workflows/**` and `.github/scripts/**` are here for the same reason
+# one step further out: this suite is where the workflow contracts are
+# asserted. `test_release_docs.py` reads the tag filters out of both release
+# workflows and the crates publish guard, `test_version_bump.py` reads
+# `version-bump.py` and the auto-release workflow, `test_ci_evidence.py` reads
+# this file and the Python release workflow, and `test_docs_pages.py` and
+# `test_docs_site.py` read the Pages and docs-site workflows. Eight of the nine
+# were outside this filter, so editing one ran nothing that reads it.
+#
+# The two lists are identical and written out twice: GitHub Actions does not
+# expand YAML anchors, so an alias here would be read as a literal string and
+# match nothing.
 on:
   pull_request:
     paths:
       - "python/**"
       - "spec/**"
       - "conformance/**"
-      - ".github/workflows/python-ci.yml"
+      - "README.md"
+      - "CHANGELOG.md"
+      - "CONTRIBUTING.md"
+      - "CODE_OF_CONDUCT.md"
+      - "SECURITY.md"
+      - "SUPPORT.md"
+      - "rust/Cargo.toml"
+      - ".github/workflows/**"
+      - ".github/scripts/**"
   push:
     branches:
       - main
@@ -14,16 +42,32 @@ on:
       - "python/**"
       - "spec/**"
       - "conformance/**"
-      - ".github/workflows/python-ci.yml"
+      - "README.md"
+      - "CHANGELOG.md"
+      - "CONTRIBUTING.md"
+      - "CODE_OF_CONDUCT.md"
+      - "SECURITY.md"
+      - "SUPPORT.md"
+      - "rust/Cargo.toml"
+      - ".github/workflows/**"
+      - ".github/scripts/**"
 
 defaults:
   run:
     working-directory: python
 
+# One run per ref. Pull-request pushes supersede each other — the evidence run
+# is the expensive job here and a superseded one has nothing left to say — but
+# a `main` run is never cancelled, because it publishes to the evidence branch.
+concurrency:
+  group: python-ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# Read by default, matching CI (Rust). The `verify` job elevates for the two
+# things that actually write — the screenshot evidence branch and the sticky PR
+# comment — so a change to any other job cannot reach a write token.
 permissions:
-  contents: write
-  issues: write
-  pull-requests: write
+  contents: read
 
 jobs:
   stdlib:
@@ -47,7 +91,7 @@ jobs:
         run: python scripts/run_stdlib_tests.py
 
   lint:
-    name: Lint and type-check
+    name: Lint, type-check and version drift
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -69,6 +113,12 @@ jobs:
 
       - name: Mypy type check
         run: uv run mypy termproof
+
+      # Both implementations share one version train, which is a claim the root
+      # README, CHANGELOG and SECURITY.md all make. This is what holds
+      # pyproject.toml, rust/Cargo.toml and the root CHANGELOG to it.
+      - name: Version and changelog drift
+        run: uv run python scripts/check_version.py
 
   test:
     name: Unit tests and coverage (py${{ matrix.python-version }})
@@ -117,8 +167,15 @@ jobs:
           uv run coverage report
 
   verify:
-    name: Test, build, and verify TUI evidence
+    name: Build, verify TUI evidence and publish it
     runs-on: ubuntu-latest
+    permissions:
+      # `contents: write` pushes screenshots to the `termproof-evidence`
+      # branch; the other two are the sticky PR comment. Nothing else in this
+      # workflow needs any of them.
+      contents: write
+      issues: write
+      pull-requests: write
 
     steps:
       - name: Check out repository
@@ -402,11 +459,11 @@ jobs:
       - name: Upload package artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: termproof-dist
+          name: termproof-python-dist
           path: python/dist/*
 
   wheel:
-    name: bundled agg (${{ matrix.target }})
+    name: Build and smoke-test the bundled-agg wheel (${{ matrix.target }})
     strategy:
       fail-fast: false
       matrix:

@@ -41,7 +41,7 @@ This checklist is the single source for launch readiness. Check items in order; 
 - [ ] PR created via `gh pr create --title ... --body ... --draft` linking Issues #36 #37 #38
 - [ ] PR body links canonical demo + integration docs + test results
 - [ ] Reviewer: `mw-ding` approval on exact head (no auto-merge)
-- [ ] CI green: Test, build, and verify TUI evidence workflow
+- [ ] CI green: the `Build, verify TUI evidence and publish it` check on `CI (Python)`
 
 ## Release Prep (t_2847cc1d + t_55ca7b25)
 

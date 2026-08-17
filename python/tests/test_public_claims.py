@@ -46,6 +46,12 @@ SURFACE_GLOBS = (
     "*.md",
     "*.html",
     "*.py",
+    # Rust doc comments are a published surface: docs.rs renders them, and
+    # they are what a consumer of the crate reads. Four of them in this
+    # repository described a two-repository layout that no longer exists, and
+    # one carried a phrasing already withdrawn from the Python tree — none of
+    # which this sweep could see while it stopped at `.py`.
+    "*.rs",
     "*.toml",
     "*.rb",
     "*.yml",
@@ -164,7 +170,6 @@ class PublicClaimsTest(unittest.TestCase):
         # The three surfaces that each escaped a round, plus package metadata.
         for required in (
             "python/README.md",
-            "python/CHANGELOG.md",
             "python/AGENTS.md",
             "python/site/index.html",
             "python/docs/plugins.md",
@@ -186,11 +191,14 @@ class PublicClaimsTest(unittest.TestCase):
         # so each tree named here is asserted separately: a prefix that stops
         # matching must fail rather than quietly shrink the sweep.
         for required in (
-            "rust/README.md",
             "rust/docs/status-and-parity.md",
             "rust/crates/termproof/README.md",
             "rust/Cargo.toml",
             "rust/docker/termproof.Dockerfile",
+            # Rust source, so a glob that stopped matching `.rs` fails here
+            # rather than quietly halving the sweep.
+            "rust/crates/termproof/src/schema.rs",
+            "rust/crates/termproof/src/terminal/session.rs",
             "spec/001-recipe-format/spec.md",
             "conformance/README.md",
             "conformance/probe_steps.py",
@@ -203,6 +211,21 @@ class PublicClaimsTest(unittest.TestCase):
                 0,
                 f"no surface under {tree} is being checked",
             )
+
+        # The repository root is the front door: it is the first prose a
+        # stranger reads and the last place a withdrawn claim should survive.
+        # Named individually because a root document is not under any tree
+        # prefix asserted above, so a glob that stopped matching `*.md` at the
+        # root would leave every one of them unchecked and still pass.
+        for required in (
+            "README.md",
+            "CHANGELOG.md",
+            "CONTRIBUTING.md",
+            "CODE_OF_CONDUCT.md",
+            "SECURITY.md",
+            "SUPPORT.md",
+        ):
+            self.assertIn(required, names, f"{required} is not being checked")
 
     def test_no_surface_carries_a_withdrawn_claim(self) -> None:
         offenders = []

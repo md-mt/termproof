@@ -99,7 +99,7 @@ and this document is updated.
   workable version costs every vendoring consumer a duplicate copy of the
   crate, so one that sits higher than it has to carries a comment in
   `Cargo.toml` naming the API or behaviour that put it there (#28). The
-  `test at the declared dependency floors` step in `.github/workflows/rust.yml`
+  `test at the declared dependency floors` step in `.github/workflows/rust-ci.yml`
   runs the suite at each floor, so a floor that stops being true fails CI.
 - A comment in `Cargo.toml` records the reason but does not publish it. The
   manifest is not what a consumer weighing the dependency reads — crates.io
@@ -122,7 +122,7 @@ and this document is updated.
   `regex` 1.13.1 (corpus-selected engine per spec §5.3, declared as
   `default-features = false` with explicit `std`+`unicode` features).
 - Since PR4, `cargo deny check` is a required gate
-  (`.github/workflows/security.yml`), covering advisories, licences, bans and
+  (`.github/workflows/rust-security.yml`), covering advisories, licences, bans and
   sources against `deny.toml`. It runs on every pull request, on push to
   `main`, and weekly on a schedule (new RustSec advisories land without a code
   change; the weekly run re-reads the committed lockfile against a fresh
@@ -271,10 +271,13 @@ workspace README in the same change.
   convention used elsewhere in the crate.
 - What the snapshot does and does not prove: it **does** catch accidental
   changes to this crate's generated schema; it does **not** establish
-  agreement with the canonical schema, which lives outside this repository and
-  is not vendored here. That remains parity-gate work (the seam is
-  `schema::load_canonical_schema`, which returns `None` in every checkout
-  layout here today).
+  agreement with the canonical schema. That schema is owned by the Python
+  implementation and, since consolidation, sits in this repository at
+  `python/docs/recipe-schema-v1.json`; `schema::load_canonical_schema` reads
+  it from there and a unit test holds that path open. Comparing the two
+  schemas is parity-gate work and is still open — reaching the file is the
+  precondition, not the gate. It is not vendored into the crate, so the seam
+  returns `None` from a published tarball.
 - Every Rust pull request must pass locally, before push:
   `cargo fmt --check --all`, `cargo clippy --workspace --all-targets
   --all-features -- -D warnings`, and `cargo test --workspace`. Where the
@@ -313,12 +316,12 @@ workspace README in the same change.
   change the convention would call a minor bump; it is caught here before a
   release, not by the first consumer who fails to compile.
 - **Package verification.** PR CI runs `cargo package -p termproof` and
-  `.github/scripts/verify-package-contents.sh`, which asserts the tarball
+  `.github/scripts/rust/verify-package-contents.sh`, which asserts the tarball
   carries the snapshot test and its fixture (issue #33's promise) and does
-  not carry the differential tests or `harness/` (which cannot run without
+  not carry the differential tests or `conformance/` (which cannot run without
   the repository).
 - **Release archives.** `release-rust.yml` smoke-tests every archive before
-  upload: `.github/scripts/verify-release-archive.sh` verifies the sha256,
+  upload: `.github/scripts/rust/verify-release-archive.sh` verifies the sha256,
   extracts the tarball, and asserts `termproof --version` reports exactly the
   workspace version. The attestation subject is verified against the archive
   digest, so a green build-provenance attestation always names the archive it
@@ -334,11 +337,14 @@ workspace README in the same change.
   reaches the registry that has not passed that run.
 - **Windows is not supported.** The tested matrix is Linux x86-64, macOS
   x86-64 and macOS arm64 (build-only for arm64). Windows is documented as
-  unverified in the README and gets no badge and no claim until a real
-  Windows job with working PTY behaviour passes CI. This is a deliberate
+  unverified in the repository README and gets no badge and no claim until a
+  real Windows job with working PTY behaviour passes CI. This is a deliberate
   scope decision (spec §3), not an oversight.
 - **Stable job names.** The checks a repository ruleset requires are named
-  explicitly and stably in every workflow (`fmt, clippy, test (Rust
-  ubuntu-latest)`, `cargo deny (advisories, licenses, bans, sources)`, …). A
+  explicitly and stably in every workflow (`Lint, type-check and test
+  (ubuntu-latest)`, `Dependency and licence policy (cargo deny)`, …). A
   ruleset entry that names a job by a name that changes between runs would
-  silently stop gating, so workflow job names are part of the contract.
+  silently stop gating, so workflow job names are part of the contract, and
+  `governance.md` §5 is the list — for both implementations, since a ruleset
+  on `main` is one list rather than one per language. Renaming a job means
+  editing that table in the same PR.

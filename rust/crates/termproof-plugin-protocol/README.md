@@ -1,7 +1,7 @@
 # termproof-plugin-protocol
 
 The versioned newline-delimited JSON protocol that
-[TermProof](https://github.com/md-mt/termproof-rust) speaks to out-of-process
+[TermProof](https://github.com/md-mt/termproof) speaks to out-of-process
 plugins, with client, host and conformance support.
 
 > **Maturity: this port is in progress and is not at parity with the Python
@@ -9,9 +9,7 @@ plugins, with client, host and conformance support.
 > [`md-mt/termproof`](https://github.com/md-mt/termproof) is the shipped product
 > and the behavioural oracle for TermProof; there is no parity gate for this
 > port. Read
-> [the maturity section of the workspace README](https://github.com/md-mt/termproof-rust#maturity--read-this-before-using-it)
-> and
-> [docs/status-and-parity.md](../../docs/status-and-parity.md)
+> [status and parity](https://github.com/md-mt/termproof/blob/main/rust/docs/status-and-parity.md)
 > before depending on this crate.
 
 **This crate is not published to crates.io.** It is a leaf that nothing else in

@@ -1,21 +1,60 @@
 # Changelog
 
-All notable changes to TermProof are documented in this file.
+All notable changes to TermProof are documented in this file — both
+implementations, one history.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html),
+with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
+
+## How to read this file
+
+- **One version number, one heading.** The Python implementation under
+  `python/` and the Rust implementation under `rust/` share a version train,
+  so a release number means the same point in the project's history for both.
+- **Each heading is split by implementation** — `Python — Added`,
+  `Rust — Changed`, and so on. A version with no section for an
+  implementation changed nothing in it.
+- **A heading is a point in the project's history, not a receipt for two
+  artifacts.** Whichever release is cut first moves the shared version and
+  promotes everything pending under `[Unreleased]`, so a version can carry
+  entries for an implementation whose own artifact has not been published at
+  that number yet. What is actually published, and where, is in
+  [`SECURITY.md`](SECURITY.md#what-is-published-and-who-has-to-be-notified).
+- **The artifacts stay independent.** A release is cut per implementation and
+  tagged `py-v<version>` or `rs-v<version>`; the Python package goes to PyPI
+  and the `termproof` crate to crates.io. One version train, two release
+  paths.
+- Add new entries under `[Unreleased]`, in the same PR as the change, under
+  the implementation they affect.
+- **Below 0.3.3 the two counts were independent**, so those headings can carry
+  two release dates for one number. From 0.3.3 the counts are the same.
+
+## [Unreleased]
+
+### Rust — Fixed
+
+- **release:** the auto-release moves the whole version train. It bumped
+  `rust/Cargo.toml` alone, so a release would push a `main` whose Python
+  manifest and changelog were left behind and whose own drift check failed.
+  `version-bump.py` now moves `python/pyproject.toml` and this file too, and
+  the workflow verifies the train before it tags.
+- **schema:** `load_canonical_schema` reaches
+  `python/docs/recipe-schema-v1.json`. Its candidate paths described
+  side-by-side checkouts from before the two implementations shared a
+  repository, so it returned `None` everywhere.
 
 ## [0.3.3] — 2026-08-16
 
-There is no 0.3.1 and no 0.3.2. TermProof is also implemented in Rust, in
-[md-mt/termproof-rust](https://github.com/md-mt/termproof-rust), which had
-already reached 0.3.3; the two projects are being brought together into one
-repository, so this release moves the Python package's version onto the Rust
-one rather than continuing its own count. From here a version number means the
-same set of changes in both implementations. Nothing was released as 0.3.1 or
-0.3.2 and nothing is missing from this file.
+The version at which the two implementations converged. The Rust
+implementation had already reached 0.3.3 on its own count, so the Python
+package moved onto that number rather than continuing to 0.3.1. The Python
+package released nothing as 0.3.1 or 0.3.2 — the entries under those headings
+below are the Rust implementation's, and nothing is missing from this file.
+From here a version number means the same point in the project's history for
+both.
 
-### Added
+### Python — Added
 
 - **An `ArtifactPublisher` plugin protocol.** Where evidence goes is now an
   extension point like every other part of the pipeline, registered under the
@@ -49,7 +88,7 @@ same set of changes in both implementations. Nothing was released as 0.3.1 or
   publisher through an optional
   `from_target` classmethod, mirroring `from_config` for renderers, so
   credentials stay out of the checked-in config file. See
-  `docs/plugin-protocols.md`.
+  `python/docs/plugin-protocols.md`.
 - **Assertions can read the screen captured after each step.** Until now an
   assertion saw only the final screen, which makes anything about a state the
   run passes through and then leaves — a dialog that was dismissed, a mid-flow
@@ -70,12 +109,58 @@ same set of changes in both implementations. Nothing was released as 0.3.1 or
   keyword-only with a default of `None`, which also lets a step-aware assertion
   run unchanged on a TermProof that never passes it — `None` means the execution
   mode supplied no per-step screens, which is not the same as a run in which no
-  step ran. See `docs/plugin-protocols.md` and the `StepScreenMatches` example in
+  step ran. See `python/docs/plugin-protocols.md` and the `StepScreenMatches` example in
   `plugin-template/`.
 
-## [0.3.0] — 2026-08-16
+### Rust — Added
 
-### Added
+- **Community-health and maintainer contracts**, a rebuilt public entry point,
+  and a repository governance baseline (`#38`, `#40`, `#44`).
+
+### Rust — Changed
+
+- **ci:** CI, dependencies and release verification hardened; the crates.io
+  publish environment named, and a container image published (`#41`, `#45`).
+- **schema:** `generate_recipe_schema` output pinned to a checked-in snapshot
+  (`#39`).
+
+This release was cut from the predecessor repository, before consolidation,
+and its entry was never written there. The list above is reconstructed from
+the release notes; the commit list is on that release.
+
+## [0.3.2] — 2026-08-15
+
+### Rust — Changed
+
+- **cargo:** JUnit output gets its own feature, so a consumer who only wants
+  JUnit stops paying for the evidence renderers (`#36`).
+- **cargo:** the portable-pty and unicode-width floors are documented from
+  outside, so the reason each floor sits where it does is legible without
+  reading the code (`#35`, `#37`).
+- **evidence:** the JUnit writer moves to its own module (`167cc96`).
+
+## [0.3.1] — 2026-08-14
+
+### Rust — Added
+
+- **cargo:** `schema` — schemars moves behind a default-on feature, so a
+  consumer that does not need schema generation stops compiling it (`#28`).
+- **cargo:** default-on `evidence` and `json-schema` features, so a consumer
+  compiles only what it uses (`#31`).
+- **terminal:** `Session::cwd()`, reporting where the child process actually
+  went (`#30`).
+
+### Rust — Changed
+
+- **cargo:** every version requirement is now a tested floor — CI pins each
+  widened requirement to its floor and runs the suite against it, so a floor
+  that stops being true fails CI rather than rotting (`#32`).
+- **steps:** type inference names the regex `Captures` type instead of a
+  concrete version of it (`d23c727`).
+
+## [0.3.0] — 2026-08-14 (Rust), 2026-08-16 (Python)
+
+### Python — Added
 
 - **An attributed screen model, and colour in `final.svg` and the
   `attributed_rsvg` video.** `termproof.attributed` keeps a per-cell grid —
@@ -102,11 +187,11 @@ same set of changes in both implementations. Nothing was released as 0.3.1 or
     Supporting it on the replay path means modelling SGR 2 in the emulator
     layer.
 
-  See `docs/evidence-quality.md` for both.
+  See `python/docs/evidence-quality.md` for both.
 - **An optional `render_attributed` method on the renderer protocol.** A
   renderer that defines it is handed the grid instead of text. Additive: a
   renderer written against the text-only protocol keeps working unchanged. See
-  [`docs/plugin-protocols.md`](docs/plugin-protocols.md).
+  [`python/docs/plugin-protocols.md`](python/docs/plugin-protocols.md).
 - **`png_rsvg`, a PNG renderer that rasterizes the attributed SVG.** Unlike the
   Pillow-based `png` renderer it keeps colour and styling, and it cannot drift
   from the `svg` output because it renders the same document. Needs
@@ -156,10 +241,10 @@ same set of changes in both implementations. Nothing was released as 0.3.1 or
   the screen to settle re-renders the screen already written. It stays off by
   default because it changes the artifact layout: a consumer that globs the step
   directory has to read the manifest instead. Every step keeps its own `.txt`
-  either way. See `docs/evidence-quality.md` for the research behind the
+  either way. See `python/docs/evidence-quality.md` for the research behind the
   recommended values.
 
-### Changed
+### Python — Changed
 
 - **The default session backend records the cast itself.** `pexpect` (new
   default) spawns the child directly and writes the asciinema v2 cast from the
@@ -179,11 +264,11 @@ same set of changes in both implementations. Nothing was released as 0.3.1 or
 - **One SVG renderer instead of two.** `screen.render_svg` was a second copy of
   `builtin_renderers.SvgRenderer`, with a comment saying the two had to be kept
   in step. It is now a wrapper over the renderer.
-- **The rendered corpus under `examples/artifacts/` is regenerated.** All 146
+- **The rendered corpus under `python/examples/artifacts/` is regenerated.** All 146
   checked-in SVGs differ, because the markup shape changed from one `<text>` per
   line to one per cell. No session was re-recorded — the `session.cast` files
   are untouched and the only input that changed is the renderer. A recorded run
-  of `examples/colorstress` joins the corpus as the entry that can catch a
+  of `python/examples/colorstress` joins the corpus as the entry that can catch a
   regression back to monochrome; every other recipe drives a monochrome TUI.
 
 - **`wait_for_idle` no longer treats a session that has produced no output as
@@ -199,7 +284,7 @@ same set of changes in both implementations. Nothing was released as 0.3.1 or
   alone, so terminal-title ticks, colour-only animation and idempotent repaints
   go idle exactly as before.
 
-### Fixed
+### Python — Fixed
 
 - **The `tmux` backend recorded casts with every carriage return stripped.** The
   `pipe-pane` fifo was read in Python's default text mode, whose universal-newline
@@ -217,7 +302,7 @@ same set of changes in both implementations. Nothing was released as 0.3.1 or
   copying the rendered PNG rather than rasterizing again, so the hold, and any
   idle stretch, costs disk instead of rasterizer calls.
 
-### Removed
+### Python — Removed
 
 - **The Rust engine.** The in-progress Rust reimplementation has moved to its
   own repository, [md-mt/termproof-rust](https://github.com/md-mt/termproof-rust),
@@ -232,7 +317,7 @@ same set of changes in both implementations. Nothing was released as 0.3.1 or
   - the `rust/` workspace, the `Rust` and `Release (Rust)` workflows, the
     `rust` build dependency in the Homebrew formula, and the
     `pyproject.toml` ↔ `rust/Cargo.toml` version drift check are gone.
-  - `docs/rust-reimplementation-spec.md`, `docs/rust-gates.md` and the docs-site
+  - `rust/docs/rust-reimplementation-spec.md`, `python/docs/rust-gates.md` and the docs-site
     Rust pages are gone; `/rust/` now explains the move.
 
   **There is no replacement yet.** `termproof-rust` has not published a release
@@ -240,9 +325,27 @@ same set of changes in both implementations. Nothing was released as 0.3.1 or
   agreeing on 55 of 217 cases. The Python implementation, which is what every
   install channel has always shipped, remains the only supported engine.
 
-## [0.2.1] — 2026-07-29
+### Rust — Added
 
-### Added
+- **evidence:** `EvidenceCollector`, an ordered step model beside `RunResult`
+  (`#26`).
+- **terminal:** `SessionDriver`, a scenario-facing layer over `Session`
+  (`#23`).
+- **result:** the `RunResult` payload is versioned, with an absent version its
+  own rule (`#22`).
+
+### Rust — Changed
+
+- **evidence:** one SVG renderer behind both stills and video — the change
+  that bumped the minor digit under the pre-1.0 rule (`#19`, `#25`).
+- **terminal:** `dim` is carried through the vt100 path (vt100 `0.15` →
+  `0.16`) (`#21`).
+- **docs:** conditional recipes are declined, and the docs say what a consumer
+  with a branching scenario uses instead (`#24`).
+
+## [0.2.1] — 2026-07-29 (Python), 2026-08-13 (Rust)
+
+### Python — Added
 
 #### Distribution & packaging
 - **Bundled `agg` binary.** Prebuilt `agg` wheels are shipped so video rendering works without a separate `agg` install, closing the v0.2.0 known limitation (#49).
@@ -271,16 +374,45 @@ same set of changes in both implementations. Nothing was released as 0.3.1 or
 - **VitePress documentation site** (#63).
 - **First-party plugin examples** listed in the docs (#65).
 
-### Changed
+### Python — Changed
 - **Stabilized plugin protocol API** for steps, assertions, and backends (#50).
 - **Pages deploy is now opt-in** (#67).
 - **PyPI release publishing is now opt-in** via `ENABLE_PYPI` (#71).
 
 ---
 
+### Rust — Added
+
+First release of the Rust implementation, covering everything from the
+workspace seed through the release automation (`#14`).
+
+- **release:** weekly auto-release that only fires on real change, and a
+  complete GitHub Release (`#14`).
+- **cargo:** every crate made publishable to crates.io, with the publish set
+  and order derived from `cargo metadata` rather than a maintained list
+  (`#11`).
+- **core:** the eight built-in assertions, measured against the Python oracle
+  (`#10`).
+- **execution:** `PtySession` is a `Session`, and `termproof run` runs recipes
+  against a real child (`#9`).
+- **terminal:** the terminal layer is real — children run on a real
+  pseudo-terminal via `portable-pty`, and the screen is a `vt100` cell grid
+  that interprets escapes instead of stripping them (`#6`).
+- **core:** assertions get the screen captured after each step (`#5`).
+- **spec:** Spec Kit adopted and the core verification semantics specified
+  (`#4`).
+
+### Rust — Changed
+
+- **refactor:** `termproof-core`, `termproof-terminal` and `termproof-evidence`
+  merge into one crate named `termproof` before any of them is published
+  (`#13`).
+- **core:** the five step-layer defects fixed, each with a test that failed
+  first (`#7`).
+
 ## [0.2.0] — 2026-07-26
 
-### Added
+### Python — Added
 
 #### Core engine
 - **Recipe-driven PTY execution.** JSON recipes drive real terminal applications through a pseudo-terminal. Launch any binary, type input, wait for regex patterns, run assertions — all deterministic and CI-friendly.
@@ -306,7 +438,7 @@ same set of changes in both implementations. Nothing was released as 0.3.1 or
 #### Documentation & launch
 - **README** with comparison table, quickstart, demo instructions, and badge
 - **GitHub Pages** site with polished project landing
-- **Launch kit** (`docs/launch/`): HN Show post draft, outreach templates for 5 TUI frameworks (Bubble Tea, Ratatui, Textual, Ink, Charm), social media profiles and assets, launch runbook, pre-flight checklist
+- **Launch kit** (`python/docs/launch/`): HN Show post draft, outreach templates for 5 TUI frameworks (Bubble Tea, Ratatui, Textual, Ink, Charm), social media profiles and assets, launch runbook, pre-flight checklist
 - **Contributing guide** and **Code of Conduct**
 - **Verified by TermProof badge** for downstream projects
 
@@ -315,11 +447,11 @@ same set of changes in both implementations. Nothing was released as 0.3.1 or
 - Trusted publishing to PyPI via GitHub release trigger
 - Release workflow with attestation
 
-### Changed
+### Python — Changed
 
 - **Renamed from TUI Verifier to TermProof** (#42). Package, CLI entry point, docs, and all internal references updated.
 
-### Known limitations
+### Python — Known limitations
 
 - Bundled `agg` binary distribution is deferred to v0.2.1. Users need `agg` installed separately for video rendering (`--video` flag).
 - Video rendering requires `agg` (from asciinema) and `ffmpeg` on PATH.
@@ -327,9 +459,10 @@ same set of changes in both implementations. Nothing was released as 0.3.1 or
 
 ---
 
-## Unreleased (pre-0.2.0 history)
+## Before 0.2.0
 
-All work prior to v0.2.0 was in the TUI Verifier codebase. Key milestones:
+All work prior to 0.2.0 was in the TUI Verifier codebase, which is what the
+Python implementation was called before the rename. Key milestones:
 
 - **Config system + Step/Assertion plugin registry** — YAML config, entry-point-based plugin loading
 - **Reporter + Screen Renderer registries** — pluggable output and rendering backends

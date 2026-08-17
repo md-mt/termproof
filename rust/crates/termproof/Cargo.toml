@@ -25,7 +25,12 @@ categories = [
 # root and is deliberately not shipped (~150 KB of recorded oracle output that no
 # consumer of the library needs). Without the corpus these two tests cannot run,
 # so they stay out of the tarball too. Every other test here is self-contained.
-exclude = ["tests/differential_steps.rs", "tests/differential_assertions.rs"]
+exclude = [
+    "tests/differential_steps.rs",
+    "tests/differential_assertions.rs",
+    # Reads python/docs/recipe-schema-v1.json, which is outside the crate.
+    "tests/canonical_schema.rs",
+]
 
 # Features gate public modules, so `docs.rs` must build with all of them on or
 # the published documentation silently loses `evidence` and `validation`.

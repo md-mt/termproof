@@ -11,7 +11,7 @@
 # ## Which external programs, and why
 #
 # TermProof shells out for three things. Working out which belong in an image
-# means reading what the shipped CLI can actually reach today (v0.3.2):
+# means reading what the shipped CLI can actually reach today (v0.3.3):
 #
 #   rsvg-convert  `evidence::screenshot::ScreenshotRenderer` rasterises its SVG
 #                 through it, at the hard-coded path /usr/bin/rsvg-convert —
@@ -77,7 +77,7 @@ FROM debian:bookworm-slim@sha256:abd67ffcfa541b485a3dff59865ab629aa048a6c613e639
 
 LABEL org.opencontainers.image.title="termproof" \
       org.opencontainers.image.description="Evidence-first verification for TUI and terminal applications (Rust implementation)" \
-      org.opencontainers.image.source="https://github.com/md-mt/termproof-rust" \
+      org.opencontainers.image.source="https://github.com/md-mt/termproof" \
       org.opencontainers.image.licenses="MIT"
 
 ENV TERM=xterm-256color

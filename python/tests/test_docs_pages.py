@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import os
 import re
+import subprocess
 import unittest
 from pathlib import Path
 
@@ -28,7 +29,7 @@ class CodeOfConductTest(unittest.TestCase):
     """BLOCKING: CODE_OF_CONDUCT.md must have a concrete enforcement contact."""
 
     def test_enforcement_section_has_concrete_email(self) -> None:
-        coc = _read(ROOT / "CODE_OF_CONDUCT.md")
+        coc = _read(REPO_ROOT / "CODE_OF_CONDUCT.md")
         # Split on "## Enforcement\n" (not "## Enforcement Responsibilities")
         parts = coc.split("## Enforcement\n")
         self.assertGreater(len(parts), 1,
@@ -39,7 +40,7 @@ class CodeOfConductTest(unittest.TestCase):
                       "concrete email address (e.g. md@mt.com)")
 
     def test_enforcement_does_not_reference_missing_files(self) -> None:
-        coc = _read(ROOT / "CODE_OF_CONDUCT.md")
+        coc = _read(REPO_ROOT / "CODE_OF_CONDUCT.md")
         parts = coc.split("## Enforcement\n")
         self.assertGreater(len(parts), 1)
         enforcement = parts[1].split("\n## ")[0]
@@ -55,20 +56,27 @@ class SECURITYTest(unittest.TestCase):
     """BLOCKING: A SECURITY.md must exist with a reporting contact."""
 
     def test_security_md_exists(self) -> None:
-        path = ROOT / "SECURITY.md"
+        path = REPO_ROOT / "SECURITY.md"
         self.assertTrue(path.is_file(),
                         f"SECURITY.md must exist at {path}")
 
     def test_security_md_has_contact(self) -> None:
-        sec = _read(ROOT / "SECURITY.md")
+        sec = _read(REPO_ROOT / "SECURITY.md")
         self.assertIn("@", sec, "SECURITY.md must contain a contact email")
 
 
 class ReadmeTest(unittest.TestCase):
-    """BLOCKING: README must have valid install commands, embedded demo, and badges."""
+    """BLOCKING: the front door must have valid install commands, an embedded
+    demo, and badges.
+
+    The front door is the repository-root README. It used to be
+    ``python/README.md``, which is now the Python package page that PyPI
+    renders — still a claim surface, and still checked below, but no longer
+    the first thing a stranger reads.
+    """
 
     def test_install_command_is_working(self) -> None:
-        readme = _read(ROOT / "README.md")
+        readme = _read(REPO_ROOT / "README.md")
         # Must not claim a PyPI install that doesn't exist
         self.assertNotRegex(readme, r"^pip install termproof$",
                             "README must not use `pip install termproof` (not on PyPI)")
@@ -81,14 +89,14 @@ class ReadmeTest(unittest.TestCase):
             "README must provide a working install path (git URL or from-source)")
 
     def test_forks_badge_present(self) -> None:
-        readme = _read(ROOT / "README.md")
+        readme = _read(REPO_ROOT / "README.md")
         self.assertIn("Forks", readme,
                       "README must include a GitHub forks badge")
         self.assertIn("img.shields.io/github/forks", readme,
                       "README must include a shields.io forks badge URL")
 
     def test_demo_has_embedded_screenshot(self) -> None:
-        readme = _read(ROOT / "README.md")
+        readme = _read(REPO_ROOT / "README.md")
         # Must embed at least one SVG or PNG screenshot in the Demo section
         demo_section = readme.split("## Demo")[1].split("## ")[0] if "## Demo" in readme else ""
         self.assertTrue(
@@ -96,13 +104,37 @@ class ReadmeTest(unittest.TestCase):
             "README Demo section must embed a real screenshot (![alt](path/to/file.svg))")
 
     def test_demo_references_existing_artifact(self) -> None:
-        """The generic-tui-workflow/final.svg that README links to must exist."""
-        svg_path = ROOT / "examples/artifacts/generic-tui-workflow/final.svg"
-        self.assertTrue(svg_path.is_file(),
-                        f"README references {svg_path.relative_to(ROOT)} but it does not exist")
+        """Every relative image the front door embeds must resolve."""
+        readme = _read(REPO_ROOT / "README.md")
+        embedded = [
+            src for src in re.findall(r"!\[[^\]]*\]\(([^)]+)\)", readme)
+            if not src.startswith("http")
+        ]
+        self.assertTrue(embedded, "README must embed at least one local image")
+        for src in embedded:
+            with self.subTest(src=src):
+                self.assertTrue(
+                    (REPO_ROOT / src).is_file(),
+                    f"README embeds {src} but it does not exist",
+                )
+
+    def test_package_readme_install_command_is_working(self) -> None:
+        """python/README.md is what PyPI renders; its install must work too."""
+        readme = _read(ROOT / "README.md")
+        self.assertNotRegex(readme, r"^pip install termproof$",
+                            "python/README.md must not use `pip install termproof` (not on PyPI)")
+        self.assertTrue(
+            "git+https://github.com/md-mt/termproof.git" in readme or
+            "git clone https://github.com/md-mt/termproof.git" in readme,
+            "python/README.md must provide a working install path")
+
+    def test_package_readme_points_at_the_front_door(self) -> None:
+        """One project: the package page must route a reader to the root."""
+        readme = _read(ROOT / "README.md")
+        self.assertIn("https://github.com/md-mt/termproof#readme", readme)
 
     def test_pages_url_is_gated(self) -> None:
-        readme = _read(ROOT / "README.md")
+        readme = _read(REPO_ROOT / "README.md")
         # Must not claim the Pages URL is live without qualification
         pages_url = "https://md-mt.github.io/termproof/"
         pages_index = readme.find(pages_url)
@@ -115,6 +147,70 @@ class ReadmeTest(unittest.TestCase):
             self.assertTrue(has_gate,
                             f"README references {pages_url} without gating the claim "
                             f"(repo is private, Pages not enabled)")
+
+
+class MarkdownLinkTest(unittest.TestCase):
+    """Every relative link in tracked prose must resolve.
+
+    `_site`'s HTML links were already checked; the markdown was not, and this
+    repository is mostly markdown. The consolidation moved documents between
+    trees and renamed every workflow, so a link written at one depth and now
+    read from another is the commonest way a document quietly starts lying —
+    `python/docs/ci/docker.md` pointed two levels up for a file three levels
+    up, and survived a rename of the file it names because only the name was
+    checked by eye.
+
+    Generated evidence reports are excluded: their links are relative to the
+    run directory they were written for, they are renderer output rather than
+    prose, and `test_public_claims.py` excludes them for the same reason.
+    """
+
+    #: Trees holding generated output or vendored tooling rather than prose.
+    EXCLUDED = (
+        "python/examples/artifacts/",
+        "python/site/artifacts/",
+        "python/_site/",
+        "conformance/corpus/",
+        "rust/.specify/",
+        "rust/.claude/",
+        "python/.hermes/",
+        # A template of a document a *consumer* writes, with placeholder paths.
+        "python/docs/case-studies/TEMPLATE.md",
+    )
+
+    #: `[text](target)`, but not `![alt](image)` — images are covered by the
+    #: front-door check above and by the artifact tests.
+    LINK = re.compile(r"(?<!\!)\[[^\]]*\]\(([^)\s]+)\)")
+
+    def test_every_relative_markdown_link_resolves(self) -> None:
+        tracked = subprocess.run(
+            ["git", "ls-files", "*.md"],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.split()
+        self.assertTrue(tracked, "expected tracked markdown")
+
+        checked = 0
+        broken = []
+        for name in tracked:
+            if name.startswith(self.EXCLUDED):
+                continue
+            path = REPO_ROOT / name
+            text = path.read_text(encoding="utf-8", errors="replace")
+            for match in self.LINK.finditer(text):
+                target = match.group(1)
+                if target.startswith(("http://", "https://", "#", "mailto:", "/")):
+                    continue
+                checked += 1
+                resolved = path.parent / target.split("#")[0]
+                if not resolved.exists():
+                    line = text[: match.start()].count("\n") + 1
+                    broken.append(f"{name}:{line} -> {target}")
+
+        self.assertGreater(checked, 100, "link enumeration collapsed")
+        self.assertEqual([], sorted(broken), "\n" + "\n".join(sorted(broken)))
 
 
 class EvidencePageTest(unittest.TestCase):

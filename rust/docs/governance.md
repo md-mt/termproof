@@ -1,9 +1,16 @@
-# TermProof Rust Repository Governance
+# TermProof Repository Governance
 
 Status: Active
 Owner: termproof maintainers (`@md-mt`)
-Scope: the `md-mt/termproof-rust` GitHub repository
+Scope: the `md-mt/termproof` GitHub repository — both implementations
 Baseline date: 2026-08-16 (main at `e6efcb5`)
+
+**The baseline in section 1 was verified against `md-mt/termproof-rust`, the
+predecessor repository, before the two implementations were consolidated.** It
+has not been re-verified against this repository, so read it as the settings
+this document argued for rather than as the settings that are live. The
+settings-change task re-runs the audit commands in section 8 here and records
+the before/after.
 
 This document records the repository's GitHub governance: metadata,
 vulnerability settings, merge policy, the required CI checks by their stable
@@ -82,31 +89,47 @@ squash-merged; the merge commit message will be the PR title"):
 
 The ruleset requires status checks by exact name, so the names below are the
 stable job names from the merged workflows. Renaming a job silently un-gates
-the ruleset; `security.yml` already documents that its job names are stable for
-this reason, and this list is the contract.
+the ruleset, and this list is the contract.
 
-Every pull request runs eight gate checks across three workflows. The five
-`Rust`/`Security` checks also run on `main` (verified at `e6efcb5`); the three
-`Publish (crates.io)` jobs run only on pull requests — `publish-crates.yml`
-triggers on `pull_request`, `workflow_dispatch`, and `release`, never on a
-push to `main` — so those three are verified on PR heads, not on `main`
-(audit commands in section 8):
+One repository, two language paths, so the gate covers both. The Rust checks
+and the Python checks are listed together because a ruleset on `main` is one
+list, not two.
 
 | Check name (exact) | Workflow | Job |
 |---|---|---|
-| `fmt, clippy, test (Rust ubuntu-latest)` | `Rust` | `rust` (matrix leg) |
-| `fmt, clippy, test (Rust macos-latest)` | `Rust` | `rust` (matrix leg) |
-| `cargo deny (advisories, licenses, bans, sources)` | `Security` | `deny` |
-| `cargo semver-checks (public API vs latest published termproof)` | `Security` | `semver` |
-| `cargo package (termproof tarball + contents)` | `Security` | `package` |
-| `Plan` | `Publish (crates.io)` | `plan` |
-| `Gate` | `Publish (crates.io)` | `gate` |
-| `Dry run` | `Publish (crates.io)` | `publish` (PR path) |
+| `Lint, type-check and test (ubuntu-latest)` | `CI (Rust)` | `rust` (matrix leg) |
+| `Lint, type-check and test (macos-latest)` | `CI (Rust)` | `rust` (matrix leg) |
+| `Dependency and licence policy (cargo deny)` | `Security (Rust)` | `deny` |
+| `Public API compatibility (cargo semver-checks)` | `Security (Rust)` | `semver` |
+| `Package contents (cargo package)` | `Security (Rust)` | `package` |
+| `Plan` | `Publish crates (Rust)` | `plan` |
+| `Gate` | `Publish crates (Rust)` | `gate` |
+| `Dry run` | `Publish crates (Rust)` | `dry-run` |
+| `Stdlib-only modules` | `CI (Python)` | `stdlib` |
+| `Lint, type-check and version drift` | `CI (Python)` | `lint` |
+| `Unit tests and coverage (py3.11)` | `CI (Python)` | `test` (matrix leg) |
+| `Unit tests and coverage (py3.12)` | `CI (Python)` | `test` (matrix leg) |
+| `Unit tests and coverage (py3.13)` | `CI (Python)` | `test` (matrix leg) |
+| `Build, verify TUI evidence and publish it` | `CI (Python)` | `verify` |
 
-The `Publish (crates.io)` jobs are dry runs on pull requests by design
-(`docs/publishing.md`): nothing uploads until a release is published, so they
-are safe to require on every PR. The `Dependabot` and `.github/dependabot.yml`
-checks on `main` are not PR gate checks and are not required.
+The `Publish crates (Rust)` jobs are dry runs on pull requests by design
+(`publishing.md`): nothing uploads until a release is published, so they are
+safe to require on every PR. That workflow triggers on `pull_request`,
+`workflow_dispatch` and `release`, never on a push to `main`, so those three
+are verified on PR heads rather than on `main`.
+
+Not required, and why:
+
+- `Build and smoke-test the bundled-agg wheel (...)` (`CI (Python)`) — three
+  platform legs, one of which cross-builds and can only inspect the wheel it
+  produced. Slow, and not a correctness gate for a source change.
+- `Build, smoke-test and publish the image` (`Docker Image (Rust)`) and
+  `Build and publish the image` (`Docker Image (Python)`) — path-filtered to
+  one tree each, so requiring either would block every PR that does not touch
+  it.
+- `Docs site`, `Pages preview` — same reason, and neither gates behaviour.
+- `Dependabot` / `.github/dependabot.yml` checks on `main` are not PR gate
+  checks.
 
 Any change to a workflow that renames a job must update this table in the same
 PR, or the ruleset will silently stop enforcing that check.
@@ -124,7 +147,7 @@ One ruleset, name **`main`**, enforcement **active**, targeting branch `main`:
   has no push access). A count of one would make every routine
   `@md-mt`-authored PR unmergeable without the emergency bypass, which
   section 7 reserves for incidents. The count is therefore **zero**: the
-  ruleset still requires a PR, all eight checks, and up-to-date branches, and
+  ruleset still requires a PR, all fourteen checks, and up-to-date branches, and
   blocks force pushes; review stays social (the PR template asks for review)
   until a second eligible reviewer is established. Raising this count is
   gated on the promotion criteria below.
@@ -133,10 +156,10 @@ One ruleset, name **`main`**, enforcement **active**, targeting branch `main`:
   PRs, requiring code-owner review would reproduce the same lockout.
 - **Dismiss stale approvals** when new commits are pushed.
 - **Require conversation resolution** — a resolved thread must stay resolved.
-- **Require status checks**: the eight names in section 5.
+- **Require status checks**: the fourteen names in section 5.
 - **Require branches to be up to date before merging** — the PR head must
   include the latest `main` before the merge button works. CI latency for the
-  eight checks is acceptable (minutes), so the strict option stays on.
+  fourteen checks is acceptable (minutes), so the strict option stays on.
 - **Block force pushes** and **block branch deletion** on `main`.
 - **Bypass: explicit, not blanket.** The sole bypass actor is the maintainer
   account `@md-mt` (the code owner). Do **not** enable the "bypass all
@@ -192,40 +215,40 @@ Commands (all read-only):
 
 ```sh
 # Metadata
-gh repo view md-mt/termproof-rust --json homepageUrl,repositoryTopics,hasIssuesEnabled,hasWikiEnabled,hasProjectsEnabled,hasDiscussionsEnabled,mergeCommitAllowed,rebaseMergeAllowed,squashMergeAllowed,deleteBranchOnMerge
+gh repo view md-mt/termproof --json homepageUrl,repositoryTopics,hasIssuesEnabled,hasWikiEnabled,hasProjectsEnabled,hasDiscussionsEnabled,mergeCommitAllowed,rebaseMergeAllowed,squashMergeAllowed,deleteBranchOnMerge
 
 # Ruleset and branch protection
-gh api repos/md-mt/termproof-rust/rulesets
-gh api repos/md-mt/termproof-rust/branches/main/protection
+gh api repos/md-mt/termproof/rulesets
+gh api repos/md-mt/termproof/branches/main/protection
 
 # Vulnerability settings (admin token; record 2xx vs 4xx per endpoint)
-gh api -i repos/md-mt/termproof-rust/vulnerability-alerts
-gh api -i repos/md-mt/termproof-rust/automated-security-fixes
-gh api repos/md-mt/termproof-rust/dependabot/alerts
+gh api -i repos/md-mt/termproof/vulnerability-alerts
+gh api -i repos/md-mt/termproof/automated-security-fixes
+gh api repos/md-mt/termproof/dependabot/alerts
 
 # Baseline CI health on the current head of main — the five Rust/Security
 # gate checks (plus Dependabot config checks). The Publish jobs never run on
 # main, so this command alone cannot verify the full required-check contract.
-gh api repos/md-mt/termproof-rust/commits/main/check-runs --jq '.check_runs[].name'
+gh api repos/md-mt/termproof/commits/main/check-runs --jq '.check_runs[].name'
 
-# Required PR gate checks — audit from a PR head, where all eight run.
+# Required PR gate checks — audit from a PR head, where all fourteen run.
 # Pick any open or recent PR (44 in the baseline, or the newest merged one):
-gh pr checks 44 --repo md-mt/termproof-rust --json name,state,workflow
+gh pr checks 44 --repo md-mt/termproof --json name,state,workflow
 # or directly against a PR head commit:
-gh api repos/md-mt/termproof-rust/commits/<pr-head-sha>/check-runs --jq '.check_runs[].name'
+gh api repos/md-mt/termproof/commits/<pr-head-sha>/check-runs --jq '.check_runs[].name'
 
-# After the ruleset exists, verify the eight configured contexts from the
+# After the ruleset exists, verify the fourteen configured contexts from the
 # ruleset JSON itself (the settings-change task records the ruleset id):
-gh api repos/md-mt/termproof-rust/rulesets --jq '.[] | select(.name == "main") | .rules[] | select(.type == "required_status_checks") | .parameters.required_status_checks[].context'
+gh api repos/md-mt/termproof/rulesets --jq '.[] | select(.name == "main") | .rules[] | select(.type == "required_status_checks") | .parameters.required_status_checks[].context'
 
 # Community health
-gh api repos/md-mt/termproof-rust/community/profile --jq .health_percentage
+gh api repos/md-mt/termproof/community/profile --jq .health_percentage
 ```
 
 Expected after the settings change: homepage `https://docs.rs/termproof`;
 topics present; vulnerability/Dependabot alerts enabled; private reporting
 enabled; squash-only + delete-branch-on-merge; one active `main` ruleset with
-the eight required checks and a required-review count of zero (until a second
+the fourteen required checks and a required-review count of zero (until a second
 eligible reviewer exists — see promotion criteria in section 6); `main`
 refusing direct pushes, force pushes and deletion; and an explicit `@md-mt`
 bypass. Any deviation from section 1–6 is a finding to fix or a deliberate

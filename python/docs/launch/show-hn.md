@@ -77,7 +77,7 @@ This repo publishes that folder as `termproof-ci-evidence` on every PR and as `t
 **What works today:**
 
 - Plugin registry: steps, assertions, session backends, video backends, reporters, execution modes — all in `.termproof/config.yaml`
-- Pi coding-agent showcase: deterministic recipes for multi-turn agent UI flows (checked-in under `examples/`)
+- Example recipe sets, all checked in under `examples/`: a portable TUI, a colour-stress renderer, a multi-turn conversation, and Pi coding-agent flows
 - Portable demo: `examples/generic/generic_tui.py` — run without any Pi binary or API key
 - GitHub Actions: `termproof-ci-evidence` artifact + sticky PR comment with `latest-report.md`
 
@@ -131,7 +131,7 @@ HN doesn't embed images in the submission itself, but link in comments or host:
 Preferred canonical demo link after v0.2 release:
 
 - `https://github.com/md-mt/termproof/tree/main/examples/artifacts` (checked-in evidence)
-- `https://github.com/md-mt/termproof/actions/workflows/ci.yml` → latest run → `termproof-ci-evidence` artifact
+- `https://github.com/md-mt/termproof/actions/workflows/python-ci.yml` → latest run → `termproof-ci-evidence` artifact
 - `https://md-mt.github.io/termproof/` when Pages lands (#16) — update this file in follow-up PR
 
 ## Posting Checklist

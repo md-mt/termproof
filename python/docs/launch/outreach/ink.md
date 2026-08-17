@@ -86,7 +86,7 @@ TermProof closes that:
 
 Pattern: unit with testing library, integration with TermProof, both in CI.
 
-**INK + Pi/Coding-agent showcase:**
+**INK + the agent-UI example recipes:**
 
 This repository's `examples/pi_workflow_*.recipe.json` demonstrate how TermProof verifies multi-turn coding-agent CLI UIs (read-only review, guarded edit, session resume/export, model/context). Those flows are similar to verifying Ink CLIs that run long-lived sessions — TermProof records the whole session cast and replays to screenshot/video.
 

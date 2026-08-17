@@ -10,11 +10,15 @@ ACTION = ROOT / "action.yml"
 
 
 class ActionEngineInputTest(unittest.TestCase):
-    """The Rust engine moved to md-mt/termproof-rust and no longer publishes releases.
+    """This action installs the Python package; `engine: rust` is rejected.
 
-    `engine: rust` used to download `termproof-linux-x86_64.tar.gz` from this
-    repository's releases. Leaving that path in place would fail with a 404 from
-    `curl` partway through the install step, so it is rejected up front instead.
+    `engine: rust` used to download `termproof-linux-x86_64.tar.gz` from a
+    release. Leaving that path in place would fail with a 404 from `curl`
+    partway through the install step, so it is rejected up front instead. The
+    Rust implementation is back in this repository, under `rust/`, but wiring
+    the action to its binary is a separate change from consolidating the two
+    repositories — so the rejection stays, and the message must say where the
+    Rust implementation actually is.
     """
 
     def setUp(self) -> None:
@@ -32,7 +36,8 @@ class ActionEngineInputTest(unittest.TestCase):
         run = install["run"]
 
         self.assertIn("::error::", run)
-        self.assertIn("https://github.com/md-mt/termproof-rust", run)
+        self.assertIn("https://github.com/md-mt/termproof", run)
+        self.assertNotIn("md-mt/termproof-rust", run)
         self.assertIn("exit 1", run)
 
     def test_supported_engines_still_install(self) -> None:

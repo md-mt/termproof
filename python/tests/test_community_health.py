@@ -321,7 +321,7 @@ class SupportRoutingTest(unittest.TestCase):
     URL_RE = re.compile(r"https?://")
 
     def test_support_md_has_no_discussions_link(self) -> None:
-        support = (ROOT / "SUPPORT.md").read_text(encoding="utf-8")
+        support = (REPO_ROOT / "SUPPORT.md").read_text(encoding="utf-8")
         self.assertNotIn("discussions", support.lower())
 
     def test_config_yml_has_no_discussions_link(self) -> None:
@@ -333,14 +333,14 @@ class SupportRoutingTest(unittest.TestCase):
         """No tracked document may link to md-mt/termproof's own Discussions."""
         tracked = subprocess.run(
             ["git", "ls-files", "*.md", "*.yml", "*.yaml"],
-            cwd=ROOT,
+            cwd=REPO_ROOT,
             capture_output=True,
             text=True,
             check=True,
         ).stdout.splitlines()
         self.assertTrue(tracked, "expected tracked markdown/yaml documents")
         for rel in tracked:
-            path = ROOT / rel
+            path = REPO_ROOT / rel
             with self.subTest(file=rel):
                 text = path.read_text(encoding="utf-8", errors="replace").lower()
                 self.assertNotIn(
@@ -373,10 +373,41 @@ class SupportRoutingTest(unittest.TestCase):
 
 
 class SecurityPolicyTest(unittest.TestCase):
-    def test_security_supported_versions_table_has_0_2(self) -> None:
-        security = (ROOT / "SECURITY.md").read_text(encoding="utf-8")
-        self.assertIn("0.2.x", security)
-        self.assertIn(":white_check_mark:", security)
+    """The supported-versions table must track the version actually shipping.
+
+    It used to pin the literal ``0.2.x``, which kept passing after the project
+    moved to ``0.3.x`` and left the policy telling reporters that an
+    unsupported series was supported. The current series is derived from the
+    manifest instead, so the table cannot go stale without failing.
+    """
+
+    def _shipping_series(self) -> str:
+        text = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+        match = re.search(r'^version\s*=\s*"(\d+)\.(\d+)\.', text, re.MULTILINE)
+        assert match is not None, "no version in pyproject.toml"
+        return f"{match.group(1)}.{match.group(2)}.x"
+
+    def test_supported_versions_table_marks_the_shipping_series(self) -> None:
+        security = (REPO_ROOT / "SECURITY.md").read_text(encoding="utf-8")
+        series = self._shipping_series()
+        row = next(
+            (line for line in security.splitlines() if line.startswith(f"| {series}")),
+            None,
+        )
+        self.assertIsNotNone(
+            row, f"SECURITY.md has no supported-versions row for {series}"
+        )
+        self.assertIn(
+            ":white_check_mark:",
+            row,
+            f"SECURITY.md must mark {series} as supported; it is what ships",
+        )
+
+    def test_policy_covers_both_implementations(self) -> None:
+        """One repository, one policy: a reporter must not have to pick a tree."""
+        security = (REPO_ROOT / "SECURITY.md").read_text(encoding="utf-8")
+        self.assertIn("crates.io", security)
+        self.assertIn("PyPI", security)
 
 
 if __name__ == "__main__":

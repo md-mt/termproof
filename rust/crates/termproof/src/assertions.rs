@@ -4,7 +4,7 @@
 //! implementation. Before this module `ExecutionContext::evaluate_assertion`
 //! was a required trait method with no in-tree body outside a test double, so
 //! every execution mode was free to answer differently; now they share this and
-//! `harness/corpus/assertion_cases.json` measures it.
+//! `conformance/corpus/assertion_cases.json` measures it.
 //!
 //! | Type | Reads | Detail |
 //! |---|---|---|

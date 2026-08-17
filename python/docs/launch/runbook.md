@@ -184,8 +184,8 @@ Record in `docs/launch/checklist.md` final section or swarm ledger — do not em
 - Generic demo: https://github.com/md-mt/termproof/tree/main/examples/generic
 - Generic recipe JSON: https://github.com/md-mt/termproof/blob/main/examples/generic/generic_tui.recipe.json
 - Artifacts dir: https://github.com/md-mt/termproof/tree/main/examples/artifacts
-- CI workflow: https://github.com/md-mt/termproof/actions/workflows/ci.yml
-- Release workflow: https://github.com/md-mt/termproof/actions/workflows/release.yml
+- CI workflow: https://github.com/md-mt/termproof/actions/workflows/python-ci.yml
+- Release workflow: https://github.com/md-mt/termproof/actions/workflows/python-release.yml
 - Badge: `[![Verified by TermProof](https://img.shields.io/badge/verified%20by-TermProof-0a7a2e?style=flat-square)](https://github.com/md-mt/termproof)`
 - Plugins: https://github.com/md-mt/termproof/blob/main/docs/plugins.md (once t_1b2bfea8 merges)
 - Verified badge guide: https://github.com/md-mt/termproof/blob/main/docs/verified-badge.md (once t_1b2bfea8 merges)
