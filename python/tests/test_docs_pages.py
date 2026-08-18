@@ -77,12 +77,16 @@ class ReadmeTest(unittest.TestCase):
 
     def test_install_command_is_working(self) -> None:
         readme = _read(REPO_ROOT / "README.md")
-        # Must not claim a PyPI install that doesn't exist
-        self.assertNotRegex(readme, r"^pip install termproof$",
-                            "README must not use `pip install termproof` (not on PyPI)")
-        self.assertNotRegex(readme, r"^uv pip install termproof$",
-                            "README must not use `uv pip install termproof` (not on PyPI)")
-        # Must have a working install: git URL or from-source
+        # `termproof` is on PyPI from 0.3.0, so `pip install termproof` is now
+        # the shortest working install and the front door must offer it. This
+        # assertion used to be its exact inverse — it forbade the command
+        # because the package was unpublished — and it went on passing for a
+        # day after the publish made it wrong. That is the same staleness
+        # `test_current_version_claims.py` exists to catch, encoded in a test
+        # rather than in prose.
+        self.assertRegex(readme, r"(?m)^pip install termproof$",
+                         "README must offer `pip install termproof` (it is on PyPI)")
+        # A working install without a release: git URL or from-source.
         self.assertTrue(
             "git+https://github.com/md-mt/termproof.git" in readme or
             "git clone https://github.com/md-mt/termproof.git" in readme,
@@ -121,8 +125,8 @@ class ReadmeTest(unittest.TestCase):
     def test_package_readme_install_command_is_working(self) -> None:
         """python/README.md is what PyPI renders; its install must work too."""
         readme = _read(ROOT / "README.md")
-        self.assertNotRegex(readme, r"^pip install termproof$",
-                            "python/README.md must not use `pip install termproof` (not on PyPI)")
+        self.assertRegex(readme, r"(?m)^pip install termproof$",
+                         "python/README.md must offer `pip install termproof` (it is on PyPI)")
         self.assertTrue(
             "git+https://github.com/md-mt/termproof.git" in readme or
             "git clone https://github.com/md-mt/termproof.git" in readme,

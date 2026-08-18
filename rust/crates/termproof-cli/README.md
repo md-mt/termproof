@@ -23,7 +23,7 @@ cargo install --git https://github.com/md-mt/termproof termproof-cli
 ```
 
 To pin a release, add `--tag rs-v<version>`. Rust releases are tagged `rs-v*`
-in this repository; releases through `0.3.3` were cut before the two
+in this repository; releases up to `0.3.3` were cut before the two
 implementations were consolidated and carry the older `v*` tags.
 
 Or build from a checkout:

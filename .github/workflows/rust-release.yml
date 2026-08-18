@@ -4,12 +4,13 @@
 # binary attached to each tagged release of this repository; it is not
 # distributed alongside the Python package.
 #
-# VERIFIED, historically: this workflow ran end to end on every tag from
-# v0.2.1 through v0.3.3 in the separate Rust repository this workspace came
-# from — each of those releases carries the three per-platform archives and
-# checksums below, and the provenance attestations produced by the build job.
-# It has not yet run on an `rs-v*` tag in this repository, because none has
-# been cut. Re-check the release page before cutting a new tag; what this
+# VERIFIED: this workflow has run end to end on every release tag through
+# 0.3.4 — v0.2.1 to v0.3.3 in the separate Rust repository this workspace came
+# from, and rs-v0.3.4, the first `rs-v*` tag cut here. Each of those releases
+# carries the three per-platform archives and checksums below, and the
+# provenance attestations produced by the build job. Note that the attestations
+# for the pre-consolidation tags name the old repository, not this one.
+# Re-check the release page before cutting a new tag; what this
 # workflow asserts — which workflow, on which ref, in which repository, built
 # a given archive — is the thing consumers verify against.
 #

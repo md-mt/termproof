@@ -1,7 +1,8 @@
 # Publishing to crates.io
 
-`termproof` is published on crates.io, currently through **0.3.3** (`0.2.1`,
-`0.3.0`, `0.3.1`, `0.3.2`, `0.3.3`, all unyanked). `termproof-cli` and
+`termproof` is published on crates.io, currently through **0.3.4**; every
+version from `0.2.1` on is live and none has been yanked
+([version list](https://crates.io/crates/termproof/versions)). `termproof-cli` and
 `termproof-plugin-protocol` are **not** published — they carry
 `publish = false` on purpose. **crates.io never releases a name once it is
 taken, even after a yank**, so read [What publishes, and what does
@@ -14,7 +15,7 @@ One crate is in scope, and it is the only one that has ever been published:
 
 | Crate | Publishes | Why |
 |---|---|---|
-| `termproof` | yes — published through `0.3.3` | the whole library: recipe model, steps, assertions, orchestration, terminal sessions, evidence pipeline |
+| `termproof` | yes — published through `0.3.4` | the whole library: recipe model, steps, assertions, orchestration, terminal sessions, evidence pipeline |
 | `termproof-cli` | **held** | `publish = false` |
 | `termproof-plugin-protocol` | **held** | `publish = false` |
 
@@ -22,7 +23,7 @@ One crate is in scope, and it is the only one that has ever been published:
 serving a plugin ecosystem that does not exist yet, and its shape will move as
 the port approaches parity. `termproof-cli` is held for now as a deliberate
 choice about what the published surface commits to — the releases that have
-shipped (`0.2.1` through `0.3.3`) carried the library only.
+shipped (`0.2.1` through `0.3.4`) carried the library only.
 
 Both keep complete metadata. Lifting `publish = false` is the only change
 needed to publish either of them — the release automation derives its set from
@@ -167,7 +168,7 @@ tag does not start `rs-v`, so an unprefixed tag would publish nothing and build
 nothing.
 
 Unprefixed `v<version>` tags exist in the history. They predate the
-consolidation — releases through `v0.3.3` were cut from the separate Rust
+consolidation — releases up to `v0.3.3` were cut from the separate Rust
 repository, and this repository's own `v*` tags are Python releases from before
 the prefixes existed. They are history, not a format to reuse.
 
@@ -259,11 +260,12 @@ file is copied into each crate directory; keep the copies in sync with the root
 - `.github/workflows/rust-publish-crates.yml` — the only thing that uploads to a
   registry.
 - `.github/workflows/rust-release.yml` — builds and attests the `termproof`
-  binary for tagged releases. It does not publish to crates.io. It ran
-  successfully on every tag from `v0.2.1` through `v0.3.3` in the separate Rust
-  repository this workspace came from, attaching the per-platform archives and
-  checksums; it has not yet run on an `rs-v*` tag here, because none has been
-  cut. Its header notes the remaining caveats. Since PR4, each archive is smoke-tested before upload
+  binary for tagged releases. It does not publish to crates.io. It has run
+  successfully on every release tag through `0.3.4`: `v0.2.1` to `v0.3.3` in
+  the separate Rust repository this workspace came from, and `rs-v0.3.4`, the
+  first `rs-v*` tag cut here. Each attaches the three per-platform archives
+  and their checksums.
+  Its header notes the remaining caveats. Since PR4, each archive is smoke-tested before upload
   (`.github/scripts/rust/verify-release-archive.sh`: checksum, extraction, and
   `termproof --version` matching the workspace version), and the attestation
   subject is verified against the archive digest.

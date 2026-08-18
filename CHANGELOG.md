@@ -32,7 +32,40 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
 
 ## [Unreleased]
 
-Nothing yet.
+### Docs
+
+- **The distribution claims now say what 0.3.4 actually shipped.** Both
+  packages are live — `termproof` on PyPI and the `termproof` crate on
+  crates.io — and thirteen surfaces still said otherwise: `README.md` said
+  "not yet on PyPI" and named `0.3.3` as the newest crate, `SECURITY.md` said
+  the PyPI publish was gated off, and `rust/docs/publishing.md`, the release and
+  security workflow headers, the Rust Dockerfile and the `termproof-cli`
+  README were all a release behind. `rust-release.yml` and
+  `rust/docs/publishing.md` also still said no `rs-v*` tag had been cut, and
+  `rust-auto-release.yml` still explained its first-release guard as if none
+  were reachable from `main`; `rs-v0.3.4` is both.
+
+### Changed
+
+- **`.github/scripts/rust/version-bump.py` moves the prose claims too.** The
+  version train was four places — two manifests, the changelog, and the
+  lockfile — and the sentences saying what is published today were not in it,
+  which is why they drifted a release behind and stayed there. The script now
+  rewrites the version inside a *current-version claim* wherever one is
+  tracked, and refuses to finish if one did not move.
+
+- **`python/tests/test_current_version_claims.py` checks correctness, not just
+  agreement.** It already required every surface to name the same current
+  version; that held while all thirteen named the wrong one in unison. It now
+  requires that version to be the one `python/pyproject.toml` is at — the
+  offline oracle a release makes true — and imports its claim pattern from
+  `version-bump.py` so the sweep and the rewriter cannot disagree. It does not
+  query PyPI or crates.io; a network-dependent test fails offline and in a
+  sandbox, which is a worse failure than the one it prevents.
+
+- **`python/tests/test_docs_pages.py` no longer forbids `pip install
+  termproof`.** It asserted the command's absence because the package was
+  unpublished, and went on passing after the publish made that wrong.
 
 ## [0.3.4] — 2026-08-17
 

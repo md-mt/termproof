@@ -37,9 +37,11 @@ the recipe format is.
 Install (Python 3.11+):
 
 ```bash
+pip install termproof
+# or from Homebrew
 brew tap md-mt/termproof https://github.com/md-mt/termproof
 brew install termproof
-# or from GitHub with pip
+# or unreleased, from GitHub
 pip install git+https://github.com/md-mt/termproof.git
 # or from source
 git clone https://github.com/md-mt/termproof.git && cd termproof/python

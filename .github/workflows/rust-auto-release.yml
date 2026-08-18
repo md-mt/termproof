@@ -178,19 +178,22 @@ jobs:
           fi
           echo "RELEASE_TOKEN is present"
 
-      # No `rs-v*` tag is reachable from `main`, so `release-decide.py` reports
-      # `first_release: true` and would release the version already in the
-      # manifest, unbumped, with notes enumerating the whole history. That was
-      # the right behaviour when this workflow lived in a repository with no
-      # releases; here, `0.3.3` is already published to crates.io and already
-      # has a GitHub release under the pre-consolidation `v0.3.3` tag, so the
-      # run would produce a duplicate.
+      # Dormant, and kept as a net. While no `rs-v*` or `rs-baseline-v*` tag
+      # was reachable from `main`, `release-decide.py` reported
+      # `first_release: true` and this workflow would have released the version
+      # already in the manifest, unbumped, with notes enumerating the whole
+      # history — duplicating a release that already existed on crates.io under
+      # a pre-consolidation tag. That was the right behaviour only when this
+      # workflow lived in a repository with no releases at all.
       #
-      # The intended fix is a baseline tag, which the script already supports:
+      # The fix was a baseline tag, which the script already supports:
       # `rs-baseline-v<version>` on the commit the count should start from
-      # (TERMPROOF_RUST_BASELINE_TAG_PREFIX). Until one exists, a scheduled run
-      # stops here rather than releasing. A human who really does want the
-      # first release can still dispatch this workflow with `force`.
+      # (TERMPROOF_RUST_BASELINE_TAG_PREFIX). Both that tag and a real `rs-v*`
+      # release tag are reachable from `main` now, so `first_release` is false
+      # and this step is skipped. It stays because the condition that armed it
+      # can come back — a force-pushed `main`, a deleted tag — and because a
+      # scheduled run must stop rather than release into it. A human who really
+      # does want a first release can still dispatch this workflow with `force`.
       #
       # Scoped exactly like the RELEASE_TOKEN precondition above, and for the
       # same two reasons: a quiet week decides `release: false` and must stay

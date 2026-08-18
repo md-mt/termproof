@@ -2,8 +2,7 @@ name: TermProof
 
 description: |
   Run TermProof recipes and upload reviewable evidence.
-  Installs TermProof from PyPI — requires a published release (v0.2.1+).
-  Until then, use the CI workflow directly or install from source.
+  Installs TermProof from PyPI, where the package is published.
 
 inputs:
   recipe-path:
