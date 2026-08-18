@@ -36,9 +36,10 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
 
 - **The distribution claims now say what 0.3.4 actually shipped.** Both
   packages are live — `termproof` on PyPI and the `termproof` crate on
-  crates.io — and thirteen surfaces still said otherwise: `README.md` said
-  "not yet on PyPI" and named `0.3.3` as the newest crate, `SECURITY.md` said
-  the PyPI publish was gated off, and `rust/docs/publishing.md`, the release and
+  crates.io — and thirteen surfaces still said otherwise: `README.md` denied
+  the PyPI publish outright and named `0.3.3` as the newest crate,
+  `SECURITY.md` reported the PyPI upload as still gated off, and
+  `rust/docs/publishing.md`, the release and
   security workflow headers, the Rust Dockerfile and the `termproof-cli`
   README were all a release behind. `rust-release.yml` and
   `rust/docs/publishing.md` also still said no `rs-v*` tag had been cut, and

@@ -289,9 +289,16 @@ jobs:
       # root `CHANGELOG.md` together. Bumping the Rust manifest alone would
       # push a `main` that fails the repository's own version-train check,
       # after the release had already gone out.
+      #
+      # `--publishes crates` is what keeps that from overshooting. The version
+      # train is shared, but the release paths are not: this workflow cuts
+      # `rs-v*`, and PyPI is only uploaded by python-release.yml on a `py-v*`
+      # tag. Without the scope the bump also rewrote the PyPI rows in
+      # `README.md` and `SECURITY.md`, so a Rust-only release published a false
+      # PyPI claim to `main` with every check green.
       - name: Bump the version train
         if: needs.decide.outputs.first_release != 'true'
-        run: .github/scripts/rust/version-bump.py "${{ needs.decide.outputs.version }}"
+        run: .github/scripts/rust/version-bump.py "${{ needs.decide.outputs.version }}" --publishes crates
 
       # The bump and the proof are two different failure modes: an edit that
       # silently matched nothing leaves the train split just as surely as no

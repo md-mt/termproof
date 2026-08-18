@@ -191,9 +191,17 @@ CURRENCY = re.compile(
     re.IGNORECASE,
 )
 
-#: A bare or `v`-prefixed semver, not part of a longer dotted string (so
-#: `1.0.69` inside `thiserror 1.0.69` still matches, but `0.3.3.1` does not).
-CLAIM_VERSION = re.compile(r"(?<![\w.])v?(\d+\.\d+\.\d+)(?![\w.])")
+#: A bare or `v`-prefixed semver, not part of a longer dotted string.
+#:
+#: The tail forbids a following dot only when a word character follows it, so
+#: `0.3.3.1` and `0.3.3.rc1` are correctly not read as `0.3.3` while
+#: `0.3.3.` — a claim at the end of a sentence — is. Forbidding every trailing
+#: dot, which is what this did first, made a sentence-final claim invisible to
+#: both the sweep and the rewriter: `Published through 0.3.3.` passed the guard
+#: while being false.
+_VERSION_HEAD = r"(?<![\w.])"
+_VERSION_TAIL = r"(?!\.?\w)"
+CLAIM_VERSION = re.compile(rf"{_VERSION_HEAD}v?(\d+\.\d+\.\d+){_VERSION_TAIL}")
 
 #: Generated output, vendored tooling, lockfiles, and the two files that have
 #: to spell out example claims in order to define or test what a claim is —
@@ -214,8 +222,58 @@ CLAIM_EXCLUDED_PREFIXES = (
 )
 
 
+#: The artifacts a release can publish. A claim belongs to one of these, or to
+#: none — and a release must not move a claim about an artifact it does not
+#: publish.
+#:
+#: The two release paths are separate even though the version train is shared.
+#: `python-release.yml` triggers on `py-v*` and gates the PyPI upload on that
+#: tag; the Rust auto-release cuts `rs-v*`. So a Rust release that rewrote the
+#: PyPI rows in `README.md` and `SECURITY.md` would push a claim to `main` that
+#: no publish had made true, with every check green — which is exactly what
+#: this script did before the scope existed.
+ARTIFACTS = ("pypi", "crates")
+
+#: How a claim names its own artifact. Matched against the claim's span only,
+#: never its surroundings: in the "What is published" tables the PyPI row and
+#: the crates.io row are adjacent lines, so any wider context is ambiguous for
+#: both.
+_ARTIFACT_WORDS = {
+    "pypi": re.compile(r"\bPyPI\b|pypi\.org|\bpy-v", re.I),
+    "crates": re.compile(r"crates\.io|\brs-v", re.I),
+}
+
+#: Where a claim that names no artifact sits. A version claim inside the Rust
+#: tree, or in a workflow named for one implementation, is about that
+#: implementation's artifact even when the sentence does not say so.
+_ARTIFACT_PATHS = (
+    (".github/workflows/rust-", "crates"),
+    (".github/workflows/python-", "pypi"),
+    ("rust/", "crates"),
+    ("python/", "pypi"),
+)
+
+
 def _newest(versions):
     return max(versions, key=lambda v: [int(part) for part in v.split(".")])
+
+
+def claim_artifact(name, lines, span):
+    """Which artifact a claim is about, or `None` for the version train itself.
+
+    `None` means "moves with any release": a claim that names no artifact and
+    sits outside either implementation's tree is about the project's current
+    version, not about one registry's contents.
+    """
+    text = "\n".join(lines[index] for index in span)
+    named = [key for key, pattern in _ARTIFACT_WORDS.items() if pattern.search(text)]
+    if len(named) == 1:
+        return named[0]
+    # Zero matches, or a span that names both — fall back to where it lives.
+    for prefix, artifact in _ARTIFACT_PATHS:
+        if name.startswith(prefix):
+            return artifact
+    return None
 
 
 def claim_windows(lines):
@@ -258,20 +316,31 @@ def claim_files(repo):
     return [name for name in listing if not name.startswith(CLAIM_EXCLUDED_PREFIXES)]
 
 
-def rewrite_claims(text, old, new):
+def rewrite_claims(text, old, new, name="", publishes=None):
     """Return (new_text, [edits]) with `old` -> `new` inside claims only.
 
     Only lines belonging to a window whose claimed version is `old` are
     touched, so examples, dependency pins and the lower bound of a historical
     range keep the number they had. A `v` prefix is preserved.
+
+    `publishes` is the set of artifacts the running release actually uploads;
+    a claim about anything else is left where it is. `None` means every
+    artifact, which is right for a manual bump that precedes both releases and
+    wrong for either release workflow on its own.
     """
     lines = text.splitlines(keepends=True)
+    bare = [line.rstrip("\n") for line in lines]
     targets = set()
-    for _, claimed, span in claim_windows([line.rstrip("\n") for line in lines]):
-        if claimed == old:
-            targets.update(span)
+    for _, claimed, span in claim_windows(bare):
+        if claimed != old:
+            continue
+        if publishes is not None:
+            artifact = claim_artifact(name, bare, span)
+            if artifact is not None and artifact not in publishes:
+                continue
+        targets.update(span)
 
-    pattern = re.compile(rf"(?<![\w.])(v?){re.escape(old)}(?![\w.])")
+    pattern = re.compile(rf"{_VERSION_HEAD}(v?){re.escape(old)}{_VERSION_TAIL}")
     edits = []
     for index in sorted(targets):
         replaced, count = pattern.subn(rf"\g<1>{new}", lines[index])
@@ -304,7 +373,24 @@ def main():
         "--date",
         help="release date for the changelog heading (default: today, UTC)",
     )
+    parser.add_argument(
+        "--publishes",
+        default=",".join(ARTIFACTS),
+        help=(
+            "comma-separated artifacts this release uploads "
+            f"({', '.join(ARTIFACTS)}); claims about anything else are left "
+            "alone. The Rust auto-release passes `crates`."
+        ),
+    )
     args = parser.parse_args()
+
+    publishes = {part.strip() for part in args.publishes.split(",") if part.strip()}
+    unknown = sorted(publishes - set(ARTIFACTS))
+    if unknown:
+        sys.exit(
+            f"error: unknown artifact(s) {', '.join(unknown)}; "
+            f"--publishes takes any of {', '.join(ARTIFACTS)}"
+        )
 
     new = args.version
     if not SEMVER.match(new):
@@ -388,7 +474,9 @@ def main():
                     text = path.read_text(encoding="utf-8")
                 except (UnicodeDecodeError, OSError):
                     continue
-            text, claim_edits = rewrite_claims(text, old, new)
+            text, claim_edits = rewrite_claims(
+                text, old, new, name=name, publishes=publishes
+            )
             if claim_edits:
                 edits += [f"{name}: {edit}" for edit in claim_edits]
                 pending[path] = text
@@ -433,7 +521,8 @@ def main():
     # Same argument as the two checks above, for the surface that has actually
     # gone stale: an edit that silently matched nothing leaves a claim a
     # release behind, and `test_current_version_claims.py` would fail the very
-    # `main` this release is being cut from.
+    # `main` this release is being cut from. Scoped to what this release
+    # publishes — a claim about the other artifact is meant to stay behind.
     behind = []
     for name in claim_files(repo):
         path = repo / name
@@ -441,11 +530,12 @@ def main():
             lines = path.read_text(encoding="utf-8").splitlines()
         except (UnicodeDecodeError, OSError):
             continue
-        behind += [
-            f"{name}:{index + 1}"
-            for index, claimed, _ in claim_windows(lines)
-            if claimed != new
-        ]
+        for index, claimed, span in claim_windows(lines):
+            if claimed == new:
+                continue
+            artifact = claim_artifact(name, lines, span)
+            if artifact is None or artifact in publishes:
+                behind.append(f"{name}:{index + 1}")
     if behind:
         sys.exit(
             f"error: after the bump these still do not name {new} as the "
@@ -455,7 +545,8 @@ def main():
     print(
         f"version train is at {new}: "
         f"{', '.join(sorted(p['name'] for p in after['packages']))}, "
-        f"{pyproject.name}, {changelog.name}, and every current-version claim"
+        f"{pyproject.name}, {changelog.name}, and every current-version claim "
+        f"about {', '.join(sorted(publishes))}"
     )
 
 
