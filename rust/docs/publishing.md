@@ -196,31 +196,23 @@ fail with a message naming both values.
 - Pre-1.0, treat a breaking change to any public API as a minor bump (`0.2.x` →
   `0.3.0`) and everything else as a patch bump.
 - Run `cargo update -w` after the bump so `Cargo.lock` matches, and commit it.
-- **The "published through" claims move with the bump, not after it.** They
-  used to be a manual follow-up, on the reasoning that they are statements
-  about crates.io rather than about the manifest and so are correctly one
-  release behind between the bump and the upload. In practice nothing moved
-  them and they drifted a release behind and stayed there, so
-  `version-bump.py` now rewrites them in the same commit — prose, workflow
-  comments, Dockerfile headers — and exits non-zero if one did not move.
-  `python/tests/test_current_version_claims.py` is the check: it compares each
-  claim to `python/pyproject.toml`, not only to the other surfaces, so
-  agreeing on a stale number no longer passes.
-- **Claims are scoped per artifact, and the bump must say which it publishes.**
-  `--publishes crates` is what the Rust auto-release passes. The version train
-  is shared but the release paths are not — PyPI is only uploaded by
-  `python-release.yml` on a `py-v*` tag — so a Rust release leaves the PyPI
-  claims where they are, and the guard expects exactly that: it requires every
-  claim about one artifact to agree, and at least one artifact to be at the
-  manifest version, rather than all of them.
-- **Write a current-version claim as one self-contained sentence.** The
-  rewriter follows a claim onto its next line but no further, and widening
-  that would edit prose which is not a claim at all. So keep the version and
-  the word that makes it a statement about now on the same line, and phrase
-  whatever follows so it stays true at every version. "`rs-v0.3.4` was the
-  first `rs-v*` tag cut here" never has to move; an enumeration that names the
-  newest tag does, and a wrapped one will be left behind saying the wrong
-  thing.
+- **After the publish**, move the "published through" claims onto the new
+  number, and move all of them. They are statements about a registry, not
+  about the manifest, so they are correctly one release behind between the
+  bump and the upload — but nothing moves them automatically, and the whole
+  set went a release stale after `0.3.4` because this step was skipped.
+  `python/tests/test_current_version_claims.py` sweeps every surface that
+  makes one — prose, workflow comments, Dockerfile headers — and fails when
+  two of them disagree, so a run of it names each place that has to move. It
+  compares the surfaces to each other rather than to the manifest, precisely
+  so a bump does not fail on its own; the cost of that is what it cannot see,
+  which is every surface being stale together.
+- **Scope the claims you move to what actually went out.** The version train is
+  shared but the release paths are not: `rust-auto-release.yml` cuts `rs-v*`
+  and PyPI is only uploaded by `python-release.yml` on a `py-v*` tag. A Rust
+  release moves the crates.io claims and leaves the PyPI ones where they are,
+  and the other way round. The sweep above cannot tell the difference, so this
+  one is on you.
 
 ## Before you cut a release
 
@@ -277,11 +269,11 @@ file is copied into each crate directory; keep the copies in sync with the root
 - `.github/workflows/rust-publish-crates.yml` — the only thing that uploads to a
   registry.
 - `.github/workflows/rust-release.yml` — builds and attests the `termproof`
-  binary for tagged releases. It does not publish to crates.io.
-  It has run successfully on every release tag through `0.3.4`.
-  That set is `v0.2.1` to `v0.3.3`, cut in the separate Rust repository this
-  workspace came from, plus every `rs-v*` tag cut here since — `rs-v0.3.4` was
-  the first. Each attaches the three per-platform archives and their checksums.
+  binary for tagged releases. It does not publish to crates.io. It has run
+  successfully on every release tag through `0.3.4`: `v0.2.1` to `v0.3.3` in
+  the separate Rust repository this workspace came from, and `rs-v0.3.4`, the
+  first `rs-v*` tag cut here. Each attaches the three per-platform archives and
+  their checksums.
   Its header notes the remaining caveats. Since PR4, each archive is smoke-tested before upload
   (`.github/scripts/rust/verify-release-archive.sh`: checksum, extraction, and
   `termproof --version` matching the workspace version), and the attestation

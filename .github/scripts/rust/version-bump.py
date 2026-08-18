@@ -11,7 +11,7 @@ release cannot leave the Python manifest or the changelog behind — which is
 exactly what it used to do, bumping `rust/Cargo.toml` alone and pushing a
 `main` that failed its own drift check.
 
-Five places carry the version and must move together:
+Four places carry the version and must move together:
 
   - `rust/Cargo.toml`, `[workspace.package] version`, which every member
     inherits;
@@ -25,15 +25,7 @@ Five places carry the version and must move together:
     section is promoted to a heading for this version and a fresh empty
     `[Unreleased]` takes its place. Keep a Changelog's release step, and what
     keeps the curated entries contributors wrote rather than generating prose
-    over the top of them;
-  - every *current-version claim* in tracked prose — the sentences in
-    `README.md`, `SECURITY.md`, `rust/docs/publishing.md`, workflow headers and
-    Dockerfile comments that say what is published *today*. These were the one
-    part of the train nothing moved, so they drifted a release behind and stayed
-    there until a human noticed. `CURRENCY` below is what makes a version a
-    claim about now rather than an example or a range's lower bound, and
-    `python/tests/test_current_version_claims.py` imports it from here so the
-    sweep and the rewriter cannot disagree about what counts.
+    over the top of them.
 
 Internal dependencies are identified by the presence of `path = `, not by
 name. No crate is named in this file, so merging several crates into one, or
@@ -183,173 +175,6 @@ def promote_changelog(text, new, date):
     return updated, [f"CHANGELOG.md: [Unreleased] -> [{new}] \u2014 {date}"]
 
 
-#: Phrasings that make a version a statement about *now* rather than an
-#: example, a dependency pin or a historical range's lower bound.
-CURRENCY = re.compile(
-    r"\btoday\b|\bcurrently\b|\blatest published\b|\bVERIFIED\b|\bso far\b"
-    r"|\bas of\b|\bthrough\b|\bhas run\b|\bran\b",
-    re.IGNORECASE,
-)
-
-#: A bare or `v`-prefixed semver, not part of a longer dotted string.
-#:
-#: The tail forbids a following dot only when a word character follows it, so
-#: `0.3.3.1` and `0.3.3.rc1` are correctly not read as `0.3.3` while
-#: `0.3.3.` — a claim at the end of a sentence — is. Forbidding every trailing
-#: dot, which is what this did first, made a sentence-final claim invisible to
-#: both the sweep and the rewriter: `Published through 0.3.3.` passed the guard
-#: while being false.
-_VERSION_HEAD = r"(?<![\w.])"
-_VERSION_TAIL = r"(?!\.?\w)"
-CLAIM_VERSION = re.compile(rf"{_VERSION_HEAD}v?(\d+\.\d+\.\d+){_VERSION_TAIL}")
-
-#: Generated output, vendored tooling, lockfiles, and the two files that have
-#: to spell out example claims in order to define or test what a claim is —
-#: the Python suite, and this script's own docstrings.
-CLAIM_EXCLUDED_PREFIXES = (
-    "python/examples/artifacts/",
-    "python/site/artifacts/",
-    "python/_site/",
-    "conformance/corpus/",
-    "rust/.specify/",
-    "rust/.claude/",
-    "python/.hermes/",
-    "python/tests/",
-    "python/docs-site/package-lock.json",
-    "python/uv.lock",
-    "rust/Cargo.lock",
-    ".github/scripts/rust/version-bump.py",
-)
-
-
-#: The artifacts a release can publish. A claim belongs to one of these, or to
-#: none — and a release must not move a claim about an artifact it does not
-#: publish.
-#:
-#: The two release paths are separate even though the version train is shared.
-#: `python-release.yml` triggers on `py-v*` and gates the PyPI upload on that
-#: tag; the Rust auto-release cuts `rs-v*`. So a Rust release that rewrote the
-#: PyPI rows in `README.md` and `SECURITY.md` would push a claim to `main` that
-#: no publish had made true, with every check green — which is exactly what
-#: this script did before the scope existed.
-ARTIFACTS = ("pypi", "crates")
-
-#: How a claim names its own artifact. Matched against the claim's span only,
-#: never its surroundings: in the "What is published" tables the PyPI row and
-#: the crates.io row are adjacent lines, so any wider context is ambiguous for
-#: both.
-_ARTIFACT_WORDS = {
-    "pypi": re.compile(r"\bPyPI\b|pypi\.org|\bpy-v", re.I),
-    "crates": re.compile(r"crates\.io|\brs-v", re.I),
-}
-
-#: Where a claim that names no artifact sits. A version claim inside the Rust
-#: tree, or in a workflow named for one implementation, is about that
-#: implementation's artifact even when the sentence does not say so.
-_ARTIFACT_PATHS = (
-    (".github/workflows/rust-", "crates"),
-    (".github/workflows/python-", "pypi"),
-    ("rust/", "crates"),
-    ("python/", "pypi"),
-)
-
-
-def _newest(versions):
-    return max(versions, key=lambda v: [int(part) for part in v.split(".")])
-
-
-def claim_artifact(name, lines, span):
-    """Which artifact a claim is about, or `None` for the version train itself.
-
-    `None` means "moves with any release": a claim that names no artifact and
-    sits outside either implementation's tree is about the project's current
-    version, not about one registry's contents.
-    """
-    text = "\n".join(lines[index] for index in span)
-    named = [key for key, pattern in _ARTIFACT_WORDS.items() if pattern.search(text)]
-    if len(named) == 1:
-        return named[0]
-    # Zero matches, or a span that names both — fall back to where it lives.
-    for prefix, artifact in _ARTIFACT_PATHS:
-        if name.startswith(prefix):
-            return artifact
-    return None
-
-
-def claim_windows(lines):
-    """Yield `(index, claimed_version, span)` for each current-version claim.
-
-    `span` is the line indices the claim occupies and `claimed_version` is the
-    newest version inside it, because a claim written as a range ("from
-    v0.2.1 through <the version>") is a claim about its upper bound.
-
-    A claim is one line, except when the sentence wrapped: a currency word with
-    no version after it on its own line is the first half of something like
-    `... every tag from v0.2.1 through` / `<version> ...`, and a line-only scan
-    reads the range's lower bound as the answer. That exact wrap is how a
-    workflow header escaped an earlier sweep. The extension is conditional
-    rather than unconditional because an unconditional second line swallows
-    whatever prose happens to follow a claim — which, when this rewrites, means
-    editing a sentence that was never a claim at all.
-    """
-    for index, line in enumerate(lines):
-        if not CURRENCY.search(line):
-            continue
-        span = [index]
-        versions = CLAIM_VERSION.findall(line)
-        if not versions and index + 1 < len(lines):
-            span.append(index + 1)
-            versions = CLAIM_VERSION.findall(lines[index + 1])
-        if versions:
-            yield index, _newest(versions), span
-
-
-def claim_files(repo):
-    """Tracked, repository-relative paths that may carry a claim."""
-    listing = subprocess.run(
-        ["git", "ls-files"],
-        cwd=repo,
-        check=True,
-        capture_output=True,
-        text=True,
-    ).stdout.split()
-    return [name for name in listing if not name.startswith(CLAIM_EXCLUDED_PREFIXES)]
-
-
-def rewrite_claims(text, old, new, name="", publishes=None):
-    """Return (new_text, [edits]) with `old` -> `new` inside claims only.
-
-    Only lines belonging to a window whose claimed version is `old` are
-    touched, so examples, dependency pins and the lower bound of a historical
-    range keep the number they had. A `v` prefix is preserved.
-
-    `publishes` is the set of artifacts the running release actually uploads;
-    a claim about anything else is left where it is. `None` means every
-    artifact, which is right for a manual bump that precedes both releases and
-    wrong for either release workflow on its own.
-    """
-    lines = text.splitlines(keepends=True)
-    bare = [line.rstrip("\n") for line in lines]
-    targets = set()
-    for _, claimed, span in claim_windows(bare):
-        if claimed != old:
-            continue
-        if publishes is not None:
-            artifact = claim_artifact(name, bare, span)
-            if artifact is not None and artifact not in publishes:
-                continue
-        targets.update(span)
-
-    pattern = re.compile(rf"{_VERSION_HEAD}(v?){re.escape(old)}{_VERSION_TAIL}")
-    edits = []
-    for index in sorted(targets):
-        replaced, count = pattern.subn(rf"\g<1>{new}", lines[index])
-        if count:
-            lines[index] = replaced
-            edits.append(f"line {index + 1}: current-version claim -> {new}")
-    return "".join(lines), edits
-
-
 def read_pyproject_version(path):
     section = None
     for line in path.read_text(encoding="utf-8").splitlines():
@@ -373,24 +198,7 @@ def main():
         "--date",
         help="release date for the changelog heading (default: today, UTC)",
     )
-    parser.add_argument(
-        "--publishes",
-        default=",".join(ARTIFACTS),
-        help=(
-            "comma-separated artifacts this release uploads "
-            f"({', '.join(ARTIFACTS)}); claims about anything else are left "
-            "alone. The Rust auto-release passes `crates`."
-        ),
-    )
     args = parser.parse_args()
-
-    publishes = {part.strip() for part in args.publishes.split(",") if part.strip()}
-    unknown = sorted(publishes - set(ARTIFACTS))
-    if unknown:
-        sys.exit(
-            f"error: unknown artifact(s) {', '.join(unknown)}; "
-            f"--publishes takes any of {', '.join(ARTIFACTS)}"
-        )
 
     new = args.version
     if not SEMVER.match(new):
@@ -460,28 +268,6 @@ def main():
     else:
         print(f"CHANGELOG.md already carries a heading for {new}")
 
-    # Claims last, and over the text the edits above produced rather than over
-    # what is still on disk — the changelog has already been promoted in
-    # memory by this point, and reading it back would undo that.
-    pending = dict(writes)
-    if old != new:
-        for name in claim_files(repo):
-            path = repo / name
-            if path in pending:
-                text = pending[path]
-            else:
-                try:
-                    text = path.read_text(encoding="utf-8")
-                except (UnicodeDecodeError, OSError):
-                    continue
-            text, claim_edits = rewrite_claims(
-                text, old, new, name=name, publishes=publishes
-            )
-            if claim_edits:
-                edits += [f"{name}: {edit}" for edit in claim_edits]
-                pending[path] = text
-    writes = list(pending.items())
-
     if not edits:
         print(f"already at {new}; nothing to do")
         return
@@ -518,35 +304,10 @@ def main():
     if not re.search(rf"^##\s*\[{re.escape(new)}\]", changelog.read_text(encoding="utf-8"), re.MULTILINE):
         sys.exit(f"error: after the bump {changelog} has no heading for {new}")
 
-    # Same argument as the two checks above, for the surface that has actually
-    # gone stale: an edit that silently matched nothing leaves a claim a
-    # release behind, and `test_current_version_claims.py` would fail the very
-    # `main` this release is being cut from. Scoped to what this release
-    # publishes — a claim about the other artifact is meant to stay behind.
-    behind = []
-    for name in claim_files(repo):
-        path = repo / name
-        try:
-            lines = path.read_text(encoding="utf-8").splitlines()
-        except (UnicodeDecodeError, OSError):
-            continue
-        for index, claimed, span in claim_windows(lines):
-            if claimed == new:
-                continue
-            artifact = claim_artifact(name, lines, span)
-            if artifact is None or artifact in publishes:
-                behind.append(f"{name}:{index + 1}")
-    if behind:
-        sys.exit(
-            f"error: after the bump these still do not name {new} as the "
-            f"current version: {', '.join(behind)}"
-        )
-
     print(
         f"version train is at {new}: "
         f"{', '.join(sorted(p['name'] for p in after['packages']))}, "
-        f"{pyproject.name}, {changelog.name}, and every current-version claim "
-        f"about {', '.join(sorted(publishes))}"
+        f"{pyproject.name}, {changelog.name}"
     )
 
 

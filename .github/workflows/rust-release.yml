@@ -4,22 +4,15 @@
 # binary attached to each tagged release of this repository; it is not
 # distributed alongside the Python package.
 #
-# VERIFIED: this workflow has run end to end on every release tag through 0.3.4.
-#
-# That sentence is deliberately on one line. It is a current-version claim, and
-# `.github/scripts/rust/version-bump.py` rewrites the version inside one; a
-# claim that wraps takes only its next line with it, so an enumeration split
-# across the break would be left contradicting the sentence above it. What
-# follows is phrased to stay true at any version, and so never has to move:
-#
-# the set covered is v0.2.1 to v0.3.3, cut in the separate Rust repository this
-# workspace came from, plus every `rs-v*` tag cut here since — `rs-v0.3.4` was
-# the first. Each of those releases carries the three per-platform archives and
-# checksums below, and the provenance attestations produced by the build job.
-# The attestations for the pre-consolidation tags name the old repository, not
-# this one. Re-check the release page before cutting a new tag; what this
-# workflow asserts — which workflow, on which ref, in which repository, built
-# a given archive — is the thing consumers verify against.
+# VERIFIED: this workflow has run end to end on every release tag through
+# v0.3.4 — v0.2.1 to v0.3.3 in the separate Rust repository this workspace came
+# from, and rs-v0.3.4, the first `rs-v*` tag cut here. Each of those releases
+# carries the three per-platform archives and checksums below, and the
+# provenance attestations produced by the build job; the attestations for the
+# pre-consolidation tags name the old repository, not this one. Re-check the
+# release page before cutting a new tag; what this workflow asserts — which
+# workflow, on which ref, in which repository, built a given archive — is the
+# thing consumers verify against.
 #
 # ## What this produces
 #
