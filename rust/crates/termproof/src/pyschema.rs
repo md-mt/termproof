@@ -28,29 +28,44 @@ use serde_json::Value as JsonValue;
 
 use crate::pyrepr::repr_json;
 
+/// A compiled JSON Schema.
+///
+/// Owns the underlying `jsonschema` validator and does not expose it, for the
+/// reason [`crate::pyregex::PyRegex`] does not expose its engine: a
+/// third-party type in a public signature makes that dependency's version
+/// requirement a source-compatibility surface. See "Dependencies in the public
+/// API" in the crate docs (#177).
+///
+/// There is nothing to read off a compiled schema, so this carries no accessors
+/// — [`validate`] is the whole interface. A caller that wants the validator
+/// itself should depend on `jsonschema` directly and pick its own version; this
+/// crate deliberately does not re-export ours.
+pub struct PySchema {
+    inner: Validator,
+}
+
+impl std::fmt::Debug for PySchema {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // `jsonschema::Validator` is not `Debug`, and the compiled form is not
+        // something a reader could act on anyway.
+        f.debug_struct("PySchema").finish_non_exhaustive()
+    }
+}
+
 /// Compile a schema, or describe why it is not a schema.
 ///
 /// The `Err` is the clause that goes after FR-016's `invalid schema: ` prefix.
-///
-/// # Naming the returned type
-///
-/// This returns a [`jsonschema::Validator`], a *third-party* type, so it is
-/// only the same type as a `Validator` your own crate names when cargo gave you
-/// both from the same copy of `jsonschema`. Name it through the re-export —
-/// [`crate::jsonschema`] — and that holds by construction. See "Dependencies in
-/// the public API" in the crate docs (#177).
-pub fn compile(schema: &JsonValue) -> Result<Validator, String> {
-    jsonschema::validator_for(schema).map_err(|error| describe(&error))
+pub fn compile(schema: &JsonValue) -> Result<PySchema, String> {
+    jsonschema::validator_for(schema)
+        .map(|inner| PySchema { inner })
+        .map_err(|error| describe(&error))
 }
 
 /// Validate `instance`, returning the clause for FR-016's
 /// `schema validation failed` detail plus the dotted instance path FR-017 asks
 /// for, or `None` when the instance is valid.
-///
-/// Takes the [`jsonschema::Validator`] [`compile`] returns, with the same
-/// caveat about which copy of `jsonschema` names the type.
-pub fn validate(validator: &Validator, instance: &JsonValue) -> Option<(String, String)> {
-    let errors: Vec<ValidationError<'_>> = validator.iter_errors(instance).collect();
+pub fn validate(validator: &PySchema, instance: &JsonValue) -> Option<(String, String)> {
+    let errors: Vec<ValidationError<'_>> = validator.inner.iter_errors(instance).collect();
     let best = best_match(&errors)?;
     Some((dotted_path(best.instance_path.as_str()), describe(best)))
 }

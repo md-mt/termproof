@@ -41,9 +41,15 @@ Both implementations share one version train, so one row covers both.
 
 | Version | Supported          |
 | ------- | ------------------ |
+| 0.4.x   | :white_check_mark: |
 | 0.3.x   | :white_check_mark: |
 | 0.2.x   | :x:                |
 | 0.1.x   | :x:                |
+
+`0.3.x` keeps its tick while it is what the registries carry: the version train
+moved to `0.4.0` before the release that puts it there, so for the window
+between the two, the newest published artifact is a `0.3.x` one. See the table
+below for what is actually published.
 
 In practice the supported set is **the latest `main`** plus the most recent
 release of each distribution. Do not assume an older tag is patched; there are

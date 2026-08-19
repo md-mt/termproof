@@ -518,7 +518,7 @@ pub fn wait_for_regex<S: Session + ?Sized>(
 }
 
 fn try_match<'t>(
-    re: &fancy_regex::Regex,
+    re: &crate::pyregex::PyRegex,
     pattern_str: &str,
     name: &str,
     screen_text: &'t str,
@@ -527,11 +527,10 @@ fn try_match<'t>(
     // A backtracking engine can give up on a pathological pattern. An engine
     // error is not a match, and it is not a reason to end the run either.
     //
-    // A closure rather than a free function so that `fancy_regex::Captures`
-    // is never named: the type gained a haystack parameter in 0.19, and
-    // writing it either way would pin this crate to one side of that change
-    // for no gain. See the `fancy-regex` note in the workspace manifest.
-    let captures_in = |text: &'t str| {
+    // A closure only to keep the empty-text guard in one place. It used to be
+    // one so that `fancy_regex::Captures` was never named — that type is no
+    // longer what comes back, and `PyCaptures` is ours to name (#177).
+    let captures_in = |text: &'t str| -> Option<crate::pyregex::PyCaptures<'t>> {
         if text.is_empty() {
             return None;
         }
@@ -541,10 +540,9 @@ fn try_match<'t>(
     let full = caps.get(0).map(|m| m.as_str()).unwrap_or("");
     // Python's `groupdict()` carries every named group, matched or not; an
     // unmatched one renders as `None` rather than vanishing from the report.
-    let named: Vec<String> = re
-        .capture_names()
-        .flatten()
-        .map(|n| match caps.name(n) {
+    let named: Vec<String> = caps
+        .named()
+        .map(|(n, m)| match m {
             Some(m) => format!("{n}={}", repr_str(m.as_str())),
             None => format!("{n}=None"),
         })

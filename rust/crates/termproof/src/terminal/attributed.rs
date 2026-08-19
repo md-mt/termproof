@@ -16,26 +16,34 @@
 //!
 //! # Sources
 //!
-//! - [`from_vt100`] — a live [`vt100::Screen`], the usual path.
+//! - [`TerminalScreen::attributed`](crate::terminal::screen::TerminalScreen::attributed)
+//!   — bytes fed to a parser this crate owns. The usual path, and the only
+//!   public one that goes through `vt100`.
 //! - [`attributed_screen_from_ansi_text`] — a captured string that still has
 //!   its escape sequences, e.g. `tmux capture-pane -e`.
 //! - [`attributed_screen_from_text`] — plain text, rendered in default colours.
 //!
+//! `from_vt100`, which took a caller's own live `vt100::Screen`, was public
+//! until 0.4.0 and is now crate-internal. There is no public replacement that
+//! takes one: a caller holding its own parser has to replay the bytes through
+//! `TerminalScreen`. That is a real capability removed, and the reason is in
+//! the note on the function.
+//!
 //! # One fidelity gap, stated plainly
 //!
 //! `vt100` does not model strikethrough, so [`AttributedCell::strikethrough`]
-//! is always `false` on the [`from_vt100`] path. The ANSI-text path parses
+//! is always `false` on the `from_vt100` path. The ANSI-text path parses
 //! SGR 9 and does set it. The field is kept rather than removed because the
 //! SVG renderer honours it and the ANSI path produces it.
 //!
 //! Dim *is* modelled, from `vt100` 0.16 onwards. Note that `vt100` treats
 //! SGR 1 and SGR 2 as one three-valued intensity, so bold and dim are mutually
-//! exclusive on the [`from_vt100`] path; the ANSI-text path carries them as
+//! exclusive on the `from_vt100` path; the ANSI-text path carries them as
 //! independent flags, as `tmux` emits them.
 //!
 //! # Both paths must measure width with one table
 //!
-//! [`from_vt100`] inherits whatever column layout `vt100` chose, and the
+//! `from_vt100` inherits whatever column layout `vt100` chose, and the
 //! ANSI-text path re-derives it with [`cell_width`]. If those two consult
 //! different `unicode-width` majors they disagree about real code points —
 //! U+1FA89 is one column under 0.1 and two under 0.2, and 458 code points
@@ -228,7 +236,7 @@ pub struct AttributedCell {
     pub italic: bool,
     /// SGR 4.
     pub underline: bool,
-    /// SGR 9. Always `false` on the [`from_vt100`] path; see the module docs.
+    /// SGR 9. Always `false` on the `from_vt100` path; see the module docs.
     pub strikethrough: bool,
     /// SGR 7 — foreground and background swap when rendered.
     pub reverse: bool,
@@ -427,16 +435,25 @@ pub fn attributed_screen_from_ansi_text(
 /// The usual path: a session feeds bytes to `vt100`, and this reads the grid
 /// back out with attributes intact.
 ///
-/// # Naming the argument type
+/// Crate-internal since 0.4.0, because [`vt100::Screen`] is a third-party type
+/// in an *argument* position: a `Screen` from a consumer's own `vt100` was only
+/// accepted here when cargo handed both sides one copy, which made the `vt100`
+/// requirement a source-compatibility surface.
 ///
-/// [`vt100::Screen`] is a *third-party* type, so a `Screen` from your own
-/// `vt100` dependency is only accepted here when cargo gave us both from the
-/// same copy. Build it through the re-export — [`crate::vt100`] — and that is
-/// true by construction. If you have text rather than a live parser, the
-/// sibling constructors [`attributed_screen_from_text`] and
-/// [`attributed_screen_from_ansi_text`] take `&str` and raise no such question.
-/// See "Dependencies in the public API" in the crate docs (#177).
-pub fn from_vt100(screen: &vt100::Screen) -> AttributedScreen {
+/// Unlike a return type this could not be wrapped, because the caller is what
+/// builds the argument. **So the capability was removed, not relocated.** A
+/// caller that already holds a live `vt100::Screen` has no public way to turn
+/// it into an [`AttributedScreen`]; it has to replay the bytes through
+/// [`TerminalScreen`](crate::terminal::screen::TerminalScreen), which owns its
+/// own parser, and pay for the second parse. For text rather than a live parser
+/// there are still [`attributed_screen_from_text`] and
+/// [`attributed_screen_from_ansi_text`], which never had the problem.
+///
+/// Keeping it public would have meant keeping the `vt100` requirement in the
+/// API for the one caller shape that supplies its own parser. That trade went
+/// the other way. See "Dependencies in the public API" in the crate docs
+/// (#177).
+pub(crate) fn from_vt100(screen: &vt100::Screen) -> AttributedScreen {
     let (rows, cols) = screen.size();
     let grid = (0..rows)
         .map(|row| {
@@ -879,7 +896,7 @@ fn xterm_256_color(index: u16) -> String {
 ///
 /// "Same table" is a constraint, not a coincidence: the workspace pins
 /// `unicode-width` to the major `vt100` depends on precisely so this agrees
-/// with [`from_vt100`]. See the width-table note in the module docs for what
+/// with `from_vt100`. See the width-table note in the module docs for what
 /// goes wrong when they drift.
 fn cell_width(ch: char) -> u8 {
     match ch.width() {
