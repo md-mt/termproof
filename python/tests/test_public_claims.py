@@ -182,6 +182,37 @@ BANNED = (
 )
 
 
+#: The changelog's released sections are excluded from the sweep, and this is
+#: the boundary rather than a hole.
+#:
+#: A released entry is a record of what that version did. It is never rewritten
+#: to match the present — that would destroy the one job it has, telling someone
+#: on an old version what changed and when — so it will always contain
+#: statements that are false of the current tree. That is not a defect in the
+#: entry; it is what a changelog is. Sweeping it can only produce false
+#: positives, and a guard that cries wolf stops being read.
+#:
+#: The compensating control is the past-tense rule recorded in the file's own
+#: "How to read this file" section. A released entry written in the past tense
+#: cannot be misread as a claim about now, so there is nothing here for a
+#: pattern to catch. Three entries under [0.3.4] were re-tensed when this was
+#: introduced, including one that said "the crate does not vendor the schema" —
+#: true at 0.3.4, false after #174 vendored it, and read by six review rounds
+#: as a live claim (#174).
+#:
+#: Everything above the first released heading — the preamble and
+#: `[Unreleased]` — describes the current tree and stays swept.
+_FIRST_RELEASED_SECTION = re.compile(r"^## \[\d", re.M)
+
+
+def _sweepable_text(path: Path, text: str) -> str:
+    """`text`, minus any part of it that is an immutable historical record."""
+    if path.name != "CHANGELOG.md":
+        return text
+    match = _FIRST_RELEASED_SECTION.search(text)
+    return text if match is None else text[: match.start()]
+
+
 class PublicClaimsTest(unittest.TestCase):
     def test_the_enumeration_is_not_vacuous(self) -> None:
         """Guard the guard: a broken glob would silently check nothing."""
@@ -252,7 +283,7 @@ class PublicClaimsTest(unittest.TestCase):
         offenders = []
         for path in _tracked_surfaces():
             relative = path.relative_to(REPO_ROOT).as_posix()
-            text = path.read_text(encoding="utf-8", errors="replace")
+            text = _sweepable_text(path, path.read_text(encoding="utf-8", errors="replace"))
             for pattern, why, scope in BANNED:
                 if scope is not None and not relative.startswith(scope):
                     continue
@@ -263,6 +294,24 @@ class PublicClaimsTest(unittest.TestCase):
                         f"{match.group(0)!r} — {why}"
                     )
         self.assertEqual([], sorted(offenders), "\n" + "\n".join(sorted(offenders)))
+
+    def test_the_changelog_exclusion_keeps_the_live_section(self) -> None:
+        """Guard the guard: the exclusion must not swallow the whole file.
+
+        `_sweepable_text` drops the changelog's released sections. A regex that
+        stopped matching the heading, or matched the wrong one, would silently
+        exclude everything — including `[Unreleased]`, which describes the
+        current tree and is exactly what the sweep is for.
+        """
+        path = REPO_ROOT / "CHANGELOG.md"
+        text = path.read_text(encoding="utf-8")
+        swept = _sweepable_text(path, text)
+
+        self.assertIn("## [Unreleased]", swept, "the live section stopped being swept")
+        self.assertLess(len(swept), len(text), "nothing was excluded; the heading regex stopped matching")
+        released = _FIRST_RELEASED_SECTION.search(text)
+        self.assertIsNotNone(released, "no released section found; the heading format changed")
+        self.assertNotIn(text[released.start() : released.end()], swept)
 
     def test_module_docstrings_are_covered_too(self) -> None:
         """Docstrings were the first surface a sweep missed.
