@@ -55,6 +55,26 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
   cuts `rs-v*` while PyPI is only uploaded on `py-v*`. The existing sweep
   compares surfaces to each other, so it cannot see either failure.
 
+- **The `publish-plan.py` transcript is gone from the same page.** It printed
+  `"version": "0.3.3"` while the script printed `0.3.4`. An embedded sample of
+  live tool output is a claim about the manifests that no test can check and no
+  bump will move, so the page names the command and the shape of what it
+  returns instead of pasting a run of it.
+
+- **The container-image rows say what is actually in the registry.**
+  `README.md` and `SECURITY.md` both said the two images publish on every push
+  to `main` and every release tag. True of `ghcr.io/md-mt/termproof`; not of
+  `ghcr.io/md-mt/termproof-rust`, whose push has been failing since the
+  consolidation, so `latest` there is still the `0.3.3` build and no
+  `rs-v0.3.4` image exists. The build itself is #178 and is not fixed here.
+
+- **The smoke-install examples no longer pin a version that never existed.**
+  `python/docs/releases.md` and `python/scripts/smoke-install.sh` showed
+  `0.2.0`; PyPI has never carried it, so the documented smoke test could not
+  succeed. Both take a `<version>` placeholder now. `docs/launch/checklist.md`
+  keeps its `0.2.0` numbers — they are what that plan said — under a header
+  saying plainly that it was never executed at that version.
+
 ### Changed
 
 - **`python/tests/test_docs_pages.py` no longer forbids `pip install

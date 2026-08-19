@@ -2,7 +2,10 @@
 # Smoke-test that a published termproof distribution installs and runs.
 # Usage:
 #   bash scripts/smoke-install.sh                 # installs latest `termproof` from PyPI
-#   bash scripts/smoke-install.sh 0.2.0            # installs termproof==0.2.0
+#   bash scripts/smoke-install.sh <version>        # installs termproof==<version>
+#                                                  # a version that is actually on
+#                                                  # PyPI — this said 0.2.0 for a
+#                                                  # long time, which never was
 #   bash scripts/smoke-install.sh "" dist/*.whl    # installs local wheel instead of PyPI
 #   TERM_PROOF_SMOKE_INDEX_URL=https://test.pypi.org/simple bash scripts/smoke-install.sh --pre
 #

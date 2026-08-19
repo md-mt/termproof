@@ -185,6 +185,10 @@ consolidation and carry unprefixed `v*` tags; from `0.3.4` they are tagged
 
 There is also a container image, `ghcr.io/md-mt/termproof-rust`, carrying
 `rsvg-convert` and `ffmpeg`. It keeps that name because consumers pull it.
+**It is currently stale** — the push has been failing since the consolidation,
+so `latest` is still the `0.3.3` build and no `rs-v0.3.4` image exists. Build
+from the checkout until
+[#178](https://github.com/md-mt/termproof/issues/178) is fixed.
 
 **Windows is unverified for both implementations** — no CI job, no binary. A
 PTY-heavy project gets no Windows badge until real terminal behaviour passes
@@ -243,7 +247,8 @@ proof that your TUI behaves, use TermProof.
 | `termproof` crate on crates.io | yes, through 0.3.4 |
 | `termproof-cli`, `termproof-plugin-protocol` crates | no — held back with `publish = false` |
 | Rust CLI binaries | attached to each Rust release |
-| `ghcr.io/md-mt/termproof`, `ghcr.io/md-mt/termproof-rust` | yes |
+| `ghcr.io/md-mt/termproof` | yes |
+| `ghcr.io/md-mt/termproof-rust` | stale — no image since `0.3.3` ([#178](https://github.com/md-mt/termproof/issues/178)) |
 
 Both implementations share a version train, so a version number means the same
 point in the project's history for both. The artifacts do not: a release is cut

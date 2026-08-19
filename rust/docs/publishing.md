@@ -54,14 +54,22 @@ dependencies at all, so the order below has nothing to sort.
 
 **`termproof`, and nothing else.**
 
-Do not copy that anywhere. `.github/scripts/rust/publish-plan.py` derives it
-from `cargo metadata` — every workspace member whose `publish` is not false,
-topologically sorted over its internal dependencies — and prints:
+Do not copy that anywhere — including from this page. Derive it:
 
-```console
-$ .github/scripts/rust/publish-plan.py
-{"version": "0.3.3", "order": ["termproof"], "held": ["termproof-cli", "termproof-plugin-protocol"]}
+```sh
+.github/scripts/rust/publish-plan.py
 ```
+
+`.github/scripts/rust/publish-plan.py` reads `cargo metadata` and prints one
+JSON object: `version` from the manifests, `order` — every workspace member
+whose `publish` is not false, topologically sorted over its internal
+dependencies — and `held`, the members carrying `publish = false`.
+
+A transcript of that output used to sit here, and it went a release stale
+without anything noticing. An embedded sample of live tool output is a claim
+about the manifests that no test can check and no bump will move, so this page
+names the command and the shape of what it returns, and nothing else. The same
+goes for any output you are tempted to paste in below.
 
 The derivation agrees with what the manifests say. It also refuses two states
 that would produce a broken release:
