@@ -245,10 +245,61 @@ impl CapturedStep {
     }
 }
 
+/// A recording of a whole session, as against one screen out of it.
+///
+/// Captures are instants; this is the span between them. Keeping the two apart
+/// is deliberate — a recording has no grid, cannot be deduplicated against its
+/// neighbours and does not belong in capture order — but they are published
+/// together because a reader wants the video and the stills side by side.
+///
+/// `error` is one field rather than separate conversion and upload errors:
+/// they are mutually exclusive, since a conversion that failed leaves nothing
+/// to upload.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Recording {
+    /// Caller-supplied label.
+    pub label: String,
+    /// Path to the terminal recording itself, normally an asciinema cast.
+    pub cast: String,
+    /// Path to the encoded video, when one was produced.
+    pub video: Option<String>,
+    /// Shareable URL for `video`, when an uploader was configured and worked.
+    pub url: Option<String>,
+    /// Why there is no video, or no URL for one.
+    pub error: Option<String>,
+}
+
+impl Recording {
+    /// A recording of `cast` with nothing derived from it yet.
+    pub fn new(label: impl Into<String>, cast: impl Into<String>) -> Self {
+        Recording {
+            label: label.into(),
+            cast: cast.into(),
+            video: None,
+            url: None,
+            error: None,
+        }
+    }
+
+    /// The same recording, carrying the video that was encoded from it.
+    pub fn with_video(mut self, video: impl Into<String>, url: Option<String>) -> Self {
+        self.video = Some(video.into());
+        self.url = url;
+        self
+    }
+
+    /// The same recording, carrying why it produced no video or no URL.
+    pub fn with_error(mut self, error: impl Into<String>) -> Self {
+        self.error = Some(error.into());
+        self
+    }
+}
+
 /// An ordered, labelled record of what the screen looked like during a run.
 #[derive(Debug, Clone)]
 pub struct EvidenceCollector {
     steps: Vec<CapturedStep>,
+    recordings: Vec<Recording>,
     columns: usize,
     rows: usize,
 }
@@ -257,6 +308,7 @@ impl Default for EvidenceCollector {
     fn default() -> Self {
         EvidenceCollector {
             steps: Vec::new(),
+            recordings: Vec::new(),
             columns: DEFAULT_COLUMNS,
             rows: DEFAULT_ROWS,
         }
@@ -329,6 +381,22 @@ impl EvidenceCollector {
             attributed,
             raw_output: capture.raw_output,
         });
+    }
+
+    /// Attach a whole-session recording.
+    ///
+    /// The collector does not produce recordings — encoding a cast is a
+    /// tool-shelling job with its own failure modes, and which tool is the
+    /// caller's business. It carries them so that
+    /// [`publish`](Self::publish) can put the stills and the video in one
+    /// manifest, which is how a reader wants to find them.
+    pub fn attach_recording(&mut self, recording: Recording) {
+        self.recordings.push(recording);
+    }
+
+    /// The attached recordings, in the order they were attached.
+    pub fn recordings(&self) -> &[Recording] {
+        &self.recordings
     }
 
     /// The captured steps, in capture order.
@@ -437,6 +505,7 @@ impl EvidenceCollector {
             manifest_version: EVIDENCE_MANIFEST_VERSION,
             run: publisher.identity.clone(),
             steps: published,
+            recordings: self.recordings.clone(),
             path: publisher.manifest_path(),
         };
         atomic_write_text(&manifest.path, &manifest.to_json_pretty()).map_err(|e| e.to_string())?;
@@ -603,6 +672,15 @@ pub struct EvidenceManifest {
     pub run: RunIdentity,
     /// Published steps, in capture order.
     pub steps: Vec<PublishedStep>,
+    /// Whole-session recordings, in the order they were attached.
+    ///
+    /// Omitted from the JSON entirely when there are none, so a run that
+    /// records nothing writes the same document it wrote before this field
+    /// existed. That is what lets it be added without a
+    /// [`EVIDENCE_MANIFEST_VERSION`] bump, and what keeps the Python
+    /// implementation reading manifests it does not yet write.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub recordings: Vec<Recording>,
     /// Where the manifest was written. Not serialized: a file does not need to
     /// record its own location, and baking it in would make the document
     /// wrong the moment the directory moved.
@@ -910,6 +988,52 @@ mod tests {
         assert_eq!(steps[2].kind, CaptureKind::Failure);
         // Nothing to ask for a log, so there is none — even for a failure.
         assert!(steps[2].raw_output.is_none());
+    }
+
+    #[test]
+    fn recordings_reach_the_manifest_alongside_the_steps() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut s = session("screen");
+        let mut collector = EvidenceCollector::new();
+        collector.capture("one", &mut s);
+        collector.attach_recording(
+            Recording::new("full-session", "/tmp/session.cast")
+                .with_video("/tmp/session.mp4", Some("https://x/v".into())),
+        );
+
+        let mut publisher = EvidencePublisher::new(dir.path(), identity());
+        let manifest = collector.publish(&mut publisher).unwrap();
+
+        assert_eq!(1, manifest.steps.len());
+        assert_eq!(1, manifest.recordings.len());
+        assert_eq!("full-session", manifest.recordings[0].label);
+        assert_eq!(Some("https://x/v".to_string()), manifest.recordings[0].url);
+        assert!(manifest.to_json_pretty().contains("\"recordings\""));
+    }
+
+    #[test]
+    fn a_run_with_no_recordings_writes_the_document_it_always_wrote() {
+        // The field is additive precisely because it disappears when empty.
+        // If this breaks, `EVIDENCE_MANIFEST_VERSION` has to move with it.
+        let dir = tempfile::tempdir().unwrap();
+        let mut s = session("screen");
+        let mut collector = EvidenceCollector::new();
+        collector.capture("one", &mut s);
+
+        let mut publisher = EvidencePublisher::new(dir.path(), identity());
+        let manifest = collector.publish(&mut publisher).unwrap();
+
+        assert!(manifest.recordings.is_empty());
+        assert!(!manifest.to_json_pretty().contains("recordings"));
+    }
+
+    #[test]
+    fn a_recording_carries_why_it_produced_no_video() {
+        let recording =
+            Recording::new("full-session", "/tmp/s.cast").with_error("video conversion failed");
+        assert!(recording.video.is_none());
+        assert!(recording.url.is_none());
+        assert_eq!(Some("video conversion failed".to_string()), recording.error);
     }
 
     #[test]
