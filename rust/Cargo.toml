@@ -17,7 +17,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.3.4"
+version = "0.4.0"
 edition = "2021"
 rust-version = "1.96"
 license = "MIT"
@@ -59,7 +59,7 @@ all = "warn"
 # dependency floors` step in .github/workflows/rust-ci.yml runs the suite at each
 # floor, so a floor that stops being true fails CI rather than rotting quietly.
 [workspace.dependencies]
-termproof = { path = "crates/termproof", version = "0.3.4" }
+termproof = { path = "crates/termproof", version = "0.4.0" }
 regex = { version = "1.13.1", default-features = false, features = ["std", "unicode"] }
 # Floor 0.16, tested at 0.16.2. `jsonschema` 0.33 asks for `^0.16` itself, so a
 # caret on 0.19 put two copies of a backtracking regex engine in the graph of
@@ -78,8 +78,15 @@ serde_yaml = "0.9"
 #
 # 1. `JsonSchema` is derived on `Recipe`, `CommandSpec`, `Step`, `Assertion` and
 #    the config types, so the trait is part of this crate's published surface
-#    and its major is a break for any consumer that names them. Releases here
-#    bump the patch digit only.
+#    and its major is a break for any consumer that names them.
+#
+#    This used to read "Releases here bump the patch digit only." That was
+#    never a rule, only a description of the releases that had happened, and
+#    this one makes it false. The rule, from docs/publishing.md, is that pre-1.0 a
+#    breaking change to any public API is a *minor* bump and everything else is
+#    a patch — so a `schemars` major would be permitted, at the price of a
+#    minor. It is still not taken, for reason 2, which does not depend on the
+#    version digit at all.
 #
 # 2. `preserve_order` does not mean the same thing across the majors, and the
 #    difference is graph-global. In 0.8 it is `["indexmap"]`, scoped to
@@ -187,4 +194,4 @@ avt = "0.16"
 chrono = "0.4"
 globset = "0.4"
 clap = { version = "4.5", features = ["derive"] }
-termproof-plugin-protocol = { path = "crates/termproof-plugin-protocol", version = "0.3.4" }
+termproof-plugin-protocol = { path = "crates/termproof-plugin-protocol", version = "0.4.0" }

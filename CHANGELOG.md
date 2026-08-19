@@ -32,32 +32,106 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
 
 ## [Unreleased]
 
-### Rust — Added
+Nothing yet.
 
-- **`fancy_regex`, `jsonschema` and `vt100` are re-exported at the crate root.**
-  All three reach the public API — `pyregex::compile` returns a
-  `fancy_regex::Regex`, `pyschema::compile` a `jsonschema::Validator`, and
-  `terminal::attributed::from_vt100` takes a `vt100::Screen` — and a
-  third-party type in a signature is only interchangeable with the consumer's
-  own when cargo hands both sides the same copy. Naming
-  `termproof::fancy_regex::Regex` instead of your own makes that true by
-  construction. Purely additive; nothing that compiled before stops.
-  ([#177](https://github.com/md-mt/termproof/issues/177))
+## [0.4.0] — 2026-08-19
+
+### Rust — Changed (breaking)
+
+**No dependency reaches this crate's public API any more, except `schemars`.**
+Several did, and each made that dependency's version requirement a
+*source-compatibility* surface: two copies of a crate are two unrelated types,
+so a consumer naming one compiled only when its copy was the copy cargo handed
+us. Widening a requirement did not help — cargo resolves to the **top** of a
+range, so the window a consumer could unify with was one version wide however
+the range was written.
+
+This is the whole reason 0.4.0 is a minor bump rather than a patch. **If you do
+not name any of the types below, nothing changes for you**; calling methods on
+the returned values without annotating them compiled before and compiles now.
+
+A signature is not the only door, and this release closed four kinds:
+
+| Door | Was | Now | What to change |
+|---|---|---|---|
+| return type | `pyregex::compile` gave `fancy_regex::Regex` | `pyregex::PyRegex` | drop the annotation, or write `pyregex::PyRegex`. `is_match`, `captures` and `capture_names` are still there, unchanged in meaning |
+| return type | reading a match gave `fancy_regex::Captures` / `Match` | `pyregex::PyCaptures` / `pyregex::PyMatch` | `get`, `name` and `len` are unchanged. `captures.named()` is new and replaces zipping `capture_names()` against `name()` |
+| return type | `pyschema::compile` gave `jsonschema::Validator`, and `pyschema::validate` took one | `pyschema::PySchema` | drop the annotation, or write `pyschema::PySchema`. Both functions are otherwise identical |
+| argument | `terminal::attributed::from_vt100(&vt100::Screen)` was public | crate-internal | **see below — this one removes a capability** |
+| re-export | `termproof::fancy_regex`, `::jsonschema`, `::vt100` | removed | depend on the crate directly and choose your own version. You no longer need ours to match |
+| trait impl | `PyRegex`'s derived `Debug` printed the engine's parsed pattern | written out; prints the translated pattern only | nothing, unless you were asserting on the old text |
+
+**`from_vt100` removes a capability, and there is no replacement for it.** It
+took the third-party type as an *argument*, and an argument cannot be wrapped —
+the caller is what builds it. A caller that already holds a live
+`vt100::Screen` now has no public way to turn it into an `AttributedScreen`: it
+must replay the bytes through `terminal::screen::TerminalScreen`, which owns
+its own parser, and pay for the second parse. `attributed_screen_from_text` and
+`attributed_screen_from_ansi_text` are unchanged and never had the problem.
+Keeping `from_vt100` public would have meant keeping `vt100` in the API for the
+one caller shape that supplies its own parser; that trade went the other way.
+
+**The re-exports were added earlier in this same release and are removed again
+before it ships**, so no published version ever carried them. They were an
+escape hatch while the types were still leaking — a way to name *our* copy
+deterministically. Wrapping the signatures removed the thing they were an
+escape from and left them as the last door: a re-exported crate is public API,
+so its breaking changes are ours, and `termproof::fancy_regex::Captures` broke
+across exactly the range this release narrows.
+
+`schemars` is the one that could not be closed — the `JsonSchema` derives are
+on `Recipe` and the types it holds, so the trait sits on published types rather
+than in a signature. Turning the `schema` feature off is still the only way out
+of carrying two copies.
+
+**What this does and does not claim.** The *declared requirement* on these
+crates is no longer a compatibility surface: depend on any `fancy-regex` you
+like, ours is an implementation detail of the graph. It is not a claim that the
+engine is interchangeable — a backtracking engine's accepted language moves
+between releases, and `(?<=a+)b` is rejected at 0.16 and accepted at 0.19 —
+which is why the requirement is pinned to one minor and the differential
+harnesses are run against it rather than assumed.
 
 ### Rust — Docs
 
-- **The crate docs no longer claim `schemars` is the only dependency reaching
-  the public API.** Three others do, and the claim is why that went unnoticed.
-  A new *Dependencies in the public API* section names all four, says why a
-  bound on them is a source-compatibility surface and not just a duplicate
-  count, and records the resolver behaviour behind it: cargo takes the **top**
-  of a requirement's range, so the window of versions a consumer can unify with
-  is one version wide however the range is written — widening moves the window
-  rather than enlarging it. `schemars` stays the one with no escape hatch,
-  because its derives are on the published types rather than in a signature.
+- **The crate docs used to claim `schemars` was the only dependency reaching
+  the public API.** Three others did, and that sentence is why it went
+  unnoticed for as long as it did. A new *Dependencies in the public API*
+  section replaces it: every door a dependency can reach a consumer through —
+  return type, argument, re-export, and what a public trait impl renders — what
+  each one was and what closed it, and the resolver behaviour underneath, which
+  is that cargo takes the **top** of a requirement's range, so the window of
+  versions a consumer can unify with is one version wide however the range is
+  written. After 0.4.0 the original sentence is finally true, and for the
+  reason it always should have given: `schemars` is the only one left because
+  it is the only one that could not be closed.
+  ([#177](https://github.com/md-mt/termproof/issues/177))
+
+- **`terminal::attributed`'s module docs no longer list `from_vt100` as a
+  source, or as "the usual path".** It has not been public since this release,
+  and the doc on the function itself now says plainly that the capability was
+  removed rather than relocated.
+  ([#177](https://github.com/md-mt/termproof/issues/177))
+
+- **`rust/Cargo.toml` no longer promises that "releases here bump the patch
+  digit only".** That described the releases that had happened rather than a
+  rule they followed, and this one makes it false. It is replaced with the
+  actual rule from
+  `rust/docs/publishing.md` — pre-1.0, a breaking change to any public API is a
+  minor bump and everything else is a patch — which leaves the `schemars` hold
+  standing on the argument that does not depend on a version digit.
   ([#177](https://github.com/md-mt/termproof/issues/177))
 
 ### Docs
+
+- **`SECURITY.md` supports the `0.4.x` train.** The version bump has to reach
+  every surface that names a version, and the supported-versions table was one
+  the bump script does not touch. `0.3.x` keeps its tick alongside it, because
+  the train moves *before* the release that puts it on the registries: for the
+  window between the two, the newest published artifact is still a `0.3.x` one.
+  The "published through `0.3.4`" rows below it are correct and deliberately
+  left alone — they are statements about PyPI and crates.io, not about the
+  manifest. ([#177](https://github.com/md-mt/termproof/issues/177))
 
 - **The distribution claims now say what 0.3.4 actually shipped.** Both
   packages are live — `termproof` on PyPI and the `termproof` crate on

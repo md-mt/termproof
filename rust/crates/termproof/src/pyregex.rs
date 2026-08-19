@@ -22,6 +22,199 @@
 
 use fancy_regex::Regex;
 
+/// A compiled Python-dialect pattern.
+///
+/// Owns the underlying `fancy-regex` engine and does not expose it. That is
+/// deliberate: a third-party type in a public signature is only the same type
+/// as the consumer's when cargo hands both sides one copy, which makes the
+/// version requirement on that dependency a source-compatibility surface
+/// rather than a private choice. Wrapping it moves the requirement back where
+/// it belongs — see "Dependencies in the public API" in the crate docs (#177).
+///
+/// The surface here is what this crate needs plus what reading a match
+/// requires; it is not a re-implementation of the engine. A caller that wants
+/// the engine itself should depend on `fancy-regex` directly and pick its own
+/// version — this crate deliberately does not re-export ours, because nothing
+/// here hands out one of its types for the two to have to agree about.
+///
+/// ```
+/// let re = termproof::pyregex::compile(r"(?<n>\d+)").unwrap();
+/// let caps = re.captures("abc 42").unwrap().unwrap();
+/// assert_eq!(caps.get(0).unwrap().as_str(), "42");
+/// assert_eq!(caps.name("n").unwrap().as_str(), "42");
+/// ```
+pub struct PyRegex {
+    inner: Regex,
+    translated: String,
+}
+
+impl std::fmt::Debug for PyRegex {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // Written out rather than derived, and deliberately does not format
+        // `inner`. The engine's own `Debug` prints its parsed pattern, and that
+        // rendering is not stable across its *patch* releases: `x\z` prints as
+        // `x$` on `fancy-regex` 0.16.0 and 0.16.1 and as `x\z` on 0.16.2, all
+        // three inside the range this crate declares. Deriving would put that
+        // engine-version-dependent answer back into the public API — the same
+        // leak `as_str` is written out to avoid, one trait over (#177).
+        f.debug_struct("PyRegex")
+            .field("translated", &self.translated)
+            .finish_non_exhaustive()
+    }
+}
+
+impl PyRegex {
+    /// The translated pattern the engine was built from.
+    ///
+    /// This is the `fancy-regex` form, not the Python source: `translate`
+    /// rewrites `\Z` and rejects what Python rejects, so the two differ
+    /// wherever a rewrite applied.
+    ///
+    /// Kept as our own copy rather than read back from the engine. The engine's
+    /// `as_str` is not stable across its own patch releases — `x\z` reads back
+    /// as `x$` on `fancy-regex` 0.16.0 and as `x\z` on 0.16.2 — so forwarding
+    /// to it would put an engine-version-dependent *answer* in this crate's
+    /// public API, which is the same class of leak as putting its types there.
+    /// Found by the `test at the declared dependency floors` CI step (#177).
+    pub fn as_str(&self) -> &str {
+        &self.translated
+    }
+
+    /// Whether the pattern matches anywhere in `haystack`.
+    ///
+    /// `Err` when the backtracking engine gives up on a pathological pattern.
+    /// That is not a match and not a reason to end a run; callers here treat it
+    /// as "no match" and carry on.
+    pub fn is_match(&self, haystack: &str) -> Result<bool, String> {
+        self.inner
+            .is_match(haystack)
+            .map_err(|e| one_line(&e.to_string()))
+    }
+
+    /// The capture groups of the leftmost match, or `None` when there is none.
+    ///
+    /// `Err` carries the same meaning as on [`is_match`](Self::is_match).
+    pub fn captures<'h>(&self, haystack: &'h str) -> Result<Option<PyCaptures<'h>>, String> {
+        // Read the groups out here rather than in a helper taking the engine's
+        // own captures, so that `fancy_regex::Captures` is never *named*. It
+        // gained a second generic parameter in 0.19, and a signature spelling
+        // it would compile against one side of that change only — which is the
+        // trap this whole wrapper exists to remove, and would reintroduce it
+        // one layer down. Inference does not care (#177).
+        let caps = match self.inner.captures(haystack) {
+            Ok(Some(caps)) => caps,
+            Ok(None) => return Ok(None),
+            Err(e) => return Err(one_line(&e.to_string())),
+        };
+        let groups = (0..caps.len())
+            .map(|i| {
+                caps.get(i).map(|m| PyMatch {
+                    text: m.as_str(),
+                    start: m.start(),
+                    end: m.end(),
+                })
+            })
+            .collect();
+        let names = self
+            .inner
+            .capture_names()
+            .map(|n| n.map(str::to_string))
+            .collect();
+        Ok(Some(PyCaptures { groups, names }))
+    }
+
+    /// Every capture group's name in group order, `None` for the unnamed ones.
+    ///
+    /// Group 0 is the whole match and is never named, so the first item is
+    /// always `None`.
+    pub fn capture_names(&self) -> impl Iterator<Item = Option<&str>> + '_ {
+        self.inner.capture_names()
+    }
+}
+
+/// One matched span, borrowed from the haystack it was found in.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PyMatch<'h> {
+    text: &'h str,
+    start: usize,
+    end: usize,
+}
+
+impl<'h> PyMatch<'h> {
+    /// The matched text.
+    pub fn as_str(&self) -> &'h str {
+        self.text
+    }
+
+    /// Byte offset where the match starts in the haystack.
+    pub fn start(&self) -> usize {
+        self.start
+    }
+
+    /// Byte offset one past where the match ends.
+    pub fn end(&self) -> usize {
+        self.end
+    }
+
+    /// The matched span as a byte range.
+    pub fn range(&self) -> std::ops::Range<usize> {
+        self.start..self.end
+    }
+}
+
+/// The capture groups of a single match.
+///
+/// Read eagerly at match time rather than borrowing the engine's own captures,
+/// so nothing here is tied to the shape of a `fancy-regex` type. That is what
+/// lets the requirement on that crate move without it being a break for
+/// consumers (#177).
+#[derive(Debug, Clone)]
+pub struct PyCaptures<'h> {
+    groups: Vec<Option<PyMatch<'h>>>,
+    names: Vec<Option<String>>,
+}
+
+impl<'h> PyCaptures<'h> {
+    /// Group `index`, or `None` when that group did not participate in the
+    /// match. Group 0 is the whole match.
+    pub fn get(&self, index: usize) -> Option<PyMatch<'h>> {
+        self.groups.get(index).copied().flatten()
+    }
+
+    /// The group named `name`, or `None` when it did not participate or the
+    /// pattern has no such group.
+    pub fn name(&self, name: &str) -> Option<PyMatch<'h>> {
+        let index = self.names.iter().position(|n| n.as_deref() == Some(name))?;
+        self.get(index)
+    }
+
+    /// Every *named* group in group order, matched or not.
+    ///
+    /// Python's `groupdict()` carries an unmatched named group as `None` rather
+    /// than dropping it, and so does this — which is what the step detail
+    /// renders.
+    pub fn named(&self) -> impl Iterator<Item = (&str, Option<PyMatch<'h>>)> + '_ {
+        self.names
+            .iter()
+            .enumerate()
+            .filter_map(|(i, n)| n.as_deref().map(|n| (n, self.get(i))))
+    }
+
+    /// The number of groups, counting group 0.
+    pub fn len(&self) -> usize {
+        self.groups.len()
+    }
+
+    /// Whether there are no groups at all.
+    ///
+    /// Never true for a match produced by [`PyRegex::captures`] — group 0
+    /// always exists — but `len` without `is_empty` is a clippy warning and the
+    /// answer is well defined.
+    pub fn is_empty(&self) -> bool {
+        self.groups.is_empty()
+    }
+}
+
 /// Compile a pattern written in Python's `re` dialect.
 ///
 /// The error is a single line by construction — constitution Principle VIII
@@ -29,27 +222,11 @@ use fancy_regex::Regex;
 ///
 /// The wording is TermProof's own. Byte-parity with CPython's `re.error` text
 /// is a separate question, open as 001-OQ-001 / 002-OQ-002 / 003-OQ-010.
-///
-/// # Naming the returned type
-///
-/// This returns a [`fancy_regex::Regex`], which is a *third-party* type, so it
-/// is only interchangeable with a `Regex` your own crate names if cargo gave
-/// you both from the same copy of `fancy-regex`. Name it through the
-/// re-export — [`crate::fancy_regex`] — rather than through your own
-/// dependency, and that is true by construction:
-///
-/// ```no_run
-/// let re: termproof::fancy_regex::Regex = termproof::pyregex::compile(r"\d+").unwrap();
-/// assert!(re.is_match("42").unwrap());
-/// ```
-///
-/// Calling methods on the value without naming its type works either way; it is
-/// annotating it, or passing it into a signature of your own, that needs the
-/// copies to agree. See "Dependencies in the public API" in the crate docs
-/// (#177).
-pub fn compile(pattern: &str) -> Result<Regex, String> {
+pub fn compile(pattern: &str) -> Result<PyRegex, String> {
     let translated = translate(pattern)?;
-    Regex::new(&translated).map_err(|e| one_line(&e.to_string()))
+    Regex::new(&translated)
+        .map(|inner| PyRegex { inner, translated })
+        .map_err(|e| one_line(&e.to_string()))
 }
 
 fn one_line(message: &str) -> String {
@@ -297,5 +474,81 @@ mod tests {
             compile("é\\p{L}").unwrap_err(),
             "unsupported escape \\p at position 1"
         );
+    }
+
+    #[test]
+    fn captures_reads_positional_groups_with_group_zero_first() {
+        let re = compile(r"(\w+)@(\w+)").expect("compiles");
+        let caps = re
+            .captures("mail bob@host x")
+            .expect("no engine error")
+            .expect("matches");
+        assert_eq!(caps.len(), 3);
+        assert_eq!(caps.get(0).unwrap().as_str(), "bob@host");
+        assert_eq!(caps.get(1).unwrap().as_str(), "bob");
+        assert_eq!(caps.get(2).unwrap().as_str(), "host");
+        assert!(caps.get(3).is_none());
+    }
+
+    #[test]
+    fn a_match_carries_byte_offsets_into_the_haystack() {
+        let re = compile(r"\d+").expect("compiles");
+        let caps = re
+            .captures("é 42")
+            .expect("no engine error")
+            .expect("matches");
+        let m = caps.get(0).unwrap();
+        // "é" is two bytes, then a space: the digits start at byte 3.
+        assert_eq!(m.start(), 3);
+        assert_eq!(m.end(), 5);
+        assert_eq!(m.range(), 3..5);
+        assert_eq!(m.as_str(), "42");
+    }
+
+    #[test]
+    fn named_carries_an_unmatched_group_rather_than_dropping_it() {
+        // Python's `groupdict()` reports `b` as None rather than omitting it,
+        // and the step detail renders that, so `named` has to agree.
+        let re = compile(r"(?<a>x)|(?<b>y)").expect("compiles");
+        let caps = re.captures("x").expect("no engine error").expect("matches");
+        let seen: Vec<(String, Option<String>)> = caps
+            .named()
+            .map(|(n, m)| (n.to_string(), m.map(|m| m.as_str().to_string())))
+            .collect();
+        assert_eq!(
+            seen,
+            vec![
+                ("a".to_string(), Some("x".to_string())),
+                ("b".to_string(), None),
+            ]
+        );
+        assert_eq!(caps.name("a").unwrap().as_str(), "x");
+        assert!(caps.name("b").is_none());
+        assert!(caps.name("nonexistent").is_none());
+    }
+
+    #[test]
+    fn a_pattern_that_does_not_match_is_none_not_an_error() {
+        let re = compile("zzz").expect("compiles");
+        assert!(re.captures("abc").expect("no engine error").is_none());
+        assert!(!re.is_match("abc").expect("no engine error"));
+    }
+
+    #[test]
+    fn debug_does_not_render_the_engine() {
+        // `fancy-regex`'s own `Debug` prints its parsed pattern, and that
+        // rendering moves across its patch releases (`x$` on 0.16.0 and 0.16.1,
+        // `x\z` on 0.16.2). A derived `Debug` here would publish that. Pinning
+        // the exact string is what makes re-deriving fail rather than pass with
+        // a different answer on a different engine build.
+        let re = compile("x\\Z").expect("compiles");
+        assert_eq!(format!("{re:?}"), r#"PyRegex { translated: "x\\z", .. }"#);
+    }
+
+    #[test]
+    fn as_str_reports_the_translated_pattern_not_the_python_source() {
+        // `\Z` is rewritten to `\z`; that rewrite is why the two differ.
+        let re = compile("x\\Z").expect("compiles");
+        assert_eq!(re.as_str(), "x\\z");
     }
 }

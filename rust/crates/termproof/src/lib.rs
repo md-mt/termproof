@@ -52,67 +52,67 @@
 //!   validates against comes from.
 //! - **`schema`** — the [`schema`] module and the `JsonSchema` impls derived on
 //!   [`Recipe`], [`config::VerifierConfig`] and the types they contain. Off,
-//!   the crate does not compile `schemars`. Of the dependencies that reach the
-//!   public API (below) it is the one a consumer cannot route around, because
-//!   the derives put `JsonSchema` on the published types themselves rather than
-//!   in a signature there is a re-export for; turning it off is how a consumer
-//!   on a different `schemars` major stops carrying two.
+//!   the crate does not compile `schemars`. It is the only dependency left in
+//!   the public API (below), and the only one that could not be wrapped out of
+//!   it, because the derives put `JsonSchema` on the published types themselves
+//!   rather than in a signature; turning it off is how a consumer on a
+//!   different `schemars` major stops carrying two.
 //!
 //! [`terminal`] has no feature of its own: the crate root is built on it, and
 //! every build drives a terminal, so there is nothing to save.
 //!
 //! # Dependencies in the public API
 //!
-//! Four dependencies are reachable from this crate's public surface, and that
-//! makes each one's version requirement a *source-compatibility* surface and
-//! not just a question of how many copies the graph carries. Two copies of a
-//! crate are two unrelated types, so a consumer that names one of these in its
-//! own code compiles only when its copy is the copy cargo handed us.
+//! A third-party type in a public signature makes that dependency's version
+//! requirement a *source-compatibility* surface, and not just a question of
+//! how many copies the graph carries: two copies of a crate are two unrelated
+//! types, so a consumer that names one compiles only when its copy is the copy
+//! cargo handed us. Cargo resolves a requirement to the **top** of its range,
+//! so the window of versions a consumer can unify with is one version wide
+//! however the range is written — widening it moves the window rather than
+//! enlarging it (#177).
 //!
-//! Cargo resolves a requirement to the **top** of its range, so the window of
-//! versions a consumer can unify with is one version wide however the
-//! requirement is written. Widening a range moves that window upward; it does
-//! not enlarge it. Measured, and the reason the `fancy-regex` requirement is
-//! what it is — see the note on it in the workspace manifest (#177).
+//! A *signature* is not the only door. A re-exported crate is public API too —
+//! `termproof::dep::Type` names the same type as `dep::Type` and carries the
+//! same requirement — and so is anything a public trait impl renders, since a
+//! derived `Debug` over a private field publishes that field's formatting.
+//! 0.4.0 closed all three:
 //!
-//! | Dependency | Where it surfaces | Re-exported here as |
+//! | Door | Was | Now |
 //! |---|---|---|
-//! | `fancy-regex` | [`pyregex::compile`] | [`fancy_regex`] |
-//! | `jsonschema` | [`pyschema::compile`], [`pyschema::validate`] | [`jsonschema`] |
-//! | `vt100` | [`terminal::attributed::from_vt100`] | [`vt100`] |
-//! | `schemars` | the `JsonSchema` derives on [`Recipe`] and the types it holds | — |
+//! | return type | [`pyregex::compile`] gave a `fancy_regex::Regex` | [`pyregex::PyRegex`], with [`pyregex::PyCaptures`] and [`pyregex::PyMatch`] so reading a match does not re-leak |
+//! | return type | [`pyschema::compile`] gave a `jsonschema::Validator` | [`pyschema::PySchema`] |
+//! | argument | `terminal::attributed::from_vt100` took a `vt100::Screen` | crate-internal. Nothing public accepts a caller-built `vt100` value; [`terminal::screen::TerminalScreen`] takes bytes and owns its own parser |
+//! | re-export | `pub use fancy_regex`, `jsonschema`, `vt100` | removed |
+//! | trait impl | `PyRegex`'s derived `Debug` rendered the engine | written out, and does not format it |
 //!
-//! The first three are re-exported at the crate root so a consumer can name
-//! *our* copy — `termproof::fancy_regex::Regex` rather than its own
-//! `fancy_regex::Regex` — and stop depending on the two resolving to the same
-//! version. Naming the re-export is the supported way to interoperate with
-//! these signatures; naming your own is a bet on the resolver.
+//! `schemars` is the one that could not be closed: the `JsonSchema` derives sit
+//! on [`Recipe`] and the types it holds, so the trait is on the published types
+//! themselves rather than in a signature there is a return value to change.
+//! Turning the `schema` feature off is the only way out of carrying two copies,
+//! which is why that feature exists.
 //!
-//! `serde`, `serde_json` and `serde_yaml` are in public signatures too and are
-//! deliberately absent from that table: they are 1.x, so cargo unifies every
-//! consumer onto one copy and the hazard cannot arise.
+//! **What this does and does not claim.** It claims that the *declared
+//! requirement* on these crates is no longer a source-compatibility surface: a
+//! consumer can depend on any version of `fancy-regex` it likes, and ours is an
+//! implementation detail of the graph. It does not claim the engine is
+//! interchangeable — a backtracking engine's accepted language moves between
+//! releases, and `(?<=a+)b` is rejected at 0.16 and accepted at 0.19 — which is
+//! why the requirement is pinned to one minor and the differential harnesses
+//! are run against it rather than assumed.
+//!
+//! `serde`, `serde_json` and `serde_yaml` do appear in public signatures and
+//! are deliberately left alone: they are 1.x, so cargo unifies every consumer
+//! onto one copy and the hazard cannot arise.
 
-// The dependencies that reach the public API, re-exported so a consumer can
-// name the copy this crate was built against instead of resolving its own and
-// hoping the two unify. See "Dependencies in the public API" above.
-//
-// Re-exporting is deliberate and has a cost worth stating: it puts each of
-// these crates' own surfaces inside ours, so a major bump of one becomes
-// visible to anyone who named it through here. That is the trade — an explicit,
-// versioned escape hatch instead of an implicit dependence on the resolver
-// handing two crates the same copy (#177).
-
-/// The regex engine behind [`pyregex`], re-exported so its types can be named
-/// against the copy this crate was built against.
-pub use fancy_regex;
-/// The JSON Schema validator behind [`pyschema`] and [`validation`],
-/// re-exported so its types can be named against the copy this crate was built
-/// against.
-#[cfg(feature = "json-schema")]
-pub use jsonschema;
-/// The terminal emulator behind [`terminal`], re-exported so its types can be
-/// named against the copy this crate was built against.
-pub use vt100;
+// There is deliberately no `pub use fancy_regex;` / `jsonschema` / `vt100`
+// here. An earlier step in this release added all three, as an escape hatch
+// while those crates' types were still in our signatures: a consumer could
+// name our copy and stop betting on the resolver. Wrapping the signatures
+// removed the thing they were an escape from, and left them as the last way a
+// dependency's version could still reach a consumer through us — a re-exported
+// crate is public API, so its own breaking changes become ours. See
+// "Dependencies in the public API" above (#177).
 
 #[cfg(feature = "evidence")]
 pub mod evidence;
