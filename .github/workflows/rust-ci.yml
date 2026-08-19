@@ -77,17 +77,23 @@ jobs:
               --no-default-features --features "$combo" -- -D warnings
             cargo test --manifest-path rust/Cargo.toml -p termproof --no-default-features --features "$combo"
           done
-      # A widened requirement is a claim that the code works at the bottom of
-      # the range, and nothing above tests that: the committed lockfile resolves
-      # every range to its top. So each floor widened in #28 is pinned here and
-      # the suite is run against it. Rewriting the requirement to `=` beats
-      # `cargo update --precise`, which cannot name a crate the graph contains
-      # twice — which is exactly the fancy-regex case this widening exists to
-      # let a consumer collapse. Last step in the job: it dirties Cargo.toml
+      # A requirement is a claim that the code works at the bottom of its range,
+      # and nothing above tests that: the committed lockfile resolves each one
+      # to whatever cargo picked, which is not the floor. So each floor declared
+      # in the workspace manifest is pinned here and the suite is run against
+      # it. Rewriting the requirement to `=` beats `cargo update --precise`,
+      # which cannot name a crate the graph contains twice — and this graph does
+      # contain fancy-regex twice at the jsonschema floor, because jsonschema
+      # 0.32.0 asks for `^0.15` while we ask for `^0.16` (sharing one engine
+      # with it starts at 0.32.1). Last step in the job: it dirties Cargo.toml
       # and Cargo.lock, and the checkout is thrown away straight after.
+      #
+      # fancy-regex pins to 0.16.0, the bottom of `^0.16`, and not to the 0.16.2
+      # the lockfile resolves: pinning the version the lock already picks would
+      # re-run what the steps above ran and test nothing new (#177).
       - name: test at the declared dependency floors
         run: |
           set -eux
-          perl -pi -e 's{^fancy-regex = .*}{fancy-regex = "=0.16.2"}' rust/Cargo.toml
+          perl -pi -e 's{^fancy-regex = .*}{fancy-regex = "=0.16.0"}' rust/Cargo.toml
           perl -pi -e 's{^jsonschema = .*}{jsonschema = "=0.32.0"}' rust/Cargo.toml
           cargo test --manifest-path rust/Cargo.toml --workspace
