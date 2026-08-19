@@ -79,16 +79,58 @@ pub fn changed_files_from_file(path: &str) -> std::io::Result<Vec<String>> {
         .collect())
 }
 
+/// What selection needs to know about a recipe.
+///
+/// Selection is a function of a name and a glob list; it never runs anything.
+/// Requiring a [`Recipe`] therefore excluded the callers most likely to want
+/// it — a suite whose recipes branch on what the screen shows cannot be
+/// expressed as a declarative [`Recipe`], but it still has names and
+/// `ci_paths`, and it still has the problem of running everything on every
+/// change.
+///
+/// [`Recipe`] implements this, so existing callers are unaffected and type
+/// inference keeps their calls compiling unchanged. `(String, Vec<String>)`
+/// implements it too, for callers who would rather not write a trait impl to
+/// ask a question — that pairing is what the Python implementation's
+/// `select_names` has always taken.
+pub trait Selectable {
+    /// The recipe's name.
+    fn name(&self) -> &str;
+
+    /// Globs for the sources this recipe covers, repo-relative.
+    fn ci_paths(&self) -> &[String];
+}
+
+impl Selectable for Recipe {
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn ci_paths(&self) -> &[String] {
+        &self.ci_paths
+    }
+}
+
+impl Selectable for (String, Vec<String>) {
+    fn name(&self) -> &str {
+        &self.0
+    }
+
+    fn ci_paths(&self) -> &[String] {
+        &self.1
+    }
+}
+
 /// The recipes to run for `changed_files`, in their original order.
-pub fn select<'a>(
-    recipes: &'a [Recipe],
+pub fn select<'a, R: Selectable>(
+    recipes: &'a [R],
     changed_files: &[String],
     config: &SelectionConfig<'_>,
-) -> Vec<&'a Recipe> {
+) -> Vec<&'a R> {
     let mut chosen: HashSet<&str> = config
         .smoke
         .iter()
-        .filter(|name| recipes.iter().any(|r| r.name == **name))
+        .filter(|name| recipes.iter().any(|r| r.name() == **name))
         .copied()
         .collect();
 
@@ -100,27 +142,27 @@ pub fn select<'a>(
     let touches_harness = paths.iter().any(|p| p.starts_with(config.harness_root));
     if !touches_harness {
         for r in recipes {
-            if matches_any_path(&r.ci_paths, &paths, config.repo_marker) {
-                chosen.insert(r.name.as_str());
+            if matches_any_path(r.ci_paths(), &paths, config.repo_marker) {
+                chosen.insert(r.name());
             }
         }
     }
 
     recipes
         .iter()
-        .filter(|r| chosen.contains(r.name.as_str()))
+        .filter(|r| chosen.contains(r.name()))
         .collect()
 }
 
 /// Names of the recipes [`select`] would run.
-pub fn select_names(
-    recipes: &[Recipe],
+pub fn select_names<R: Selectable>(
+    recipes: &[R],
     changed_files: &[String],
     config: &SelectionConfig<'_>,
 ) -> Vec<String> {
     select(recipes, changed_files, config)
         .into_iter()
-        .map(|r| r.name.clone())
+        .map(|r| r.name().to_string())
         .collect()
 }
 
@@ -306,5 +348,81 @@ mod tests {
     #[test]
     fn an_empty_changeset_still_runs_smoke() {
         assert_eq!(select_names(&all(), &[], &cfg()), vec!["smoke".to_string()]);
+    }
+
+    /// A recipe type that is not `Recipe` — the case the trait exists for.
+    struct ImperativeRecipe {
+        name: String,
+        ci_paths: Vec<String>,
+    }
+
+    impl Selectable for ImperativeRecipe {
+        fn name(&self) -> &str {
+            &self.name
+        }
+
+        fn ci_paths(&self) -> &[String] {
+            &self.ci_paths
+        }
+    }
+
+    #[test]
+    fn a_foreign_recipe_type_can_be_selected() {
+        let recipes = vec![
+            ImperativeRecipe {
+                name: "smoke".into(),
+                ci_paths: vec![],
+            },
+            ImperativeRecipe {
+                name: "payments".into(),
+                ci_paths: vec!["src/payments/**".into()],
+            },
+            ImperativeRecipe {
+                name: "search".into(),
+                ci_paths: vec!["src/search/**".into()],
+            },
+        ];
+        let changed = vec!["src/payments/api.rs".to_string()];
+        assert_eq!(
+            select_names(&recipes, &changed, &cfg()),
+            vec!["smoke".to_string(), "payments".to_string()]
+        );
+    }
+
+    #[test]
+    fn a_name_and_paths_pair_is_selectable_without_a_trait_impl() {
+        // The shape Python's `select_names` takes, so the two implementations
+        // can be called the same way.
+        let recipes = vec![
+            ("smoke".to_string(), Vec::<String>::new()),
+            ("payments".to_string(), vec!["src/payments/**".to_string()]),
+        ];
+        let changed = vec!["src/payments/api.rs".to_string()];
+        assert_eq!(
+            select_names(&recipes, &changed, &cfg()),
+            vec!["smoke".to_string(), "payments".to_string()]
+        );
+    }
+
+    #[test]
+    fn a_harness_change_suppresses_matches_for_a_foreign_type_too() {
+        let recipes = vec![
+            ImperativeRecipe {
+                name: "smoke".into(),
+                ci_paths: vec![],
+            },
+            ImperativeRecipe {
+                name: "payments".into(),
+                ci_paths: vec!["src/payments/**".into()],
+            },
+        ];
+        let changed = vec![
+            "verify/runner.rs".to_string(),
+            "src/payments/api.rs".to_string(),
+        ];
+        assert_eq!(
+            select_names(&recipes, &changed, &cfg()),
+            vec!["smoke".to_string()]
+        );
     }
 }

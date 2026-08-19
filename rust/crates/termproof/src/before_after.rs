@@ -34,9 +34,43 @@
 
 use crate::result::RunResult;
 
+/// What a before/after comparison needs to know about a run.
+///
+/// Three accessors, because that is all this module reads: what ran, what it
+/// ran under, and whether it passed. Taking [`RunResult`] meant a caller whose
+/// results carry extra fields — a mode, a model, an effort — had to convert to
+/// a [`RunResult`] and back to ask whether anything flipped, and the conversion
+/// was lossy in the direction they cared about.
+///
+/// [`RunResult`] implements this, so existing calls are unchanged.
+pub trait Comparable {
+    /// Which recipe this result is for.
+    fn recipe_name(&self) -> &str;
+
+    /// Which renderer it ran under.
+    fn renderer(&self) -> &str;
+
+    /// Whether it passed.
+    fn passed(&self) -> bool;
+}
+
+impl Comparable for RunResult {
+    fn recipe_name(&self) -> &str {
+        &self.recipe_name
+    }
+
+    fn renderer(&self) -> &str {
+        &self.renderer
+    }
+
+    fn passed(&self) -> bool {
+        self.passed
+    }
+}
+
 /// Outcome label for a run that happened.
-fn outcome(result: &RunResult) -> &'static str {
-    if result.passed {
+fn outcome<R: Comparable>(result: &R) -> &'static str {
+    if result.passed() {
         PASS
     } else {
         FAIL
@@ -51,8 +85,11 @@ pub const FAIL: &str = "FAIL";
 pub const SKIP: &str = "SKIP";
 
 /// Results are matched on this pair.
-fn key(result: &RunResult) -> (String, String) {
-    (result.recipe_name.clone(), result.renderer.clone())
+fn key<R: Comparable>(result: &R) -> (String, String) {
+    (
+        result.recipe_name().to_string(),
+        result.renderer().to_string(),
+    )
 }
 
 /// One recipe/renderer whose outcome changed.
@@ -79,17 +116,20 @@ impl BehaviorDelta {
 }
 
 /// Two runs and what changed between them.
+///
+/// Generic over the result type, defaulting to [`RunResult`] so that
+/// `BeforeAfterResult` on its own still names what it always named.
 #[derive(Debug, Clone)]
-pub struct BeforeAfterResult {
+pub struct BeforeAfterResult<R = RunResult> {
     /// The baseline run.
-    pub before: Vec<RunResult>,
+    pub before: Vec<R>,
     /// The candidate run.
-    pub after: Vec<RunResult>,
+    pub after: Vec<R>,
     /// Outcomes that differ, in `before` order then new arrivals.
     pub deltas: Vec<BehaviorDelta>,
 }
 
-impl BeforeAfterResult {
+impl<R> BeforeAfterResult<R> {
     /// Render the deltas as markdown.
     ///
     /// States "none" explicitly rather than emitting nothing: an empty section
@@ -112,7 +152,7 @@ impl BeforeAfterResult {
 /// Matched by `(recipe_name, renderer)`. Ordering follows `before`, with
 /// recipes that appear only in `after` appended — so a report reads in a stable
 /// order rather than a hash order.
-pub fn compute_deltas(before: &[RunResult], after: &[RunResult]) -> Vec<BehaviorDelta> {
+pub fn compute_deltas<R: Comparable>(before: &[R], after: &[R]) -> Vec<BehaviorDelta> {
     let before_keys: Vec<(String, String)> = before.iter().map(key).collect();
     let after_keys: Vec<(String, String)> = after.iter().map(key).collect();
 
@@ -125,8 +165,8 @@ pub fn compute_deltas(before: &[RunResult], after: &[RunResult]) -> Vec<Behavior
 
     let mut deltas = Vec::new();
     for k in ordered_keys {
-        let b = before.iter().find(|r| key(r) == k);
-        let a = after.iter().find(|r| key(r) == k);
+        let b = before.iter().find(|r| key(*r) == k);
+        let a = after.iter().find(|r| key(*r) == k);
         let before_outcome = b.map(outcome).unwrap_or(SKIP);
         let after_outcome = a.map(outcome).unwrap_or(SKIP);
         if before_outcome != after_outcome {
@@ -142,7 +182,7 @@ pub fn compute_deltas(before: &[RunResult], after: &[RunResult]) -> Vec<Behavior
 }
 
 /// Assemble a [`BeforeAfterResult`] with its deltas computed.
-pub fn build_before_after(before: Vec<RunResult>, after: Vec<RunResult>) -> BeforeAfterResult {
+pub fn build_before_after<R: Comparable>(before: Vec<R>, after: Vec<R>) -> BeforeAfterResult<R> {
     let deltas = compute_deltas(&before, &after);
     BeforeAfterResult {
         before,
@@ -267,5 +307,58 @@ mod tests {
         assert_eq!(r.before.len(), 1);
         assert_eq!(r.after.len(), 1);
         assert_eq!(r.deltas.len(), 1);
+    }
+
+    /// A result type that is not `RunResult` — the case the trait exists for.
+    /// The extra fields are the point: converting to `RunResult` to run this
+    /// comparison would drop them.
+    #[derive(Debug, Clone)]
+    struct ProductResult {
+        recipe: String,
+        renderer: String,
+        passed: bool,
+        #[allow(dead_code)]
+        agent_model: String,
+    }
+
+    impl Comparable for ProductResult {
+        fn recipe_name(&self) -> &str {
+            &self.recipe
+        }
+
+        fn renderer(&self) -> &str {
+            &self.renderer
+        }
+
+        fn passed(&self) -> bool {
+            self.passed
+        }
+    }
+
+    fn product(name: &str, passed: bool) -> ProductResult {
+        ProductResult {
+            recipe: name.to_string(),
+            renderer: "ink".to_string(),
+            passed,
+            agent_model: "gpt-5.5".to_string(),
+        }
+    }
+
+    #[test]
+    fn a_foreign_result_type_can_be_compared() {
+        let r = build_before_after(
+            vec![product("login", true), product("search", true)],
+            vec![product("login", false), product("search", true)],
+        );
+        assert_eq!(r.deltas.len(), 1);
+        assert_eq!(r.deltas[0].explanation(), "login [ink]: PASS -> FAIL");
+        // The results themselves survive the round trip, extra fields and all.
+        assert_eq!("gpt-5.5", r.after[0].agent_model);
+    }
+
+    #[test]
+    fn skips_work_for_a_foreign_type_too() {
+        let deltas = compute_deltas(&[product("login", true)], &[]);
+        assert_eq!(deltas[0].explanation(), "login [ink]: PASS -> SKIP");
     }
 }
