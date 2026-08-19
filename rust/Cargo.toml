@@ -93,11 +93,18 @@ serde_yaml = "0.9"
 # The bump also silently redraws the generated recipe schema: `definitions`
 # becomes `$defs` with every `$ref` retargeted, `"minimum": 0.0` becomes
 # `"minimum": 0`, and key order and the `required` array go from sorted to
-# declaration order. The three tests in `schema.rs` catch none of it — they
-# check `$schema`, two `required` entries and one const. A change of that shape
-# passing green is the argument for a real drift test; the canonical schema
-# lives in the Python tree and is deliberately not vendored here, so building
-# one is parity-gate work and is not done.
+# declaration order. The unit tests in `crates/termproof/src/schema.rs` catch
+# none of it — they check `$schema`, two `required` entries and one const, and
+# the fourth, added by #174, asserts on the *canonical* embedded schema, which
+# a redraw of the generated one does not touch. A change of that shape passing
+# green is the argument for a real drift test. The `termproof` crate vendors
+# the canonical schema now — `crates/termproof/resources/`, embedded with
+# `include_str!` as `schema::CANONICAL_SCHEMA_JSON` and parsed by
+# `schema::load_canonical_schema` — so reaching it is no longer what is
+# missing — comparing it against the generated schema is, and that remains
+# parity-gate work and is not done. `crates/termproof/tests/schema_snapshot.rs`
+# pins the generated schema to itself in the meantime, which is what would have
+# caught the redraw above.
 #
 # What #28 shipped instead is the `schema` feature on the `termproof` crate: a
 # consumer that does not need generation stops compiling `schemars` at all,

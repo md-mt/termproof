@@ -56,8 +56,9 @@ shared rather than remote.
 - **The recipe schema and the example corpus are owned by the Python
   implementation.** They are the contract both implementations answer to. The
   schema is vendored into the crate at `resources/recipe-schema-v1.json` and
-  embedded by `load_canonical_schema` with `include_str!`, held byte-identical
-  to `python/termproof/_resources/recipe-schema-v1.json` by
+  embedded with `include_str!` as `schema::CANONICAL_SCHEMA_JSON` and parsed by
+  `load_canonical_schema`, held byte-identical to
+  `python/termproof/_resources/recipe-schema-v1.json` by
   `python/scripts/check_schema_copies.py`; the corpus is the shared
   `conformance/` tree at the repository root and is not vendored. What the crate
   does pin is its *own* generated schema, to a checked-in snapshot

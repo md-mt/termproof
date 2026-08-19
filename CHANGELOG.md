@@ -27,6 +27,15 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
   paths.
 - Add new entries under `[Unreleased]`, in the same PR as the change, under
   the implementation they affect.
+- **Write entries in the past tense, about the release they sit under.** A
+  released section is a record of what that version did, and it is never
+  rewritten to match the present — that would destroy the one job it has,
+  telling someone on an old version what changed and when. But this file is
+  also read for current behaviour, so a present-tense entry ("the crate does
+  not vendor the schema") goes on reading as a claim about now long after a
+  later release made it false. Past tense keeps the record intact and stops it
+  being mistaken for a statement about the current tree. Three entries under
+  `[0.3.4]` had to be re-tensed for exactly this reason (#174).
 - **Below 0.3.3 the two counts were independent**, so those headings can carry
   two release dates for one number. From 0.3.3 the counts are the same.
 
@@ -148,10 +157,12 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
   answers a different question (#174).
 - CI holds every copy of the canonical schema byte-identical against the
   package resource (`python/scripts/check_schema_copies.py`). It runs in `CI
-  (Python)` and in all four release paths — Python release, Rust release, Rust
-  publish and Rust auto-release — because a tag can be cut from a commit that
-  passed neither pull-request nor `main` CI, and a mismatch there is two
-  published artifacts disagreeing about what a recipe is (#174).
+  (Python)`, whose path filter covers all three copies, so a pull request that
+  can change one runs it; in the `gate` job of `Publish crates (Rust)`, which
+  runs on every `rust/**` pull request; and in all four release paths — Python
+  release, Rust release, Rust publish and Rust auto-release — because a tag can
+  be cut from a commit that went through none of them, and a mismatch there is
+  two published artifacts disagreeing about what a recipe is (#174).
 
 ### Python — Added
 
@@ -297,9 +308,10 @@ assuming a release this size moved both.
   `md-mt/termproof`. They named the Rust-only repository, which no longer holds
   the source, so the links on crates.io and docs.rs pointed at the wrong place.
   This is the substantive reason to publish the crate again.
-- **cargo:** `tests/canonical_schema.rs` is excluded from the package. It reads
-  `python/docs/recipe-schema-v1.json`, which sits outside the crate, so
-  shipping it would put a test in the tarball that cannot pass from there.
+- **cargo:** `tests/canonical_schema.rs` was excluded from the package. It read
+  `python/docs/recipe-schema-v1.json`, which sat outside the crate, so
+  shipping it would have put a test in the tarball that could not pass from
+  there.
 
 ### Rust — Fixed
 
@@ -308,8 +320,8 @@ assuming a release this size moved both.
   manifest and changelog were left behind and whose own drift check failed.
   `version-bump.py` now moves `python/pyproject.toml` and this file too, and
   the workflow verifies the train before it tags.
-- **schema:** `load_canonical_schema` reaches
-  `python/docs/recipe-schema-v1.json`. Its candidate paths described
+- **schema:** `load_canonical_schema` was made to reach
+  `python/docs/recipe-schema-v1.json`. Its candidate paths had described
   side-by-side checkouts from before the two implementations shared a
   repository, so it returned `None` everywhere.
 
@@ -318,9 +330,10 @@ assuming a release this size moved both.
   old candidates was `docs/recipe-schema-v1.json` relative to the working
   directory, so the function could read whatever file of that name happened to
   sit in a consumer's tree and hand it back as TermProof's canonical schema.
-  The crate does not vendor the schema, so `None` is the correct answer from a
-  registry checkout, and `None` is what it returns. `load_canonical_schema_from_dir`
-  is new and doc-hidden; it exists so a test can prove the packaged case.
+  The crate did not vendor the schema at this release, so `None` was the
+  correct answer from a registry checkout, and `None` is what it returned.
+  `load_canonical_schema_from_dir` was new and doc-hidden; it existed so a test
+  could prove the packaged case.
 
 ## [0.3.3] — 2026-08-16
 

@@ -253,11 +253,13 @@ workspace README in the same change.
 - The generated recipe schema is pinned by a checked-in snapshot
   (`crates/termproof/tests/schema_snapshot.rs` plus
   `crates/termproof/tests/snapshots/recipe_schema_v1.json`). The guard exists
-  because the schema unit tests assert only `$schema`, two `required` entries
-  and the `recipe_version` const, so a structural rewrite (`definitions` to
-  `$defs` with every `$ref` retargeted, `minimum: 0.0` to `minimum: 0`, key
-  and `required` ordering) can slip through with the suite green — exactly
-  what a `schemars` major bump did (#33).
+  because the schema unit tests catch none of the shapes a structural rewrite
+  takes: they check `$schema`, two `required` entries and one const, and the
+  fourth, added by #174, asserts on the *canonical* embedded schema, which a
+  redraw of the generated one leaves untouched. So `definitions` becoming
+  `$defs` with every `$ref` retargeted, `minimum: 0.0` becoming `minimum: 0`,
+  or key and `required` ordering changing can all slip through with the suite
+  green — exactly what a `schemars` major bump did (#33).
 - The snapshot is compared as parsed `serde_json::Value` trees, not as text:
   object key order in the file is ignored (semantically irrelevant), but every
   structural difference — keywords, numbers, array order, `$ref` targets —
@@ -273,10 +275,10 @@ workspace README in the same change.
   changes to this crate's generated schema; it does **not** establish
   agreement with the canonical schema. That schema is owned by the Python
   implementation and is vendored into this crate at
-  `resources/recipe-schema-v1.json`, embedded by
-  `schema::load_canonical_schema` with `include_str!` and held byte-identical
-  to `python/termproof/_resources/recipe-schema-v1.json` by
-  `python/scripts/check_schema_copies.py` in CI. The seam therefore answers
+  `resources/recipe-schema-v1.json`, embedded with `include_str!` as
+  `schema::CANONICAL_SCHEMA_JSON`, parsed by `schema::load_canonical_schema`,
+  and held byte-identical to `python/termproof/_resources/recipe-schema-v1.json`
+  by `python/scripts/check_schema_copies.py` in CI. The seam therefore answers
   the same from a published tarball as it does here, and reads no path outside
   the crate; `tests/canonical_schema.rs` ships and proves both, including that
   a decoy file in the working directory cannot displace it. Comparing the two
@@ -320,10 +322,15 @@ workspace README in the same change.
   change the convention would call a minor bump; it is caught here before a
   release, not by the first consumer who fails to compile.
 - **Package verification.** PR CI runs `cargo package -p termproof` and
-  `.github/scripts/rust/verify-package-contents.sh`, which asserts the tarball
-  carries the snapshot test and its fixture (issue #33's promise) and does
-  not carry the differential tests or `conformance/` (which cannot run without
-  the repository).
+  `.github/scripts/rust/verify-package-contents.sh`. The rule it encodes,
+  rather than the lists it holds: a test ships if a consumer can run it from
+  the tarball alone, and does not if it needs the repository around it. So the
+  snapshot and canonical-schema tests and the files they read are required, and
+  the differential tests and `conformance/` — which replay a corpus that lives
+  at the repository root and is not packaged — are forbidden. Read the script
+  for the current lists; #174 moved `tests/canonical_schema.rs` across that
+  line, from forbidden to required, by making it read the embedded schema
+  instead of a path outside the crate.
 - **Release archives.** `release-rust.yml` smoke-tests every archive before
   upload: `.github/scripts/rust/verify-release-archive.sh` verifies the sha256,
   extracts the tarball, and asserts `termproof --version` reports exactly the
