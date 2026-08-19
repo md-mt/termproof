@@ -158,6 +158,27 @@ BANNED = (
         # accurate and must not be "corrected" into a false one.
         "python/",
     ),
+    (
+        # #174 vendored the canonical recipe schema into the crate
+        # (`crates/termproof/resources/`, embedded with `include_str!`). The
+        # `schemars` rationale in `rust/Cargo.toml` went on saying the schema
+        # "lives in the Python tree and is deliberately not vendored here",
+        # and used that as the reason no generated-vs-canonical drift test
+        # exists. That surface was already swept — `rust/Cargo.toml` is
+        # asserted into the enumeration below — so what was missing was this
+        # pattern, not coverage.
+        #
+        # Scoped to the schema deliberately. A bare `not vendored` would flag
+        # `rust/docs/architecture.md` and `crates/termproof/README.md`, which
+        # say the *conformance corpus* is not vendored — still true, and a
+        # pattern with false positives teaches people to add exemptions
+        # rather than to read it.
+        re.compile(r"canonical (?:recipe )?schema[^.]{0,120}not vendored", re.I),
+        "the crate vendors the canonical schema at "
+        "crates/termproof/resources/recipe-schema-v1.json; what is still "
+        "missing is a generated-vs-canonical comparison, not reach",
+        None,
+    ),
 )
 
 
