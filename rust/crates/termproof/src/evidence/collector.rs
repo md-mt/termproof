@@ -291,6 +291,31 @@ impl EvidenceCollector {
         self.record(label, CaptureKind::Failure, source);
     }
 
+    /// Record a screen the caller already holds, with no source to read from.
+    ///
+    /// [`capture`](Self::capture) and [`capture_failure`](Self::capture_failure)
+    /// pull from a [`ScreenSource`], which presumes there is something live to
+    /// pull from. Not every screen worth keeping arrives that way: text
+    /// recovered from a log, the screen a step returned before the session
+    /// moved on, a golden file in a test. Without this, recording one of those
+    /// means writing a throwaway `ScreenSource` whose only job is to hand back a
+    /// string it was constructed with.
+    ///
+    /// No raw output log is attached, even for [`CaptureKind::Failure`]: there
+    /// is no source to ask for one. A caller holding the log can write it out
+    /// alongside.
+    pub fn capture_text(&mut self, label: &str, screen: &str, kind: CaptureKind) {
+        let attributed = attributed_screen_from_text(screen, self.columns, self.rows);
+        self.steps.push(CapturedStep {
+            index: self.steps.len(),
+            label: label.to_string(),
+            kind,
+            screen: screen.to_string(),
+            attributed,
+            raw_output: None,
+        });
+    }
+
     fn record<S: ScreenSource + ?Sized>(&mut self, label: &str, kind: CaptureKind, source: &mut S) {
         let capture = source.capture_screen(kind.raw_output());
         let attributed = capture.attributed.unwrap_or_else(|| {
@@ -865,6 +890,26 @@ mod tests {
             .map(|s| s.screen.as_str())
             .collect();
         assert_eq!(screens, ["one", "two"]);
+    }
+
+    #[test]
+    fn text_can_be_captured_without_a_source() {
+        let mut s = session("live");
+        let mut collector = EvidenceCollector::new();
+        collector.capture("from-session", &mut s);
+        collector.capture_text("from-log", "recovered", CaptureKind::Checkpoint);
+        collector.capture_text("post-mortem", "last screen", CaptureKind::Failure);
+
+        // A text capture is a step like any other: same sequence, same
+        // numbering, so filenames and the manifest do not develop a gap.
+        let steps = collector.steps();
+        assert_eq!(steps.len(), 3);
+        assert_eq!(steps[1].index, 1);
+        assert_eq!(steps[1].screen, "recovered");
+        assert_eq!(steps[1].attributed.to_text(true), "recovered");
+        assert_eq!(steps[2].kind, CaptureKind::Failure);
+        // Nothing to ask for a log, so there is none — even for a failure.
+        assert!(steps[2].raw_output.is_none());
     }
 
     #[test]
