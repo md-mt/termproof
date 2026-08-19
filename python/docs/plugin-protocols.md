@@ -53,7 +53,41 @@ When the method is present and the pipeline has a grid to offer, TermProof calls
 it in preference to `render`, so nothing is lost re-parsing text that the
 terminal emulator already parsed. This is additive: a renderer that defines only
 `render` keeps working unchanged and keeps receiving the screen as text. Both
-builtin `svg` and `png_rsvg` implement it; `png` does not.
+builtin `svg` and `png_rsvg` implement it; `png` does not, which is why PNG step
+screenshots are monochrome however colourful the grid is.
+
+The pipeline has a grid for `final.svg` and for the `attributed_rsvg` video
+always, and for a per-step screenshot whenever the session reported one.
+
+### Optional: `screen_attributed` on a session backend
+
+A `SessionBackend` returns a session object, and TermProof reads that session's
+screen after each step. If the session defines
+
+```python
+def screen_attributed(self) -> AttributedScreen: ...
+```
+
+TermProof reads the grid through it, puts it on `StepResult.screen_attributed`,
+and renders the step's screenshot from it — so the step image carries the colour
+and text attributes the pane actually had. It also derives the step's `screen`
+text from that same grid, so the `.txt` and the `.svg` beside it describe one
+instant rather than two reads that may disagree.
+
+The method is optional in the full sense. A session without it keeps working
+unchanged: TermProof reads its `screen` string, reports no grid, and renders the
+step screenshot from the text, in monochrome, exactly as before. Do not add the
+method unless the session can actually answer it — reporting an inaccurate grid
+is worse than reporting none.
+
+All four built-in backends implement it: `pexpect` and `pexpect_asciinema` and
+`docker` through `TerminalSession` (from its `pyte.Screen`), and `tmux` through
+`capture-pane -e`. Dim differs between them: the tmux path parses the escapes
+itself and carries SGR 2, the pyte path cannot.
+
+A `StepAction` that builds its own `StepResult` can pick this up by calling
+`termproof.builtin_steps.step_result(name, passed, detail, session)` instead of
+constructing one by hand.
 
 `ScreenRenderer` and `VideoBackend` plugins can optionally define a
 `from_config(cls, evidence: EvidenceConfig) -> Self` classmethod. When it is
@@ -71,13 +105,18 @@ state the run passes through and then leaves inexpressible. `StepAwareAssertionT
 extends it with `steps`: the `StepResult` list for the steps that ran, in order,
 each carrying the screen captured after that step.
 
-`StepResult.screen` is plain text — pyte's already-flattened `display` — not an
-`AttributedScreen`. Colour, bold and reverse video are gone by the time an
-assertion sees a per-step screen, so a step-aware assertion can match glyphs and
-layout but not styling. The `render_attributed` grid described above is built
-for the final screen and the video, not for these; see
-[`docs/evidence-quality.md`](evidence-quality.md) for why per-step screens are
-still flat.
+`StepResult.screen` is plain text: the screen flattened the way `screen_text`
+flattens it. Match glyphs and layout against it and nothing else — a screen text
+never carries an escape sequence.
+
+`StepResult.screen_attributed` is the same screen as an `AttributedScreen`, or
+`None`. It is what the per-step screenshot is rendered from, and a step-aware
+assertion may read it to match on styling. Treat it as genuinely optional: it is
+`None` whenever the session backend behind the run does not implement
+`screen_attributed()`, and it is also `None` on a `StepResult` rebuilt from
+`result.json`, which does not carry the grid. An assertion that requires styling
+should report that it had no grid rather than fail the run as though the styling
+were absent.
 
 The two protocols are one opt-in apart. TermProof passes `steps` only to an
 `evaluate` that declares a parameter of that name, so an assertion written

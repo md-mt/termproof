@@ -5,12 +5,14 @@ bold, reverse video. This module keeps a per-cell grid so a screenshot looks
 like what the operator saw, and so two screens that differ only in colour
 compare as different.
 
-Which artifacts actually get that today: ``final.svg`` and the
-``attributed_rsvg`` video, both built from a grid. Per-step screenshots are
-rendered from ``StepResult.screen``, which is already flattened, so they are
-monochrome. Dim is carried by :func:`attributed_screen_from_ansi_text` but not
-by :func:`attributed_screen_from_pyte`, because pyte models no dim attribute.
-See ``docs/evidence-quality.md``.
+Which artifacts get that: ``final.svg`` and the ``attributed_rsvg`` video, both
+built from a grid, and per-step screenshots whenever the session behind the step
+could supply one — see :attr:`~termproof.models.StepResult.screen_attributed`.
+A session backend that reports no grid still renders its step screenshots from
+the flattened text, in monochrome, and so does the PNG renderer, which has no
+``render_attributed``. Dim is carried by :func:`attributed_screen_from_ansi_text`
+but not by :func:`attributed_screen_from_pyte`, because pyte models no dim
+attribute. See ``docs/evidence-quality.md``.
 
 Depends on the standard library alone; :func:`attributed_screen_from_pyte`
 reads a ``pyte.Screen`` structurally rather than importing it.
@@ -211,6 +213,28 @@ class AttributedCell:
         )
 
 
+class _CellPool:
+    """Shares one object between the cells of a grid that compare equal.
+
+    A terminal screen is mostly repetition: blank cells, runs of one colour.
+    Cells are frozen and carry no identity, so one object can stand in for every
+    cell equal to it. On a 100x32 screen this takes the grid from ~528 KB to
+    ~36 KB, which is the difference between a grid per step being affordable for
+    a whole run and not — see ``StepScreenMemoryTest``.
+
+    The pool lives for one grid build and is then dropped. A process-wide cache
+    would share more, but it would also grow without a bound anyone owns.
+    """
+
+    __slots__ = ("_cells",)
+
+    def __init__(self) -> None:
+        self._cells: dict[AttributedCell, AttributedCell] = {}
+
+    def intern(self, cell: AttributedCell) -> AttributedCell:
+        return self._cells.setdefault(cell, cell)
+
+
 @dataclass(frozen=True)
 class AttributedScreen:
     """A rectangular terminal grid plus cursor metadata."""
@@ -282,10 +306,13 @@ def attributed_screen_from_lines(
     rows: int = DEFAULT_ROWS,
 ) -> AttributedScreen:
     """Build an unstyled grid from already-split plain text."""
+    pool = _CellPool()
     screen_rows = []
     for line in lines[:rows]:
         printable = [ch for ch in line if not _is_control(ch)]
-        screen_rows.append(tuple(AttributedCell(text=ch) for ch in printable[:columns]))
+        screen_rows.append(
+            tuple(pool.intern(AttributedCell(text=ch)) for ch in printable[:columns])
+        )
     return AttributedScreen(rows=tuple(screen_rows))
 
 
@@ -308,10 +335,15 @@ def attributed_screen_from_pyte(screen: Any) -> AttributedScreen:
 
     Duck-typed so this module does not depend on pyte.
     """
+    pool = _CellPool()
     rows = []
     for y in range(screen.lines):
         line = screen.buffer[y]
-        rows.append(tuple(_cell_from_pyte_char(line[x]) for x in range(screen.columns)))
+        rows.append(
+            tuple(
+                pool.intern(_cell_from_pyte_char(line[x])) for x in range(screen.columns)
+            )
+        )
     cursor = screen.cursor
     return AttributedScreen(
         rows=tuple(rows),
@@ -333,13 +365,16 @@ def attributed_screen_from_ansi_text(
     :func:`attributed_screen_from_text`, so this is safe to use as the default
     path for screens of unknown provenance.
     """
+    pool = _CellPool()
     screen_rows = []
     attrs = _AnsiAttrs()
     lines = ansi_text.split("\n")
     if lines and lines[-1] == "":
         lines.pop()
     for line in lines[:rows]:
-        screen_rows.append(tuple(_cells_from_ansi_line(line.rstrip("\r"), attrs, columns)))
+        screen_rows.append(
+            tuple(_cells_from_ansi_line(line.rstrip("\r"), attrs, columns, pool))
+        )
     return AttributedScreen(rows=tuple(screen_rows))
 
 
@@ -411,7 +446,12 @@ def _cell_from_pyte_char(char: Any) -> AttributedCell:
     )
 
 
-def _cells_from_ansi_line(line: str, attrs: _AnsiAttrs, columns: int) -> list[AttributedCell]:
+def _cells_from_ansi_line(
+    line: str,
+    attrs: _AnsiAttrs,
+    columns: int,
+    pool: _CellPool,
+) -> list[AttributedCell]:
     cells: list[AttributedCell] = []
     index = 0
     while index < len(line) and len(cells) < columns:
@@ -422,7 +462,7 @@ def _cells_from_ansi_line(line: str, attrs: _AnsiAttrs, columns: int) -> list[At
                 continue
         ch = line[index]
         if ch == "\t":
-            _append_tab(cells, attrs, columns)
+            _append_tab(cells, attrs, columns, pool)
         elif _is_control(ch):
             # A terminal acts on these rather than displaying them, and a raw
             # control byte in the output makes the SVG invalid XML — which a
@@ -430,35 +470,43 @@ def _cells_from_ansi_line(line: str, attrs: _AnsiAttrs, columns: int) -> list[At
             pass
         elif unicodedata.combining(ch) and cells:
             previous = cells[-1]
-            cells[-1] = AttributedCell(
-                text=unicodedata.normalize("NFC", previous.text + ch),
-                fg=previous.fg,
-                bg=previous.bg,
-                bold=previous.bold,
-                dim=previous.dim,
-                italic=previous.italic,
-                underline=previous.underline,
-                strikethrough=previous.strikethrough,
-                reverse=previous.reverse,
-                width=previous.width,
+            cells[-1] = pool.intern(
+                AttributedCell(
+                    text=unicodedata.normalize("NFC", previous.text + ch),
+                    fg=previous.fg,
+                    bg=previous.bg,
+                    bold=previous.bold,
+                    dim=previous.dim,
+                    italic=previous.italic,
+                    underline=previous.underline,
+                    strikethrough=previous.strikethrough,
+                    reverse=previous.reverse,
+                    width=previous.width,
+                )
             )
         else:
             width = _cell_width(ch)
-            cells.append(attrs.cell(ch, width=width))
+            cells.append(pool.intern(attrs.cell(ch, width=width)))
             if width == 2 and len(cells) < columns:
-                cells.append(attrs.cell("", width=0))
+                cells.append(pool.intern(attrs.cell("", width=0)))
         index += 1
     return cells
 
 
 def _consume_ansi_sequence(line: str, index: int, attrs: _AnsiAttrs) -> int:
-    if index + 2 >= len(line) or line[index + 1] != "[":
+    if line[index + 1 : index + 2] != "[":
+        # ESC at the end of the line, or introducing something that is not CSI.
+        # Drop the ESC and let the next character be read normally.
         return index + 1
     end = index + 2
     while end < len(line) and not line[end].isalpha():
         end += 1
     if end >= len(line):
-        return index + 1
+        # A CSI whose final byte never arrived — the capture was cut mid
+        # sequence. A terminal is still waiting for the terminator and displays
+        # nothing, so the parameter bytes are consumed rather than emitted as
+        # glyphs. Emitting them would put `[31` in the middle of a screenshot.
+        return len(line)
     command = line[end]
     if command == "m":
         _apply_sgr(_parse_sgr_params(line[index + 2 : end]), attrs)
@@ -528,10 +576,16 @@ def _apply_extended_color(params: list[int], index: int, attrs: _AnsiAttrs) -> i
     return len(params) - 1
 
 
-def _append_tab(cells: list[AttributedCell], attrs: _AnsiAttrs, columns: int) -> None:
+def _append_tab(
+    cells: list[AttributedCell],
+    attrs: _AnsiAttrs,
+    columns: int,
+    pool: _CellPool,
+) -> None:
     target = min(((len(cells) // 8) + 1) * 8, columns)
+    blank = pool.intern(attrs.cell(" "))
     while len(cells) < target:
-        cells.append(attrs.cell(" "))
+        cells.append(blank)
 
 
 def _xterm_256_color(index: int) -> str:

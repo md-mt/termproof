@@ -45,10 +45,19 @@ class CorpusByteIdentityTest(unittest.TestCase):
     regenerated corpus, which puts the new bytes in the diff where a reviewer
     can see them.
 
-    Each pair is rendered through the same path ``evidence.render_artifacts``
-    uses for that artifact -- ``final.svg`` from the attributed replay of the
-    cast, step screenshots from their recorded screen text. Pinning a path the
-    pipeline does not use would gate nothing.
+    Each pair is rendered from what the recording actually holds: ``final.svg``
+    from the attributed replay of the cast, step screenshots from their recorded
+    screen text. That is still the shipped path for the corpus, because every
+    entry in it was recorded before ``StepResult`` carried a grid and its
+    ``steps/*.txt`` are all the colour those steps have.
+
+    A live run no longer works that way -- a step screenshot is rendered from
+    ``StepResult.screen_attributed`` when the session supplied one. Nothing on
+    disk carries that grid, so a corpus regenerated from a colour-emitting
+    recipe would produce step images this gate cannot reproduce from the text
+    beside them. Recording the grid alongside the text is the follow-up that
+    would close it; until then, regenerating the corpus means regenerating
+    monochrome step entries or extending this gate at the same time.
     """
 
     def _rendered_pairs(self) -> list[tuple[AttributedScreen, int, int, Path]]:
@@ -447,14 +456,12 @@ class StepScreenshotDedupTest(unittest.TestCase):
         Comparing `step.screen` as a string cannot see this, which is why dedup
         fingerprints the grid the screenshot is rendered from.
 
-        Coverage of `_render_step_screens` as a helper, NOT of the shipped
-        pipeline. The SGR escapes below are injected by hand; `StepResult.screen`
-        is `session.screen`, which is pyte's already-flattened `display` and
-        never contains an escape. So this branch of the fingerprint cannot fire
-        on a real run today. It is worth keeping because it pins the behaviour
-        the moment `StepResult` starts carrying a grid --- see
-        `test_a_real_step_screen_carries_no_escapes` below, which is what pins
-        the present-day reality.
+        Coverage of `_render_step_screens` as a helper: the SGR escapes below are
+        injected into `StepResult.screen` by hand, and a screen text produced by
+        a session never contains one. The shipped route to the same behaviour is
+        `StepResult.screen_attributed`, which the session fills in and which the
+        renderer prefers over re-parsing the text --- pinned by
+        `StepScreenshotDedupTest` in `tests/test_step_attributed_screens.py`.
         """
         step_dir = self._dedup_step_dir(
             [
@@ -477,16 +484,17 @@ class StepScreenshotDedupTest(unittest.TestCase):
         )
         self.assertEqual(1, len(list(step_dir.glob("*.svg"))))
 
-    def test_a_real_step_screen_carries_no_escapes(self) -> None:
-        """The present-day limit, pinned so the two tests above cannot mislead.
+    def test_a_step_screen_text_alone_still_renders_monochrome(self) -> None:
+        """Why the grid had to be carried, rather than recovered from the text.
 
-        A step screenshot is rendered from `StepResult.screen`, which the runner
-        fills from `session.screen` -> `screen_text` -> pyte's `display`. That is
-        already flattened, so no colour reaches a step image however colourful
-        the session was. `final.svg` is unaffected: it renders from the
-        attributed replay of the cast.
+        `StepResult.screen` is the flattened screen — `screen_text` over pyte's
+        `display` — and it is what a session with no grid to report leaves
+        behind. Re-parsing it can only ever produce the monochrome grid below,
+        which is the whole reason `screen_attributed` exists rather than the
+        renderer being asked to try harder.
 
-        When `StepResult` grows a grid, this test is the one that should fail.
+        This is also the guarantee for a session backend that cannot supply a
+        grid: it keeps its screenshot, exactly as rendered here.
         """
         import pyte
 

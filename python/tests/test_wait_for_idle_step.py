@@ -12,6 +12,9 @@ class WaitForIdleStepDetailTest(unittest.TestCase):
     def _failure_detail(self, raw_output: str) -> str:
         session = Mock()
         session.screen = ""
+        # No grid: this fake models a session that cannot report one, so the
+        # step falls back to the screen text exactly as it did before.
+        session.screen_attributed = None
         session.raw_output = raw_output
         session.wait_for_idle.return_value = False
         return WaitForIdle().execute(session, {"stable_seconds": 0.5}, 1).detail
@@ -27,6 +30,7 @@ class WaitForIdleStepDetailTest(unittest.TestCase):
     def test_detail_reports_stable_window_on_success(self) -> None:
         session = Mock()
         session.screen = ""
+        session.screen_attributed = None
         session.raw_output = "hello"
         session.wait_for_idle.return_value = True
         result = WaitForIdle().execute(session, {"stable_seconds": 0.5}, 1)

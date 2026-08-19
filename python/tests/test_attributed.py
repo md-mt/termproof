@@ -93,6 +93,23 @@ class AnsiParsingTest(unittest.TestCase):
         self.assertEqual("X", screen.to_text())
         self.assertEqual("default", screen.rows[0][0].fg)
 
+    def test_a_sequence_cut_before_its_final_byte_emits_nothing(self) -> None:
+        """A capture can end mid-sequence; the parameter bytes are not glyphs.
+
+        `capture-pane -e` is a snapshot of a pane a program is still painting.
+        Reading `\x1b[31` as ESC-then-`[31` put the parameters in the middle of
+        the screenshot, which is exactly the artifact a reader would mistrust.
+        """
+        self.assertEqual("ok", attributed_screen_from_ansi_text("ok\x1b[31").to_text())
+        self.assertEqual("ok", attributed_screen_from_ansi_text("ok\x1b[").to_text())
+        self.assertEqual("ok", attributed_screen_from_ansi_text("ok\x1b").to_text())
+
+    def test_a_complete_sequence_at_the_very_end_of_a_line_still_applies(self) -> None:
+        """The truncation rule must not swallow a sequence that is intact."""
+        screen = attributed_screen_from_ansi_text("\x1b[31mred\x1b[0m")
+        self.assertEqual("red", screen.to_text())
+        self.assertEqual("red", screen.rows[0][0].fg)
+
     def test_a_double_width_glyph_occupies_two_columns(self) -> None:
         screen = attributed_screen_from_ansi_text("你ok")
         cells = screen.rows[0]

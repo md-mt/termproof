@@ -170,7 +170,15 @@ def _render_step_screens(
         # Two steps then share an image exactly when the image would be
         # identical — a colour-only change is a change, which comparing
         # `step.screen` as a string cannot express.
-        screen = attributed_screen_from_ansi_text(step.screen, columns=cols, rows=rows)
+        #
+        # `step.screen_attributed` is the grid the session reported at the
+        # moment of the step, and is what makes that distinction reachable: a
+        # grid rebuilt from `step.screen` can only be as colourful as the text,
+        # which for a flattened screen is not at all. Sessions that report no
+        # grid still land on the fallback, and still get their screenshot.
+        screen = step.screen_attributed or attributed_screen_from_ansi_text(
+            step.screen, columns=cols, rows=rows
+        )
         fingerprint = screen.render_fingerprint()
         unchanged = dedup and fingerprint == previous_fingerprint
         if unchanged:

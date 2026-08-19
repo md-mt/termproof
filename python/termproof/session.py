@@ -9,8 +9,9 @@ from pathlib import Path
 import pexpect
 import pyte
 
+from .attributed import AttributedScreen
 from .cast import CastRecorder
-from .screen import screen_text
+from .screen import screen_attributed, screen_text
 
 #: How a session produces its ``.cast`` file.
 #:
@@ -96,6 +97,16 @@ class TerminalSession:
     @property
     def screen(self) -> str:
         return screen_text(self._screen)
+
+    def screen_attributed(self) -> AttributedScreen:
+        """The pyte buffer as a grid, colour and text attributes intact.
+
+        The same emulator state :attr:`screen` flattens, so the two cannot
+        describe different moments. Dim is the one attribute missing: pyte
+        0.8.2's ``Char`` does not model SGR 2, so it is consumed before this can
+        read it. The tmux backend parses the escapes itself and does carry it.
+        """
+        return screen_attributed(self._screen)
 
     def send_text(self, text: str) -> None:
         if self._cast is not None:

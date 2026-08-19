@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import pyte
 
@@ -58,6 +60,55 @@ def screen_text(screen: pyte.Screen) -> str:
 def screen_attributed(screen: pyte.Screen) -> AttributedScreen:
     """Read *screen* as an attributed grid, colour and styles included."""
     return attributed_screen_from_pyte(screen)
+
+
+def grid_text(screen: AttributedScreen) -> str:
+    """A grid's text, normalised the way a session normalises its own.
+
+    Trailing whitespace off each row, then trailing blank rows dropped — the
+    same two steps :func:`screen_text` and ``TmuxSession.screen`` apply, so a
+    text derived from a grid still reads as the string an assertion matched.
+    """
+    lines = screen.text_lines(trim_right=True)
+    while lines and not lines[-1]:
+        lines.pop()
+    return "\n".join(lines)
+
+
+@dataclass(frozen=True)
+class ScreenCapture:
+    """One reading of a session's screen, as of one instant.
+
+    ``attributed`` is ``None`` when the session has no grid to report, which is
+    not an error: the text alone is a complete screenshot source, just a
+    monochrome one.
+    """
+
+    screen: str
+    attributed: AttributedScreen | None = None
+
+
+def capture_screen(session: Any) -> ScreenCapture:
+    """Read *session*'s screen once, as text and grid together.
+
+    Text and grid have to describe the same instant. Fetched separately against
+    a live program they need not, and the result is evidence that validates and
+    lies: ``steps/NN.txt`` describing the screen before an action while
+    ``steps/NN.svg`` and the dedup verdict describe the screen after it. The
+    tmux backend makes that concrete — its two readings are two ``capture-pane``
+    invocations, and the pty backend's ``screen`` and grid are two reads of an
+    emulator the child is still feeding.
+
+    So the grid is read first and the text is derived from it. One grid, one
+    text, no window. A session with no ``screen_attributed`` falls back to its
+    ``screen`` string and reports no grid, which is what keeps a third-party
+    session backend working unchanged.
+    """
+    read_grid = getattr(session, "screen_attributed", None)
+    grid = read_grid() if callable(read_grid) else None
+    if grid is None:
+        return ScreenCapture(screen=str(getattr(session, "screen", "") or ""))
+    return ScreenCapture(screen=grid_text(grid), attributed=grid)
 
 
 def render_svg(

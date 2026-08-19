@@ -81,6 +81,57 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
   termproof`.** It asserted the command's absence because the package was
   unpublished, and went on passing after the publish made that wrong.
 
+### Python — Added
+
+- `StepResult.screen_attributed`, an optional `AttributedScreen | None`
+  alongside the existing flattened `screen`. When it is present the per-step
+  screenshot is rendered from it, so the images under `steps/` carry the colour
+  and text attributes `final.svg` already did ([#175]).
+
+  Every built-in session backend fills it — `pexpect`, `pexpect_asciinema` and
+  `docker` from the session's `pyte.Screen`, `tmux` from `capture-pane -e` —
+  and the agent-driven mode fills it from its cast replay. Over the 13 example
+  recipes, step screenshots carrying attributed rendering went from 0/76 to
+  11/76 (9 in colour, 11 with text attributes); the other 65 are byte-identical
+  because those recipes drive genuinely monochrome TUIs.
+
+  Optional means optional. A `SessionBackend` whose session does not implement
+  `screen_attributed()` reports no grid, and its step screenshots render from
+  the text exactly as before. The `png` renderer takes text only, so PNG step
+  screenshots stay monochrome either way, and dim (SGR 2) reaches the grid on
+  the tmux path but not the pty one.
+
+  The field is deliberately absent from `StepResult.to_dict()`: `result.json` is
+  a shape shared with the Rust implementation and read by the run cache, and
+  nothing downstream of it re-renders an image.
+
+- `termproof.screen.capture_screen`, one read of a session's screen returning
+  text and grid together, and `termproof.builtin_steps.step_result` for step
+  actions that want the same. The grid is read first and the text derived from
+  it, so `steps/NN.txt` and `steps/NN.svg` cannot describe different instants.
+
+### Python — Fixed
+
+- Step-screenshot dedup fingerprints the rendered grid so that a colour-only
+  change between two steps counts as a change. That was inert for the artifacts
+  dedup applies to, because the grid was rebuilt from already-flattened text; it
+  now compares the grid the session reported ([#175]).
+
+- A CSI escape sequence cut before its final byte no longer emits its parameter
+  bytes as glyphs. `\x1b[31` at the end of a `capture-pane -e` line rendered as
+  a literal `[31` in the middle of a screenshot; a terminal waiting for the
+  terminator displays nothing, and now neither does the parser.
+
+### Python — Changed
+
+- The attributed grid builders share one cell object between cells that compare
+  equal. A terminal screen is mostly repetition, so this takes a 100x32 grid
+  from roughly 750 KiB to roughly 48 KiB — measured over the example corpus,
+  55 MiB of retained grids for a 75-step run becomes 3.5 MiB — which is what
+  makes keeping a grid per step affordable.
+
+[#175]: https://github.com/md-mt/termproof/issues/175
+
 ## [0.3.4] — 2026-08-17
 
 One project, one version. The two repositories became one: the Rust

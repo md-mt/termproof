@@ -4,6 +4,8 @@ from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
+from .attributed import AttributedScreen
+
 RECIPE_VERSION = 1
 
 
@@ -40,10 +42,38 @@ class Recipe:
 
 @dataclass(frozen=True)
 class StepResult:
+    """A step's verdict and the screen it left behind.
+
+    ``screen`` is the flattened text. It is what assertions match against, what
+    ``steps/NN-name.txt`` holds, and the only form of the screen that
+    ``to_dict`` carries.
+
+    ``screen_attributed`` is that same screen as a cell grid, supplied by
+    sessions that have one to give. It is what the per-step screenshot is
+    rendered from when it is present, which is what puts colour in the image and
+    what makes a colour-only change between two steps count as a change for
+    screenshot dedup.
+
+    Optional in both directions, deliberately:
+
+    - It defaults to ``None`` and is the last field, so every existing
+      construction — ``StepResult(name, passed, detail, screen)``, positional or
+      keyword — is unaffected. A ``StepAction`` in a plugin that never sets it
+      keeps working and keeps producing monochrome step screenshots.
+    - ``to_dict`` does not emit it, so ``result.json`` keeps the shape the Rust
+      implementation shares and the run cache reads. A grid per step would be
+      orders of magnitude larger than the rest of the file, and nothing
+      downstream of the JSON re-renders a screenshot: by the time a result is
+      serialised its images are already on disk. A ``StepResult`` rebuilt by
+      ``from_dict`` therefore has no grid, which is the honest answer rather
+      than a lossy one.
+    """
+
     name: str
     passed: bool
     detail: str
     screen: str
+    screen_attributed: AttributedScreen | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {

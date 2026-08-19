@@ -40,7 +40,7 @@
     <h2>What is it?</h2>
     <div class="card-grid">
       <div class="card"><h3>Recipe → PTY → Cast</h3><p>JSON recipes describe how to drive your TUI. The runner spawns a real pexpect PTY — not a mock — and writes the session out in asciinema v2 format itself; the <code>asciinema</code> CLI is optional, behind <code>termproof[record]</code>. The cast is the source of truth.</p></div>
-      <div class="card"><h3>Screenshots + Video</h3><p>Every step writes a screenshot and text snapshot. <code>final.svg</code> is rendered in colour from the terminal grid; the per-step images are rendered from plain text. With <code>--video</code>, agg + ffmpeg render a 60-fps MP4 from the same cast.</p></div>
+      <div class="card"><h3>Screenshots + Video</h3><p>Every step writes a screenshot and text snapshot. <code>final.svg</code> is rendered in colour from the terminal grid, and so is each step image when the session can report a grid — every built-in session backend can; one that cannot falls back to plain text. With <code>--video</code>, agg + ffmpeg render a 60-fps MP4 from the same cast.</p></div>
       <div class="card"><h3>Reports + PR Comments</h3><p><code>latest-report.md</code> embeds assertion tables and evidence links. CI posts a sticky comment on every PR and uploads <code>termproof-ci-evidence</code>.</p></div>
     </div>
   </section>
