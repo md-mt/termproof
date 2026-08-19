@@ -69,7 +69,7 @@ jobs:
         with:
           tool: cargo-semver-checks@0.50.0
       # Compares the working tree against the latest version published on
-      # crates.io (termproof 0.3.3 today). Fails on any breaking change to a
+      # crates.io (termproof 0.3.4 today). Fails on any breaking change to a
       # public API — under 0.x that is any change the pre-1.0 convention
       # would call a minor bump (docs/publishing.md).
       - name: cargo semver-checks check-release

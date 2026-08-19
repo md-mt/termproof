@@ -32,7 +32,54 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
 
 ## [Unreleased]
 
-Nothing yet.
+### Docs
+
+- **The distribution claims now say what 0.3.4 actually shipped.** Both
+  packages are live — `termproof` on PyPI and the `termproof` crate on
+  crates.io — and the repository still said otherwise in a dozen places.
+  `README.md` denied the PyPI publish outright and named `0.3.3` as the newest
+  crate; `SECURITY.md` reported the PyPI upload as still gated off;
+  `rust/docs/publishing.md`, the release and security workflow headers, the
+  Rust Dockerfile and the `termproof-cli` README were all a release behind.
+  `rust-release.yml` and `rust/docs/publishing.md` also said no `rs-v*` tag had
+  been cut, and `rust-auto-release.yml` explained its first-release guard as if
+  none were reachable from `main`; `rs-v0.3.4` is both. The front door and the
+  Python package page now offer `pip install termproof`, and the two
+  "what is published" tables link the registries rather than enumerating
+  versions that go stale.
+
+- **`rust/docs/publishing.md` says how to keep those claims correct.** Moving
+  them is a manual step after the publish, it has to move *all* of them — the
+  whole set went stale together after `0.3.4` because the step was skipped —
+  and it has to be scoped to what actually went out, because a Rust release
+  cuts `rs-v*` while PyPI is only uploaded on `py-v*`. The existing sweep
+  compares surfaces to each other, so it cannot see either failure.
+
+- **The `publish-plan.py` transcript is gone from the same page.** It printed
+  `"version": "0.3.3"` while the script printed `0.3.4`. An embedded sample of
+  live tool output is a claim about the manifests that no test can check and no
+  bump will move, so the page names the command and the shape of what it
+  returns instead of pasting a run of it.
+
+- **The container-image rows say what is actually in the registry.**
+  `README.md` and `SECURITY.md` both said the two images publish on every push
+  to `main` and every release tag. True of `ghcr.io/md-mt/termproof`; not of
+  `ghcr.io/md-mt/termproof-rust`, whose push has been failing since the
+  consolidation, so `latest` there is still the `0.3.3` build and no
+  `rs-v0.3.4` image exists. The build itself is #178 and is not fixed here.
+
+- **The smoke-install examples no longer pin a version that never existed.**
+  `python/docs/releases.md` and `python/scripts/smoke-install.sh` showed
+  `0.2.0`; PyPI has never carried it, so the documented smoke test could not
+  succeed. Both take a `<version>` placeholder now. `docs/launch/checklist.md`
+  keeps its `0.2.0` numbers — they are what that plan said — under a header
+  saying plainly that it was never executed at that version.
+
+### Changed
+
+- **`python/tests/test_docs_pages.py` no longer forbids `pip install
+  termproof`.** It asserted the command's absence because the package was
+  unpublished, and went on passing after the publish made that wrong.
 
 ## [0.3.4] — 2026-08-17
 

@@ -11,7 +11,7 @@
 # ## Which external programs, and why
 #
 # TermProof shells out for three things. Working out which belong in an image
-# means reading what the shipped CLI can actually reach today (v0.3.3):
+# means reading what the shipped CLI can actually reach today (v0.3.4):
 #
 #   rsvg-convert  `evidence::screenshot::ScreenshotRenderer` rasterises its SVG
 #                 through it, at the hard-coded path /usr/bin/rsvg-convert —

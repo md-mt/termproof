@@ -42,7 +42,7 @@ jobs:
 | --- | --- | --- |
 | `recipe-path` | required | Recipe file or recipe pack directory to run. |
 | `output-dir` | `.termproof/runs` | Evidence output directory. |
-| `termproof-source` | `git+https://github.com/md-mt/termproof.git` | Package source passed to `uvx --from`. Use `termproof` after PyPI publishing. |
+| `termproof-source` | `git+https://github.com/md-mt/termproof.git` | Package source passed to `uvx --from`. Set it to `termproof` for the published PyPI package, or to `termproof==<version>` to pin one. |
 | `video` | `true` | Render MP4 evidence. |
 | `fps` | `60` | Video frames per second. |
 | `extra-args` | empty | Extra arguments appended to `termproof run`. |

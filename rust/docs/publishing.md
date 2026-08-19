@@ -1,7 +1,8 @@
 # Publishing to crates.io
 
-`termproof` is published on crates.io, currently through **0.3.3** (`0.2.1`,
-`0.3.0`, `0.3.1`, `0.3.2`, `0.3.3`, all unyanked). `termproof-cli` and
+`termproof` is published on crates.io, currently through **0.3.4**; every
+version from `0.2.1` on is live and none has been yanked
+([version list](https://crates.io/crates/termproof/versions)). `termproof-cli` and
 `termproof-plugin-protocol` are **not** published — they carry
 `publish = false` on purpose. **crates.io never releases a name once it is
 taken, even after a yank**, so read [What publishes, and what does
@@ -14,7 +15,7 @@ One crate is in scope, and it is the only one that has ever been published:
 
 | Crate | Publishes | Why |
 |---|---|---|
-| `termproof` | yes — published through `0.3.3` | the whole library: recipe model, steps, assertions, orchestration, terminal sessions, evidence pipeline |
+| `termproof` | yes — published through `0.3.4` | the whole library: recipe model, steps, assertions, orchestration, terminal sessions, evidence pipeline |
 | `termproof-cli` | **held** | `publish = false` |
 | `termproof-plugin-protocol` | **held** | `publish = false` |
 
@@ -22,7 +23,7 @@ One crate is in scope, and it is the only one that has ever been published:
 serving a plugin ecosystem that does not exist yet, and its shape will move as
 the port approaches parity. `termproof-cli` is held for now as a deliberate
 choice about what the published surface commits to — the releases that have
-shipped (`0.2.1` through `0.3.3`) carried the library only.
+shipped (`0.2.1` through `0.3.4`) carried the library only.
 
 Both keep complete metadata. Lifting `publish = false` is the only change
 needed to publish either of them — the release automation derives its set from
@@ -53,14 +54,22 @@ dependencies at all, so the order below has nothing to sort.
 
 **`termproof`, and nothing else.**
 
-Do not copy that anywhere. `.github/scripts/rust/publish-plan.py` derives it
-from `cargo metadata` — every workspace member whose `publish` is not false,
-topologically sorted over its internal dependencies — and prints:
+Do not copy that anywhere — including from this page. Derive it:
 
-```console
-$ .github/scripts/rust/publish-plan.py
-{"version": "0.3.3", "order": ["termproof"], "held": ["termproof-cli", "termproof-plugin-protocol"]}
+```sh
+.github/scripts/rust/publish-plan.py
 ```
+
+`.github/scripts/rust/publish-plan.py` reads `cargo metadata` and prints one
+JSON object: `version` from the manifests, `order` — every workspace member
+whose `publish` is not false, topologically sorted over its internal
+dependencies — and `held`, the members carrying `publish = false`.
+
+A transcript of that output used to sit here, and it went a release stale
+without anything noticing. An embedded sample of live tool output is a claim
+about the manifests that no test can check and no bump will move, so this page
+names the command and the shape of what it returns, and nothing else. The same
+goes for any output you are tempted to paste in below.
 
 The derivation agrees with what the manifests say. It also refuses two states
 that would produce a broken release:
@@ -167,7 +176,7 @@ tag does not start `rs-v`, so an unprefixed tag would publish nothing and build
 nothing.
 
 Unprefixed `v<version>` tags exist in the history. They predate the
-consolidation — releases through `v0.3.3` were cut from the separate Rust
+consolidation — releases up to `v0.3.3` were cut from the separate Rust
 repository, and this repository's own `v*` tags are Python releases from before
 the prefixes existed. They are history, not a format to reuse.
 
@@ -196,13 +205,22 @@ fail with a message naming both values.
   `0.3.0`) and everything else as a patch bump.
 - Run `cargo update -w` after the bump so `Cargo.lock` matches, and commit it.
 - **After the publish**, move the "published through" claims onto the new
-  number. They are statements about crates.io, not about the manifest, so they
-  are correctly one release behind between the bump and the upload.
-  `python/tests/test_current_version_claims.py` sweeps every surface that makes
-  one — prose, workflow comments, Dockerfile headers — and fails when two of
-  them disagree, so a run of it names each place that has to move. It compares
-  the surfaces to each other rather than to the manifest, precisely so a bump
-  does not fail on its own.
+  number, and move all of them. They are statements about a registry, not
+  about the manifest, so they are correctly one release behind between the
+  bump and the upload — but nothing moves them automatically, and the whole
+  set went a release stale after `0.3.4` because this step was skipped.
+  `python/tests/test_current_version_claims.py` sweeps every surface that
+  makes one — prose, workflow comments, Dockerfile headers — and fails when
+  two of them disagree, so a run of it names each place that has to move. It
+  compares the surfaces to each other rather than to the manifest, precisely
+  so a bump does not fail on its own; the cost of that is what it cannot see,
+  which is every surface being stale together.
+- **Scope the claims you move to what actually went out.** The version train is
+  shared but the release paths are not: `rust-auto-release.yml` cuts `rs-v*`
+  and PyPI is only uploaded by `python-release.yml` on a `py-v*` tag. A Rust
+  release moves the crates.io claims and leaves the PyPI ones where they are,
+  and the other way round. The sweep above cannot tell the difference, so this
+  one is on you.
 
 ## Before you cut a release
 
@@ -259,11 +277,12 @@ file is copied into each crate directory; keep the copies in sync with the root
 - `.github/workflows/rust-publish-crates.yml` — the only thing that uploads to a
   registry.
 - `.github/workflows/rust-release.yml` — builds and attests the `termproof`
-  binary for tagged releases. It does not publish to crates.io. It ran
-  successfully on every tag from `v0.2.1` through `v0.3.3` in the separate Rust
-  repository this workspace came from, attaching the per-platform archives and
-  checksums; it has not yet run on an `rs-v*` tag here, because none has been
-  cut. Its header notes the remaining caveats. Since PR4, each archive is smoke-tested before upload
+  binary for tagged releases. It does not publish to crates.io. It has run
+  successfully on every release tag through `0.3.4`: `v0.2.1` to `v0.3.3` in
+  the separate Rust repository this workspace came from, and `rs-v0.3.4`, the
+  first `rs-v*` tag cut here. Each attaches the three per-platform archives and
+  their checksums.
+  Its header notes the remaining caveats. Since PR4, each archive is smoke-tested before upload
   (`.github/scripts/rust/verify-release-archive.sh`: checksum, extraction, and
   `termproof --version` matching the workspace version), and the attestation
   subject is verified against the archive digest.

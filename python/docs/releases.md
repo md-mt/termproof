@@ -93,7 +93,7 @@ Verify after a release publish:
 ```bash
 # Smoke-test the published package (isolated venv, no repo state)
 bash scripts/smoke-install.sh              # latest from PyPI
-bash scripts/smoke-install.sh 0.2.0        # pinned version
+bash scripts/smoke-install.sh <version>    # a pinned version, one that is on PyPI
 bash scripts/smoke-install.sh "" dist/*.whl  # local wheel without touching PyPI
 ```
 

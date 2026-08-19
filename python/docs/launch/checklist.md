@@ -1,5 +1,13 @@
 # Launch Checklist: TermProof v0.2
 
+> **Historical. This plan was never executed at `0.2.0`.** Every `0.2.0` below
+> is what the plan said, not what happened. The `v0.2.0` tag and GitHub release
+> exist, but nothing was ever published to PyPI under that number — PyPI
+> carries `0.3.0`, `0.3.3` and `0.3.4`, the first of them uploaded once
+> `ENABLE_PYPI` was turned on in August 2026. So the `pip install
+> termproof==0.2.0` smoke below cannot succeed, and never could. Reuse the
+> shape of this checklist, not its version numbers.
+>
 > Status: DRAFT checklist for human execution
 > Issues: #36 Show HN, #37 Outreach, #38 Social
 > Human gate: t_550ba351 blocks actual publish/outreach/account creation

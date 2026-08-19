@@ -3,6 +3,7 @@
 [![Python CI](https://github.com/md-mt/termproof/actions/workflows/python-ci.yml/badge.svg)](https://github.com/md-mt/termproof/actions/workflows/python-ci.yml)
 [![Rust CI](https://github.com/md-mt/termproof/actions/workflows/rust-ci.yml/badge.svg)](https://github.com/md-mt/termproof/actions/workflows/rust-ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![PyPI](https://img.shields.io/pypi/v/termproof)](https://pypi.org/project/termproof/)
 [![crates.io](https://img.shields.io/crates/v/termproof)](https://crates.io/crates/termproof)
 [![Verified by TermProof](https://img.shields.io/badge/verified%20by-TermProof-0a7a2e?style=flat-square)](https://github.com/md-mt/termproof)
 ![Stars](https://img.shields.io/github/stars/md-mt/termproof?style=social)
@@ -26,7 +27,7 @@ oracle; the Rust implementation is an in-progress port measured against it.
 | --- | --- | --- |
 | Status | shipped product, behavioural oracle | in progress, **not at parity** |
 | Use it when | you want the full evidence pipeline — screenshots, video, reports, PR comments | you want a single prebuilt CLI binary, a library, or JUnit output |
-| Distribution | Homebrew, git, source ([not yet on PyPI](#what-is-published)) | [`termproof` on crates.io](https://crates.io/crates/termproof), CLI from a git tag |
+| Distribution | [`termproof` on PyPI](https://pypi.org/project/termproof/), Homebrew, container, git, source | [`termproof` on crates.io](https://crates.io/crates/termproof), CLI from a git tag |
 | Recipes | `*.recipe.json` | JSON **and** YAML |
 | Read first | [`python/README.md`](python/README.md) | [`rust/docs/status-and-parity.md`](rust/docs/status-and-parity.md) |
 
@@ -152,9 +153,11 @@ comparison into a passing one without changing any behaviour, which is why
 ### Python
 
 ```bash
+pip install termproof
+# or from Homebrew
 brew tap md-mt/termproof https://github.com/md-mt/termproof
 brew install termproof
-# or from GitHub
+# or unreleased, from GitHub
 pip install git+https://github.com/md-mt/termproof.git
 # or from source
 git clone https://github.com/md-mt/termproof.git && cd termproof/python && uv run termproof --help
@@ -175,12 +178,17 @@ from a release tag, and prebuilt archives for Linux x86-64, macOS x86-64 and
 macOS arm64 are attached to each Rust release with a `.sha256` and a provenance
 attestation. They are ordinary dynamically-linked builds — `gnu` on Linux, not
 `musl` — so they are not static binaries and do not run on a distribution with
-an older glibc than the runner's. Releases through 0.3.3 were cut before consolidation; from here
-they are tagged `rs-v*` in this repository. See
+an older glibc than the runner's. Releases up to `0.3.3` were cut before the
+consolidation and carry unprefixed `v*` tags; from `0.3.4` they are tagged
+`rs-v*` in this repository. See
 [releases](https://github.com/md-mt/termproof/releases).
 
 There is also a container image, `ghcr.io/md-mt/termproof-rust`, carrying
 `rsvg-convert` and `ffmpeg`. It keeps that name because consumers pull it.
+**It is currently stale** — the push has been failing since the consolidation,
+so `latest` is still the `0.3.3` build and no `rs-v0.3.4` image exists. Build
+from the checkout until
+[#178](https://github.com/md-mt/termproof/issues/178) is fixed.
 
 **Windows is unverified for both implementations** — no CI job, no binary. A
 PTY-heavy project gets no Windows badge until real terminal behaviour passes
@@ -235,11 +243,12 @@ proof that your TUI behaves, use TermProof.
 
 | Distribution | Published today |
 | --- | --- |
-| `termproof` on PyPI | no — gated behind the `ENABLE_PYPI` repository variable |
-| `termproof` crate on crates.io | yes, through 0.3.3 |
+| `termproof` on PyPI | yes, through 0.3.4 |
+| `termproof` crate on crates.io | yes, through 0.3.4 |
 | `termproof-cli`, `termproof-plugin-protocol` crates | no — held back with `publish = false` |
 | Rust CLI binaries | attached to each Rust release |
-| `ghcr.io/md-mt/termproof`, `ghcr.io/md-mt/termproof-rust` | yes |
+| `ghcr.io/md-mt/termproof` | yes |
+| `ghcr.io/md-mt/termproof-rust` | stale — no image since `0.3.3` ([#178](https://github.com/md-mt/termproof/issues/178)) |
 
 Both implementations share a version train, so a version number means the same
 point in the project's history for both. The artifacts do not: a release is cut
