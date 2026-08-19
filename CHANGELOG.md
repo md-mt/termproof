@@ -103,7 +103,14 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
 
   The field is deliberately absent from `StepResult.to_dict()`: `result.json` is
   a shape shared with the Rust implementation and read by the run cache, and
-  nothing downstream of it re-renders an image.
+  nothing downstream of it re-renders an image. It is `compare=False` for the
+  same reason — equality tracks the serialised shape, so a live result still
+  equals `RunResult.from_dict(result.to_dict())` as it always has.
+
+  `AttributedScreen` also grows a compact `__repr__`. The generated dataclass
+  one was an `AttributedCell(...)` per cell, around half a megabyte for a
+  100x32 grid, and a grid now hangs off every `StepResult` — which is what a
+  failing assertion would have printed.
 
 - `termproof.screen.capture_screen`, one read of a session's screen returning
   text and grid together, and `termproof.builtin_steps.step_result` for step
@@ -122,13 +129,27 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
   a literal `[31` in the middle of a screenshot; a terminal waiting for the
   terminator displays nothing, and now neither does the parser.
 
+- A CSI sequence ending in a final byte that is not a letter no longer eats the
+  first letter of the text after it. ECMA-48 puts the final byte at 0x40-0x7E;
+  the parser scanned for `isalpha()`, so `before\x1b[1~after` rendered as
+  `beforefter`. Same for `\x1b[5@`, `\x1b[2^`, `\x1b[?25l` and the rest of the
+  non-letter finals. A fresh `ESC` now also abandons a sequence in progress
+  rather than being read as one of its parameter bytes.
+
 ### Python — Changed
 
 - The attributed grid builders share one cell object between cells that compare
-  equal. A terminal screen is mostly repetition, so this takes a 100x32 grid
-  from roughly 750 KiB to roughly 48 KiB — measured over the example corpus,
-  55 MiB of retained grids for a 75-step run becomes 3.5 MiB — which is what
-  makes keeping a grid per step affordable.
+  equal. A terminal screen is mostly repetition, so a typical 100x32 grid goes
+  from 527 KiB to 31 KiB, and the 75 step grids a run over the example corpus
+  retains go from 37.1 MiB to 2.9 MiB — 506 KiB down to 40 KiB per step. That
+  is what makes keeping a grid per step affordable.
+
+  Measured with `tracemalloc`, summing allocations made in
+  `termproof/attributed.py` that are still alive once the run's results are in
+  hand. A `sys.getsizeof` walk of the same objects reads higher — around 46-55
+  MiB unshared depending on what the walk counts — because `getsizeof` on a
+  key-sharing instance dict reports more than the allocator handed out. Same
+  conclusion, and the ratio is 12-16x on every method tried.
 
 [#175]: https://github.com/md-mt/termproof/issues/175
 

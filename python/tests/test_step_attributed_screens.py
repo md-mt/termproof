@@ -121,6 +121,58 @@ class StepResultCompatibilityTest(unittest.TestCase):
         self.assertIsNone(restored.screen_attributed)
         self.assertEqual(step.screen, restored.screen)
 
+    def test_equality_tracks_the_serialised_shape(self) -> None:
+        """A live result equals its own round trip, grid or no grid.
+
+        The field is omitted from `to_dict`, so if it also took part in `__eq__`
+        then `RunResult.from_dict(result.to_dict()) == result` would be `False`
+        for any run that captured a grid — a comparison tests here and
+        downstream make routinely, failing for a reason nothing in the JSON
+        shows. `compare=False` keeps equality on the shape callers can see.
+        """
+        step = StepResult("name", True, "detail", "screen", _grid("screen", "red"))
+        self.assertEqual(step, StepResult.from_dict(step.to_dict()))
+        self.assertEqual(step, StepResult("name", True, "detail", "screen"))
+        # Two grids of different colour are still the same step: same verdict,
+        # same detail, same screen text.
+        self.assertEqual(step, StepResult("name", True, "detail", "screen", _grid("screen", "green")))
+        # The fields that do identify a step still separate them.
+        self.assertNotEqual(step, StepResult("name", False, "detail", "screen"))
+        self.assertNotEqual(step, StepResult("name", True, "detail", "other"))
+
+    def test_a_whole_run_result_equals_its_round_trip(self) -> None:
+        from termproof.models import AssertionResult, RunResult
+
+        result = RunResult(
+            recipe_name="r",
+            passed=True,
+            exit_code=0,
+            duration_seconds=1.0,
+            priority="P2",
+            execution="scripted",
+            renderer="default",
+            score=1.0,
+            steps=[StepResult("s", True, "", "screen", _grid("screen", "red"))],
+            assertions=[AssertionResult("a", True, "")],
+            artifacts={},
+        )
+        self.assertEqual(result, RunResult.from_dict(result.to_dict()))
+
+    def test_a_step_carrying_a_grid_is_still_hashable_and_cheaply_so(self) -> None:
+        """`frozen=True` derives `__hash__` from the compared fields only."""
+        with_grid = StepResult("name", True, "detail", "screen", _grid("screen", "red"))
+        self.assertEqual(hash(StepResult("name", True, "detail", "screen")), hash(with_grid))
+
+    def test_the_repr_stays_readable_when_a_grid_is_attached(self) -> None:
+        """An assertion failure must not print half a megabyte of cells."""
+        import pyte
+
+        screen = pyte.Screen(100, 32)
+        pyte.Stream(screen).feed("hello world")
+        step = StepResult("name", True, "detail", "hello world", attributed_screen_from_pyte(screen))
+        self.assertLess(len(repr(step)), 400)
+        self.assertIn("AttributedScreen(", repr(step))
+
 
 class CaptureScreenTest(unittest.TestCase):
     def test_a_session_with_no_grid_reports_none_and_keeps_its_text(self) -> None:
@@ -382,7 +434,31 @@ class AnsiCaptureRobustnessTest(unittest.TestCase):
         "text\x1b[0",
         "\x1b[0m\x1b[0m\x1b[0m",
         "\x1b[1;31;4;7;9mstyled\x1b[0m tail",
+        # Final bytes outside the letters. `isalpha()` scanning ran past these
+        # and ate the next letter of real text with the escape.
+        "before\x1b[1~after",
+        "before\x1b[5@after",
+        "before\x1b[2^after",
+        "before\x1b[?25lafter",
+        "before\x1b[1;2Hafter",
+        "before\x1b[0`after",
+        "before\x1b[3{after",
+        # A sequence abandoned by a fresh ESC mid-parameters.
+        "\x1b[31\x1b[32mX",
+        "\x1b[38;5\x1b[0mX",
+        # Intermediate bytes, which are also below the final-byte range.
+        "before\x1b[1 qafter",
+        "before\x1b[!pafter",
     )
+
+    def test_no_payload_loses_the_text_around_the_sequence(self) -> None:
+        """Consuming an escape must consume the escape and nothing else."""
+        for payload in self.MALFORMED:
+            if not payload.startswith("before"):
+                continue
+            with self.subTest(payload=payload):
+                text = attributed_screen_from_ansi_text(payload, columns=60, rows=2).to_text()
+                self.assertEqual("beforeafter", text)
 
     def test_no_malformed_sequence_raises_or_leaks_a_control_byte(self) -> None:
         for payload in self.MALFORMED:
@@ -419,15 +495,19 @@ class AnsiCaptureRobustnessTest(unittest.TestCase):
 class StepScreenMemoryTest(unittest.TestCase):
     """A grid per step for a whole run has to be affordable.
 
-    Measured on this suite's machine, a 100x32 grid built without sharing costs
-    about 750 KiB, which over a hundred-step run is tens of megabytes retained
-    for the length of the run. `_CellPool` shares one object between cells that
-    compare equal, which a terminal screen is mostly made of, and takes the same
-    grid to roughly 48 KiB.
+    A grid built without sharing costs about half a megabyte per 100x32 screen,
+    which over a hundred-step run is tens of megabytes retained for as long as
+    the run holds its results. `_CellPool` shares one object between cells that
+    compare equal, which a terminal screen is mostly made of.
 
-    The assertions are ratios and orders of magnitude rather than byte counts:
-    the point is that the cost is bounded by the number of *distinct* cells, not
-    by the number of cells.
+    These assertions are the *property*: the cost is bounded by the number of
+    distinct cells rather than the number of cells. They are deliberately not
+    the byte counts quoted in the changelog, which come from a `tracemalloc`
+    measurement over a real run — a machine-dependent figure has no business
+    failing a test suite. The sizing helper here is a `sys.getsizeof` walk,
+    which reads higher than `tracemalloc` because `getsizeof` on a
+    key-sharing instance dict overstates what was actually allocated; it is
+    fine for an upper bound, which is all it is used for.
     """
 
     def _grid_bytes(self, screen: AttributedScreen) -> int:

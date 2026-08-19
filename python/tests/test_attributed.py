@@ -110,6 +110,56 @@ class AnsiParsingTest(unittest.TestCase):
         self.assertEqual("red", screen.to_text())
         self.assertEqual("red", screen.rows[0][0].fg)
 
+    def test_a_final_byte_that_is_not_a_letter_still_ends_the_sequence(self) -> None:
+        """Scanning for `isalpha()` ended a CSI one character too late.
+
+        ECMA-48 puts the CSI final byte at 0x40-0x7E, which is wider than the
+        letters. Stopping only on a letter meant `\x1b[1~` ran on to the `a` of
+        the following word and consumed it: `before\x1b[1~after` rendered as
+        `beforefter`. Silent text corruption in a screenshot.
+        """
+        for payload in ("\x1b[1~", "\x1b[5@", "\x1b[2^", "\x1b[H", "\x1b[?25l", "\x1b[1;2H"):
+            with self.subTest(payload=payload):
+                text = attributed_screen_from_ansi_text(f"before{payload}after").to_text()
+                self.assertEqual("beforeafter", text)
+
+    def test_every_byte_in_the_csi_final_range_terminates(self) -> None:
+        """The whole range, so the rule is the rule rather than the examples."""
+        for code in range(0x40, 0x7F):
+            final = chr(code)
+            with self.subTest(final=final):
+                text = attributed_screen_from_ansi_text(f"a\x1b[1{final}b").to_text()
+                self.assertEqual("ab", text)
+
+    def test_a_parameter_byte_does_not_terminate(self) -> None:
+        """0x30-0x3F are parameters; ending there would cut a sequence short."""
+        screen = attributed_screen_from_ansi_text("\x1b[38;5;196mX")
+        self.assertEqual("X", screen.to_text())
+        self.assertEqual("ff0000", screen.rows[0][0].fg)
+
+    def test_a_fresh_escape_abandons_the_sequence_in_progress(self) -> None:
+        """`[` is inside the final-byte range, so an aborted CSI needs handling.
+
+        Without this, `\x1b[31\x1b[32mX` would end its first sequence on the
+        second `[` and emit `32mX` as text.
+        """
+        screen = attributed_screen_from_ansi_text("\x1b[31\x1b[32mX")
+        self.assertEqual("X", screen.to_text())
+        self.assertEqual("green", screen.rows[0][0].fg)
+
+    def test_the_repr_is_readable_rather_than_a_cell_dump(self) -> None:
+        """A grid now hangs off every `StepResult`, so its repr lands in failures.
+
+        The generated dataclass repr of a 100x32 grid is around half a megabyte.
+        """
+        screen = attributed_screen_from_ansi_text(
+            "\r\n".join("filler" for _ in range(32)), columns=100, rows=32
+        )
+        text = repr(screen)
+        self.assertLess(len(text), 200)
+        self.assertIn("32x", text)
+        self.assertIn("filler", text)
+
     def test_a_double_width_glyph_occupies_two_columns(self) -> None:
         screen = attributed_screen_from_ansi_text("你ok")
         cells = screen.rows[0]

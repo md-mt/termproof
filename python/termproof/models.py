@@ -67,13 +67,22 @@ class StepResult:
       serialised its images are already on disk. A ``StepResult`` rebuilt by
       ``from_dict`` therefore has no grid, which is the honest answer rather
       than a lossy one.
+    - It is ``compare=False``, so equality tracks the serialised shape rather
+      than diverging from it. Comparing a live result against
+      ``RunResult.from_dict(result.to_dict())`` is an ordinary thing for a test
+      to do, here and downstream; with the grid in ``__eq__`` that comparison
+      would start returning ``False`` for a reason nothing in the JSON explains.
+      Two steps with the same verdict, detail and screen text are the same
+      result; the grid is evidence the result carries, not part of its identity.
+      Excluding it also keeps ``__hash__`` off the grid, which matters because
+      hashing one means hashing every cell.
     """
 
     name: str
     passed: bool
     detail: str
     screen: str
-    screen_attributed: AttributedScreen | None = None
+    screen_attributed: AttributedScreen | None = field(default=None, compare=False)
 
     def to_dict(self) -> dict[str, Any]:
         return {

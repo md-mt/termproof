@@ -218,9 +218,12 @@ class _CellPool:
 
     A terminal screen is mostly repetition: blank cells, runs of one colour.
     Cells are frozen and carry no identity, so one object can stand in for every
-    cell equal to it. On a 100x32 screen this takes the grid from ~528 KB to
-    ~36 KB, which is the difference between a grid per step being affordable for
-    a whole run and not — see ``StepScreenMemoryTest``.
+    cell equal to it. Measured with ``tracemalloc`` over allocations still alive
+    in this module, a typical 100x32 screen goes from 527 KiB to 31 KiB; a
+    screen where every cell differs is the floor at 292 KiB, because the saving
+    is in *repetition*, not in the cells themselves. That is the difference
+    between a grid per step being affordable for a whole run and not — see
+    ``StepScreenMemoryTest``.
 
     The pool lives for one grid build and is then dropped. A process-wide cache
     would share more, but it would also grow without a bound anyone owns.
@@ -235,7 +238,7 @@ class _CellPool:
         return self._cells.setdefault(cell, cell)
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, repr=False)
 class AttributedScreen:
     """A rectangular terminal grid plus cursor metadata."""
 
@@ -243,6 +246,24 @@ class AttributedScreen:
     cursor_row: int = 0
     cursor_column: int = 0
     cursor_hidden: bool = False
+
+    def __repr__(self) -> str:
+        """Dimensions and the first line, not every cell.
+
+        The generated dataclass repr of a 100x32 grid is around half a megabyte,
+        one ``AttributedCell(...)`` per cell. Now that a grid hangs off every
+        ``StepResult``, that is what a failing assertion would print — output
+        nobody can read, about the field that is usually not the one at fault.
+        Reach for ``rows`` or ``text_lines()`` when the cells are the question.
+        """
+        first = next(iter(self.text_lines(trim_right=True)), "")
+        if len(first) > 40:
+            first = first[:37] + "..."
+        cursor = f"{self.cursor_row},{self.cursor_column}"
+        return (
+            f"AttributedScreen({self.row_count}x{self.column_count}, "
+            f"cursor={cursor}, first_line={first!r})"
+        )
 
     @property
     def row_count(self) -> int:
@@ -499,7 +520,15 @@ def _consume_ansi_sequence(line: str, index: int, attrs: _AnsiAttrs) -> int:
         # Drop the ESC and let the next character be read normally.
         return index + 1
     end = index + 2
-    while end < len(line) and not line[end].isalpha():
+    while end < len(line):
+        char = line[end]
+        if char == "\x1b":
+            # A fresh ESC abandons the sequence in progress. Stop here so the
+            # new one is read from its own start rather than swallowed into
+            # this one's parameters.
+            return end
+        if _is_csi_final(char):
+            break
         end += 1
     if end >= len(line):
         # A CSI whose final byte never arrived — the capture was cut mid
@@ -507,10 +536,27 @@ def _consume_ansi_sequence(line: str, index: int, attrs: _AnsiAttrs) -> int:
         # nothing, so the parameter bytes are consumed rather than emitted as
         # glyphs. Emitting them would put `[31` in the middle of a screenshot.
         return len(line)
-    command = line[end]
-    if command == "m":
+    if line[end] == "m":
         _apply_sgr(_parse_sgr_params(line[index + 2 : end]), attrs)
     return end + 1
+
+
+def _is_csi_final(char: str) -> bool:
+    """Whether *char* terminates a CSI sequence.
+
+    ECMA-48 puts the final byte at 0x40-0x7E, above the parameter bytes
+    (0x30-0x3F) and the intermediates (0x20-0x2F). Scanning for ``isalpha()``
+    instead stopped only on letters, so a sequence ending in one of the
+    non-letter finals — ``\\x1b[1~``, ``\\x1b[5@``, ``\\x1b[2^`` — ran on to the
+    next letter in the text and ate it with the escape: ``before\\x1b[1~after``
+    rendered as ``beforefter``. Silent text corruption in a screenshot, and the
+    same shape of defect as reading a truncated sequence as glyphs.
+
+    ``isalpha()`` was also true of non-ASCII letters, which cannot terminate a
+    CSI at all; a bare range check is both narrower and wider in the right
+    directions.
+    """
+    return "\x40" <= char <= "\x7e"
 
 
 def _parse_sgr_params(params: str) -> list[int]:
