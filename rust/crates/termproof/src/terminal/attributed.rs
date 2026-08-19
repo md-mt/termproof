@@ -426,6 +426,16 @@ pub fn attributed_screen_from_ansi_text(
 ///
 /// The usual path: a session feeds bytes to `vt100`, and this reads the grid
 /// back out with attributes intact.
+///
+/// # Naming the argument type
+///
+/// [`vt100::Screen`] is a *third-party* type, so a `Screen` from your own
+/// `vt100` dependency is only accepted here when cargo gave us both from the
+/// same copy. Build it through the re-export — [`crate::vt100`] — and that is
+/// true by construction. If you have text rather than a live parser, the
+/// sibling constructors [`attributed_screen_from_text`] and
+/// [`attributed_screen_from_ansi_text`] take `&str` and raise no such question.
+/// See "Dependencies in the public API" in the crate docs (#177).
 pub fn from_vt100(screen: &vt100::Screen) -> AttributedScreen {
     let (rows, cols) = screen.size();
     let grid = (0..rows)

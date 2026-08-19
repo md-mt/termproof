@@ -32,6 +32,31 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
 
 ## [Unreleased]
 
+### Rust — Added
+
+- **`fancy_regex`, `jsonschema` and `vt100` are re-exported at the crate root.**
+  All three reach the public API — `pyregex::compile` returns a
+  `fancy_regex::Regex`, `pyschema::compile` a `jsonschema::Validator`, and
+  `terminal::attributed::from_vt100` takes a `vt100::Screen` — and a
+  third-party type in a signature is only interchangeable with the consumer's
+  own when cargo hands both sides the same copy. Naming
+  `termproof::fancy_regex::Regex` instead of your own makes that true by
+  construction. Purely additive; nothing that compiled before stops.
+  ([#177](https://github.com/md-mt/termproof/issues/177))
+
+### Rust — Docs
+
+- **The crate docs no longer claim `schemars` is the only dependency reaching
+  the public API.** Three others do, and the claim is why that went unnoticed.
+  A new *Dependencies in the public API* section names all four, says why a
+  bound on them is a source-compatibility surface and not just a duplicate
+  count, and records the resolver behaviour behind it: cargo takes the **top**
+  of a requirement's range, so the window of versions a consumer can unify with
+  is one version wide however the range is written — widening moves the window
+  rather than enlarging it. `schemars` stays the one with no escape hatch,
+  because its derives are on the published types rather than in a signature.
+  ([#177](https://github.com/md-mt/termproof/issues/177))
+
 ### Docs
 
 - **The distribution claims now say what 0.3.4 actually shipped.** Both
