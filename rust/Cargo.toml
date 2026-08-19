@@ -61,13 +61,26 @@ all = "warn"
 [workspace.dependencies]
 termproof = { path = "crates/termproof", version = "0.3.4" }
 regex = { version = "1.13.1", default-features = false, features = ["std", "unicode"] }
-# Floor 0.16, tested at 0.16.2. `jsonschema` 0.33 asks for `^0.16` itself, so a
-# caret on 0.19 put two copies of a backtracking regex engine in the graph of
-# every default build — ours and its — which pinning to 0.16.2 now collapses.
-# Nothing here needs 0.19: the one thing that did was a type annotation naming
-# `Captures`, which gained a haystack parameter in 0.19 and is now left to
-# inference (see `steps::try_match`).
-fancy-regex = ">=0.16, <0.20"
+# Held inside the 0.16 line, tested at 0.16.2. `jsonschema` 0.33 asks for
+# `^0.16` itself, so anything outside that line puts two copies of a
+# backtracking regex engine in the graph — ours and its. Nothing here needs a
+# later one: the only thing that did was a type annotation naming `Captures`,
+# which gained a haystack parameter in 0.19 and is now left to inference (see
+# `steps::try_match`).
+#
+# The upper bound is `<0.17`, not `<0.20`, for a reason that only shows up
+# downstream. These are 0.x releases, so cargo treats 0.16, 0.17, 0.18 and 0.19
+# as mutually incompatible and will not unify across them; handed a range
+# spanning all four it takes the highest. Our own lockfile hid that — the
+# workspace resolved to 0.16.2 and the intended collapse looked like it was
+# happening — but a consumer resolving fresh got 0.19.0 *alongside* the 0.16.2
+# `jsonschema` pulled in. Observed while vendoring 0.3.4 into a monorepo that
+# already carried 0.16.2, 0.17.0 and 0.18.0: the import still added 0.19.0 as a
+# seventh copy and tripped a duplicate-dependency check.
+#
+# A range whose stated purpose is to collapse onto one copy has to be narrow
+# enough to do it.
+fancy-regex = ">=0.16, <0.17"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 serde_yaml = "0.9"
