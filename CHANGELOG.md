@@ -240,6 +240,27 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
 
 [#175]: https://github.com/md-mt/termproof/issues/175
 
+### CI
+
+- **Every workflow job is bounded, and the Python jobs no longer install
+  ffmpeg from a package mirror.** A quiet Ubuntu mirror stalled
+  `apt-get install ffmpeg` in three jobs of one run; nothing carried a
+  `timeout-minutes`, so all three ran to GitHub's six-hour ceiling — 18
+  job-hours from one commit — and reported `cancelled` with no test output,
+  which reads as a broken pull request rather than as infrastructure. The
+  install turned out to be redundant everywhere it appeared:
+  `termproof.evidence.find_ffmpeg` falls back to
+  `imageio_ffmpeg.get_ffmpeg_exe()`, and `imageio-ffmpeg` is a hard runtime
+  dependency whose Linux wheel carries the binary, so `uv sync` had already
+  put a working ffmpeg on every one of those runners. All three apt steps are
+  gone, the jobs that render video assert the bundled binary resolves instead,
+  and `cargo install` — the remaining step that reaches the network — runs
+  under `.github/scripts/retry.sh`, which bounds each *attempt* so a retry can
+  survive a stall rather than only a plain error. All 25 jobs across the 12
+  workflows now declare a `timeout-minutes`, and `test_ci_timeouts.py` fails if
+  a new one does not. Affects CI only; neither published artifact changes.
+  ([#183](https://github.com/md-mt/termproof/issues/183))
+
 ## [0.3.4] — 2026-08-17
 
 One project, one version. The two repositories became one: the Rust

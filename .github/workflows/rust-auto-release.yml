@@ -109,6 +109,7 @@ jobs:
   decide:
     name: Decide
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     outputs:
       release: ${{ steps.decide.outputs.release }}
       version: ${{ steps.decide.outputs.version }}
@@ -227,6 +228,7 @@ jobs:
     needs: decide
     if: needs.decide.outputs.release == 'true' && !inputs.dry_run
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master (2026-08-05)
@@ -247,6 +249,7 @@ jobs:
     needs: [decide, gate]
     if: needs.decide.outputs.release == 'true' && !inputs.dry_run
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     permissions:
       # Kept at write even though the pushes below authenticate as
       # RELEASE_TOKEN: actions/checkout still needs to read the repository, and
