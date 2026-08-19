@@ -148,8 +148,9 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
   answers a different question (#174).
 - CI holds every copy of the canonical schema byte-identical against the
   package resource (`python/scripts/check_schema_copies.py`). It runs in `CI
-  (Python)` and in the `gate` job of `Publish crates (Rust)`, which between
-  them cover every pull request, and in all four release paths — Python
+  (Python)`, whose path filter covers all three copies, so a pull request that
+  can change one runs it; in the `gate` job of `Publish crates (Rust)`, which
+  runs on every `rust/**` pull request; and in all four release paths — Python
   release, Rust release, Rust publish and Rust auto-release — because a tag can
   be cut from a commit that went through none of them, and a mismatch there is
   two published artifacts disagreeing about what a recipe is (#174).

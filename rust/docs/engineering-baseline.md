@@ -276,10 +276,9 @@ workspace README in the same change.
   agreement with the canonical schema. That schema is owned by the Python
   implementation and is vendored into this crate at
   `resources/recipe-schema-v1.json`, embedded with `include_str!` as
-  `schema::CANONICAL_SCHEMA_JSON`, parsed by `schema::load_canonical_schema`
-  and held byte-identical
-  to `python/termproof/_resources/recipe-schema-v1.json` by
-  `python/scripts/check_schema_copies.py` in CI. The seam therefore answers
+  `schema::CANONICAL_SCHEMA_JSON`, parsed by `schema::load_canonical_schema`,
+  and held byte-identical to `python/termproof/_resources/recipe-schema-v1.json`
+  by `python/scripts/check_schema_copies.py` in CI. The seam therefore answers
   the same from a published tarball as it does here, and reads no path outside
   the crate; `tests/canonical_schema.rs` ships and proves both, including that
   a decoy file in the working directory cannot displace it. Comparing the two
