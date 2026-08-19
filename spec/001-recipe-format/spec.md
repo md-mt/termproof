@@ -24,7 +24,7 @@ requirement came from:
 
 | Authority | Meaning |
 |---|---|
-| `SCHEMA` | `docs/recipe-schema-v1.json` in the Python repo — a published JSON Schema |
+| `SCHEMA` | `python/termproof/_resources/recipe-schema-v1.json` — a published JSON Schema, shipped inside the Python package and served byte-identically at `python/docs/recipe-schema-v1.json` |
 | `DOC` | `docs/recipe-format-v1.md` |
 | `OBSERVED` | A recorded run of the Python implementation; see `spec/OBSERVATION-LOG.md` |
 | `TEST` | A test in the Python repo that encodes the intent |
@@ -173,8 +173,12 @@ confirm neither reports an error for them.
   "object"`).
 
 - **FR-002** `[BYTE-EXACT]` The set of top-level field names, their JSON types, and their
-  nesting is exactly as given in `docs/recipe-schema-v1.json`. The Rust implementation MUST
-  read that schema file as its authority rather than transcribing it, so the two cannot drift.
+  nesting is exactly as given in `python/termproof/_resources/recipe-schema-v1.json`. The Rust
+  implementation MUST read that schema file as its authority rather than transcribing it, so the
+  two cannot drift. It reads it as a byte-identical vendored copy
+  (`rust/crates/termproof/resources/recipe-schema-v1.json`, embedded with `include_str!`), which
+  is what lets a published crate reach it at all; `python/scripts/check_schema_copies.py` is the
+  gate that keeps the copy from being a transcription.
   **Authority**: `SCHEMA`.
 
 - **FR-003** `[BYTE-EXACT]` Required fields are `name` and `command`; `command` requires
@@ -456,9 +460,9 @@ largest source of the divergences the review found. FR-009 through FR-013 define
   constitution Principle I.
 - **SC-006**: No recipe document in the corpus, however malformed, causes either runtime to
   panic or to exit other than through its normal result path.
-- **SC-007**: The Rust implementation reads `docs/recipe-schema-v1.json` as a build- or
-  run-time input. A drift check fails if the schema file changes and the Rust behaviour does
-  not.
+- **SC-007**: The Rust implementation reads the canonical schema as a build- or run-time
+  input — its own byte-identical copy, embedded at compile time. A drift check fails if the
+  schema file changes and the Rust behaviour does not.
 
 ---
 
@@ -467,9 +471,12 @@ largest source of the divergences the review found. FR-009 through FR-013 define
 - The oracle environment for every `OBSERVED` claim here is CPython 3.12 with `jsonschema`
   4.26.0. `pyproject.toml` declares `jsonschema>=4.0`, a floor rather than a pin, so FR-017's
   message table can shift under a different resolution. See OQ-003.
-- The canonical schema is `docs/recipe-schema-v1.json` in the Python repo at the revision the
-  port targets. The Python package also force-includes it at
-  `termproof/_resources/recipe-schema-v1.json`; the two are the same file.
+- The canonical schema is `python/termproof/_resources/recipe-schema-v1.json` at the revision
+  the port targets — a resource of the Python package, not a docs file relocated into it at
+  build time. The crate carries a byte-identical copy at
+  `rust/crates/termproof/resources/recipe-schema-v1.json`, and
+  `python/docs/recipe-schema-v1.json` is a third at the path the schema is published at; all
+  three are the same file, and `python/scripts/check_schema_copies.py` is what says so.
 - The recipe format is v1 and no `recipe_version: 2` exists. A future major version is
   explicitly reserved by `DOC` §"Versioning" and is out of scope here.
 - Recipes are UTF-8 encoded. Every read in the Python implementation passes

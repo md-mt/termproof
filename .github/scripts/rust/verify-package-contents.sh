@@ -6,10 +6,12 @@
 # is the authoritative manifest of the tarball, so this script checks that
 # list rather than the files on disk.
 #
-# Required: the snapshot test and its fixture ship (issue #33 added the
-# snapshot on the promise that consumers could run it), and the differential
-# tests, which replay the root conformance corpus and cannot run without it,
-# do not.
+# Required: the canonical recipe schema and the test that proves the seam
+# reads it (issue #174 — the crate used to reach outside itself for the schema,
+# so neither shipped), the snapshot test and its fixture (issue #33 added the
+# snapshot on the promise that consumers could run it), and *not* the
+# differential tests, which replay the root conformance corpus and cannot run
+# without it.
 set -euo pipefail
 
 cd "$(git rev-parse --show-toplevel)/rust"
@@ -24,6 +26,8 @@ for required in \
   LICENSE \
   README.md \
   src/lib.rs \
+  resources/recipe-schema-v1.json \
+  tests/canonical_schema.rs \
   tests/schema_snapshot.rs \
   tests/snapshots/recipe_schema_v1.json
 do
@@ -34,13 +38,11 @@ do
 done
 
 # Absent: repository-only artifacts that must not reach consumers. The
-# differential tests replay the root conformance corpus and the canonical-schema
-# test reads python/docs/recipe-schema-v1.json — neither is shipped, so a
-# tarball that carries those tests cannot run them.
+# differential tests replay the root conformance corpus, which is not shipped,
+# so a tarball that carries those tests cannot run them.
 for forbidden in \
   tests/differential_steps.rs \
   tests/differential_assertions.rs \
-  tests/canonical_schema.rs \
   conformance/
 do
   if grep -q "^${forbidden}" <<<"$LIST"; then

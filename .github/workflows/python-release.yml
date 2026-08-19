@@ -68,6 +68,14 @@ jobs:
       - name: Run unit tests
         run: uv run python -m unittest discover -s tests
 
+      # The schema ships inside the artifact built below, and every other copy
+      # of it — the crate's and the published docs path — has to be the same
+      # bytes (#174). CI (Python) runs this on pull requests and on `main`, but
+      # a tag can be cut from a commit that went through neither, so the gate
+      # is repeated where the artifact is actually built.
+      - name: Canonical recipe schema drift across all copies
+        run: python3 scripts/check_schema_copies.py
+
       - name: Build package
         run: uv build
 

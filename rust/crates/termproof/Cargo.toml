@@ -28,8 +28,6 @@ categories = [
 exclude = [
     "tests/differential_steps.rs",
     "tests/differential_assertions.rs",
-    # Reads python/docs/recipe-schema-v1.json, which is outside the crate.
-    "tests/canonical_schema.rs",
 ]
 
 # Features gate public modules, so `docs.rs` must build with all of them on or

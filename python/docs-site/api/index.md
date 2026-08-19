@@ -10,7 +10,7 @@ TermProof stabilizes the recipe format and plugin protocols as public integratio
 - `assertions` evaluate output, screen text, exit code, files, or JSON Schema.
 - `renderers` fan one recipe out across multiple frontend implementations.
 
-See `docs/recipe-format-v1.md` and `docs/recipe-schema-v1.json` in the repository for the complete schema and migration policy.
+See `docs/recipe-format-v1.md` and `docs/recipe-schema-v1.json` in the repository for the complete schema and migration policy. The installed package validates against `termproof/_resources/recipe-schema-v1.json`, a byte-identical copy inside the package.
 
 ## Plugin Protocols
 

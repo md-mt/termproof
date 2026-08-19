@@ -118,6 +118,13 @@ jobs:
         run: cargo test --manifest-path rust/Cargo.toml --workspace
       - name: build
         run: cargo build --manifest-path rust/Cargo.toml --workspace --release
+      # The crate embeds the canonical schema, so this gate has to see the
+      # Python package's copy of it too (#174). CI (Python) runs the same check
+      # on pull requests and on `main`; a release can be published from a
+      # commit that went through neither, and the tarball uploaded below is
+      # exactly where a mismatched copy would become permanent.
+      - name: Canonical recipe schema drift across all copies
+        run: python3 python/scripts/check_schema_copies.py
 
   # Verifies every publishable package by building it from its own tarball,
   # with the not-yet-published ones overlaid in a temporary local registry.

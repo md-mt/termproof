@@ -17,6 +17,12 @@ name: CI (Python)
 # `test_docs_site.py` read the Pages and docs-site workflows. Eight of the nine
 # were outside this filter, so editing one ran nothing that reads it.
 #
+# `rust/crates/termproof/resources/**` is the crate's copy of the canonical
+# recipe schema. Each package carries the schema inside itself (#174), so
+# `check_schema_copies.py` in the `lint` job holds every copy byte-identical
+# against the Python package resource — and it has to run when *any* of them
+# moves, which is why a `rust/` path is in a Python workflow's filter.
+#
 # The two lists are identical and written out twice: GitHub Actions does not
 # expand YAML anchors, so an alias here would be read as a literal string and
 # match nothing.
@@ -33,6 +39,7 @@ on:
       - "SECURITY.md"
       - "SUPPORT.md"
       - "rust/Cargo.toml"
+      - "rust/crates/termproof/resources/**"
       - ".github/workflows/**"
       - ".github/scripts/**"
   push:
@@ -49,6 +56,7 @@ on:
       - "SECURITY.md"
       - "SUPPORT.md"
       - "rust/Cargo.toml"
+      - "rust/crates/termproof/resources/**"
       - ".github/workflows/**"
       - ".github/scripts/**"
 
@@ -119,6 +127,16 @@ jobs:
       # pyproject.toml, rust/Cargo.toml and the root CHANGELOG to it.
       - name: Version and changelog drift
         run: uv run python scripts/check_version.py
+
+      # Each package carries the canonical recipe schema inside itself, and
+      # `docs/` keeps a copy at the path the schema is published at (#174).
+      # This is what keeps all three one file. It lives here, in the job that
+      # already owns cross-implementation drift, and not in CI (Rust): this
+      # workflow's path filter covers every copy, so any of them changing runs
+      # it, while `rust/**` would miss an edit to the Python side entirely.
+      # The release paths repeat it — see check_schema_copies.py.
+      - name: Canonical recipe schema drift across all copies
+        run: uv run python scripts/check_schema_copies.py
 
   test:
     name: Unit tests and coverage (py${{ matrix.python-version }})

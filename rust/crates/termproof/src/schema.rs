@@ -13,10 +13,11 @@
 //!
 //! The snapshot proves only that this crate's own output does not drift; it
 //! does not establish agreement with the canonical schema. That schema is
-//! owned by the Python implementation and, since the two implementations were
-//! consolidated, sits in the same repository at
-//! `python/docs/recipe-schema-v1.json` — `load_canonical_schema` reads it from
-//! there. Comparing the two is still parity-gate work; having the file
+//! owned by the Python implementation; this crate carries its own copy at
+//! `resources/recipe-schema-v1.json`, embedded by [`CANONICAL_SCHEMA_JSON`],
+//! and CI holds that copy byte-identical to the Python package's
+//! (`python/scripts/check_schema_copies.py`). Comparing the two *schemas* —
+//! generated against canonical — is still parity-gate work; having the file
 //! reachable is the precondition, not the gate.
 
 use schemars::gen::{SchemaGenerator, SchemaSettings};
@@ -33,7 +34,10 @@ pub fn generate_recipe_schema() -> serde_json::Value {
     let schema = generator.into_root_schema_for::<Recipe>();
 
     // Ensure the schema declares Draft 2020-12 and carries identifying metadata
-    // matching the checked-in `docs/recipe-schema-v1.json`.
+    // matching the canonical schema in `resources/recipe-schema-v1.json`. The
+    // `$id` is that schema's own, verbatim: it identifies the recipe schema,
+    // not the file's location, and rewriting it here would make the two
+    // disagree over which schema they are.
     let mut value = serde_json::to_value(&schema).expect("schema serializes");
     if let Some(obj) = value.as_object_mut() {
         obj.insert(
@@ -65,49 +69,50 @@ pub fn generate_recipe_schema() -> serde_json::Value {
     value
 }
 
-/// The canonical recipe schema's path, relative to this crate's directory.
+/// The canonical recipe schema, embedded from this crate's own copy.
 ///
-/// The schema is owned by the Python implementation and both implementations
-/// live in one repository, so it is three levels up from
-/// `rust/crates/termproof`.
-const CANONICAL_SCHEMA_FROM_MANIFEST: &str = "../../../python/docs/recipe-schema-v1.json";
-
-/// Load the canonical recipe schema relative to a crate directory.
+/// The schema is owned by the Python implementation, but a crate that has to
+/// look outside itself to find it does not have it: a registry checkout has no
+/// repository above it, so the previous manifest-relative
+/// `../../../python/docs/recipe-schema-v1.json` resolved for this repository
+/// and for nobody else (#174). The crate now carries the file, and
+/// `python/scripts/check_schema_copies.py` holds it byte-identical to
+/// `python/termproof/_resources/recipe-schema-v1.json` in CI.
 ///
-/// Split out from [`load_canonical_schema`] so the published-crate case is
-/// directly testable: a registry checkout is just a different `manifest_dir`,
-/// one that does not have the repository above it.
-fn load_canonical_schema_from(manifest_dir: &std::path::Path) -> Option<serde_json::Value> {
-    let path = manifest_dir.join(CANONICAL_SCHEMA_FROM_MANIFEST);
-    let content = std::fs::read_to_string(path).ok()?;
-    serde_json::from_str(&content).ok()
-}
+/// This is the text, exactly as shipped. [`load_canonical_schema`] parses it.
+pub const CANONICAL_SCHEMA_JSON: &str = include_str!("../resources/recipe-schema-v1.json");
 
-/// Load the canonical recipe schema, or `None` when it is not reachable.
+/// Load the canonical recipe schema.
 ///
 /// This is the seam the parity gate will compare `generate_recipe_schema()`
-/// against. Reaching the file is the precondition; agreeing with it is the
+/// against. Reaching the schema is the precondition; agreeing with it is the
 /// gate, and that is still open work.
 ///
-/// Resolved **only** from `CARGO_MANIFEST_DIR`, never from the working
-/// directory. That is a correctness property, not a tidiness one. This
-/// function had a `docs/recipe-schema-v1.json` cwd fallback, and in a
-/// published crate — where the manifest-relative path lands in the registry
-/// checkout and misses — it would have read whatever file of that name
-/// happened to sit in the consumer's working directory and returned it as the
-/// canonical TermProof schema. A wrong schema presented as canonical is worse
-/// than no schema, so the answer for a consumer is `None`, which is what the
-/// crate not vendoring the file means.
-#[allow(dead_code)]
+/// Reads **only** [`CANONICAL_SCHEMA_JSON`] — no filesystem access, so no
+/// working directory and no path outside this crate can influence the answer.
+/// That is a correctness property, not a tidiness one. This function once had
+/// a `docs/recipe-schema-v1.json` cwd fallback, and in a published crate —
+/// where the manifest-relative path landed in the registry checkout and missed
+/// — it would have read whatever file of that name happened to sit in the
+/// consumer's working directory and returned it as the canonical TermProof
+/// schema. A wrong schema presented as canonical is worse than no schema.
+///
+/// The `Option` is vestigial: the schema is embedded at compile time and
+/// `canonical_schema_is_the_recipe_schema` below holds it to being valid JSON,
+/// so the result is always `Some`. `serde_json::Value` is the honest return
+/// type and the right shape for the next minor bump. It is kept as-is here by
+/// choice, not by constraint: narrowing it breaks every caller that matches on
+/// the result, which is a minor bump under the pre-1.0 convention
+/// (`docs/publishing.md`), and a packaging fix is the wrong change to carry
+/// one.
+///
+/// Do not read the green `cargo semver-checks` gate as agreement. It was
+/// measured: narrowing this return type passes it. (Making the function
+/// private fails, so the gate is wired — it just has no lint for this.) The
+/// compatibility argument above is the whole reason; the tooling is not
+/// enforcing it.
 pub fn load_canonical_schema() -> Option<serde_json::Value> {
-    load_canonical_schema_from(std::path::Path::new(env!("CARGO_MANIFEST_DIR")))
-}
-
-/// The manifest-relative lookup, exposed for the test that proves a packaged
-/// crate cannot be tricked into reading a consumer's file.
-#[doc(hidden)]
-pub fn load_canonical_schema_from_dir(manifest_dir: &std::path::Path) -> Option<serde_json::Value> {
-    load_canonical_schema_from(manifest_dir)
+    serde_json::from_str(CANONICAL_SCHEMA_JSON).ok()
 }
 
 #[cfg(test)]
@@ -136,5 +141,14 @@ mod tests {
     fn schema_recipe_version_is_const_one() {
         let schema = generate_recipe_schema();
         assert_eq!(schema["properties"]["recipe_version"]["const"], 1);
+    }
+
+    /// The embedded text is what makes [`load_canonical_schema`]'s `Option`
+    /// vestigial, so hold it to being the schema and not, say, a stray file.
+    #[test]
+    fn canonical_schema_is_the_recipe_schema() {
+        let canonical = load_canonical_schema().expect("the embedded schema parses");
+        assert_eq!(canonical["title"], "TermProof recipe v1");
+        assert_eq!(canonical["properties"]["recipe_version"]["const"], 1);
     }
 }

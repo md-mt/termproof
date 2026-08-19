@@ -201,10 +201,12 @@ carries the full inventory of what a run still cannot do.
 
 The canonical recipe schema and the example corpus are the contract both
 implementations answer to, and they are owned by the Python implementation.
-Both implementations now live in one repository, so `load_canonical_schema`
-reads that schema from `python/docs/recipe-schema-v1.json` and the corpus is
-the shared `conformance/` tree at the repository root. It is not vendored into
-this crate, so from a published tarball the seam still returns `None`.
+The schema is vendored into this crate at `resources/recipe-schema-v1.json`
+and embedded with `include_str!`, so `load_canonical_schema` answers the same
+from a published tarball as it does from the repository, and reads no path
+outside the crate. `python/scripts/check_schema_copies.py` holds that copy
+byte-identical to the Python package's in CI. The corpus is the shared
+`conformance/` tree at the repository root and is not vendored.
 
 What this crate does pin is its *own* generated schema, to a checked-in
 snapshot (`tests/snapshots/recipe_schema_v1.json`, guarded by

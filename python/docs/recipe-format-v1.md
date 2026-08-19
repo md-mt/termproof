@@ -54,7 +54,21 @@ termproof validate .termproof/recipes
 
 The validator checks JSON shape, required fields, configured step/action names, configured assertion names, and basic timeout/dimension sanity. It accepts `--config` with the same config cascade behavior as `termproof run`.
 
-The formal JSON Schema is published at [`recipe-schema-v1.json`](recipe-schema-v1.json).
+The formal JSON Schema is published at
+[`recipe-schema-v1.json`](recipe-schema-v1.json), beside this page, as it
+always has been.
+
+That file is a byte-identical copy, kept so the published path does not move.
+The schema the code reads is a resource *inside* each package —
+[`termproof/_resources/recipe-schema-v1.json`](../termproof/_resources/recipe-schema-v1.json)
+for Python, `rust/crates/termproof/resources/recipe-schema-v1.json` for the
+Rust crate — because a copy under `docs/` is outside the Python package and
+outside the Rust crate. The sdist does carry this one, as it carries all of
+`docs/`, but no import path reaches it and the wheel does not have it at all:
+the Python package only carried the schema if a build-time relocation had run,
+and the crate could not reach it from a registry checkout (#174). Load it from
+Python with `termproof.recipe_schema.load_recipe_schema()`; CI holds all three
+copies byte-identical (`python/scripts/check_schema_copies.py`).
 
 Recipes that verify JSON-producing CLIs can use the built-in `json_schema` assertion. Set `schema` to either an inline JSON Schema object or a recipe-relative schema file path.
 

@@ -264,6 +264,17 @@ Everything else the crate needs at build time is inside its own directory, and
 the dry run proves it: the package is verified by compiling it from its own
 tarball.
 
+That is also why `crates/termproof/resources/recipe-schema-v1.json` and
+`crates/termproof/tests/canonical_schema.rs` **are** shipped. The canonical
+recipe schema is owned by the Python implementation, and the crate used to
+reach it at `../../../python/docs/recipe-schema-v1.json` — a path that resolves
+in this repository and in no registry checkout, so `load_canonical_schema`
+returned `None` for every consumer and its test had to be excluded for the same
+reason as the differential ones (#174). The crate carries the schema now and
+embeds it with `include_str!`; `python/scripts/check_schema_copies.py` holds
+that copy byte-identical to `python/termproof/_resources/recipe-schema-v1.json`
+in CI, and `verify-package-contents.sh` requires both files in the tarball.
+
 ## Licensing
 
 Every crate declares `license = "MIT"`, inherited from `[workspace.package]`,

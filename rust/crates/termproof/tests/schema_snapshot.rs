@@ -17,10 +17,10 @@
 //!
 //! - it **does** catch accidental changes to our generated schema;
 //! - it does **not** establish agreement with the canonical schema, which is
-//!   owned by the Python implementation and lives at
-//!   `python/docs/recipe-schema-v1.json` in this repository, reachable through
-//!   `schema::load_canonical_schema` but not vendored into the crate.
-//!   Comparing the two remains parity-gate work.
+//!   owned by the Python implementation and vendored into this crate at
+//!   `resources/recipe-schema-v1.json`, reachable through
+//!   `schema::load_canonical_schema`. Comparing the two remains parity-gate
+//!   work.
 //!
 //! Re-blessing is deliberate and never the default. To update the snapshot
 //! after an intentional schema change:
