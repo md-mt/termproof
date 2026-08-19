@@ -137,6 +137,29 @@ between releases, and `(?<=a+)b` is rejected at 0.16 and accepted at 0.19 —
 which is why the requirement is pinned to one minor and the differential
 harnesses are run against it rather than assumed.
 
+- **`select`, `select_names`, `compute_deltas` and `build_before_after` are
+  generic.** Each took a concrete slice and read two or three fields of it;
+  each now takes `R: Selectable` or `R: Comparable`. Every call that names its
+  element type compiles unchanged and resolves to the same types it did before,
+  and `BeforeAfterResult` on its own still means `BeforeAfterResult<RunResult>`
+  — verified by compiling a consumer that names the bare type in a struct
+  field, a return position, an argument, a `let` annotation, a struct literal
+  and nested inside another generic.
+
+  **What breaks:** a call that passed an untyped empty literal, as in
+  `compute_deltas(&[], &[])` or `select_names(&[], &[], &cfg)`. The element
+  type used to be fixed by the signature and is now inferred, and an empty
+  literal gives inference nothing to work with. Annotate the slice —
+  `compute_deltas(&[] as &[RunResult], …)` — or pass a typed binding. There are
+  no such calls in this repository.
+
+  Rust has no default type parameter for a function, so no arrangement of
+  defaults avoids this; `cargo semver-checks` reports it as
+  `function_requires_different_generic_type_params` and asks for a major bump,
+  which under this project's pre-1.0 rule is the minor digit. It therefore
+  belongs in the same breaking release as the wrapping above rather than asking
+  for a second one.
+
 ### Rust — Docs
 
 - **The crate docs used to claim `schemars` was the only dependency reaching
@@ -231,6 +254,13 @@ harnesses are run against it rather than assumed.
   the schema too. `load_recipe_schema()` lost its `docs/` fallback, which
   existed only because the resource was conditional (#174).
 
+- **A published step's `step-NN.txt` no longer gains a trailing newline.** The
+  screen is written verbatim, as the Rust implementation writes it. Found by
+  running both implementations over one scenario and diffing what they wrote:
+  the manifests agreed byte-for-byte and four of the files they pointed at did
+  not. Only reachable through `termproof.collector`, which is new in the same
+  release, so no published artifact changes shape.
+
 ### Rust — Fixed
 
 - `schema::load_canonical_schema` returns the canonical schema for every
@@ -250,6 +280,45 @@ harnesses are run against it rather than assumed.
   in 0.3.4 because it read outside the crate; it no longer does, so the seam is
   testable from the artifact that is published — including the decoy-directory
   regression (#174).
+
+- **`EvidenceCollector::capture_text`** records a screen the caller already
+  holds. `capture` and `capture_failure` pull from a `ScreenSource`, which
+  presumes something live to pull from; text recovered from a log, the screen a
+  step returned before the session moved on, or a golden file in a test arrives
+  no other way, and recording one meant writing a throwaway `ScreenSource`
+  whose only job was to hand back a string. It is a step like any other — same
+  sequence, same index, same filename scheme — so the manifest does not develop
+  a gap where one was taken. No raw output log is attached even for
+  `CaptureKind::Failure`: there is no source to ask for one.
+
+- **`Recording`, `EvidenceCollector::attach_recording` and
+  `EvidenceCollector::recordings`** carry whole-session recordings into the
+  manifest. A collector's captures are instants; a run also produces a span —
+  the terminal recording and whatever video was encoded from it — and a caller
+  keeping both had to write a second document beside the manifest and join them
+  by convention. The collector does not *produce* recordings: encoding a cast
+  is a tool-shelling job with its own failure modes and its own choice of tool.
+  One `error` field rather than separate conversion and upload errors, because
+  a conversion that failed leaves nothing to upload. `recordings` is
+  `skip_serializing_if = "Vec::is_empty"`, so a run that records nothing writes
+  byte-for-byte the document it wrote before — which is why
+  `EVIDENCE_MANIFEST_VERSION` does not move, and it is asserted by a test.
+
+- **`selection::Selectable` and `before_after::Comparable`** let both modules
+  work on results that are not this crate's. A suite whose recipes branch on
+  what the screen shows cannot be expressed as a declarative `Recipe`, but it
+  has names and `ci_paths` and still has the problem of running everything on
+  every change; a caller whose results carry fields this crate does not model
+  had to convert to a `RunResult` and back to ask whether anything flipped,
+  losing those fields on the way. One accessor per field actually read.
+  `(String, Vec<String>)` implements `Selectable` too, so a caller can ask the
+  question without writing an impl — that pairing is what the Python
+  implementation's `select_names` has always taken.
+
+  No third-party type appears in any of this. `Recording` holds `String` and
+  `Option<String>` and derives nothing that reaches past them; `Selectable` and
+  `Comparable` are generic over the caller's own types and their accessors
+  return `&str`, `&[String]` and `bool`.
 
 ### Changed
 
@@ -309,6 +378,31 @@ harnesses are run against it rather than assumed.
   text and grid together, and `termproof.builtin_steps.step_result` for step
   actions that want the same. The grid is read first and the text derived from
   it, so `steps/NN.txt` and `steps/NN.svg` cannot describe different instants.
+
+- **`termproof.collector`** — the evidence collector Rust has had since the
+  consolidation. `termproof.evidence` renders whatever a finished `RunResult`
+  happens to carry, which is enough for a declarative recipe where the runner
+  knows every step before it starts. A caller driving a session imperatively
+  decides *while running* which moments are worth keeping, and had nowhere to
+  put them. `capture`, `capture_failure`, `capture_text`, `attach_recording`
+  and a `publish` that writes text, renders, dedupes, uploads and emits
+  `evidence.json`. Mirrored deliberately down to the manifest field names and
+  the `step-NN-label` filename scheme, so the two implementations produce one
+  document format.
+
+  The two modules are not layered on one another and answer different
+  questions; the module docstring now carries a table of which is for what, and
+  why consolidating them is a separate change with its own compatibility
+  question — `render_artifacts`'s file layout is what every existing reader of
+  a run directory depends on.
+
+- **`EvidenceManifest.attach_to`** joins a manifest to a `RunResult` and
+  refuses one belonging to a different run. Evidence sits beside the result
+  rather than inside it, so nothing about the file layout stops a caller
+  pairing run A's evidence with run B's result. Rust has had this; Python's
+  `RunResult` carries the same `recipe_name`, `renderer` and `artifacts`
+  contract, so it behaves identically apart from raising `ValueError` where
+  Rust returns `Err`.
 
 ### Python — Fixed
 
@@ -381,6 +475,22 @@ harnesses are run against it rather than assumed.
   workflows now declare a `timeout-minutes`, and `test_ci_timeouts.py` fails if
   a new one does not. Affects CI only; neither published artifact changes.
   ([#183](https://github.com/md-mt/termproof/issues/183))
+
+### Testing
+
+- **A third differential harness, for the evidence manifest.**
+  `conformance/probe_evidence_manifest.py` drives the Python collector over a
+  fixed scenario and records the published `evidence.json` together with the
+  contents of every file it wrote;
+  `crates/termproof/tests/differential_evidence_manifest.rs` builds the same
+  scenario through the Rust collector and compares the whole recording.
+
+  It replaces a Python unit test that asserted the manifest key set by spelling
+  the Rust field names out — a list derived by reading the Rust structs rather
+  than by running them, which could only ever catch a rename on the Python
+  side. The files are compared as well as the document because a manifest is a
+  set of paths, and agreeing on paths is not agreeing on files: that is what
+  caught the trailing newline above.
 
 ## [0.3.4] — 2026-08-17
 
