@@ -16,6 +16,7 @@ from termproof.attributed import AttributedCell, AttributedScreen
 from termproof.collector import (
     CaptureKind,
     EvidenceCollector,
+    EvidenceManifest,
     EvidencePublisher,
     RawOutput,
     Recording,
@@ -23,6 +24,7 @@ from termproof.collector import (
     ScreenCapture,
     static_source,
 )
+from termproof.models import RunResult
 
 
 def _identity() -> RunIdentity:
@@ -30,6 +32,22 @@ def _identity() -> RunIdentity:
         recipe_name="login",
         renderer="default",
         run_id="20240101-000000-login-default-1",
+    )
+
+
+def _run_result(recipe_name: str, renderer: str) -> RunResult:
+    return RunResult(
+        recipe_name=recipe_name,
+        passed=True,
+        exit_code=0,
+        duration_seconds=1.0,
+        priority="P0",
+        execution="scripted",
+        renderer=renderer,
+        score=1.0,
+        steps=[],
+        assertions=[],
+        artifacts={},
     )
 
 
@@ -309,6 +327,61 @@ class RecordingTest(unittest.TestCase):
             document = json.loads(manifest.path.read_text())
 
         self.assertNotIn("recordings", document)
+
+
+class AttachToTest(unittest.TestCase):
+    """Joining a manifest to a result, which is what stops A being paired with B."""
+
+    def _manifest(self, tmpdir: str, identity: RunIdentity) -> EvidenceManifest:
+        collector = EvidenceCollector()
+        collector.capture_text("one", "hello")
+        return collector.publish(EvidencePublisher(directory=Path(tmpdir), identity=identity))
+
+    def test_the_manifest_lands_in_the_results_artifacts(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            manifest = self._manifest(tmpdir, _identity())
+            result = _run_result("login", "default")
+            manifest.attach_to(result)
+
+            self.assertEqual(str(manifest.path), result.artifacts["evidence_manifest"])
+
+    def test_existing_artifacts_survive(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            manifest = self._manifest(tmpdir, _identity())
+            result = _run_result("login", "default")
+            result.artifacts["cast"] = "/tmp/session.cast"
+            manifest.attach_to(result)
+
+            self.assertEqual("/tmp/session.cast", result.artifacts["cast"])
+
+    def test_another_runs_evidence_is_refused(self) -> None:
+        # The whole point: nothing about the file layout stops a caller pairing
+        # run A's evidence with run B's result, so this is where it is noticed.
+        with tempfile.TemporaryDirectory() as tmpdir:
+            manifest = self._manifest(tmpdir, _identity())
+            result = _run_result("checkout", "default")
+
+            with self.assertRaises(ValueError) as caught:
+                manifest.attach_to(result)
+
+            self.assertIn("login/default", str(caught.exception))
+            self.assertIn("checkout/default", str(caught.exception))
+            self.assertNotIn("evidence_manifest", result.artifacts)
+
+    def test_a_different_renderer_is_refused_too(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            manifest = self._manifest(tmpdir, _identity())
+            result = _run_result("login", "ink")
+
+            with self.assertRaises(ValueError):
+                manifest.attach_to(result)
+
+    def test_artifacts_does_not_check(self) -> None:
+        # Documented as the unchecked seam for callers whose index is not a
+        # RunResult; `attach_to` is the one that refuses.
+        with tempfile.TemporaryDirectory() as tmpdir:
+            manifest = self._manifest(tmpdir, _identity())
+            self.assertEqual({"evidence_manifest": str(manifest.path)}, manifest.artifacts())
 
 
 class CrossImplementationShapeTest(unittest.TestCase):

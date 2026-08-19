@@ -11,23 +11,59 @@ worth keeping, and had nowhere to put them.
 
 The shape mirrors ``termproof::evidence::collector`` deliberately, down to the
 field names in the manifest, so that the two implementations produce documents
-a single reader can consume. See ``spec/`` for what is guaranteed to match.
+a single reader can consume. ``conformance/probe_evidence_manifest.py`` and
+``differential_evidence_manifest.rs`` compare the two whole, manifest and
+written files both; see ``spec/`` for what is guaranteed to match.
 
 Needs a renderer for images. Text is written regardless of whether one is
 available, because the text is what an assertion was evaluated against and a
 picture cannot answer that question.
+
+.. _collector-versus-evidence:
+
+Which of this and :mod:`termproof.evidence` to use
+--------------------------------------------------
+
+Both render screens and both dedupe them, and they are **not** layered on one
+another. They answer different questions and produce different documents, so
+the split is deliberate rather than pending cleanup:
+
+===============  =================================  ===============================
+                 :mod:`termproof.evidence`          this module
+===============  =================================  ===============================
+Driven by        a finished :class:`RunResult`      a caller, while it runs
+Step list        the recipe's, fixed in advance     whatever the caller captured
+Writes           ``final.*``, ``steps/``,           ``step-NN-label.*`` and
+                 ``steps-manifest.json``, video     ``evidence.json``
+Dedup fingerprint the step's grid, or one parsed    the grid the source reported,
+                 from its ANSI text                 or one built from plain lines
+Dedup records    ``unchanged_from_previous``        ``same_as: {index, label}``
+Dedup is         off unless configured              always on
+A render failure fails the run                      is recorded on the step
+Rust counterpart ``evidence::report``               ``evidence::collector``
+===============  =================================  ===============================
+
+Use :mod:`termproof.evidence` for a declarative recipe run by
+:class:`~termproof.runner.TermProofRunner` — that is what it is wired into. Use
+this module when the caller decides what to capture as it goes, which a
+declarative recipe cannot express.
+
+Consolidating the two would mean changing the file layout
+:func:`termproof.evidence.render_artifacts` has always written, which every
+existing reader of a run directory depends on. That is a separate change with
+its own compatibility question, not a tidy-up to fold in here.
 """
 
 from __future__ import annotations
 
 import json
-from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 from typing import Protocol
 
 from .attributed import DEFAULT_COLUMNS, DEFAULT_ROWS, AttributedScreen, attributed_screen_from_lines
+from .models import RunResult
 
 #: Schema version of the published manifest. Shared with the Rust
 #: implementation; move the two together or not at all.
@@ -146,8 +182,17 @@ class RunIdentity:
     notice.
     """
 
+    #: Recipe this evidence came from; matches :attr:`RunResult.recipe_name`.
     recipe_name: str
+    #: Renderer this evidence came from; matches :attr:`RunResult.renderer`.
     renderer: str
+    #: Identifier for this run in particular.
+    #:
+    #: Recipe and renderer separate two different runs; they do not separate two
+    #: runs of the *same* recipe. :class:`~termproof.models.RunResult` has no
+    #: field to check this against, so it is recorded rather than verified: a
+    #: reader holding a run directory can compare it, and two manifests can be
+    #: told apart.
     run_id: str
 
     def to_dict(self) -> dict[str, str]:
@@ -156,6 +201,14 @@ class RunIdentity:
             "renderer": self.renderer,
             "run_id": self.run_id,
         }
+
+    def matches(self, result: RunResult) -> bool:
+        """Whether ``result`` is the run this identity describes.
+
+        Compares what the two documents share. See :attr:`run_id` for what this
+        cannot rule out.
+        """
+        return self.recipe_name == result.recipe_name and self.renderer == result.renderer
 
 
 class ScreenshotRendererLike(Protocol):
@@ -265,12 +318,34 @@ class EvidenceManifest:
     def to_json_pretty(self) -> str:
         return json.dumps(self.to_dict(), indent=2) + "\n"
 
+    def attach_to(self, result: RunResult) -> None:
+        """Point ``result`` at this manifest, refusing another run's.
+
+        Evidence sits beside the result rather than inside it, so nothing about
+        the file layout stops a caller pairing run A's evidence with run B's
+        result. This is the seam that notices — the same contract as the Rust
+        ``EvidenceManifest::attach_to``, which returns an error where this
+        raises.
+
+        :raises ValueError: if the manifest belongs to a different run.
+        """
+        if not self.run.matches(result):
+            raise ValueError(
+                f"evidence for {self.run.recipe_name}/{self.run.renderer} cannot be "
+                f"attached to a result for {result.recipe_name}/{result.renderer}"
+            )
+        result.artifacts.update(self.artifacts())
+
     def artifacts(self) -> dict[str, str]:
         """One entry pointing at this manifest, not one per step.
 
-        The manifest is the index; a caller wanting per-step paths reads it,
-        rather than having them duplicated into a flat map with no way to
-        express order.
+        Prefer :meth:`attach_to`, which will not pair a manifest with a result
+        from another run. This is for callers building an index that is not a
+        :class:`~termproof.models.RunResult`.
+
+        One entry, not one per step: the manifest is the index, and a caller
+        that wants the per-step paths reads it rather than having them
+        duplicated into a flat map that has no way to express order.
         """
         return {"evidence_manifest": str(self.path)}
 
@@ -465,8 +540,6 @@ def static_source(screen: str, raw_output: str = "") -> ScreenSource:
 
     return _Static()
 
-
-ToolRunnerLike = Callable[[str, list[str], int], None]
 
 __all__ = [
     "EVIDENCE_MANIFEST_VERSION",

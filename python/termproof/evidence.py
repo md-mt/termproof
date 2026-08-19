@@ -1,3 +1,12 @@
+"""Rendering the artifacts a finished run produced.
+
+Driven by a completed :class:`~termproof.models.RunResult`, whose step list the
+recipe fixed before the run started. A caller that decides what to capture
+*while* running — branching on what the screen shows — wants
+:mod:`termproof.collector` instead; see :ref:`collector-versus-evidence` there
+for what each writes and why they are not layered on one another.
+"""
+
 from __future__ import annotations
 
 import json
