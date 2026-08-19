@@ -1037,6 +1037,25 @@ mod tests {
     }
 
     #[test]
+    fn a_recordings_debug_reaches_nothing_but_its_own_strings() {
+        // `Recording` derives `Debug`, and a derive is a door: it renders every
+        // field, so a field whose type came from a dependency would publish
+        // that dependency's formatting — which is how `PyRegex` ended up
+        // printing an engine-version-dependent pattern (see `pyregex`, #177).
+        //
+        // Deriving is safe *here* only because all five fields are `String` or
+        // `Option<String>`. Pinning the exact string is what makes that a
+        // checked property rather than a claim: adding a field of any other
+        // type fails this test rather than silently widening the public API.
+        let recording = Recording::new("full-session", "/tmp/s.cast")
+            .with_video("/tmp/s.mp4", Some("https://x/v".to_string()));
+        assert_eq!(
+            format!("{recording:?}"),
+            r#"Recording { label: "full-session", cast: "/tmp/s.cast", video: Some("/tmp/s.mp4"), url: Some("https://x/v"), error: None }"#
+        );
+    }
+
+    #[test]
     fn captures_keep_their_order_and_labels() {
         let mut s = session("a");
         let mut collector = EvidenceCollector::new();
