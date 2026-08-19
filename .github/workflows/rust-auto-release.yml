@@ -304,6 +304,16 @@ jobs:
       - name: Verify the version train
         run: python3 python/scripts/check_version.py
 
+      # The same argument, for the other thing both artifacts have to agree
+      # on: each carries its own copy of the canonical recipe schema, and the
+      # tag cut below is what turns a mismatched copy into two published
+      # artifacts that disagree about what a recipe is (#174). CI (Python)
+      # runs this on pull requests and on `main`; this job can reach a commit
+      # that went through neither. Standard library only, like the check
+      # above.
+      - name: Verify the canonical recipe schema copies
+        run: python3 python/scripts/check_schema_copies.py
+
       # Exactly the check publish-crates.yml makes on `release: published`,
       # made here instead — where a mismatch costs a failed run rather than a
       # tag that publishes nothing.

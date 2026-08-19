@@ -272,12 +272,16 @@ workspace README in the same change.
 - What the snapshot does and does not prove: it **does** catch accidental
   changes to this crate's generated schema; it does **not** establish
   agreement with the canonical schema. That schema is owned by the Python
-  implementation and, since consolidation, sits in this repository at
-  `python/docs/recipe-schema-v1.json`; `schema::load_canonical_schema` reads
-  it from there and a unit test holds that path open. Comparing the two
+  implementation and is vendored into this crate at
+  `resources/recipe-schema-v1.json`, embedded by
+  `schema::load_canonical_schema` with `include_str!` and held byte-identical
+  to `python/termproof/_resources/recipe-schema-v1.json` by
+  `python/scripts/check_schema_copies.py` in CI. The seam therefore answers
+  the same from a published tarball as it does here, and reads no path outside
+  the crate; `tests/canonical_schema.rs` ships and proves both, including that
+  a decoy file in the working directory cannot displace it. Comparing the two
   schemas is parity-gate work and is still open — reaching the file is the
-  precondition, not the gate. It is not vendored into the crate, so the seam
-  returns `None` from a published tarball.
+  precondition, not the gate.
 - Every Rust pull request must pass locally, before push:
   `cargo fmt --check --all`, `cargo clippy --workspace --all-targets
   --all-features -- -D warnings`, and `cargo test --workspace`. Where the

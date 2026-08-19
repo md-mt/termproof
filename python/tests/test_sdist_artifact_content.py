@@ -39,6 +39,18 @@ _INTENTIONALLY_REMOVED = frozenset(
     }
 )
 
+# The canonical recipe schema, at the path
+# `termproof.recipe_schema.load_recipe_schema` reads.
+_SCHEMA_IN_PACKAGE = "termproof/_resources/recipe-schema-v1.json"
+# The published docs path -- a byte-identical copy kept so the URL the schema
+# has always been linked at does not move (#174). It is a URL, not a package
+# resource: nothing loads it, and where it ships is a decision, not an
+# accident. In the sdist, because the sdist ships all of `docs/` and a source
+# distribution missing a checked-in source file would be the anomaly. Not in
+# the wheel, because two loadable copies at two import paths is the ambiguity
+# the package resource exists to remove. Both halves are asserted below.
+_SCHEMA_IN_DOCS = "docs/recipe-schema-v1.json"
+
 
 _DIST_INFO = re.compile(r"^termproof-[^/]+\.dist-info/")
 
@@ -166,6 +178,52 @@ class SdistArtifactContentTest(unittest.TestCase):
     def test_wheel_contains_no_rust_entries(self) -> None:
         rust_entries = [name for name in self._wheel_names() if any(part == "rust" for part in name.split("/"))]
         self.assertEqual([], rust_entries, f"wheel must not contain any rust/ entries: {rust_entries}")
+
+    def test_sdist_ships_the_canonical_schema_in_the_package(self) -> None:
+        """The sdist carries the schema, with no build step to reproduce.
+
+        This is the regression for #174. The schema used to live under
+        ``docs/`` and reach ``termproof/_resources/`` only through a hatchling
+        wheel force-include, so a build system that consumes the sdist's
+        sources directly assembled a ``termproof/`` with no schema in it and
+        ``load_recipe_schema()`` found nothing. Asserting on the sdist member,
+        rather than on the manifest, is the point: the manifest is what was
+        wrong.
+        """
+        self.assertIn(
+            _SCHEMA_IN_PACKAGE,
+            self._sdist_relative_names(),
+            f"sdist must carry {_SCHEMA_IN_PACKAGE}; a consumer building from "
+            "these sources runs no force-include",
+        )
+
+    def test_wheel_ships_the_canonical_schema_at_the_same_path(self) -> None:
+        """Existing wheel consumers see no layout change.
+
+        The wheel always had the schema at this path — via the force-include —
+        so moving the file into the package must leave that untouched.
+        """
+        self.assertIn(_SCHEMA_IN_PACKAGE, set(self._wheel_names()))
+
+    def test_wheel_does_not_ship_the_docs_copy(self) -> None:
+        """The docs copy is a published URL, not a second package resource.
+
+        It is kept so `docs/recipe-schema-v1.json` does not 404, and it must
+        stay out of the installed package: two loadable copies at two import
+        paths is the ambiguity the package resource exists to remove.
+        """
+        self.assertNotIn(_SCHEMA_IN_DOCS, set(self._wheel_names()))
+
+    def test_sdist_ships_the_docs_copy(self) -> None:
+        """And the sdist does carry it, deliberately.
+
+        The sdist is a source distribution and ships all of ``docs/``; a source
+        tree missing a checked-in source file would be the anomaly, and it is
+        the same bytes as the package resource in any case. Asserted rather
+        than left to the include list so that where this copy ships is a
+        recorded decision on both sides, not an accident of pattern matching.
+        """
+        self.assertIn(_SCHEMA_IN_DOCS, self._sdist_relative_names())
 
     def test_sdist_preserves_base_non_rust_payload_paths(self) -> None:
         base_paths = _load_fixture("base_sdist_paths.txt") - _INTENTIONALLY_REMOVED

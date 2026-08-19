@@ -30,14 +30,17 @@ def has_errors(issues: list[ValidationIssue]) -> bool:
 
 @lru_cache(maxsize=1)
 def load_recipe_schema() -> dict[str, Any]:
-    """Load the canonical recipe JSON schema shipped as a package resource."""
+    """Load the canonical recipe JSON schema shipped as a package resource.
+
+    The schema is a file inside this package, so it is present wherever
+    ``termproof/`` is — a wheel, an sdist, a source checkout, or a tree a build
+    system assembled from the sdist's sources. There is no fallback path and
+    nothing to relocate at build time: this used to read ``docs/`` when the
+    resource was missing, because the resource only existed if a hatchling
+    force-include had run (#174).
+    """
     resource = resources.files("termproof").joinpath("_resources", _SCHEMA_RESOURCE)
-    if resource.is_file():
-        return json.loads(resource.read_text(encoding="utf-8"))
-    # Source-tree fallback: the canonical schema lives under docs/ and is only
-    # force-included into the built wheel under termproof/_resources/.
-    docs_schema = Path(__file__).resolve().parent.parent / "docs" / _SCHEMA_RESOURCE
-    return json.loads(docs_schema.read_text(encoding="utf-8"))
+    return json.loads(resource.read_text(encoding="utf-8"))
 
 
 @lru_cache(maxsize=1)

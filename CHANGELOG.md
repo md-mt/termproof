@@ -75,11 +75,58 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
   keeps its `0.2.0` numbers — they are what that plan said — under a header
   saying plainly that it was never executed at that version.
 
+### Python — Fixed
+
+- The canonical recipe schema is a package resource
+  (`termproof/_resources/recipe-schema-v1.json`) rather than a docs file
+  relocated into the package at wheel-build time. It shipped in the wheel and
+  nowhere else: a build system that consumes the sdist's sources directly runs
+  no hatchling force-include, so `recipe_schema.load_recipe_schema()` found
+  nothing and had to be patched back by hand on every version bump. The wheel
+  layout is unchanged — same path, no force-include — and the sdist now carries
+  the schema too. `load_recipe_schema()` lost its `docs/` fallback, which
+  existed only because the resource was conditional (#174).
+
+### Rust — Fixed
+
+- `schema::load_canonical_schema` returns the canonical schema for every
+  consumer, including a crates.io one. It resolved
+  `../../../python/docs/recipe-schema-v1.json` from `CARGO_MANIFEST_DIR`; a
+  registry checkout has no repository above it, so the function returned `None`
+  for its actual audience. The crate now carries the schema at
+  `resources/recipe-schema-v1.json` and embeds it with `include_str!`, so it
+  reads no path outside itself and no working directory can influence the
+  answer — the property the 0.3.4 removal of the cwd fallback was protecting,
+  now held without giving up the schema (#174).
+
+### Rust — Added
+
+- `schema::CANONICAL_SCHEMA_JSON`, the embedded canonical schema as text.
+- `tests/canonical_schema.rs` ships in the published package. It was excluded
+  in 0.3.4 because it read outside the crate; it no longer does, so the seam is
+  testable from the artifact that is published — including the decoy-directory
+  regression (#174).
+
 ### Changed
 
 - **`python/tests/test_docs_pages.py` no longer forbids `pip install
   termproof`.** It asserted the command's absence because the package was
   unpublished, and went on passing after the publish made that wrong.
+- **`python/docs/recipe-schema-v1.json` stays where it is.** It is now a
+  byte-identical copy rather than the original. It is not in the wheel, so no
+  installed package carries it and no import path reaches it; the sdist ships
+  it, as it ships all of `docs/`, and nothing loads it there either. It is kept
+  because it is a *published path*: the schema has always been linked from
+  `docs/recipe-format-v1.md`, so it may already be in a `$schema` line, a
+  script or a bookmark, and moving a file inside the packages is no reason to
+  404 a URL. The packaging argument against a third copy is about artifacts and
+  answers a different question (#174).
+- CI holds every copy of the canonical schema byte-identical against the
+  package resource (`python/scripts/check_schema_copies.py`). It runs in `CI
+  (Python)` and in all four release paths — Python release, Rust release, Rust
+  publish and Rust auto-release — because a tag can be cut from a commit that
+  passed neither pull-request nor `main` CI, and a mismatch there is two
+  published artifacts disagreeing about what a recipe is (#174).
 
 ### Python — Added
 
