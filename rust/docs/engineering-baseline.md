@@ -253,14 +253,13 @@ workspace README in the same change.
 - The generated recipe schema is pinned by a checked-in snapshot
   (`crates/termproof/tests/schema_snapshot.rs` plus
   `crates/termproof/tests/snapshots/recipe_schema_v1.json`). The guard exists
-  because no schema unit test asserts on the generated schema's structure —
-  they check `$schema`, two `required` entries and the `recipe_version` const,
-  and the fourth, added by #174, asserts on the *canonical* embedded schema,
-  which a redraw of the generated one leaves untouched. So a structural
-  rewrite (`definitions` to
-  `$defs` with every `$ref` retargeted, `minimum: 0.0` to `minimum: 0`, key
-  and `required` ordering) can slip through with the suite green — exactly
-  what a `schemars` major bump did (#33).
+  because the schema unit tests catch none of the shapes a structural rewrite
+  takes: they check `$schema`, two `required` entries and one const, and the
+  fourth, added by #174, asserts on the *canonical* embedded schema, which a
+  redraw of the generated one leaves untouched. So `definitions` becoming
+  `$defs` with every `$ref` retargeted, `minimum: 0.0` becoming `minimum: 0`,
+  or key and `required` ordering changing can all slip through with the suite
+  green — exactly what a `schemars` major bump did (#33).
 - The snapshot is compared as parsed `serde_json::Value` trees, not as text:
   object key order in the file is ignored (semantically irrelevant), but every
   structural difference — keywords, numbers, array order, `$ref` targets —

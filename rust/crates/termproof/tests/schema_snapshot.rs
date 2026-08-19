@@ -1,11 +1,12 @@
 //! Snapshot guard for [`termproof::schema::generate_recipe_schema`] (#33).
 //!
-//! The unit tests next to `generate_recipe_schema` assert only `$schema`, two
-//! `required` entries and the `recipe_version` const, so the generated schema
-//! can be rewritten structurally — `definitions` to `$defs` with every `$ref`
-//! retargeted, `minimum: 0.0` to `minimum: 0`, key and `required` ordering —
-//! while those tests stay green. That is exactly what a `schemars` major bump
-//! did, and nothing noticed.
+//! The unit tests next to `generate_recipe_schema` check `$schema`, two
+//! `required` entries and one const, and the fourth — added by #174 — asserts
+//! on the *canonical* embedded schema, which a redraw of the generated one
+//! leaves untouched. None of them catches a structural rewrite: `definitions`
+//! to `$defs` with every `$ref` retargeted, `minimum: 0.0` to `minimum: 0`,
+//! key and `required` ordering can all move while those tests stay green.
+//! That is exactly what a `schemars` major bump did, and nothing noticed.
 //!
 //! This test pins the crate's own generated schema to a checked-in snapshot
 //! (`tests/snapshots/recipe_schema_v1.json`). Both sides are parsed and
