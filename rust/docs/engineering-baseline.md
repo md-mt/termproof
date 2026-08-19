@@ -253,8 +253,11 @@ workspace README in the same change.
 - The generated recipe schema is pinned by a checked-in snapshot
   (`crates/termproof/tests/schema_snapshot.rs` plus
   `crates/termproof/tests/snapshots/recipe_schema_v1.json`). The guard exists
-  because the schema unit tests assert only `$schema`, two `required` entries
-  and the `recipe_version` const, so a structural rewrite (`definitions` to
+  because no schema unit test asserts on the generated schema's structure —
+  they check `$schema`, two `required` entries and the `recipe_version` const,
+  and the fourth, added by #174, asserts on the *canonical* embedded schema,
+  which a redraw of the generated one leaves untouched. So a structural
+  rewrite (`definitions` to
   `$defs` with every `$ref` retargeted, `minimum: 0.0` to `minimum: 0`, key
   and `required` ordering) can slip through with the suite green — exactly
   what a `schemars` major bump did (#33).
