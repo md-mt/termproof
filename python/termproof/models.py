@@ -4,6 +4,8 @@ from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
+from .attributed import AttributedScreen
+
 RECIPE_VERSION = 1
 
 
@@ -40,10 +42,47 @@ class Recipe:
 
 @dataclass(frozen=True)
 class StepResult:
+    """A step's verdict and the screen it left behind.
+
+    ``screen`` is the flattened text. It is what assertions match against, what
+    ``steps/NN-name.txt`` holds, and the only form of the screen that
+    ``to_dict`` carries.
+
+    ``screen_attributed`` is that same screen as a cell grid, supplied by
+    sessions that have one to give. It is what the per-step screenshot is
+    rendered from when it is present, which is what puts colour in the image and
+    what makes a colour-only change between two steps count as a change for
+    screenshot dedup.
+
+    Optional in both directions, deliberately:
+
+    - It defaults to ``None`` and is the last field, so every existing
+      construction — ``StepResult(name, passed, detail, screen)``, positional or
+      keyword — is unaffected. A ``StepAction`` in a plugin that never sets it
+      keeps working and keeps producing monochrome step screenshots.
+    - ``to_dict`` does not emit it, so ``result.json`` keeps the shape the Rust
+      implementation shares and the run cache reads. A grid per step would be
+      orders of magnitude larger than the rest of the file, and nothing
+      downstream of the JSON re-renders a screenshot: by the time a result is
+      serialised its images are already on disk. A ``StepResult`` rebuilt by
+      ``from_dict`` therefore has no grid, which is the honest answer rather
+      than a lossy one.
+    - It is ``compare=False``, so equality tracks the serialised shape rather
+      than diverging from it. Comparing a live result against
+      ``RunResult.from_dict(result.to_dict())`` is an ordinary thing for a test
+      to do, here and downstream; with the grid in ``__eq__`` that comparison
+      would start returning ``False`` for a reason nothing in the JSON explains.
+      Two steps with the same verdict, detail and screen text are the same
+      result; the grid is evidence the result carries, not part of its identity.
+      Excluding it also keeps ``__hash__`` off the grid, which matters because
+      hashing one means hashing every cell.
+    """
+
     name: str
     passed: bool
     detail: str
     screen: str
+    screen_attributed: AttributedScreen | None = field(default=None, compare=False)
 
     def to_dict(self) -> dict[str, Any]:
         return {

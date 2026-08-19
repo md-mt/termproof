@@ -8,10 +8,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from .attributed import AttributedScreen
 from .cast import CastRecorder
 from .models import AssertionResult, Recipe, StepResult
 from .protocols import AgentRunner
-from .screen import replay_cast
+from .screen import replay_cast_both
 from .session import TerminalSession
 
 
@@ -140,13 +141,14 @@ class AgentDrivenRunner:
         (run_dir / "agent_prompt.md").write_text(prompt, encoding="utf-8")
         outcome = self.agent_runner.run(recipe, prompt, run_dir)
         _write_agent_files(run_dir, outcome)
-        screen = _screen_from_agent_cast(recipe, run_dir, outcome)
+        screen, grid = _screen_from_agent_cast(recipe, run_dir, outcome)
         steps = [
             StepResult(
                 name="codex-operator",
                 passed=outcome.exit_code == 0,
                 detail=f"operator exit code {outcome.exit_code}",
                 screen=screen,
+                screen_attributed=grid,
             )
         ]
         assertions = _agent_assertions(recipe, outcome)
@@ -239,15 +241,23 @@ def _write_agent_files(run_dir: Path, outcome: AgentOutcome) -> None:
     )
 
 
-def _screen_from_agent_cast(recipe: Recipe, run_dir: Path, outcome: AgentOutcome) -> str:
+def _screen_from_agent_cast(
+    recipe: Recipe,
+    run_dir: Path,
+    outcome: AgentOutcome,
+) -> tuple[str, AttributedScreen]:
+    """The operator's end state, as text and as a grid.
+
+    Both come from one replay of the cast, so the step's screenshot and its
+    recorded text describe the same final screen. An agent-driven run has a
+    single step, and this is the whole of what it can show.
+    """
     cast_path = run_dir / "session.cast"
-    if cast_path.exists():
-        screen, _, _ = replay_cast(cast_path)
-        return screen
-    with CastRecorder(cast_path, recipe.cols, recipe.rows, ["codex-operator", recipe.name]) as recorder:
-        recorder.output(outcome.transcript)
-    screen, _, _ = replay_cast(cast_path)
-    return screen
+    if not cast_path.exists():
+        with CastRecorder(cast_path, recipe.cols, recipe.rows, ["codex-operator", recipe.name]) as recorder:
+            recorder.output(outcome.transcript)
+    screen, grid, _, _ = replay_cast_both(cast_path)
+    return screen, grid
 
 
 def _load_json(output: str) -> dict[str, Any] | None:

@@ -266,9 +266,17 @@ ffmpeg -y -loglevel error -i session.agg.gif \
 
 The `attributed_rsvg` video backend skips `agg` entirely and renders each frame
 from the same attributed grid `final.svg` is rendered from, so a video frame and
-the final screenshot of the same moment are the same image. This does not extend
-to the per-step screenshots under `steps/`, which are still rendered from plain
-text and are monochrome. It needs `rsvg-convert` and `ffmpeg`.
+the final screenshot of the same moment are the same image. It needs
+`rsvg-convert` and `ffmpeg`.
+
+A per-step screenshot is rendered from the grid its session reported at that
+step, when the session had one to report. Every built-in backend does, so the
+`steps/` images carry the same colour and text attributes as `final.svg` — but
+they are read from the live session rather than replayed from the cast, so a
+frame of the video and a *step* image are not guaranteed to be the same bytes
+the way the final screenshot and its frame are. A session backend with no
+`screen_attributed()` renders its step screenshots from the flattened text, in
+monochrome; so does the `png` screen renderer, which accepts text only.
 
 If you specifically want a cast that the asciinema CLI wrote, install the extra
 and select that backend:

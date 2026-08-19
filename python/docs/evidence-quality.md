@@ -1,9 +1,9 @@
 # Evidence quality: what the research found
 
-**Last updated:** 2026-08-15
+**Last updated:** 2026-08-18
 
 > **Status, 0.3.0.** This page is the record of what the research measured, and
-> it is kept in the tense it was written in. Three of the things it describes as
+> it is kept in the tense it was written in. Four of the things it describes as
 > defects or as deferred have since been done, and the sections below have not
 > been rewritten around them:
 >
@@ -16,11 +16,16 @@
 > - **The GIF-free direct-frame video backend exists** as the opt-in
 >   `attributed_rsvg` backend, and remains opt-in for the reason given below.
 > - **Step-screenshot dedup exists**, opt-in via `evidence.dedup_step_screenshots`,
->   and fingerprints the attributed grid rather than the screen text.
+>   and fingerprints the attributed grid rather than the screen text. Until
+>   step grids existed that fingerprint could only ever see the text; it can
+>   now see colour.
+> - **Per-step screenshots now render from a grid too**, when the session that
+>   produced the step reported one. `StepResult` carries an optional
+>   `screen_attributed`; every built-in session backend fills it. The last
+>   section has what is still true of the ones that do not.
 >
 > Still open: no font ships with TermProof, the browser half of SVG font
-> embedding is still unverified, per-step screenshots are still rendered from
-> plain text (see the last section), and **dim still does not survive the
+> embedding is still unverified, and **dim still does not survive the
 > cast-replay path** — the finding below about SGR 2 is unchanged, and it is now
 > pinned by `test_dim_does_not_survive_the_cast_replay_path`.
 
@@ -162,10 +167,11 @@ evidence:
     font_size: 14
     scale: 2
 
-  # --- Parses today, but has no effect until the attributed-grid change -----
-  # The renderers only ever receive flat text, so these set a single global
-  # foreground and background rather than per-cell colour. They are here so the
-  # theme can be matched; they cannot recover the colour that screen.py drops.
+  # --- Effective, with the attributed-grid path in place --------------------
+  # These are the *defaults* a cell falls back to, not a global override: a cell
+  # that names no colour of its own is drawn in them. They were inert when every
+  # renderer received flat text; now that final.svg and the per-step images
+  # render from a grid, they set the theme around the colour the grid carries.
   svg:
     fg: "#e6edf3"
     bg: "#101418"
@@ -188,16 +194,37 @@ no effect.
 
 ## What is deferred, and why
 
-**Per-step screenshots are still rendered from plain text.** `final.svg` is
-rendered from the attributed replay of the cast and carries colour.
-`StepResult.screen`, though, is `session.screen` — pyte's `display`, already
-flattened — so the images under `steps/` are monochrome even though the
-renderer drawing them is not. Closing this needs the session to hand each step
-an attributed grid alongside its text, and it needs an answer for how the
-corpus pins those images: a step screenshot is a moment during a live session,
-and `CorpusByteIdentityTest` can only replay what is checked in, which for a
-step is its plain-text `.txt`. `TmuxSession.screen_attributed()` is the seam a
-fix would build on.
+**Per-step screenshots render from a grid when the session supplies one — and
+three things about that are still open.** `StepResult` now carries an optional
+`screen_attributed`, filled by `screen.capture_screen`, which reads the grid
+first and derives the step's text from it so the `.txt` and the `.svg` beside it
+cannot describe different instants. All four built-in session backends supply a
+grid (pty via pyte, pty+asciinema and Docker through the same session class, and
+tmux through `capture-pane -e`), as does the agent-driven mode from its cast
+replay. Measured over the 13 example recipes, step screenshots carrying
+attributed rendering went from 0/76 to 11/76 — 9 in colour and 11 with text
+attributes — with the other 65 byte-identical, because the recipes behind them
+drive genuinely monochrome TUIs. What remains:
+
+- **A session backend that reports no grid still renders from plain text.**
+  That is the designed fallback, not a defect, but it means "step screenshots
+  are in colour" is not a claim the code supports in general.
+- **The `png` renderer implements only the text-only protocol**, so PNG step
+  screenshots are monochrome regardless. That is the same licence-blocked
+  per-cell PNG work described below.
+- **The corpus cannot pin a colour step image.** `CorpusByteIdentityTest`
+  re-renders each step entry from its recorded `.txt`, which is correct for the
+  entries checked in — they predate the grid — but nothing on disk carries a
+  step's grid, so a regenerated corpus would produce images the gate cannot
+  reproduce. Recording the grid beside the text (an SGR-encoded `.ans`
+  alongside each `.txt`, say) is the follow-up.
+
+**A step image and a video frame of the same moment are not the same bytes.**
+`final.svg` and the `attributed_rsvg` video both come from replaying the cast,
+which is why the final screenshot and its frame match exactly. A step grid is
+read from the live session at the moment of the step, which is the only place
+that moment exists. The correspondence claim belongs to the final screenshot
+only.
 
 **No font ships with TermProof.** `evidence.png.font_path` loads a TrueType face
 when you give it one, but bundling a default requires a licence decision (DejaVu
@@ -244,7 +271,10 @@ Small, independently reviewable, each one useful alone.
 
 1. **Colour-stress fixture and the config surface.** Done — this page, plus
    `examples/colorstress/` and the `evidence:` config block.
-2. **Attributed grid path** — the additive interface change.
+2. **Attributed grid path** — the additive interface change. Done, in two
+   parts: the renderer's optional `render_attributed`, then
+   `StepResult.screen_attributed` carrying the grid as far as the per-step
+   screenshots.
 3. **PNG renderer: bundled scalable font, drawn per cell.** Needs the licence
    decision.
 4. **Deduplicate identical consecutive step screens via a manifest** — the

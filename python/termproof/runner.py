@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from .agent_driven import AgentDrivenRunner, AgentRunner, CodexCliAgentRunner
+from .builtin_steps import step_result as make_step_result
 from .config import (
     EvidenceConfig,
     VerifierConfig,
@@ -256,7 +257,7 @@ class VerificationRunner:
                 except Exception as exc:
                     action_name = step["action"]
                     name = step.get("name", f"{index}:{action_name}")
-                    step_result = StepResult(name, False, str(exc), session.screen)
+                    step_result = make_step_result(name, False, str(exc), session)
                 steps.append(step_result)
                 if not step_result.passed:
                     break
@@ -293,7 +294,7 @@ class VerificationRunner:
                 except Exception as exc:
                     action_name = step["action"]
                     name = step.get("name", f"{index}:{action_name}")
-                    step_result = StepResult(name, False, str(exc), session.screen)
+                    step_result = make_step_result(name, False, str(exc), session)
                 steps.append(step_result)
                 if not step_result.passed:
                     break

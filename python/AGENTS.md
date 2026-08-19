@@ -75,15 +75,33 @@ not a tracked file, so it stays a manual check.
 Two limits, both pinned by tests; check them before making any blanket claim
 about colour in the artifacts:
 
-- **Only `final.svg` and the `attributed_rsvg` video render from the grid.** Step
-  screenshots render from `StepResult.screen`, which is pyte's flattened
-  `display`, so they are monochrome — and they are the large majority of the
-  rendered corpus. The dedup tests that inject SGR escapes into a `StepResult`
-  are helper coverage of `_render_step_screens`, not evidence that a real step
-  screenshot has colour.
-- **Dim (SGR 2) is lost on the cast-replay path**, because pyte 0.8.2's `Char`
-  has no dim field. A grid parsed from SGR text does carry it. Do not list dim
-  as a supported attribute of a screenshot without saying which path.
+- **A step screenshot renders from the grid only when the session reported
+  one.** `StepResult.screen_attributed` is optional and defaults to `None`;
+  `evidence._render_step_screens` falls back to re-parsing `StepResult.screen`,
+  which is flattened text and therefore monochrome. Every built-in session
+  backend reports a grid, so on a stock install the `steps/` images carry
+  colour — but "TermProof step screenshots are in colour" is still an
+  overclaim, because a third-party `SessionBackend` need not implement
+  `screen_attributed()`. Say "when the session supplies a grid".
+- **The `png` renderer has no `render_attributed`,** so a PNG step screenshot is
+  monochrome however colourful the grid is. Colour in step screenshots is a
+  property of the `svg` renderer.
+- **Dim (SGR 2) is lost on the cast-replay path and on the pty session**,
+  because pyte 0.8.2's `Char` has no dim field. A grid parsed from SGR text —
+  the tmux backend's `capture-pane -e` — does carry it. Do not list dim as a
+  supported attribute of a screenshot without saying which path.
+- **The corpus gate re-renders step entries from their recorded `.txt`.** That
+  matches how those entries were recorded, but it is no longer how a live run
+  produces a step image. Nothing on disk carries a step's grid, so regenerating
+  the corpus from a colour-emitting recipe needs the gate extended at the same
+  time. See `CorpusByteIdentityTest`.
+
+Reading a screen for a step goes through `screen.capture_screen`, which reads
+the grid first and derives the text from it. Do not "simplify" it back into two
+reads: text and grid fetched separately can come from different instants, and
+the result is a `steps/NN.txt` that describes one screen while `steps/NN.svg`
+and the dedup verdict describe another. The Rust `ScreenSource::capture_screen`
+makes the same choice for the same reason.
 
 The defaults are load-bearing: `tests/test_evidence_config.py` replays every
 `session.cast` under `examples/artifacts/` and asserts the re-rendered SVG is

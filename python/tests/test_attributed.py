@@ -93,6 +93,138 @@ class AnsiParsingTest(unittest.TestCase):
         self.assertEqual("X", screen.to_text())
         self.assertEqual("default", screen.rows[0][0].fg)
 
+    def test_a_sequence_cut_before_its_final_byte_emits_nothing(self) -> None:
+        """A capture can end mid-sequence; the parameter bytes are not glyphs.
+
+        `capture-pane -e` is a snapshot of a pane a program is still painting.
+        Reading `\x1b[31` as ESC-then-`[31` put the parameters in the middle of
+        the screenshot, which is exactly the artifact a reader would mistrust.
+        """
+        self.assertEqual("ok", attributed_screen_from_ansi_text("ok\x1b[31").to_text())
+        self.assertEqual("ok", attributed_screen_from_ansi_text("ok\x1b[").to_text())
+        self.assertEqual("ok", attributed_screen_from_ansi_text("ok\x1b").to_text())
+
+    def test_a_complete_sequence_at_the_very_end_of_a_line_still_applies(self) -> None:
+        """The truncation rule must not swallow a sequence that is intact."""
+        screen = attributed_screen_from_ansi_text("\x1b[31mred\x1b[0m")
+        self.assertEqual("red", screen.to_text())
+        self.assertEqual("red", screen.rows[0][0].fg)
+
+    def test_a_final_byte_that_is_not_a_letter_still_ends_the_sequence(self) -> None:
+        """Scanning for `isalpha()` ended a CSI one character too late.
+
+        ECMA-48 puts the CSI final byte at 0x40-0x7E, which is wider than the
+        letters. Stopping only on a letter meant `\x1b[1~` ran on to the `a` of
+        the following word and consumed it: `before\x1b[1~after` rendered as
+        `beforefter`. Silent text corruption in a screenshot.
+        """
+        for payload in ("\x1b[1~", "\x1b[5@", "\x1b[2^", "\x1b[H", "\x1b[?25l", "\x1b[1;2H"):
+            with self.subTest(payload=payload):
+                text = attributed_screen_from_ansi_text(f"before{payload}after").to_text()
+                self.assertEqual("beforeafter", text)
+
+    def test_every_byte_in_the_csi_final_range_terminates(self) -> None:
+        """The whole range, so the rule is the rule rather than the examples."""
+        for code in range(0x40, 0x7F):
+            final = chr(code)
+            with self.subTest(final=final):
+                text = attributed_screen_from_ansi_text(f"a\x1b[1{final}b").to_text()
+                self.assertEqual("ab", text)
+
+    def test_a_parameter_byte_does_not_terminate(self) -> None:
+        """0x30-0x3F are parameters; ending there would cut a sequence short."""
+        screen = attributed_screen_from_ansi_text("\x1b[38;5;196mX")
+        self.assertEqual("X", screen.to_text())
+        self.assertEqual("ff0000", screen.rows[0][0].fg)
+
+    def test_a_fresh_escape_abandons_the_sequence_in_progress(self) -> None:
+        """`[` is inside the final-byte range, so an aborted CSI needs handling.
+
+        Without this, `\x1b[31\x1b[32mX` would end its first sequence on the
+        second `[` and emit `32mX` as text.
+        """
+        screen = attributed_screen_from_ansi_text("\x1b[31\x1b[32mX")
+        self.assertEqual("X", screen.to_text())
+        self.assertEqual("green", screen.rows[0][0].fg)
+
+    def test_an_osc_8_hyperlink_contributes_its_text_and_not_its_url(self) -> None:
+        """The regression that made a step screenshot worse than no change.
+
+        `capture-pane -e` emits OSC-8 hyperlinks. Only CSI was recognised, so
+        the ESC was dropped and the rest rendered as glyphs: `beforeTXTafter`
+        came out as `before]8;;url\\TXT]8;;\\after`, in the screenshot and in
+        the `.txt` beside it.
+        """
+        link = "before\x1b]8;;http://example.invalid\x1b\\TXT\x1b]8;;\x1b\\after"
+        self.assertEqual("beforeTXTafter", attributed_screen_from_ansi_text(link).to_text())
+
+    def test_every_escape_family_is_consumed_rather_than_rendered(self) -> None:
+        """One row per family, because each has a different shape of terminator.
+
+        Nothing here is visible on a terminal, so nothing here may reach a cell.
+        """
+        families = {
+            "OSC, ST terminated": "\x1b]0;title\x1b\\",
+            "OSC, BEL terminated": "\x1b]0;title\x07",
+            "OSC with embedded semicolons": "\x1b]8;id=x;http://a.invalid\x07",
+            "DCS": "\x1bP1$r0m\x1b\\",
+            "SOS": "\x1bXsos\x1b\\",
+            "PM": "\x1b^pm\x1b\\",
+            "APC": "\x1b_apc\x1b\\",
+            "charset designation G0": "\x1b(B",
+            "charset designation G1": "\x1b)0",
+            "DEC line size": "\x1b#8",
+            "save cursor": "\x1b7",
+            "restore cursor": "\x1b8",
+            "keypad mode": "\x1b=",
+            "reset": "\x1bc",
+            "index": "\x1bD",
+            "ESC with an intermediate": "\x1b F",
+            "CSI": "\x1b[1;2H",
+            "CSI private": "\x1b[?25l",
+        }
+        for name, payload in families.items():
+            with self.subTest(family=name):
+                text = attributed_screen_from_ansi_text(f"before{payload}after").to_text()
+                self.assertEqual("beforeafter", text)
+
+    def test_a_single_shift_leaves_the_character_it_shifts(self) -> None:
+        """SS2/SS3 are the one family whose next character is displayed."""
+        for introducer in ("N", "O"):
+            with self.subTest(introducer=introducer):
+                text = attributed_screen_from_ansi_text(f"before\x1b{introducer}Xafter").to_text()
+                self.assertEqual("beforeXafter", text)
+
+    def test_a_string_sequence_cut_before_its_terminator_emits_nothing(self) -> None:
+        """A capture can end mid-OSC just as it can end mid-CSI."""
+        for payload in ("ok\x1b]8;;http://a.invalid", "ok\x1bP1$r", "ok\x1b]", "ok\x1b_"):
+            with self.subTest(payload=payload):
+                self.assertEqual("ok", attributed_screen_from_ansi_text(payload).to_text())
+
+    def test_a_fresh_escape_abandons_a_string_sequence_too(self) -> None:
+        """`ESC` that is not `ESC \\` ends the string and starts a new sequence."""
+        screen = attributed_screen_from_ansi_text("\x1b]0;title\x1b[31mred")
+        self.assertEqual("red", screen.to_text())
+        self.assertEqual("red", screen.rows[0][0].fg)
+
+    def test_a_string_sequence_does_not_disturb_the_attributes_around_it(self) -> None:
+        screen = attributed_screen_from_ansi_text("\x1b[31ma\x1b]0;t\x07b")
+        self.assertEqual("ab", screen.to_text())
+        self.assertEqual(["red", "red"], [cell.fg for cell in screen.rows[0][:2]])
+
+    def test_the_repr_is_readable_rather_than_a_cell_dump(self) -> None:
+        """A grid now hangs off every `StepResult`, so its repr lands in failures.
+
+        The generated dataclass repr of a 100x32 grid is around half a megabyte.
+        """
+        screen = attributed_screen_from_ansi_text(
+            "\r\n".join("filler" for _ in range(32)), columns=100, rows=32
+        )
+        text = repr(screen)
+        self.assertLess(len(text), 200)
+        self.assertIn("32x", text)
+        self.assertIn("filler", text)
+
     def test_a_double_width_glyph_occupies_two_columns(self) -> None:
         screen = attributed_screen_from_ansi_text("你ok")
         cells = screen.rows[0]

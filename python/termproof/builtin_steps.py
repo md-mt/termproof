@@ -7,7 +7,28 @@ from typing import Any
 
 from .models import StepResult
 from .protocols import StepAction as StepAction
+from .screen import ScreenCapture, capture_screen
 from .session import TerminalSession
+
+
+def step_result(
+    name: str,
+    passed: bool,
+    detail: str,
+    session: Any,
+) -> StepResult:
+    """A ``StepResult`` carrying whatever screen the session can report.
+
+    One read via :func:`~termproof.screen.capture_screen`, so the text on the
+    step and the grid its screenshot is rendered from are the same instant. A
+    session with no grid to give yields ``screen_attributed=None``, and the
+    screenshot falls back to the text exactly as before.
+
+    Public so a third-party ``StepAction`` can pick up attributed step
+    screenshots by calling it instead of building a ``StepResult`` by hand.
+    """
+    capture = capture_screen(session)
+    return StepResult(name, passed, detail, capture.screen, capture.attributed)
 
 
 class WaitForText:
@@ -24,7 +45,7 @@ class WaitForText:
         timeout = float(step.get("timeout_seconds", 10))
         passed = session.wait_for_text(text, timeout)
         detail = f"found {text!r}" if passed else f"timed out waiting for {text!r}"
-        return StepResult(display, passed, detail, session.screen)
+        return step_result(display, passed, detail, session)
 
 
 class WaitForIdle:
@@ -48,7 +69,7 @@ class WaitForIdle:
             detail = "no output observed from the session"
         else:
             detail = "timed out waiting for idle"
-        return StepResult(display, passed, detail, session.screen)
+        return step_result(display, passed, detail, session)
 
 
 class SendText:
@@ -62,7 +83,7 @@ class SendText:
     ) -> StepResult:
         display = step.get("name", f"{index}:{self.name}")
         session.send_text(step["text"])
-        return StepResult(display, True, "sent text", session.screen)
+        return step_result(display, True, "sent text", session)
 
 
 class SendLine:
@@ -76,7 +97,7 @@ class SendLine:
     ) -> StepResult:
         display = step.get("name", f"{index}:{self.name}")
         session.send_line(step.get("text", ""))
-        return StepResult(display, True, "sent line", session.screen)
+        return step_result(display, True, "sent line", session)
 
 
 class Press:
@@ -90,7 +111,7 @@ class Press:
     ) -> StepResult:
         display = step.get("name", f"{index}:{self.name}")
         session.press(step["key"])
-        return StepResult(display, True, f"pressed {step['key']}", session.screen)
+        return step_result(display, True, f"pressed {step['key']}", session)
 
 
 class Sleep:
@@ -105,7 +126,7 @@ class Sleep:
         display = step.get("name", f"{index}:{self.name}")
         time.sleep(float(step.get("seconds", 1)))
         session.read_available(0)
-        return StepResult(display, True, "slept", session.screen)
+        return step_result(display, True, "slept", session)
 
 
 class WaitForRegex:
@@ -134,47 +155,36 @@ class WaitForRegex:
         # -- validate pattern -------------------------------------------------
         pattern_str = step.get("pattern")
         if not isinstance(pattern_str, str):
-            return StepResult(
+            return step_result(
                 display,
                 False,
                 f"wait_for_regex 'pattern' must be a string, got {type(pattern_str).__name__}",
-                getattr(session, "screen", ""),
+                session,
             )
 
         try:
             pattern = re.compile(pattern_str)
         except re.error as exc:
-            return StepResult(
-                display,
-                False,
-                f"invalid regex {pattern_str!r}: {exc}",
-                getattr(session, "screen", ""),
-            )
+            return step_result(display, False, f"invalid regex {pattern_str!r}: {exc}", session)
 
         # -- validate timeout -------------------------------------------------
         raw_timeout = step.get("timeout_seconds", 10)
         try:
             timeout = float(raw_timeout)
         except (TypeError, ValueError):
-            return StepResult(
+            return step_result(
                 display,
                 False,
                 f"wait_for_regex timeout_seconds must be a number, got {raw_timeout!r}",
-                getattr(session, "screen", ""),
+                session,
             )
         if math.isnan(timeout) or math.isinf(timeout):
-            return StepResult(
-                display,
-                False,
-                f"wait_for_regex timeout_seconds must be finite, got {timeout}",
-                getattr(session, "screen", ""),
+            return step_result(
+                display, False, f"wait_for_regex timeout_seconds must be finite, got {timeout}", session
             )
         if timeout <= 0:
-            return StepResult(
-                display,
-                False,
-                f"wait_for_regex timeout_seconds must be > 0, got {timeout}",
-                getattr(session, "screen", ""),
+            return step_result(
+                display, False, f"wait_for_regex timeout_seconds must be > 0, got {timeout}", session
             )
 
         deadline = time.monotonic() + timeout
@@ -197,34 +207,37 @@ class WaitForRegex:
                 return None
             return pattern.search(text)
 
+        def _matched(capture: ScreenCapture) -> StepResult | None:
+            raw_text = getattr(session, "raw_output", "") or ""
+            match = _search(capture.screen) or _search(raw_text)
+            if match is None:
+                return None
+            # Built from the capture that was searched, not from a fresh read:
+            # the screen this step reports is the one the pattern matched.
+            return StepResult(
+                display, True, _format_match(match), capture.screen, capture.attributed
+            )
+
         # Search screen and raw_output independently — concatenating
         # with '\n' creates synthetic boundaries that never existed
         # in the terminal.
         while True:
             # Poll for new terminal data (same cadence as wait_for_text)
             session.read_available(0.05)
-            screen_text = getattr(session, "screen", "") or ""
-            raw_text = getattr(session, "raw_output", "") or ""
-
-            m = _search(screen_text) or _search(raw_text)
-            if m:
-                return StepResult(display, True, _format_match(m), screen_text)
+            found = _matched(capture_screen(session))
+            if found is not None:
+                return found
 
             if time.monotonic() >= deadline:
                 break
 
             if hasattr(session, "is_alive") and not session.is_alive():
                 session.read_available(0)
-                screen_text = getattr(session, "screen", "") or ""
-                raw_text = getattr(session, "raw_output", "") or ""
-                final = _search(screen_text) or _search(raw_text)
-                if final:
-                    return StepResult(display, True, _format_match(final), screen_text)
+                found = _matched(capture_screen(session))
+                if found is not None:
+                    return found
                 break
 
-        return StepResult(
-            display,
-            False,
-            f"timed out waiting for regex {pattern_str!r} after {timeout}s",
-            getattr(session, "screen", ""),
+        return step_result(
+            display, False, f"timed out waiting for regex {pattern_str!r} after {timeout}s", session
         )

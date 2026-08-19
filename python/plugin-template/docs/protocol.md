@@ -78,9 +78,11 @@ The following are **NOT** available and must not be relied upon:
   stale prior runs at best, nothing at worst
 - **Accumulated raw output** — assertion receives the final raw output, not
   the incremental stream
-- **Screen attributes** — every screen an assertion sees, final or per-step, is
-  flattened text. Colour, bold and reverse video are available to renderers via
-  `render_attributed`, not to assertions
+- **Attributes on the final screen** — the `screen` argument is flattened text,
+  and there is no attributed form of it available to an assertion. Per-step
+  screens are the exception: `StepResult.screen_attributed` carries the grid
+  when the session reported one, and is `None` when it did not, so an assertion
+  that reads it must handle both
 
 Plugin authors should not attempt filesystem-based workarounds. To enforce
 timing constraints, use TermProof core features (e.g. recipe-level

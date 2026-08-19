@@ -81,6 +81,93 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
   termproof`.** It asserted the command's absence because the package was
   unpublished, and went on passing after the publish made that wrong.
 
+### Python — Added
+
+- `StepResult.screen_attributed`, an optional `AttributedScreen | None`
+  alongside the existing flattened `screen`. When it is present the per-step
+  screenshot is rendered from it, so the images under `steps/` carry the colour
+  and text attributes `final.svg` already did ([#175]).
+
+  Every built-in session backend fills it — `pexpect`, `pexpect_asciinema` and
+  `docker` from the session's `pyte.Screen`, `tmux` from `capture-pane -e` —
+  and the agent-driven mode fills it from its cast replay. Over the 13 example
+  recipes, step screenshots carrying attributed rendering went from 0/76 to
+  11/76 (9 in colour, 11 with text attributes); the other 65 are byte-identical
+  because those recipes drive genuinely monochrome TUIs.
+
+  Optional means optional. A `SessionBackend` whose session does not implement
+  `screen_attributed()` reports no grid, and its step screenshots render from
+  the text exactly as before. The `png` renderer takes text only, so PNG step
+  screenshots stay monochrome either way, and dim (SGR 2) reaches the grid on
+  the tmux path but not the pty one.
+
+  The field is deliberately absent from `StepResult.to_dict()`: `result.json` is
+  a shape shared with the Rust implementation and read by the run cache, and
+  nothing downstream of it re-renders an image. It is `compare=False` for the
+  same reason — equality tracks the serialised shape, so a live result still
+  equals `RunResult.from_dict(result.to_dict())` as it always has.
+
+  `AttributedScreen` also grows a compact `__repr__`. The generated dataclass
+  one was an `AttributedCell(...)` per cell, around half a megabyte for a
+  100x32 grid, and a grid now hangs off every `StepResult` — which is what a
+  failing assertion would have printed.
+
+- `termproof.screen.capture_screen`, one read of a session's screen returning
+  text and grid together, and `termproof.builtin_steps.step_result` for step
+  actions that want the same. The grid is read first and the text derived from
+  it, so `steps/NN.txt` and `steps/NN.svg` cannot describe different instants.
+
+### Python — Fixed
+
+- Step-screenshot dedup fingerprints the rendered grid so that a colour-only
+  change between two steps counts as a change. That was inert for the artifacts
+  dedup applies to, because the grid was rebuilt from already-flattened text; it
+  now compares the grid the session reported ([#175]).
+
+- A CSI escape sequence cut before its final byte no longer emits its parameter
+  bytes as glyphs. `\x1b[31` at the end of a `capture-pane -e` line rendered as
+  a literal `[31` in the middle of a screenshot; a terminal waiting for the
+  terminator displays nothing, and now neither does the parser.
+
+- A CSI sequence ending in a final byte that is not a letter no longer eats the
+  first letter of the text after it. ECMA-48 puts the final byte at 0x40-0x7E;
+  the parser scanned for `isalpha()`, so `before\x1b[1~after` rendered as
+  `beforefter`. Same for `\x1b[5@`, `\x1b[2^`, `\x1b[?25l` and the rest of the
+  non-letter finals. A fresh `ESC` now also abandons a sequence in progress
+  rather than being read as one of its parameter bytes.
+
+- Escape sequences that are not CSI are recognised rather than rendered as
+  glyphs. Only CSI was handled; every other family had its `ESC` dropped and
+  its body printed, so an OSC-8 hyperlink — which `capture-pane -e` really does
+  emit — turned `beforeTXTafter` into `before]8;;url\TXT]8;;\after` in a step
+  screenshot and in the `.txt` beside it. OSC, DCS, SOS, PM and APC are now
+  consumed to either terminator (`BEL` or `ESC \`), as are charset designation,
+  the DEC line-size controls and the two-byte escapes; SS2 and SS3 consume
+  their introducer and leave the character they shift. None of them contributes
+  anything visible, which is what a terminal shows for them too.
+
+### Python — Changed
+
+- The attributed grid builders share one cell object between cells that compare
+  equal. A terminal screen is mostly repetition, so a typical 100x32 grid goes
+  from 527 KiB to 31 KiB, and the 75 step grids a run over the example corpus
+  retains go from 37.1 MiB to 2.9 MiB — 506 KiB down to 40 KiB per step. That
+  is what makes keeping a grid per step affordable.
+
+  The saving is in the repetition and nowhere else, so the floor is exactly no
+  saving: a screen whose 3,200 cells are all distinct measures 527 KiB pooled
+  and 527 KiB unpooled. No real screen looks like that, and the number states
+  the mechanism rather than qualifying it.
+
+  Measured with `tracemalloc`, summing allocations made in
+  `termproof/attributed.py` that are still alive once the run's results are in
+  hand. A `sys.getsizeof` walk of the same objects reads higher — around 46-55
+  MiB unshared depending on what the walk counts — because `getsizeof` on a
+  key-sharing instance dict reports more than the allocator handed out. Same
+  conclusion either way.
+
+[#175]: https://github.com/md-mt/termproof/issues/175
+
 ## [0.3.4] — 2026-08-17
 
 One project, one version. The two repositories became one: the Rust

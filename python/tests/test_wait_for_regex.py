@@ -49,6 +49,9 @@ class WaitForRegexStepTest(unittest.TestCase):
         import unittest.mock as mock
         fake_session = mock.Mock()
         fake_session.screen = "some screen"
+        # No grid: this fake models a session that cannot report one, so the
+        # step falls back to the screen text exactly as it did before.
+        fake_session.screen_attributed = None
         fake_session.raw_output = "some output"
         # We want this to raise or produce failed StepResult with clear message about invalid regex
         # spec says "validated regex" so should not silently pass nor crash with raw re.error
@@ -144,6 +147,7 @@ class WaitForRegexStepTest(unittest.TestCase):
         step_action = WaitForRegex()
         fake_session = mock.Mock()
         fake_session.screen = "some screen"
+        fake_session.screen_attributed = None
         fake_session.raw_output = "some output"
         step = {"pattern": r"\d+", "timeout_seconds": 0}
         result = step_action.execute(fake_session, step, 1)
@@ -158,6 +162,7 @@ class WaitForRegexStepTest(unittest.TestCase):
         step_action = WaitForRegex()
         fake_session = mock.Mock()
         fake_session.screen = "screen"
+        fake_session.screen_attributed = None
         step = {"pattern": r"\d+", "timeout_seconds": -1}
         result = step_action.execute(fake_session, step, 1)
         self.assertFalse(result.passed)
@@ -171,6 +176,7 @@ class WaitForRegexStepTest(unittest.TestCase):
         step_action = WaitForRegex()
         fake_session = mock.Mock()
         fake_session.screen = ""
+        fake_session.screen_attributed = None
         fake_session.raw_output = ""
         step = {"pattern": r"\d+", "timeout_seconds": float("nan")}
         result = step_action.execute(fake_session, step, 1)
@@ -185,6 +191,7 @@ class WaitForRegexStepTest(unittest.TestCase):
         step_action = WaitForRegex()
         fake_session = mock.Mock()
         fake_session.screen = ""
+        fake_session.screen_attributed = None
         fake_session.raw_output = ""
         step = {"pattern": r"\d+", "timeout_seconds": float("inf")}
         result = step_action.execute(fake_session, step, 1)
@@ -199,6 +206,7 @@ class WaitForRegexStepTest(unittest.TestCase):
         step_action = WaitForRegex()
         fake_session = mock.Mock()
         fake_session.screen = "screen"
+        fake_session.screen_attributed = None
         for bad_pattern in [42, {"key": "val"}, ["list"], True, None]:
             with self.subTest(pattern=bad_pattern):
                 step = {"pattern": bad_pattern, "timeout_seconds": 1}
@@ -214,6 +222,7 @@ class WaitForRegexStepTest(unittest.TestCase):
         step_action = WaitForRegex()
         fake_session = mock.Mock()
         fake_session.screen = "screen"
+        fake_session.screen_attributed = None
         step = {"pattern": r"\d+", "timeout_seconds": "fast"}
         result = step_action.execute(fake_session, step, 1)
         self.assertFalse(result.passed)

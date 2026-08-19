@@ -95,9 +95,14 @@ The Python implementation writes, per run:
 
 Two things worth knowing before you promise them to anyone:
 
-- **The per-step screenshots under `steps/` are monochrome.** They are rendered
-  from plain text. `final.svg` and the `attributed_rsvg` video backend render
-  from the attributed grid and carry colour; the per-step images do not.
+- **Per-step screenshots carry colour only when the session can report a
+  grid.** All four built-in session backends can — pty, pty+asciinema, Docker
+  and tmux — and so does the agent-driven mode, so on a stock install the
+  `steps/` images are as attributed as `final.svg`. A third-party session
+  backend that does not implement `screen_attributed()` still works and still
+  gets its screenshots, in monochrome. Two limits hold either way: the `png`
+  screen renderer takes text only, so PNG step images are always monochrome,
+  and dim (SGR 2) survives on the tmux path but not on the pty one.
 - **Video needs external tools.** `agg` + `ffmpeg` for the default backend, or
   `rsvg-convert` + `ffmpeg` for `attributed_rsvg`. A prebuilt `agg` is bundled
   in the platform wheels.

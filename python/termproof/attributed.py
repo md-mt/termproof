@@ -5,12 +5,14 @@ bold, reverse video. This module keeps a per-cell grid so a screenshot looks
 like what the operator saw, and so two screens that differ only in colour
 compare as different.
 
-Which artifacts actually get that today: ``final.svg`` and the
-``attributed_rsvg`` video, both built from a grid. Per-step screenshots are
-rendered from ``StepResult.screen``, which is already flattened, so they are
-monochrome. Dim is carried by :func:`attributed_screen_from_ansi_text` but not
-by :func:`attributed_screen_from_pyte`, because pyte models no dim attribute.
-See ``docs/evidence-quality.md``.
+Which artifacts get that: ``final.svg`` and the ``attributed_rsvg`` video, both
+built from a grid, and per-step screenshots whenever the session behind the step
+could supply one — see :attr:`~termproof.models.StepResult.screen_attributed`.
+A session backend that reports no grid still renders its step screenshots from
+the flattened text, in monochrome, and so does the PNG renderer, which has no
+``render_attributed``. Dim is carried by :func:`attributed_screen_from_ansi_text`
+but not by :func:`attributed_screen_from_pyte`, because pyte models no dim
+attribute. See ``docs/evidence-quality.md``.
 
 Depends on the standard library alone; :func:`attributed_screen_from_pyte`
 reads a ``pyte.Screen`` structurally rather than importing it.
@@ -101,6 +103,12 @@ _STYLE_ON = {
     7: "reverse",
     9: "strikethrough",
 }
+#: Escape introducers whose body runs to a string terminator: OSC, DCS, SOS,
+#: PM and APC. ``capture-pane -e`` emits OSC-8 hyperlinks, so this is not a
+#: theoretical family for the step-screenshot path.
+_STRING_INTRODUCERS = frozenset("]PX^_")
+#: SS2 and SS3. The character after the introducer is displayed.
+_SINGLE_SHIFTS = frozenset("NO")
 _STYLE_OFF = {
     23: "italic",
     24: "underline",
@@ -211,7 +219,35 @@ class AttributedCell:
         )
 
 
-@dataclass(frozen=True)
+class _CellPool:
+    """Shares one object between the cells of a grid that compare equal.
+
+    A terminal screen is mostly repetition: blank cells, runs of one colour.
+    Cells are frozen and carry no identity, so one object can stand in for every
+    cell equal to it. Measured with ``tracemalloc`` over allocations still alive
+    in this module, a typical 100x32 screen goes from 527 KiB to 31 KiB, which
+    is the difference between a grid per step being affordable for a whole run
+    and not — see ``StepScreenMemoryTest``.
+
+    The saving is entirely in the repetition, so the floor is exactly no saving
+    at all: a screen whose 3,200 cells are all distinct measures 527 KiB either
+    way. That is the mechanism stated precisely rather than a caveat — there is
+    nothing to share when nothing is equal, and no real screen looks like that.
+
+    The pool lives for one grid build and is then dropped. A process-wide cache
+    would share more, but it would also grow without a bound anyone owns.
+    """
+
+    __slots__ = ("_cells",)
+
+    def __init__(self) -> None:
+        self._cells: dict[AttributedCell, AttributedCell] = {}
+
+    def intern(self, cell: AttributedCell) -> AttributedCell:
+        return self._cells.setdefault(cell, cell)
+
+
+@dataclass(frozen=True, repr=False)
 class AttributedScreen:
     """A rectangular terminal grid plus cursor metadata."""
 
@@ -219,6 +255,24 @@ class AttributedScreen:
     cursor_row: int = 0
     cursor_column: int = 0
     cursor_hidden: bool = False
+
+    def __repr__(self) -> str:
+        """Dimensions and the first line, not every cell.
+
+        The generated dataclass repr of a 100x32 grid is around half a megabyte,
+        one ``AttributedCell(...)`` per cell. Now that a grid hangs off every
+        ``StepResult``, that is what a failing assertion would print — output
+        nobody can read, about the field that is usually not the one at fault.
+        Reach for ``rows`` or ``text_lines()`` when the cells are the question.
+        """
+        first = next(iter(self.text_lines(trim_right=True)), "")
+        if len(first) > 40:
+            first = first[:37] + "..."
+        cursor = f"{self.cursor_row},{self.cursor_column}"
+        return (
+            f"AttributedScreen({self.row_count}x{self.column_count}, "
+            f"cursor={cursor}, first_line={first!r})"
+        )
 
     @property
     def row_count(self) -> int:
@@ -282,10 +336,13 @@ def attributed_screen_from_lines(
     rows: int = DEFAULT_ROWS,
 ) -> AttributedScreen:
     """Build an unstyled grid from already-split plain text."""
+    pool = _CellPool()
     screen_rows = []
     for line in lines[:rows]:
         printable = [ch for ch in line if not _is_control(ch)]
-        screen_rows.append(tuple(AttributedCell(text=ch) for ch in printable[:columns]))
+        screen_rows.append(
+            tuple(pool.intern(AttributedCell(text=ch)) for ch in printable[:columns])
+        )
     return AttributedScreen(rows=tuple(screen_rows))
 
 
@@ -308,10 +365,15 @@ def attributed_screen_from_pyte(screen: Any) -> AttributedScreen:
 
     Duck-typed so this module does not depend on pyte.
     """
+    pool = _CellPool()
     rows = []
     for y in range(screen.lines):
         line = screen.buffer[y]
-        rows.append(tuple(_cell_from_pyte_char(line[x]) for x in range(screen.columns)))
+        rows.append(
+            tuple(
+                pool.intern(_cell_from_pyte_char(line[x])) for x in range(screen.columns)
+            )
+        )
     cursor = screen.cursor
     return AttributedScreen(
         rows=tuple(rows),
@@ -333,13 +395,16 @@ def attributed_screen_from_ansi_text(
     :func:`attributed_screen_from_text`, so this is safe to use as the default
     path for screens of unknown provenance.
     """
+    pool = _CellPool()
     screen_rows = []
     attrs = _AnsiAttrs()
     lines = ansi_text.split("\n")
     if lines and lines[-1] == "":
         lines.pop()
     for line in lines[:rows]:
-        screen_rows.append(tuple(_cells_from_ansi_line(line.rstrip("\r"), attrs, columns)))
+        screen_rows.append(
+            tuple(_cells_from_ansi_line(line.rstrip("\r"), attrs, columns, pool))
+        )
     return AttributedScreen(rows=tuple(screen_rows))
 
 
@@ -411,7 +476,12 @@ def _cell_from_pyte_char(char: Any) -> AttributedCell:
     )
 
 
-def _cells_from_ansi_line(line: str, attrs: _AnsiAttrs, columns: int) -> list[AttributedCell]:
+def _cells_from_ansi_line(
+    line: str,
+    attrs: _AnsiAttrs,
+    columns: int,
+    pool: _CellPool,
+) -> list[AttributedCell]:
     cells: list[AttributedCell] = []
     index = 0
     while index < len(line) and len(cells) < columns:
@@ -422,7 +492,7 @@ def _cells_from_ansi_line(line: str, attrs: _AnsiAttrs, columns: int) -> list[At
                 continue
         ch = line[index]
         if ch == "\t":
-            _append_tab(cells, attrs, columns)
+            _append_tab(cells, attrs, columns, pool)
         elif _is_control(ch):
             # A terminal acts on these rather than displaying them, and a raw
             # control byte in the output makes the SVG invalid XML — which a
@@ -430,39 +500,146 @@ def _cells_from_ansi_line(line: str, attrs: _AnsiAttrs, columns: int) -> list[At
             pass
         elif unicodedata.combining(ch) and cells:
             previous = cells[-1]
-            cells[-1] = AttributedCell(
-                text=unicodedata.normalize("NFC", previous.text + ch),
-                fg=previous.fg,
-                bg=previous.bg,
-                bold=previous.bold,
-                dim=previous.dim,
-                italic=previous.italic,
-                underline=previous.underline,
-                strikethrough=previous.strikethrough,
-                reverse=previous.reverse,
-                width=previous.width,
+            cells[-1] = pool.intern(
+                AttributedCell(
+                    text=unicodedata.normalize("NFC", previous.text + ch),
+                    fg=previous.fg,
+                    bg=previous.bg,
+                    bold=previous.bold,
+                    dim=previous.dim,
+                    italic=previous.italic,
+                    underline=previous.underline,
+                    strikethrough=previous.strikethrough,
+                    reverse=previous.reverse,
+                    width=previous.width,
+                )
             )
         else:
             width = _cell_width(ch)
-            cells.append(attrs.cell(ch, width=width))
+            cells.append(pool.intern(attrs.cell(ch, width=width)))
             if width == 2 and len(cells) < columns:
-                cells.append(attrs.cell("", width=0))
+                cells.append(pool.intern(attrs.cell("", width=0)))
         index += 1
     return cells
 
 
 def _consume_ansi_sequence(line: str, index: int, attrs: _AnsiAttrs) -> int:
-    if index + 2 >= len(line) or line[index + 1] != "[":
+    """Consume the escape sequence at *index*, returning the index after it.
+
+    Every family has to be recognised, not just the one carrying colour.
+    Anything unrecognised has its ESC dropped and its body rendered as glyphs,
+    which is how ``\\x1b]8;;url\\x1b\\\\`` — an OSC-8 hyperlink, which
+    ``capture-pane -e`` really does emit — turned ``beforeTXTafter`` into
+    ``before]8;;url\\TXT]8;;\\after`` on a step screenshot and in its ``.txt``.
+
+    What each family contributes to the grid is a deliberate decision, and for
+    every one but CSI-SGR the answer is nothing visible: an OSC sets a title or
+    attaches a URL, a DCS carries a device reply, a charset designation and the
+    two-byte escapes change state this model does not keep. They are consumed
+    silently. SS2/SS3 are the exception in shape — the character *after* the
+    introducer is displayed — so only the introducer is consumed.
+    """
+    introducer = line[index + 1 : index + 2]
+    if introducer == "":
+        # A bare ESC at the end of the line. Drop it; there is nothing to read.
         return index + 1
+    if introducer == "[":
+        return _consume_csi(line, index, attrs)
+    if introducer in _STRING_INTRODUCERS:
+        return _consume_string_sequence(line, index)
+    if introducer in _SINGLE_SHIFTS:
+        # SS2/SS3 shift the single character that follows into another
+        # character set. The character is displayed, and the charset is not
+        # modelled here, so consume the two-byte introducer only.
+        return index + 2
+    return _consume_escape_sequence(line, index)
+
+
+def _consume_csi(line: str, index: int, attrs: _AnsiAttrs) -> int:
+    """``ESC [`` params intermediates final — the family that carries SGR."""
     end = index + 2
-    while end < len(line) and not line[end].isalpha():
+    while end < len(line):
+        char = line[end]
+        if char == "\x1b":
+            # A fresh ESC abandons the sequence in progress. Stop here so the
+            # new one is read from its own start rather than swallowed into
+            # this one's parameters.
+            return end
+        if _is_csi_final(char):
+            break
         end += 1
     if end >= len(line):
-        return index + 1
-    command = line[end]
-    if command == "m":
+        # A CSI whose final byte never arrived — the capture was cut mid
+        # sequence. A terminal is still waiting for the terminator and displays
+        # nothing, so the parameter bytes are consumed rather than emitted as
+        # glyphs. Emitting them would put `[31` in the middle of a screenshot.
+        return len(line)
+    if line[end] == "m":
         _apply_sgr(_parse_sgr_params(line[index + 2 : end]), attrs)
     return end + 1
+
+
+def _consume_string_sequence(line: str, index: int) -> int:
+    """OSC, DCS, SOS, PM and APC: an arbitrary body up to a terminator.
+
+    Two terminators are in use and both have to be accepted. ST is the
+    standard ``ESC \\``; BEL is the older form, and it is what a great many
+    programs still send to close an OSC.
+    """
+    end = index + 2
+    while end < len(line):
+        char = line[end]
+        if char == "\x07":
+            return end + 1
+        if char == "\x1b":
+            if line[end + 1 : end + 2] == "\\":
+                return end + 2
+            # Not ST: a fresh escape, which abandons this string.
+            return end
+        end += 1
+    # Terminator never arrived — the capture was cut. Consume the rest rather
+    # than spilling the body onto the screen.
+    return len(line)
+
+
+def _consume_escape_sequence(line: str, index: int) -> int:
+    """The general form: ``ESC`` intermediates final.
+
+    Covers charset designation (``ESC ( B``), the DEC line-size controls
+    (``ESC # 8``) and every two-byte escape (``ESC 7``, ``ESC =``, ``ESC c``),
+    because ECMA-48 gives them all one shape: zero or more intermediates in
+    0x20-0x2F, then a final in 0x30-0x7E.
+    """
+    end = index + 1
+    while end < len(line) and "\x20" <= line[end] <= "\x2f":
+        end += 1
+    if end >= len(line):
+        # Cut before the final byte, as for a truncated CSI.
+        return len(line)
+    if "\x30" <= line[end] <= "\x7e":
+        return end + 1
+    # Not a final byte at all — a control character, or something past 0x7E.
+    # This is not a sequence any terminal would act on, so drop the ESC alone
+    # and let what follows be read as ordinary text.
+    return index + 1
+
+
+def _is_csi_final(char: str) -> bool:
+    """Whether *char* terminates a CSI sequence.
+
+    ECMA-48 puts the final byte at 0x40-0x7E, above the parameter bytes
+    (0x30-0x3F) and the intermediates (0x20-0x2F). Scanning for ``isalpha()``
+    instead stopped only on letters, so a sequence ending in one of the
+    non-letter finals — ``\\x1b[1~``, ``\\x1b[5@``, ``\\x1b[2^`` — ran on to the
+    next letter in the text and ate it with the escape: ``before\\x1b[1~after``
+    rendered as ``beforefter``. Silent text corruption in a screenshot, and the
+    same shape of defect as reading a truncated sequence as glyphs.
+
+    ``isalpha()`` was also true of non-ASCII letters, which cannot terminate a
+    CSI at all; a bare range check is both narrower and wider in the right
+    directions.
+    """
+    return "\x40" <= char <= "\x7e"
 
 
 def _parse_sgr_params(params: str) -> list[int]:
@@ -528,10 +705,16 @@ def _apply_extended_color(params: list[int], index: int, attrs: _AnsiAttrs) -> i
     return len(params) - 1
 
 
-def _append_tab(cells: list[AttributedCell], attrs: _AnsiAttrs, columns: int) -> None:
+def _append_tab(
+    cells: list[AttributedCell],
+    attrs: _AnsiAttrs,
+    columns: int,
+    pool: _CellPool,
+) -> None:
     target = min(((len(cells) // 8) + 1) * 8, columns)
+    blank = pool.intern(attrs.cell(" "))
     while len(cells) < target:
-        cells.append(attrs.cell(" "))
+        cells.append(blank)
 
 
 def _xterm_256_color(index: int) -> str:

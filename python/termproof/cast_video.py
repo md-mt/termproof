@@ -7,8 +7,10 @@ with ``ffmpeg``. A frame of the video and the *final* screenshot of the same
 moment are then the same image, which matters when a reviewer is comparing them.
 
 That correspondence does not extend to the per-step screenshots under
-``steps/``: those are rendered from ``StepResult.screen``, which is already
-flattened to plain text, so they are monochrome. See ``docs/evidence-quality.md``.
+``steps/``. Those are attributed too now, when the session reported a grid, but
+the grid is read from the live session at the moment of the step rather than
+replayed from the cast — so a step image and a frame of the same moment are not
+guaranteed to be the same bytes. See ``docs/evidence-quality.md``.
 
 The cost is one rasterizer call per *distinct* frame, so this is slower than
 ``agg``. It buys consistency and needs no Rust toolchain or bundled binary. A
