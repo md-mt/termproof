@@ -32,7 +32,7 @@ pub mod video;
 
 pub use collector::{
     CaptureKind, CapturedStep, EvidenceCollector, EvidenceManifest, EvidencePublisher,
-    PublishedStep, RawOutput, ReusedFrom, RunIdentity, ScreenCapture, ScreenSource,
+    PublishedStep, RawOutput, Recording, ReusedFrom, RunIdentity, ScreenCapture, ScreenSource,
     EVIDENCE_MANIFEST_VERSION,
 };
 pub use diff::apply_visual_diff;
