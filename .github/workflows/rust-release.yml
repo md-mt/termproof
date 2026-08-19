@@ -86,8 +86,9 @@ jobs:
       # The binary built below embeds the canonical recipe schema, so the copy
       # it embeds has to be the one the Python package ships (#174). Cheap
       # enough to repeat per target, and a release tag can be pushed by hand
-      # from a commit that never went through CI (Python), which is the only
-      # other place this runs on a non-release path.
+      # from a commit that went through neither of the workflows that run this
+      # on a pull request — CI (Python), and the `gate` job in Publish crates
+      # (Rust), which is a `pull_request` trigger on `rust/**`.
       - name: Canonical recipe schema drift across all copies
         run: python3 python/scripts/check_schema_copies.py
 
