@@ -1,0 +1,27 @@
+[
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260819-231116-705069-generic-tui-workflow-default/session.mp4",
+    "path": "20260819-231116-705069-generic-tui-workflow-default/session.mp4"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260819-231122-501253-colour-stress-default/session.mp4",
+    "path": "20260819-231122-501253-colour-stress-default/session.mp4"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260819-231126-026017-multi-turn-conversation-default/session.mp4",
+    "path": "20260819-231126-026017-multi-turn-conversation-default/session.mp4"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260819-231146-713412-pi-workflow-readonly-review-default/session.mp4",
+    "path": "20260819-231146-713412-pi-workflow-readonly-review-default/session.mp4"
+  },
+  {
+    "scope": "head",
+    "source": ".termproof/ci/20260819-231156-513792-pi-workflow-guarded-edit-default/session.mp4",
+    "path": "20260819-231156-513792-pi-workflow-guarded-edit-default/session.mp4"
+  }
+]
