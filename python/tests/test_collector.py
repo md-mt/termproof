@@ -157,6 +157,20 @@ class PublishTest(unittest.TestCase):
             self.assertTrue(Path(manifest.steps[0].screen_text).exists())
             self.assertIsNone(manifest.steps[0].screenshot)
 
+    def test_the_screen_is_written_verbatim(self) -> None:
+        # No trailing newline added. The Rust implementation writes the screen
+        # unaltered, and a newline on one side only makes the two documents'
+        # artifacts differ while their manifests agree.
+        with tempfile.TemporaryDirectory() as tmpdir:
+            collector = EvidenceCollector()
+            collector.capture_text("one", "line one\nline two")
+            manifest = collector.publish(
+                EvidencePublisher(directory=Path(tmpdir), identity=_identity())
+            )
+
+            written = Path(manifest.steps[0].screen_text).read_text(encoding="utf-8")
+            self.assertEqual("line one\nline two", written)
+
     def test_an_identical_screen_reuses_the_image(self) -> None:
         renderer = _RecordingRenderer()
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -385,41 +399,19 @@ class AttachToTest(unittest.TestCase):
 
 
 class CrossImplementationShapeTest(unittest.TestCase):
-    """The field names the Rust implementation writes, spelled out.
+    """Local checks on the shape shared with the Rust implementation.
 
-    Cheap insurance: the two produce one document format, and a rename on
-    either side should fail here rather than in whatever reads both.
+    The manifest key set used to be asserted here by spelling the Rust field
+    names out, derived by reading the Rust structs rather than by running them.
+    That could only ever catch a rename on the Python side. It now lives in
+    ``conformance/probe_evidence_manifest.py`` and
+    ``rust/crates/termproof/tests/differential_evidence_manifest.rs``, which
+    build the same scenario on both sides and compare the published manifest
+    *and* every file it points at — see ``conformance/README.md``.
+
+    What is left here is the filename scheme, which is cheap to check locally
+    and is the input to the comparison rather than its output.
     """
-
-    def test_the_manifest_keys_match_the_rust_document(self) -> None:
-        with tempfile.TemporaryDirectory() as tmpdir:
-            collector = EvidenceCollector()
-            collector.capture_failure("bad", static_source("screen", raw_output="log"))
-            manifest = collector.publish(
-                EvidencePublisher(
-                    directory=Path(tmpdir),
-                    identity=_identity(),
-                    renderer=_RecordingRenderer(),
-                )
-            )
-            document = json.loads(manifest.path.read_text())
-
-        self.assertEqual({"manifest_version", "run", "steps"}, set(document))
-        self.assertEqual({"recipe_name", "renderer", "run_id"}, set(document["run"]))
-        self.assertEqual(
-            {
-                "index",
-                "label",
-                "kind",
-                "screen_text",
-                "raw_output",
-                "screenshot",
-                "url",
-                "same_as",
-                "error",
-            },
-            set(document["steps"][0]),
-        )
 
     def test_the_file_stem_matches_the_rust_scheme(self) -> None:
         collector = EvidenceCollector()

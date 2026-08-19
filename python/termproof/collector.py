@@ -449,7 +449,12 @@ class EvidenceCollector:
         for step in self._steps:
             stem = step.file_stem()
             text_path = publisher.directory / f"{stem}.txt"
-            text_path.write_text(step.screen + "\n", encoding="utf-8")
+            # Verbatim, with no trailing newline added. The screen is what an
+            # assertion was evaluated against, and the Rust implementation
+            # writes it unaltered; a newline on one side and not the other
+            # makes the two documents' artifacts differ while their manifests
+            # agree. `conformance/probe_evidence_manifest.py` pins this.
+            text_path.write_text(step.screen, encoding="utf-8")
 
             raw_output_path: str | None = None
             if step.raw_output is not None:

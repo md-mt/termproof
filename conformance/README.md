@@ -7,6 +7,7 @@ per layer, each the same two-half shape:
 |---|---|---|---|
 | Steps | `probe_steps.py` | `tests/differential_steps.rs` | `corpus/cases.json` |
 | Assertions | `probe_assertions.py` | `tests/differential_assertions.rs` | `corpus/assertion_cases.json` |
+| Evidence manifest | `probe_evidence_manifest.py` | `tests/differential_evidence_manifest.rs` | `corpus/evidence_manifest.expected.json` |
 
 They exist because the port claimed corpus parity several times over with green
 local gates, and a differential run against the Python implementation still
@@ -359,3 +360,80 @@ with the error. It only ever separates two non-`type` errors under differently
 typed subschemas, and no corpus case exercises that, but it is an approximation
 rather than a transcription. FR-017's selection is a library heuristic either
 way, which 003-OQ-010 says explicitly.
+
+# Evidence manifest
+
+A third harness, same two-half shape, for the document
+`EvidenceCollector::publish` writes.
+
+## Shape
+
+| Half | Where | What it does |
+|---|---|---|
+| Oracle | `probe_evidence_manifest.py` | Drives the Python collector over a fixed scenario and records the published `evidence.json` **and the contents of every file it wrote** into `corpus/evidence_manifest.expected.json`. |
+| Port | `crates/termproof/tests/differential_evidence_manifest.rs` | Builds the same scenario through the Rust collector and compares the whole recording. |
+
+Unlike the other two, there is no corpus of cases: one document shape is built
+by calling an API rather than by replaying data, so the scenario **is** the code
+in each half and the two are transcriptions of one another. They are short and
+commented line-for-line; keep them in step.
+
+## Why it exists
+
+`termproof.collector` was written to mirror `termproof::evidence::collector`
+field for field, and the mirror was checked by a Python unit test that spelled
+the Rust field names out — a list derived by *reading* the Rust structs, never
+by running them. That can catch a rename on the Python side and nothing else:
+not a rename on the Rust side, not a field added to one implementation and not
+the other, not a value the two spell differently.
+
+Running both and diffing found the claim was very nearly true. Every manifest
+key, every value, the `step-NN-label` filename scheme, the dedup verdict and
+its `same_as` back-reference, the `kind` spelling, the recordings and their
+omission when empty — all identical. One thing was not: **Python appended a
+trailing newline to each `step-NN.txt` and Rust wrote the screen verbatim.**
+Four files differed under manifests that agreed byte-for-byte.
+
+That is why this harness compares the written files and not just the document.
+A manifest is a set of paths, and agreeing on paths is not agreeing on files.
+Python was changed to match Rust, which writes what an assertion was actually
+evaluated against with nothing added to it.
+
+## What is deliberately neutralised
+
+Two things in the scenario are properties of the machine rather than of either
+implementation, and both halves handle them the same way:
+
+- **The rasteriser.** `ScreenshotRenderer` shells out to `rsvg-convert`, so on a
+  host without it every step would record a render error whose text belongs to
+  the operating system. Both halves stub the tool and write a fixed byte, so a
+  screenshot is recorded on every host.
+- **The publish directory**, which is a fresh temporary directory. Both halves
+  substitute it for `@DIR` before comparing.
+
+Nothing else is normalised. In particular the file *contents* are compared
+literally, which is the check that found the divergence above.
+
+## Regenerating the expectations
+
+```sh
+cd /path/to/termproof/python
+TERMPROOF_PYTHON_REPO=$PWD uv run python \
+    ../conformance/probe_evidence_manifest.py \
+    > ../conformance/corpus/evidence_manifest.expected.json
+```
+
+Only regenerate deliberately: the file is the oracle's testimony, and quietly
+re-recording it turns a failing comparison into a passing one without changing
+any behaviour. If the Rust half is the one that changed, fix the Rust half.
+
+## Reading the result
+
+```sh
+cargo test -p termproof --test differential_evidence_manifest
+```
+
+Pass or fail, with the two documents printed on failure. There is no agreement
+ratchet here as there is for steps and assertions: the two implementations
+either write the same document or they do not, and a partial score for a file
+format is not a useful number.
