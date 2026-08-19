@@ -37,6 +37,7 @@ jobs:
   build:
     name: Build Pages site preview
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v7

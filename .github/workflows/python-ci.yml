@@ -86,6 +86,14 @@ jobs:
     # stays green. Runs in seconds and needs no toolchain, so it goes first.
     name: Stdlib-only modules
     runs-on: ubuntu-latest
+    # Every job here carries a `timeout-minutes`. Without one the ceiling is
+    # GitHub's six hours, which is what #183 burned eighteen job-hours against:
+    # a quiet package mirror stalled the install step and nothing bounded it.
+    # The values are sized off measured duration, not guessed — see the table
+    # in `test_ci_timeouts.py`. They are backstops against a hang, not budgets,
+    # so they sit far above the observed maximum; a timeout tight enough to
+    # trip on ordinary variance would trade one flake for another.
+    timeout-minutes: 10
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
@@ -101,6 +109,7 @@ jobs:
   lint:
     name: Lint, type-check and version drift
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
@@ -114,6 +123,7 @@ jobs:
         uses: astral-sh/setup-uv@v7
 
       - name: Install dependencies
+        timeout-minutes: 10
         run: uv sync
 
       - name: Ruff lint
@@ -141,6 +151,7 @@ jobs:
   test:
     name: Unit tests and coverage (py${{ matrix.python-version }})
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -170,13 +181,23 @@ jobs:
             ~/.cargo/git
           key: cargo-agg-v1.9.0-${{ runner.os }}
 
-      - name: Install system render dependencies
-        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      # There is deliberately no `apt-get install ffmpeg` here any more (#183).
+      # `termproof.evidence.find_ffmpeg` prefers an ffmpeg on PATH and falls
+      # back to `imageio_ffmpeg.get_ffmpeg_exe()`, and `imageio-ffmpeg` is a
+      # hard runtime dependency in `pyproject.toml` whose Linux wheel carries
+      # the binary. `uv sync` therefore already puts a working ffmpeg on this
+      # runner, and the apt step only added a package mirror to the critical
+      # path of a job that spawns ffmpeg once. `test_ffmpeg_needs_no_mirror.py`
+      # is what holds that dependency in place.
 
       - name: Install agg
+        # Bounds the step; `retry.sh` bounds each attempt inside it, which is
+        # the part that lets a retry survive a stall rather than a plain error.
+        timeout-minutes: 20
         run: |
           if ! command -v agg >/dev/null 2>&1; then
-            cargo install --locked --git https://github.com/asciinema/agg --tag v1.9.0
+            "$GITHUB_WORKSPACE/.github/scripts/retry.sh" --attempts 3 --timeout 480 -- \
+              cargo install --locked --git https://github.com/asciinema/agg --tag v1.9.0
           fi
 
       - name: Run unit tests with coverage
@@ -187,6 +208,7 @@ jobs:
   verify:
     name: Build, verify TUI evidence and publish it
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       # `contents: write` pushes screenshots to the `termproof-evidence`
       # branch; the other two are the sticky PR comment. Nothing else in this
@@ -219,13 +241,31 @@ jobs:
             ~/.cargo/git
           key: cargo-agg-v1.9.0-${{ runner.os }}
 
-      - name: Install system render dependencies
-        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      # This job is the one that actually renders video, so rather than install
+      # ffmpeg from a mirror it confirms the one `imageio-ffmpeg` already ships
+      # resolves and runs (#183). No network, about a second, and it fails here
+      # with a clear message instead of thirty steps later inside a render.
+      - name: Confirm ffmpeg resolves without a package mirror
+        # This is the job's first `uv run`, so it absorbs the dependency sync;
+        # bounded like the other installs rather than like a one-second check.
+        timeout-minutes: 10
+        run: |
+          uv run python -c "
+          import subprocess
+          from termproof.evidence import find_ffmpeg
+          ffmpeg = find_ffmpeg()
+          banner = subprocess.run(
+              [ffmpeg, '-version'], capture_output=True, text=True, check=True
+          ).stdout.splitlines()[0]
+          print(f'{ffmpeg}\n{banner}')
+          "
 
       - name: Install agg
+        timeout-minutes: 20
         run: |
           if ! command -v agg >/dev/null 2>&1; then
-            cargo install --locked --git https://github.com/asciinema/agg --tag v1.9.0
+            "$GITHUB_WORKSPACE/.github/scripts/retry.sh" --attempts 3 --timeout 480 -- \
+              cargo install --locked --git https://github.com/asciinema/agg --tag v1.9.0
           fi
 
       - name: Run unit tests
@@ -244,6 +284,8 @@ jobs:
           (cd plugin-template && uv build)
 
       - name: Smoke-test plugin-template installed wheel
+        # Resolves from PyPI, so it is bounded like the other installs (#183).
+        timeout-minutes: 10
         run: |
           (cd plugin-template && python -m venv .pkg-test)
           uv pip install --python plugin-template/.pkg-test/bin/python .
@@ -271,6 +313,8 @@ jobs:
         run: uv build
 
       - name: Smoke-test installed wheel
+        # `pip install` resolves the wheel's dependencies from PyPI (#183).
+        timeout-minutes: 10
         run: |
           python -m venv .pkg-test
           .pkg-test/bin/pip install dist/*.whl
@@ -496,10 +540,14 @@ jobs:
             os: ubuntu-latest
             smoke: inspect
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v7
       - name: Build pinned agg and platform wheel
+        # Compiles agg from a git checkout, so it reaches the network the same
+        # way the `Install agg` steps do and is bounded the same way (#183).
+        timeout-minutes: 25
         env:
           TERMPROOF_AGG_TARGET: ${{ matrix.target }}
         run: |
@@ -507,6 +555,8 @@ jobs:
           uv build --wheel
       - name: Smoke-test installed wheel
         if: matrix.smoke == 'native'
+        # `pip install` resolves the wheel's dependencies from PyPI (#183).
+        timeout-minutes: 10
         run: |
           python3 -m venv .wheel-test
           .wheel-test/bin/pip install dist/*.whl

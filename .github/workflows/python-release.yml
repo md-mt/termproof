@@ -25,6 +25,10 @@ jobs:
   release:
     name: Build, verify TUI evidence and release
     runs-on: ubuntu-latest
+    # See the note in CI (Python): unbounded jobs run to GitHub's six-hour
+    # ceiling when a network step stalls (#183). A release renders the full
+    # evidence suite at 60fps, so it gets more headroom than the CI job.
+    timeout-minutes: 45
     environment: pypi
     permissions:
       # `contents: write` creates the GitHub release; `id-token: write` is
@@ -56,13 +60,31 @@ jobs:
             ~/.cargo/git
           key: cargo-agg-v1.9.0-${{ runner.os }}
 
-      - name: Install system render dependencies
-        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      # No `apt-get install ffmpeg` here either (#183) — `imageio-ffmpeg` is a
+      # hard runtime dependency and ships the binary, so this confirms what is
+      # already installed instead of putting a package mirror in front of a
+      # release. See the longer note in CI (Python).
+      - name: Confirm ffmpeg resolves without a package mirror
+        # This is the job's first `uv run`, so it absorbs the dependency sync;
+        # bounded like the other installs rather than like a one-second check.
+        timeout-minutes: 10
+        run: |
+          uv run python -c "
+          import subprocess
+          from termproof.evidence import find_ffmpeg
+          ffmpeg = find_ffmpeg()
+          banner = subprocess.run(
+              [ffmpeg, '-version'], capture_output=True, text=True, check=True
+          ).stdout.splitlines()[0]
+          print(f'{ffmpeg}\n{banner}')
+          "
 
       - name: Install agg
+        timeout-minutes: 20
         run: |
           if ! command -v agg >/dev/null 2>&1; then
-            cargo install --locked --git https://github.com/asciinema/agg --tag v1.9.0
+            "$GITHUB_WORKSPACE/.github/scripts/retry.sh" --attempts 3 --timeout 480 -- \
+              cargo install --locked --git https://github.com/asciinema/agg --tag v1.9.0
           fi
 
       - name: Run unit tests
@@ -80,6 +102,8 @@ jobs:
         run: uv build
 
       - name: Smoke-test installed wheel
+        # `pip install` resolves the wheel's dependencies from PyPI (#183).
+        timeout-minutes: 10
         run: |
           python -m venv .pkg-test
           .pkg-test/bin/pip install dist/*.whl
