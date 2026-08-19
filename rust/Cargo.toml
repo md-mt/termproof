@@ -58,16 +58,49 @@ all = "warn"
 # is a comment naming the API that put it there (#28). The `test at the declared
 # dependency floors` step in .github/workflows/rust-ci.yml runs the suite at each
 # floor, so a floor that stops being true fails CI rather than rotting quietly.
+#
+# A ceiling costs that same copy in the other direction, and headroom does not
+# buy sharing: given a range, cargo takes the top of it, not whatever version
+# the consumer already has. So an upper bound written above what the code needs
+# is a floor written too high, mirrored, and wants the same kind of comment
+# naming what it buys (#177).
 [workspace.dependencies]
 termproof = { path = "crates/termproof", version = "0.4.0" }
 regex = { version = "1.13.1", default-features = false, features = ["std", "unicode"] }
-# Floor 0.16, tested at 0.16.2. `jsonschema` 0.33 asks for `^0.16` itself, so a
-# caret on 0.19 put two copies of a backtracking regex engine in the graph of
-# every default build — ours and its — which pinning to 0.16.2 now collapses.
-# Nothing here needs 0.19: the one thing that did was a type annotation naming
-# `Captures`, which gained a haystack parameter in 0.19 and is now left to
-# inference (see `steps::try_match`).
-fancy-regex = ">=0.16, <0.20"
+# 0.16 at both ends, tested at 0.16.0. `jsonschema` 0.32.1 and 0.33.0 both ask
+# for `^0.16` themselves, and across the whole `>=0.32, <0.34` declared below
+# those are the only versions that ask for a 0.16 at all — 0.32.0 asks `^0.15`.
+# So `^0.16` is the one requirement a default build can satisfy out of
+# `jsonschema`'s copy of the backtracking engine instead of standing up a
+# second one, and it cannot rot while the `jsonschema` range is what it is.
+#
+# Nothing here needs anything above it. Measured in #177 rather than assumed:
+# the workspace builds and the whole suite passes at 0.16.0, 0.16.1, 0.16.2,
+# 0.17.0, 0.18.0 and 0.19.0, and both differential harnesses report the same
+# parity at every one — steps 82/115 full and 113/115 verdict, assertions
+# 124/147 full and 143/147 verdict. The one thing that ever needed 0.19 was a
+# type annotation naming `Captures`, which gained a second generic parameter
+# there and is now never named at all — `pyregex::PyRegex::captures` reads the
+# groups out under inference.
+#
+# The ceiling is narrow because a wide one does not let a consumer *share*.
+# Cargo does not unify across 0.x minors; handed a range it takes the top. The
+# previous `>=0.16, <0.20` proved it on this very workspace: resolved fresh it
+# put 0.16.2 *and* 0.19.0 in the lock, `jsonschema`'s and ours, and only the
+# committed lockfile — written when the requirement was narrower — hid the pair
+# from us. `bans.multiple-versions = "deny"` in deny.toml carries no skip for
+# `fancy-regex`, so the first regeneration of that lockfile would have failed
+# the security job (#177).
+#
+# This costs a consumer nothing, and that is a property 0.4.0 had to buy first.
+# While `pyregex::compile` returned a `fancy_regex::Regex`, moving this bound
+# moved which single version a consumer could name that type from — measured on
+# `>=0.16, <0.20`, a consumer pinned to 0.19.0 compiled and one pinned to
+# 0.16.2, 0.17.0 or 0.18.0 did not, and narrowing would merely have swapped the
+# ends. No `fancy-regex` type is in the public API now, so a consumer on any
+# version compiles either way; the most this requirement can cost anyone is a
+# second copy in the graph, which is exactly what narrowing it removes.
+fancy-regex = "0.16"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 serde_yaml = "0.9"
@@ -82,11 +115,11 @@ serde_yaml = "0.9"
 #
 #    This used to read "Releases here bump the patch digit only." That was
 #    never a rule, only a description of the releases that had happened, and
-#    this one makes it false. The rule, from docs/publishing.md, is that pre-1.0 a
-#    breaking change to any public API is a *minor* bump and everything else is
-#    a patch — so a `schemars` major would be permitted, at the price of a
-#    minor. It is still not taken, for reason 2, which does not depend on the
-#    version digit at all.
+#    this one makes it false. The rule, from docs/publishing.md, is that
+#    pre-1.0 a breaking change to any public API is a *minor* bump and
+#    everything else is a patch — so a `schemars` major would be permitted, at
+#    the price of a minor. It is still not taken, for reason 2, which does not
+#    depend on the version digit at all.
 #
 # 2. `preserve_order` does not mean the same thing across the majors, and the
 #    difference is graph-global. In 0.8 it is `["indexmap"]`, scoped to

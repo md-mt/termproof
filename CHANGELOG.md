@@ -45,6 +45,42 @@ Nothing yet.
 
 ## [0.4.0] — 2026-08-19
 
+### Rust — Changed
+
+- **cargo:** the `fancy-regex` requirement was narrowed to `0.16` from
+  `>=0.16, <0.20`. The headroom bought nothing and cost a duplicate. Cargo does
+  not unify across `0.x` minors: handed a range it takes the top of it, not a
+  copy the graph already holds. Resolved fresh, the old requirement put
+  `fancy-regex` 0.16.2 *and* 0.19.0 in this workspace's own lockfile —
+  `jsonschema`'s copy and ours — and only the committed lockfile, written when
+  the requirement was narrower, kept the pair out of sight. `deny.toml` sets
+  `bans.multiple-versions = "deny"` with no skip for `fancy-regex`, so the
+  first regeneration of that lockfile would have failed the security job.
+  `^0.16` was what `jsonschema` 0.32.1 and 0.33.0 asked for themselves, so a
+  default build shared one backtracking regex engine with it by construction.
+  Nothing in the crate needed a newer one: the suite and both differential
+  harnesses were run at 0.16.0, 0.16.1, 0.16.2, 0.17.0, 0.18.0 and 0.19.0, and
+  the parity numbers were identical at every one. The committed lockfile did
+  not change — it already resolved 0.16.2.
+
+  **It cost a consumer nothing, which is a property this release had to buy
+  first.** While `pyregex::compile` returned a `fancy_regex::Regex`, changing
+  this requirement changed which single version a consumer could name that type
+  from: under `>=0.16, <0.20` a consumer pinned to 0.19.0 compiled and one
+  pinned to 0.16.2, 0.17.0 or 0.18.0 did not, and narrowing would only have
+  swapped the ends. With no `fancy-regex` type left in the public API, a
+  consumer on any version compiled either way, and the most the requirement
+  could cost was a second copy in the graph — which narrowing it removed.
+  ([#177](https://github.com/md-mt/termproof/issues/177))
+
+- **ci:** the `test at the declared dependency floors` step was retargeted to
+  pin `fancy-regex` to 0.16.0, the bottom of the new requirement, rather than
+  to the 0.16.2 the lockfile already resolved — pinning what the lock picks
+  would have re-run what the earlier steps already ran. Its comment had also
+  claimed the committed lockfile resolves every range to its top, which was
+  never true of this entry and is what let the duplicate hide.
+  ([#177](https://github.com/md-mt/termproof/issues/177))
+
 ### Rust — Changed (breaking)
 
 **No dependency reaches this crate's public API any more, except `schemars`.**
