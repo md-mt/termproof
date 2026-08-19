@@ -29,6 +29,24 @@ use fancy_regex::Regex;
 ///
 /// The wording is TermProof's own. Byte-parity with CPython's `re.error` text
 /// is a separate question, open as 001-OQ-001 / 002-OQ-002 / 003-OQ-010.
+///
+/// # Naming the returned type
+///
+/// This returns a [`fancy_regex::Regex`], which is a *third-party* type, so it
+/// is only interchangeable with a `Regex` your own crate names if cargo gave
+/// you both from the same copy of `fancy-regex`. Name it through the
+/// re-export — [`crate::fancy_regex`] — rather than through your own
+/// dependency, and that is true by construction:
+///
+/// ```no_run
+/// let re: termproof::fancy_regex::Regex = termproof::pyregex::compile(r"\d+").unwrap();
+/// assert!(re.is_match("42").unwrap());
+/// ```
+///
+/// Calling methods on the value without naming its type works either way; it is
+/// annotating it, or passing it into a signature of your own, that needs the
+/// copies to agree. See "Dependencies in the public API" in the crate docs
+/// (#177).
 pub fn compile(pattern: &str) -> Result<Regex, String> {
     let translated = translate(pattern)?;
     Regex::new(&translated).map_err(|e| one_line(&e.to_string()))
