@@ -103,6 +103,12 @@ _STYLE_ON = {
     7: "reverse",
     9: "strikethrough",
 }
+#: Escape introducers whose body runs to a string terminator: OSC, DCS, SOS,
+#: PM and APC. ``capture-pane -e`` emits OSC-8 hyperlinks, so this is not a
+#: theoretical family for the step-screenshot path.
+_STRING_INTRODUCERS = frozenset("]PX^_")
+#: SS2 and SS3. The character after the introducer is displayed.
+_SINGLE_SHIFTS = frozenset("NO")
 _STYLE_OFF = {
     23: "italic",
     24: "underline",
@@ -219,11 +225,14 @@ class _CellPool:
     A terminal screen is mostly repetition: blank cells, runs of one colour.
     Cells are frozen and carry no identity, so one object can stand in for every
     cell equal to it. Measured with ``tracemalloc`` over allocations still alive
-    in this module, a typical 100x32 screen goes from 527 KiB to 31 KiB; a
-    screen where every cell differs is the floor at 292 KiB, because the saving
-    is in *repetition*, not in the cells themselves. That is the difference
-    between a grid per step being affordable for a whole run and not — see
-    ``StepScreenMemoryTest``.
+    in this module, a typical 100x32 screen goes from 527 KiB to 31 KiB, which
+    is the difference between a grid per step being affordable for a whole run
+    and not — see ``StepScreenMemoryTest``.
+
+    The saving is entirely in the repetition, so the floor is exactly no saving
+    at all: a screen whose 3,200 cells are all distinct measures 527 KiB either
+    way. That is the mechanism stated precisely rather than a caveat — there is
+    nothing to share when nothing is equal, and no real screen looks like that.
 
     The pool lives for one grid build and is then dropped. A process-wide cache
     would share more, but it would also grow without a bound anyone owns.
@@ -515,10 +524,39 @@ def _cells_from_ansi_line(
 
 
 def _consume_ansi_sequence(line: str, index: int, attrs: _AnsiAttrs) -> int:
-    if line[index + 1 : index + 2] != "[":
-        # ESC at the end of the line, or introducing something that is not CSI.
-        # Drop the ESC and let the next character be read normally.
+    """Consume the escape sequence at *index*, returning the index after it.
+
+    Every family has to be recognised, not just the one carrying colour.
+    Anything unrecognised has its ESC dropped and its body rendered as glyphs,
+    which is how ``\\x1b]8;;url\\x1b\\\\`` — an OSC-8 hyperlink, which
+    ``capture-pane -e`` really does emit — turned ``beforeTXTafter`` into
+    ``before]8;;url\\TXT]8;;\\after`` on a step screenshot and in its ``.txt``.
+
+    What each family contributes to the grid is a deliberate decision, and for
+    every one but CSI-SGR the answer is nothing visible: an OSC sets a title or
+    attaches a URL, a DCS carries a device reply, a charset designation and the
+    two-byte escapes change state this model does not keep. They are consumed
+    silently. SS2/SS3 are the exception in shape — the character *after* the
+    introducer is displayed — so only the introducer is consumed.
+    """
+    introducer = line[index + 1 : index + 2]
+    if introducer == "":
+        # A bare ESC at the end of the line. Drop it; there is nothing to read.
         return index + 1
+    if introducer == "[":
+        return _consume_csi(line, index, attrs)
+    if introducer in _STRING_INTRODUCERS:
+        return _consume_string_sequence(line, index)
+    if introducer in _SINGLE_SHIFTS:
+        # SS2/SS3 shift the single character that follows into another
+        # character set. The character is displayed, and the charset is not
+        # modelled here, so consume the two-byte introducer only.
+        return index + 2
+    return _consume_escape_sequence(line, index)
+
+
+def _consume_csi(line: str, index: int, attrs: _AnsiAttrs) -> int:
+    """``ESC [`` params intermediates final — the family that carries SGR."""
     end = index + 2
     while end < len(line):
         char = line[end]
@@ -539,6 +577,51 @@ def _consume_ansi_sequence(line: str, index: int, attrs: _AnsiAttrs) -> int:
     if line[end] == "m":
         _apply_sgr(_parse_sgr_params(line[index + 2 : end]), attrs)
     return end + 1
+
+
+def _consume_string_sequence(line: str, index: int) -> int:
+    """OSC, DCS, SOS, PM and APC: an arbitrary body up to a terminator.
+
+    Two terminators are in use and both have to be accepted. ST is the
+    standard ``ESC \\``; BEL is the older form, and it is what a great many
+    programs still send to close an OSC.
+    """
+    end = index + 2
+    while end < len(line):
+        char = line[end]
+        if char == "\x07":
+            return end + 1
+        if char == "\x1b":
+            if line[end + 1 : end + 2] == "\\":
+                return end + 2
+            # Not ST: a fresh escape, which abandons this string.
+            return end
+        end += 1
+    # Terminator never arrived — the capture was cut. Consume the rest rather
+    # than spilling the body onto the screen.
+    return len(line)
+
+
+def _consume_escape_sequence(line: str, index: int) -> int:
+    """The general form: ``ESC`` intermediates final.
+
+    Covers charset designation (``ESC ( B``), the DEC line-size controls
+    (``ESC # 8``) and every two-byte escape (``ESC 7``, ``ESC =``, ``ESC c``),
+    because ECMA-48 gives them all one shape: zero or more intermediates in
+    0x20-0x2F, then a final in 0x30-0x7E.
+    """
+    end = index + 1
+    while end < len(line) and "\x20" <= line[end] <= "\x2f":
+        end += 1
+    if end >= len(line):
+        # Cut before the final byte, as for a truncated CSI.
+        return len(line)
+    if "\x30" <= line[end] <= "\x7e":
+        return end + 1
+    # Not a final byte at all — a control character, or something past 0x7E.
+    # This is not a sequence any terminal would act on, so drop the ESC alone
+    # and let what follows be read as ordinary text.
+    return index + 1
 
 
 def _is_csi_final(char: str) -> bool:

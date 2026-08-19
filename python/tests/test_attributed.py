@@ -147,6 +147,71 @@ class AnsiParsingTest(unittest.TestCase):
         self.assertEqual("X", screen.to_text())
         self.assertEqual("green", screen.rows[0][0].fg)
 
+    def test_an_osc_8_hyperlink_contributes_its_text_and_not_its_url(self) -> None:
+        """The regression that made a step screenshot worse than no change.
+
+        `capture-pane -e` emits OSC-8 hyperlinks. Only CSI was recognised, so
+        the ESC was dropped and the rest rendered as glyphs: `beforeTXTafter`
+        came out as `before]8;;url\\TXT]8;;\\after`, in the screenshot and in
+        the `.txt` beside it.
+        """
+        link = "before\x1b]8;;http://example.invalid\x1b\\TXT\x1b]8;;\x1b\\after"
+        self.assertEqual("beforeTXTafter", attributed_screen_from_ansi_text(link).to_text())
+
+    def test_every_escape_family_is_consumed_rather_than_rendered(self) -> None:
+        """One row per family, because each has a different shape of terminator.
+
+        Nothing here is visible on a terminal, so nothing here may reach a cell.
+        """
+        families = {
+            "OSC, ST terminated": "\x1b]0;title\x1b\\",
+            "OSC, BEL terminated": "\x1b]0;title\x07",
+            "OSC with embedded semicolons": "\x1b]8;id=x;http://a.invalid\x07",
+            "DCS": "\x1bP1$r0m\x1b\\",
+            "SOS": "\x1bXsos\x1b\\",
+            "PM": "\x1b^pm\x1b\\",
+            "APC": "\x1b_apc\x1b\\",
+            "charset designation G0": "\x1b(B",
+            "charset designation G1": "\x1b)0",
+            "DEC line size": "\x1b#8",
+            "save cursor": "\x1b7",
+            "restore cursor": "\x1b8",
+            "keypad mode": "\x1b=",
+            "reset": "\x1bc",
+            "index": "\x1bD",
+            "ESC with an intermediate": "\x1b F",
+            "CSI": "\x1b[1;2H",
+            "CSI private": "\x1b[?25l",
+        }
+        for name, payload in families.items():
+            with self.subTest(family=name):
+                text = attributed_screen_from_ansi_text(f"before{payload}after").to_text()
+                self.assertEqual("beforeafter", text)
+
+    def test_a_single_shift_leaves_the_character_it_shifts(self) -> None:
+        """SS2/SS3 are the one family whose next character is displayed."""
+        for introducer in ("N", "O"):
+            with self.subTest(introducer=introducer):
+                text = attributed_screen_from_ansi_text(f"before\x1b{introducer}Xafter").to_text()
+                self.assertEqual("beforeXafter", text)
+
+    def test_a_string_sequence_cut_before_its_terminator_emits_nothing(self) -> None:
+        """A capture can end mid-OSC just as it can end mid-CSI."""
+        for payload in ("ok\x1b]8;;http://a.invalid", "ok\x1bP1$r", "ok\x1b]", "ok\x1b_"):
+            with self.subTest(payload=payload):
+                self.assertEqual("ok", attributed_screen_from_ansi_text(payload).to_text())
+
+    def test_a_fresh_escape_abandons_a_string_sequence_too(self) -> None:
+        """`ESC` that is not `ESC \\` ends the string and starts a new sequence."""
+        screen = attributed_screen_from_ansi_text("\x1b]0;title\x1b[31mred")
+        self.assertEqual("red", screen.to_text())
+        self.assertEqual("red", screen.rows[0][0].fg)
+
+    def test_a_string_sequence_does_not_disturb_the_attributes_around_it(self) -> None:
+        screen = attributed_screen_from_ansi_text("\x1b[31ma\x1b]0;t\x07b")
+        self.assertEqual("ab", screen.to_text())
+        self.assertEqual(["red", "red"], [cell.fg for cell in screen.rows[0][:2]])
+
     def test_the_repr_is_readable_rather_than_a_cell_dump(self) -> None:
         """A grid now hangs off every `StepResult`, so its repr lands in failures.
 

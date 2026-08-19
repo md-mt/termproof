@@ -449,12 +449,48 @@ class AnsiCaptureRobustnessTest(unittest.TestCase):
         # Intermediate bytes, which are also below the final-byte range.
         "before\x1b[1 qafter",
         "before\x1b[!pafter",
+        # Non-CSI families. Only CSI was handled, so every one of these had its
+        # ESC dropped and its body rendered as text — the OSC-8 hyperlink case
+        # reached real step evidence through `capture-pane -e`.
+        "before\x1b]8;;http://example.invalid\x1b\\\x1b]8;;\x1b\\after",
+        "before\x1b]0;window title\x07after",
+        "before\x1b]8;id=x;http://example.invalid\x07after",
+        "before\x1bP1$r0m\x1b\\after",
+        "before\x1bXsos\x1b\\after",
+        "before\x1b^pm\x1b\\after",
+        "before\x1b_apc\x1b\\after",
+        "before\x1b(Bafter",
+        "before\x1b)0after",
+        "before\x1b#8after",
+        "before\x1b7after",
+        "before\x1b8after",
+        "before\x1b=after",
+        "before\x1bcafter",
+        "before\x1b Fafter",
+        # String sequences cut before their terminator, and abandoned ones.
+        "before\x1b]8;;http://example.invalid",
+        "before\x1bP1$r",
+        "before\x1b]0;title\x1b[0mafter",
     )
 
-    def test_no_payload_loses_the_text_around_the_sequence(self) -> None:
-        """Consuming an escape must consume the escape and nothing else."""
+    def test_no_string_sequence_leaks_its_body(self) -> None:
+        """An OSC body is a URL or a window title, never screen content."""
         for payload in self.MALFORMED:
-            if not payload.startswith("before"):
+            with self.subTest(payload=payload):
+                text = attributed_screen_from_ansi_text(payload, columns=80, rows=3).to_text()
+                for leak in ("http://", "window title", "id=x", "$r0m", "sos", "apc"):
+                    self.assertNotIn(leak, text)
+
+    def test_no_payload_loses_the_text_around_the_sequence(self) -> None:
+        """Consuming an escape must consume the escape and nothing else.
+
+        Only the payloads that bracket a sequence with text on both sides. The
+        deliberately truncated ones have no trailing text by construction: a
+        sequence whose terminator never arrived swallows the rest of the line,
+        which is the behaviour, not a loss.
+        """
+        for payload in self.MALFORMED:
+            if not (payload.startswith("before") and payload.endswith("after")):
                 continue
             with self.subTest(payload=payload):
                 text = attributed_screen_from_ansi_text(payload, columns=60, rows=2).to_text()
@@ -691,6 +727,76 @@ class TmuxSessionGridTest(unittest.TestCase):
         assert result.screen_attributed is not None
         self.assertEqual(["red", "red", "red"], [cell.fg for cell in result.screen_attributed.rows[0][:3]])
         self.assertTrue(result.screen.startswith("red plain"))
+
+
+@unittest.skipUnless(shutil.which("tmux"), "tmux is not installed")
+class TmuxTextEquivalenceTest(unittest.TestCase):
+    """The grid-derived text must equal what tmux itself calls the screen.
+
+    `capture_screen` derives `StepResult.screen` from the grid so that the text
+    and the image describe one instant. On the pty backend that is free — the
+    grid and `screen_text` read the same `pyte.Screen`. On this one it is a
+    claim about a parser: the grid is parsed out of `capture-pane -e` while
+    `TmuxSession.screen` is `capture-pane` already flattened by tmux.
+
+    That claim was false, and it was a regression rather than a limit. Before
+    the grid was carried, a built-in step returned `session.screen`, which is
+    correct; deriving it from a parser that only understood CSI turned
+    `beforeTXTafter` into `before]8;;url\\TXT]8;;\\after` in both `steps/NN.txt`
+    and the screenshot. Working output became corrupted output.
+
+    So this compares the two readings against each other rather than against a
+    literal, over content covering every escape family tmux can put in a pane.
+    A future gap in the parser fails here instead of appearing in evidence.
+    """
+
+    PAYLOADS = {
+        "osc 8 hyperlink": r"before\033]8;;http://example.invalid\033\\TXT\033]8;;\033\\after",
+        "osc title": r"\033]0;window title\007visible text",
+        "sgr colour and attributes": r"\033[31mred\033[0m \033[1mbold\033[0m \033[4munder\033[0m",
+        "256 and truecolour": r"\033[38;5;196mx\033[38;2;1;2;3my\033[0m tail",
+        "csi cursor moves": r"start\033[1;2H\033[Kmiddle\033[?25lend",
+        "charset and two byte escapes": r"a\033(Bb\0337c\0338d",
+        "wide characters": r"日本語 wide and ascii",
+        "mixed": r"\033[32mok\033[0m \033]8;;http://a.invalid\033\\link\033]8;;\033\\ \033[1mdone\033[0m",
+    }
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+
+    def test_the_derived_text_matches_the_plain_capture(self) -> None:
+        from termproof.tmux_session import TmuxBackend
+
+        for name, payload in self.PAYLOADS.items():
+            with self.subTest(payload=name):
+                cast = Path(self._tmp.name) / f"{name.replace(' ', '-')}.cast"
+                argv = ["sh", "-c", f"printf '{payload}\\nSETTLED\\n'; sleep 2"]
+                with TmuxBackend().create_session(argv, cast, None, {}, 80, 24) as session:
+                    self.assertTrue(session.wait_for_text("SETTLED", 10.0))
+                    plain = session.screen
+                    derived = capture_screen(session).screen
+                self.assertEqual(plain, derived)
+                self.assertNotIn("\x1b", derived)
+
+    def test_a_hyperlink_does_not_put_its_url_on_the_screen(self) -> None:
+        """The reported reproducer, asserted against the literal it should be."""
+        from termproof.tmux_session import TmuxBackend
+
+        cast = Path(self._tmp.name) / "link.cast"
+        argv = [
+            "sh",
+            "-c",
+            r"printf 'before\033]8;;http://example.invalid\033\\TXT\033]8;;\033\\after\n'; sleep 2",
+        ]
+        with TmuxBackend().create_session(argv, cast, None, {}, 80, 24) as session:
+            self.assertTrue(session.wait_for_text("after", 10.0))
+            result = step_result("linked", True, "", session)
+        self.assertEqual("beforeTXTafter", result.screen.splitlines()[0])
+        assert result.screen_attributed is not None
+        self.assertEqual(
+            "beforeTXTafter", result.screen_attributed.text_lines(trim_right=True)[0]
+        )
 
 
 if __name__ == "__main__":

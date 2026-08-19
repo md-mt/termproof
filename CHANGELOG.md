@@ -136,6 +136,16 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
   non-letter finals. A fresh `ESC` now also abandons a sequence in progress
   rather than being read as one of its parameter bytes.
 
+- Escape sequences that are not CSI are recognised rather than rendered as
+  glyphs. Only CSI was handled; every other family had its `ESC` dropped and
+  its body printed, so an OSC-8 hyperlink — which `capture-pane -e` really does
+  emit — turned `beforeTXTafter` into `before]8;;url\TXT]8;;\after` in a step
+  screenshot and in the `.txt` beside it. OSC, DCS, SOS, PM and APC are now
+  consumed to either terminator (`BEL` or `ESC \`), as are charset designation,
+  the DEC line-size controls and the two-byte escapes; SS2 and SS3 consume
+  their introducer and leave the character they shift. None of them contributes
+  anything visible, which is what a terminal shows for them too.
+
 ### Python — Changed
 
 - The attributed grid builders share one cell object between cells that compare
@@ -144,12 +154,17 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
   retains go from 37.1 MiB to 2.9 MiB — 506 KiB down to 40 KiB per step. That
   is what makes keeping a grid per step affordable.
 
+  The saving is in the repetition and nowhere else, so the floor is exactly no
+  saving: a screen whose 3,200 cells are all distinct measures 527 KiB pooled
+  and 527 KiB unpooled. No real screen looks like that, and the number states
+  the mechanism rather than qualifying it.
+
   Measured with `tracemalloc`, summing allocations made in
   `termproof/attributed.py` that are still alive once the run's results are in
   hand. A `sys.getsizeof` walk of the same objects reads higher — around 46-55
   MiB unshared depending on what the walk counts — because `getsizeof` on a
   key-sharing instance dict reports more than the allocator handed out. Same
-  conclusion, and the ratio is 12-16x on every method tried.
+  conclusion either way.
 
 [#175]: https://github.com/md-mt/termproof/issues/175
 

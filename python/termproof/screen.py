@@ -103,6 +103,23 @@ def capture_screen(session: Any) -> ScreenCapture:
     text, no window. A session with no ``screen_attributed`` falls back to its
     ``screen`` string and reports no grid, which is what keeps a third-party
     session backend working unchanged.
+
+    This is the *only* place in TermProof where a screen's text is derived from
+    a grid rather than taken from the source that produced it, and it is worth
+    knowing what that costs on each backend:
+
+    - **pty.** The grid comes from the same ``pyte.Screen`` :func:`screen_text`
+      flattens, so no parsing is involved and the two cannot disagree. Pinned by
+      ``test_grid_text_reproduces_the_flattening_a_pty_session_does``.
+    - **tmux.** The grid is parsed out of ``capture-pane -e`` while
+      ``TmuxSession.screen`` is what ``capture-pane`` returns already flat.
+      Here the derived text is only as good as
+      :func:`~termproof.attributed.attributed_screen_from_ansi_text`, so a gap
+      in that parser becomes corrupted evidence — which it did: an unhandled
+      OSC-8 hyperlink rendered its URL as visible text in both the ``.txt`` and
+      the screenshot. ``TmuxTextEquivalenceTest`` pins the two readings against
+      each other over every escape family, so a future gap fails a test rather
+      than a screenshot.
     """
     read_grid = getattr(session, "screen_attributed", None)
     grid = read_grid() if callable(read_grid) else None
