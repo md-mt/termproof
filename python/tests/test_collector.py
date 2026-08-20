@@ -11,7 +11,10 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
+from termproof import collector as collector_module
+from termproof import evidence as evidence_module
 from termproof.attributed import AttributedCell, AttributedScreen
 from termproof.collector import (
     CaptureKind,
@@ -24,7 +27,9 @@ from termproof.collector import (
     ScreenCapture,
     static_source,
 )
-from termproof.models import RunResult
+from termproof.config import EvidenceConfig
+from termproof.dedup import Deduper
+from termproof.models import RunResult, StepResult
 
 
 def _identity() -> RunIdentity:
@@ -399,6 +404,159 @@ class AttachToTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             manifest = self._manifest(tmpdir, _identity())
             self.assertEqual({"evidence_manifest": str(manifest.path)}, manifest.artifacts())
+
+
+class _NeverReuses:
+    """A deduper that says every screen needs rendering.
+
+    Substituted for the real one so that a caller keeping its own fingerprint
+    comparison on the side would still dedupe, and be caught doing it.
+    """
+
+    def __init__(self) -> None:
+        self.checked: list[str] = []
+
+    def check(self, label: str, screen: AttributedScreen) -> str | None:
+        self.checked.append(label)
+        return None
+
+    def forget(self) -> None:
+        pass
+
+
+class _AlwaysReuses:
+    """A deduper that says every screen matches, naming an image nothing wrote.
+
+    Nothing in the package could reach this verdict on its own — the screens it
+    is asked about differ — so a caller that reports it is taking the deduper's
+    word rather than deciding for itself.
+    """
+
+    SENTINEL = "sentinel.svg"
+
+    def __init__(self) -> None:
+        self.checked: list[str] = []
+
+    def check(self, label: str, screen: AttributedScreen) -> str | None:
+        self.checked.append(label)
+        return self.SENTINEL
+
+    def forget(self) -> None:
+        raise AssertionError("nothing was asked to render, so nothing can have failed")
+
+
+class SharedDedupTest(unittest.TestCase):
+    """Both publishing paths take their dedup verdict from :mod:`termproof.dedup`.
+
+    The rule used to be written out twice — once in ``EvidenceCollector.publish``
+    and once in ``evidence._render_step_screens`` — which is how the two could
+    disagree about what counts as a changed screen. These pin the delegation
+    itself, not just its current answers, so re-inlining either copy fails here
+    even if the re-inlined copy happens to be correct today.
+    """
+
+    DISTINCT_STEPS = [
+        StepResult("one", True, "", "screen one"),
+        StepResult("two", True, "", "screen two"),
+    ]
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+
+    def test_neither_module_has_a_deduper_of_its_own(self) -> None:
+        self.assertIs(Deduper, collector_module.Deduper)
+        self.assertIs(Deduper, evidence_module.Deduper)
+
+    def test_the_collector_dedupes_only_when_the_deduper_says_so(self) -> None:
+        stub = _NeverReuses()
+        renderer = _RecordingRenderer()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            collector = EvidenceCollector()
+            collector.capture_text("before", "same")
+            collector.capture_text("after", "same")
+            with mock.patch.object(collector_module, "Deduper", lambda: stub):
+                manifest = collector.publish(
+                    EvidencePublisher(
+                        directory=Path(tmpdir), identity=_identity(), renderer=renderer
+                    )
+                )
+
+        # Two byte-identical screens: the real deduper collapses them, and this
+        # one does not. Both images exist and neither step claims to reuse.
+        self.assertEqual(["before", "after"], stub.checked)
+        self.assertEqual(2, len(renderer.rendered))
+        self.assertEqual([], manifest.deduped())
+
+    def test_a_failed_render_forgets_through_the_deduper(self) -> None:
+        # `Deduper.forget` is how the collector says "the image you were told to
+        # make does not exist". Asserted here as a call, because the observable
+        # consequence is already covered above and would survive an inlined copy.
+        forgotten: list[bool] = []
+
+        class _Recording(Deduper):
+            def forget(self) -> None:
+                forgotten.append(True)
+                super().forget()
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            collector = EvidenceCollector()
+            collector.capture_text("one", "same")
+            collector.capture_text("two", "same")
+            with mock.patch.object(collector_module, "Deduper", _Recording):
+                manifest = collector.publish(
+                    EvidencePublisher(
+                        directory=Path(tmpdir),
+                        identity=_identity(),
+                        renderer=_FailingRenderer(),
+                    )
+                )
+
+        self.assertEqual([True, True], forgotten)
+        self.assertIsNone(manifest.steps[1].same_as)
+
+    def test_render_artifacts_reports_the_deduper_verdict(self) -> None:
+        stub = _AlwaysReuses()
+        renderer = _RecordingRenderer()
+        run_dir = Path(self._tmp.name)
+        with mock.patch.object(evidence_module, "Deduper", lambda: stub):
+            evidence_module._render_step_screens(
+                run_dir,
+                self.DISTINCT_STEPS,
+                80,
+                24,
+                renderer,
+                "svg",
+                EvidenceConfig(dedup_step_screenshots=True),
+            )
+
+        manifest = json.loads(
+            (run_dir / "steps" / evidence_module.STEPS_MANIFEST_NAME).read_text(
+                encoding="utf-8"
+            )
+        )
+        self.assertEqual(["01-one.svg", "02-two.svg"], stub.checked)
+        # The screens differ, so a module deciding for itself would render both.
+        self.assertEqual([], renderer.rendered)
+        self.assertEqual(
+            [_AlwaysReuses.SENTINEL] * 2, [entry["screenshot"] for entry in manifest]
+        )
+        self.assertEqual([True, True], [entry["unchanged_from_previous"] for entry in manifest])
+
+    def test_dedup_off_never_asks_the_deduper(self) -> None:
+        # `dedup_step_screenshots` is off by default and must stay a hard skip:
+        # a deduper consulted-then-ignored is a state machine advancing on a
+        # path where nothing reads it.
+        stub = _AlwaysReuses()
+        renderer = _RecordingRenderer()
+        run_dir = Path(self._tmp.name)
+        with mock.patch.object(evidence_module, "Deduper", lambda: stub):
+            evidence_module._render_step_screens(
+                run_dir, self.DISTINCT_STEPS, 80, 24, renderer, "svg", EvidenceConfig()
+            )
+
+        self.assertEqual([], stub.checked)
+        self.assertEqual(2, len(renderer.rendered))
 
 
 class CrossImplementationShapeTest(unittest.TestCase):

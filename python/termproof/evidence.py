@@ -1,10 +1,22 @@
 """Rendering the artifacts a finished run produced.
 
 Driven by a completed :class:`~termproof.models.RunResult`, whose step list the
-recipe fixed before the run started. A caller that decides what to capture
-*while* running — branching on what the screen shows — wants
-:mod:`termproof.collector` instead; see :ref:`collector-versus-evidence` there
-for what each writes and why they are not layered on one another.
+recipe fixed before the run started. This module owns the ``final.*``,
+``steps/`` and ``steps-manifest.json`` layout that
+:class:`~termproof.runner.TermProofRunner` writes and every existing reader of a
+run directory expects.
+
+A caller that decides what to capture *while* running — branching on what the
+screen shows — wants :class:`termproof.collector.EvidenceCollector` instead,
+which owns capture-as-you-go and writes its own ``evidence.json``. See
+:ref:`collector-versus-evidence` there for what each writes.
+
+Neither module owns the step-screenshot dedup: both ask
+:class:`termproof.dedup.Deduper`, which is the single copy of the rule in the
+package. This module additionally gates it on
+:attr:`~termproof.config.EvidenceConfig.dedup_step_screenshots` and records the
+verdict as ``unchanged_from_previous``; the collector dedupes unconditionally
+and records ``same_as``.
 """
 
 from __future__ import annotations
@@ -20,6 +32,7 @@ from typing import Any
 from .agg_bundle import resolve_agg
 from .attributed import AttributedScreen, attributed_screen_from_ansi_text
 from .config import EvidenceConfig, SvgRenderConfig, VideoConfig
+from .dedup import Deduper
 from .models import RunResult, StepResult
 from .screen import replay_cast_both
 
@@ -168,34 +181,36 @@ def _render_step_screens(
     step_dir = run_dir / "steps"
     step_dir.mkdir(parents=True, exist_ok=True)
     manifest: list[dict[str, Any]] = []
-    previous_fingerprint: str | None = None
-    previous_screenshot = ""
+    # The one implementation of the rule, shared with
+    # `EvidenceCollector.publish`. It fingerprints the grid the screenshot is
+    # rendered from rather than the text, so two steps share an image exactly
+    # when the image would be identical — a colour-only change is a change,
+    # which comparing `step.screen` as a string cannot express. Never consulted
+    # when dedup is off, so it holds no state to leak into that path.
+    deduper = Deduper()
     for index, step in enumerate(steps, start=1):
         safe_name = "".join(ch if ch.isalnum() or ch in "-_" else "-" for ch in step.name)
         path_base = step_dir / f"{index:02d}-{safe_name}"
         (path_base.with_suffix(".txt")).write_text(step.screen + "\n", encoding="utf-8")
         screenshot_path = path_base.with_suffix(f".{screenshot_ext}")
-        # Fingerprint the grid the screenshot is rendered from, not the text.
-        # Two steps then share an image exactly when the image would be
-        # identical — a colour-only change is a change, which comparing
-        # `step.screen` as a string cannot express.
-        #
         # `step.screen_attributed` is the grid the session reported at the
-        # moment of the step, and is what makes that distinction reachable: a
-        # grid rebuilt from `step.screen` can only be as colourful as the text,
-        # which for a flattened screen is not at all. Sessions that report no
-        # grid still land on the fallback, and still get their screenshot.
+        # moment of the step, and is what makes the colour distinction
+        # reachable: a grid rebuilt from `step.screen` can only be as colourful
+        # as the text, which for a flattened screen is not at all. Sessions that
+        # report no grid still land on the fallback, and still get their
+        # screenshot.
         screen = step.screen_attributed or attributed_screen_from_ansi_text(
             step.screen, columns=cols, rows=rows
         )
-        fingerprint = screen.render_fingerprint()
-        unchanged = dedup and fingerprint == previous_fingerprint
-        if unchanged:
+        # The label is the image filename, so the deduper's answer is directly
+        # the image this step reuses.
+        reused = deduper.check(screenshot_path.name, screen) if dedup else None
+        if reused is not None:
             # The step still happened and still has a screen; the manifest says
             # which already-written image represents it. Not dropped (that would
             # lose the step) and not symlinked (links do not survive artifact
             # upload).
-            screenshot_name = previous_screenshot
+            screenshot_name = reused
         else:
             _render_screen(
                 step.screen,
@@ -211,11 +226,9 @@ def _render_step_screens(
             {
                 "step": path_base.name,
                 "screenshot": screenshot_name,
-                "unchanged_from_previous": unchanged,
+                "unchanged_from_previous": reused is not None,
             }
         )
-        previous_fingerprint = fingerprint
-        previous_screenshot = screenshot_name
     if dedup:
         (step_dir / STEPS_MANIFEST_NAME).write_text(
             json.dumps(manifest, indent=2) + "\n", encoding="utf-8"
