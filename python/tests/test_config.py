@@ -254,6 +254,8 @@ class EvidenceConfigTest(unittest.TestCase):
             "Noto Sans Mono, Liberation Mono, monospace",
             evidence.svg.font_family,
         )
+        # No vector floor; the rasterisers apply their own, see RasterFloorTest.
+        self.assertEqual((0, 0), (evidence.svg.min_width, evidence.svg.min_height))
         self.assertEqual(
             (1, 18, 14, None, "#e6edf3", "#0b0f14"),
             (

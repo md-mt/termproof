@@ -5,7 +5,13 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 
 from .attributed import AttributedScreen, attributed_screen_from_ansi_text, screen_svg
-from .config import EvidenceConfig, PngRenderConfig, SvgRenderConfig
+from .config import (
+    RASTER_MIN_HEIGHT,
+    RASTER_MIN_WIDTH,
+    EvidenceConfig,
+    PngRenderConfig,
+    SvgRenderConfig,
+)
 from .protocols import ScreenRenderer as ScreenRenderer
 
 
@@ -89,8 +95,8 @@ class PngRenderer:
         char_width = max(9 * scale, bbox[2] - bbox[0])
         line_height = max(18 * scale, bbox[3] - bbox[1] + 6 * scale)
         padding = config.padding * scale
-        width = max(320 * scale, cols * char_width + padding * 2)
-        height = max(160 * scale, rows * line_height + padding * 2)
+        width = max(RASTER_MIN_WIDTH * scale, cols * char_width + padding * 2)
+        height = max(RASTER_MIN_HEIGHT * scale, rows * line_height + padding * 2)
         image = Image.new("RGB", (int(width), int(height)), config.bg)
         draw = ImageDraw.Draw(image)
 

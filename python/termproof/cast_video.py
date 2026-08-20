@@ -245,7 +245,9 @@ class RsvgFfmpegBackend:
 
         columns = max(frames[0].column_count, 1)
         rows = max(len(frames[0].rows), 1)
-        style = svg_config.style(columns, rows)
+        # Every frame goes through `rsvg-convert` at intrinsic size before it
+        # reaches ffmpeg, so this is a raster path and takes the raster floor.
+        style = svg_config.raster_style(columns, rows)
         with tempfile.TemporaryDirectory(prefix="termproof-frames-") as tmpdir:
             scratch = Path(tmpdir)
             previous: tuple[AttributedScreen, Path] | None = None

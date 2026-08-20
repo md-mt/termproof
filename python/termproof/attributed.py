@@ -327,11 +327,12 @@ class SvgStyle:
     font_family: str = FONT_STACK
     fg: str = DEFAULT_FG
     bg: str = DEFAULT_BG
-    # Opt-in canvas floors for a very small grid. Off by default, and no
-    # TermProof renderer turns them on: an SVG is resolution independent, so a
-    # floor only surrounds a small grid with dead background and breaks the
-    # otherwise exact `canvas == grid + 2 * padding` relation. They stay for a
-    # caller that rasterises at intrinsic size and wants a minimum.
+    # Opt-in canvas floors for a very small grid. Off by default: an SVG is
+    # resolution independent, so a floor only surrounds a small grid with dead
+    # background and breaks the otherwise exact `canvas == grid + 2 * padding`
+    # relation. A caller that rasterises at intrinsic size wants them, and
+    # every TermProof renderer that does sets them via
+    # `SvgRenderConfig.raster_style`.
     min_width: int = 0
     min_height: int = 0
 

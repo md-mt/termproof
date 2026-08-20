@@ -101,10 +101,16 @@ class RsvgPngRenderer:
         cols: int,
         rows: int,
     ) -> None:
-        """Rasterize an already-attributed grid, keeping every attribute."""
+        """Rasterize an already-attributed grid, keeping every attribute.
+
+        ``raster_style`` rather than ``style``: ``rsvg-convert`` is invoked with
+        no ``-w``/``-h``/``-z``, so it rasterises at intrinsic size and the PNG's
+        pixel dimensions are the SVG's ``width``/``height``. The canvas floor the
+        vector path does not want is exactly the floor this one does.
+        """
         executable = self.resolve_rsvg()
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        markup = screen_svg(screen, self.config.style(cols, rows))
+        markup = screen_svg(screen, self.config.raster_style(cols, rows))
         with tempfile.NamedTemporaryFile(
             mode="w",
             suffix=".svg",

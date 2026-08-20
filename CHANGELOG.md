@@ -96,7 +96,10 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
   | `font_family` | `ui-monospace,SFMono-Regular,Menlo,Consolas,monospace` | `Noto Sans Mono, Liberation Mono, monospace` (`FONT_STACK`) |
 
   A 120x40 screen was 1116x836 and is now 1220x900. `fg` did not move. To keep
-  the old output exactly, pin all six in `.termproof/config.yaml`:
+  the old output exactly, pin all six in `.termproof/config.yaml` — **and, if
+  any screen is narrower than 32 columns or shorter than 7 rows, the two floor
+  keys with them**, because below that the old canvas was 320x160 and the six
+  above cannot restore it on their own:
 
   ```yaml
   evidence:
@@ -107,7 +110,13 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
       padding: 18
       bg: "#101418"
       font_family: "ui-monospace,SFMono-Regular,Menlo,Consolas,monospace"
+      # Only needed below 32 columns or 7 rows, where the old floor bound.
+      min_width: 320
+      min_height: 160
   ```
+
+  `min_width`/`min_height` are new `evidence.svg` keys, added so that recipe is
+  exact at every grid size — see the floor entry below.
 
   Note that pinning `font_family` restores a stack naming three fonts that
   exist on macOS and Windows and none that exist on a stock Linux image. It
@@ -119,15 +128,28 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
   `char_width` and `line_height` are now typed `float` rather than `int`, which
   widens what they accept; an integer in YAML still loads.
 
-- **The SVG canvas has no minimum size.** `SvgRenderConfig.style()` used to set
-  `min_width: 320, min_height: 160` while `SvgStyle`'s own defaults were `0` —
-  a third disagreement, invisible at 120x40 because the floors do not bind
-  there. Both paths are floorless now, so the canvas is exactly
-  `grid + 2 * padding` at any size: a 3x2 grid renders 50x64, not 320x160. The
-  `min_width`/`min_height` fields stay on `SvgStyle` for a caller that
-  rasterises at intrinsic size and wants a floor. `PngRenderer` keeps its
-  320x160 floor, because a PNG is a fixed pixel count rather than a scalable
-  document.
+- **The SVG canvas has no minimum size; every rasterised one still does.**
+  `SvgRenderConfig.style()` used to set `min_width: 320, min_height: 160` while
+  `SvgStyle`'s own defaults were `0` — a third disagreement, invisible at 120x40
+  because the floors do not bind there. The vector path is floorless now, so an
+  SVG is exactly `grid + 2 * padding` at any size: a 3x2 grid renders 50x64, not
+  320x160. A viewer scales an SVG, so a floor there only surrounds a small grid
+  with dead background.
+
+  That argument stops at the rasterisers, and all three keep the 320x160 floor
+  they had: `PngRenderer`, the `png_rsvg` renderer, and the `attributed_rsvg`
+  video backend. The last two call `rsvg-convert` with no `-w`/`-h`/`-z`, so it
+  renders at intrinsic size and the PNG's pixel dimensions *are* the SVG's
+  `width`/`height` — a 20x4 grid would have become a 220x108 postage stamp.
+  `SvgRenderConfig.raster_style()` is the one place that floor is applied and
+  `RASTER_MIN_WIDTH`/`RASTER_MIN_HEIGHT` in `termproof.config` are the one place
+  the two numbers are written down, `PngRenderer` included.
+
+- **`evidence.svg.min_width` and `evidence.svg.min_height` are new keys**, both
+  defaulting to `0`. They make every `SvgStyle` field reachable from YAML, which
+  is what lets the pin-the-old-output recipe above be exact below the old floor.
+  On a raster renderer they raise the floor but cannot lower it below
+  320x160.
 
 - **`evidence.png.fg` and `evidence.png.bg` follow the same palette**, moving
   `bg` from `#101418` to `#0b0f14`, so the PNG and SVG screenshots of one run
@@ -146,6 +168,12 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
   it. `python/README.md` points at that dict as the documentation of every
   knob, so it could not be allowed to drift from the values a renderer applies.
 
+- An out-of-range `evidence` value now reports its bound —
+  `evidence.svg.char_width must be at least 1, got 0.5` — rather than naming a
+  class of number. `char_width` and `line_height` accept a float, so the old
+  "must be a positive integer" was wrong for them, and `0.5` satisfies
+  "positive" while still being refused.
+
 ### Rust — Changed
 
 - Nothing. `SvgMetrics` in `terminal::attributed` already took every default
@@ -154,7 +182,17 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
   restating them, and the Rust stack was already the Linux-first one — the
   Python defaults moved *onto* the values Rust has been rendering all along.
   The two implementations agree on SVG geometry for the first time. Rust has no
-  `min_width`/`min_height` concept, which is the behaviour both now have.
+  `min_width`/`min_height` concept, which is the behaviour both now have on the
+  vector path.
+
+  Rust's raster path is *not* floored, and was not before this change either:
+  `ScreenshotRenderer::render` and `CastVideoConverter` both invoke
+  `rsvg-convert --output <png> <svg>` with no `-w`/`-h`/`-z`, so a small grid
+  rasterises small. Python's raster renderers have floored at 320x160 since
+  they existed, so the two already disagreed here; this release restores that
+  status quo rather than changing it. Giving `SvgMetrics` a raster floor to
+  match is worth doing and is deliberately not done here — it would be a Rust
+  behaviour change in a release whose Rust half is otherwise untouched.
 
 ## [0.4.0] — 2026-08-19
 

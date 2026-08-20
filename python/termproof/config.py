@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import math
-from dataclasses import asdict, dataclass, field, fields
+from dataclasses import asdict, dataclass, field, fields, replace
 from pathlib import Path
 from typing import Any, get_args, get_type_hints
 
@@ -41,6 +41,17 @@ class DockerBackendConfig:
     env: dict[str, str] = field(default_factory=dict)
 
 
+# Smallest useful rasterised screenshot, in pixels. A PNG is a fixed pixel
+# count, so below roughly this a screenshot stops being readable evidence; an
+# SVG is resolution independent and needs no floor, which is why this lives
+# here rather than in the canonical geometry. Every renderer that turns the
+# markup into pixels applies it: ``PngRenderer`` directly, and the two that
+# rasterise the SVG at its intrinsic size through ``SvgRenderConfig``'s
+# :meth:`~SvgRenderConfig.raster_style`.
+RASTER_MIN_WIDTH = 320
+RASTER_MIN_HEIGHT = 160
+
+
 @dataclass(frozen=True)
 class SvgRenderConfig:
     """The ``evidence.svg`` YAML section: SVG geometry as a *run* configures it.
@@ -65,17 +76,21 @@ class SvgRenderConfig:
     font_family: str = FONT_STACK
     fg: str = DEFAULT_FG
     bg: str = DEFAULT_BG
+    min_width: int = 0
+    min_height: int = 0
 
     def style(self, cols: int, rows: int) -> SvgStyle:
-        """Geometry for a *cols* x *rows* grid, shared by every SVG-backed renderer.
+        """Vector geometry for a *cols* x *rows* grid, for an SVG-emitting renderer.
 
-        No canvas floor. ``SvgStyle.min_width``/``min_height`` stay at their own
-        default of zero, so a three-row screen renders a three-row canvas rather
-        than a three-row grid marooned in a 320x160 field. An SVG is resolution
-        independent — a viewer scales it — so a floor buys nothing there and
-        costs the guarantee that the canvas is exactly grid plus padding. The
-        raster path keeps its floor, in ``PngRenderer``, because a PNG is a
-        fixed pixel count and a 40x60 one really is unreadable.
+        No canvas floor unless one is asked for: ``min_width``/``min_height``
+        default to zero, as they do on ``SvgStyle``, so a three-row screen
+        renders a three-row canvas rather than a three-row grid marooned in a
+        320x160 field. An SVG is resolution independent — a viewer scales it —
+        so a floor buys nothing there and costs the guarantee that the canvas
+        is exactly grid plus padding.
+
+        A renderer that turns this into pixels wants :meth:`raster_style`
+        instead, where that reasoning does not hold.
         """
         return SvgStyle(
             columns=cols,
@@ -87,6 +102,25 @@ class SvgRenderConfig:
             font_family=self.font_family,
             fg=self.fg,
             bg=self.bg,
+            min_width=self.min_width,
+            min_height=self.min_height,
+        )
+
+    def raster_style(self, cols: int, rows: int) -> SvgStyle:
+        """:meth:`style`, floored at :data:`RASTER_MIN_WIDTH` x :data:`RASTER_MIN_HEIGHT`.
+
+        For a renderer that rasterises the markup at its intrinsic size —
+        ``rsvg-convert`` with no ``-w``/``-h``/``-z`` gives a PNG whose pixel
+        dimensions are the SVG's ``width``/``height`` attributes, so the vector
+        path's "a viewer will scale it" argument does not reach it. The floor is
+        a hard lower bound rather than a default, which is how ``PngRenderer``
+        has always applied the same two numbers.
+        """
+        floored = self.style(cols, rows)
+        return replace(
+            floored,
+            min_width=max(floored.min_width, RASTER_MIN_WIDTH),
+            min_height=max(floored.min_height, RASTER_MIN_HEIGHT),
         )
 
 
@@ -336,6 +370,8 @@ _EVIDENCE_MINIMUMS: dict[str, int] = {
     "evidence.svg.line_height": 1,
     "evidence.svg.font_size": 1,
     "evidence.svg.padding": 0,
+    "evidence.svg.min_width": 0,
+    "evidence.svg.min_height": 0,
     "evidence.png.scale": 1,
     "evidence.png.font_size": 1,
     "evidence.png.padding": 0,
@@ -348,15 +384,15 @@ _EVIDENCE_MINIMUMS: dict[str, int] = {
 def _check_field_range(label: str, name: str, value: Any) -> None:
     """Reject an out-of-range size or rate, naming the key as the type check does.
 
-    Range only; the type is `_check_field_type`'s job. ``char_width`` and
-    ``line_height`` take a float, so a message about integers would be wrong
-    for them and there is nothing this check needs to say about the type.
+    Range only; the type is `_check_field_type`'s job. The message names the
+    bound rather than a class of number: ``char_width`` and ``line_height`` take
+    a float, so "a positive integer" would be wrong for them, and "positive"
+    would be a rule ``char_width: 0.5`` satisfies while still being refused.
     """
     minimum = _EVIDENCE_MINIMUMS.get(f"{label}.{name}")
     if minimum is None or value is None or value >= minimum:
         return
-    wording = "positive" if minimum == 1 else "nonnegative"
-    raise ValueError(f"{label}.{name} must be {wording}, got {value!r}")
+    raise ValueError(f"{label}.{name} must be at least {minimum}, got {value!r}")
 
 
 def _mapping(raw: Any, label: str) -> dict[str, Any]:
