@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib.util
 import json
 import subprocess
 import tempfile
@@ -7,13 +8,16 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from termproof.attributed import AttributedCell, AttributedScreen
+from termproof.attributed import AttributedCell, AttributedScreen, attributed_screen_from_text
 from termproof.cast_video import (
+    DEFAULT_CHECKPOINT_HOLD,
     DEFAULT_IDLE_TIME_LIMIT,
     RsvgFfmpegBackend,
+    append_checkpoint_frames,
     frames_from_cast,
     read_cast,
 )
+from termproof.collector import CapturedStep, CaptureKind
 from termproof.config import SvgRenderConfig, VideoConfig
 
 
@@ -317,6 +321,166 @@ class RsvgFfmpegBackendTest(unittest.TestCase):
 
         backend = RsvgFfmpegBackend.from_config(EvidenceConfig(video=VideoConfig(idle_time_limit=3.0)))
         self.assertEqual(3.0, backend.idle_time_limit)
+
+
+#: Replaying an appended cast through the real emulator is the strongest check
+#: on it, and the only one here that needs a third-party package. Skipped rather
+#: than dropped so `scripts/run_stdlib_tests.py`, which installs nothing, still
+#: runs everything else in this class.
+requires_pyte = unittest.skipUnless(importlib.util.find_spec("pyte"), "pyte is not installed")
+
+
+def _step(
+    index: int, label: str, screen: str, kind: CaptureKind = CaptureKind.CHECKPOINT
+) -> CapturedStep:
+    return CapturedStep(
+        index=index,
+        label=label,
+        kind=kind,
+        screen=screen,
+        attributed=attributed_screen_from_text(screen, columns=80, rows=24),
+    )
+
+
+class AppendCheckpointFramesTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.tmp = Path(self._tmp.name)
+        self.cast = self.tmp / "session.cast"
+
+    def _events(self) -> list[tuple[float, str]]:
+        """Every event in the cast as ``(timestamp, data)``, header dropped."""
+        lines = self.cast.read_text(encoding="utf-8").splitlines()
+        parsed = [json.loads(line) for line in lines[1:]]
+        return [(event[0], event[2]) for event in parsed]
+
+    def test_checkpoints_are_appended_in_capture_order(self) -> None:
+        _write_cast(self.cast, [(0.5, "live")])
+        steps = [_step(0, "one", "first"), _step(1, "two", "second")]
+        self.assertEqual(2, append_checkpoint_frames(self.cast, steps))
+
+        events = self._events()
+        # The session's own event, the two checkpoints, and the closing hold.
+        self.assertEqual(4, len(events))
+        self.assertEqual("live", events[0][1])
+        self.assertTrue(events[1][1].endswith("first"), events[1][1])
+        self.assertTrue(events[2][1].endswith("second"), events[2][1])
+        self.assertEqual("\x1b[m", events[3][1])
+
+    def test_timestamps_continue_from_the_session_and_only_increase(self) -> None:
+        _write_cast(self.cast, [(0.5, "a"), (2.25, "b")])
+        steps = [_step(0, "one", "first"), _step(1, "two", "second")]
+        append_checkpoint_frames(self.cast, steps, hold_seconds=1.5)
+
+        times = [at for at, _ in self._events()]
+        self.assertEqual([0.5, 2.25, 3.75, 5.25, 6.75], times)
+        self.assertTrue(all(b > a for a, b in zip(times, times[1:], strict=False)))
+
+    def test_the_hold_is_the_gap_between_frames_and_defaults(self) -> None:
+        _write_cast(self.cast, [(0.0, "a")])
+        steps = [_step(0, "one", "first"), _step(1, "two", "second")]
+        append_checkpoint_frames(self.cast, steps)
+
+        hold = DEFAULT_CHECKPOINT_HOLD
+        # The last checkpoint is held as long as the ones before it, which is
+        # what the closing event is for.
+        self.assertEqual([0.0, hold, 2 * hold, 3 * hold], [at for at, _ in self._events()])
+
+    def test_no_checkpoints_is_a_silent_no_op(self) -> None:
+        _write_cast(self.cast, [(0.0, "a")])
+        before = self.cast.read_text(encoding="utf-8")
+        self.assertEqual(0, append_checkpoint_frames(self.cast, []))
+        self.assertEqual(before, self.cast.read_text(encoding="utf-8"))
+
+        # No-op, not merely harmless: a run that captured nothing must not
+        # fail, and must not need the cast to be there to be told so.
+        self.assertEqual(0, append_checkpoint_frames(self.tmp / "absent.cast", []))
+
+    @requires_pyte
+    def test_the_appended_cast_still_replays(self) -> None:
+        _write_cast(self.cast, [(0.0, "live")])
+        steps = [_step(0, "one", "first"), _step(1, "two", "second")]
+        append_checkpoint_frames(self.cast, steps)
+
+        # Replaying it is the strongest statement that it is still a cast: the
+        # player parses the header, every event and every payload.
+        painted = [f.text_lines(trim_right=True)[0] for f in frames_from_cast(self.cast)]
+        self.assertEqual("second", painted[-1])
+        self.assertIn("live", painted)
+        self.assertLess(painted.index("first"), painted.index("second"))
+
+    def test_the_appended_cast_is_still_a_v2_cast(self) -> None:
+        _write_cast(self.cast, [(0.0, "live")])
+        steps = [_step(0, "one", "first"), _step(1, "two", "second")]
+        append_checkpoint_frames(self.cast, steps)
+
+        header, events = read_cast(self.cast)
+        self.assertEqual(2, header["version"])
+        self.assertEqual(80, header["width"])
+        # The header is untouched and every line under it still reads as an
+        # output event: the session's, the two checkpoints, and the hold.
+        self.assertEqual(4, len(list(events)))
+
+    @requires_pyte
+    def test_a_multi_line_screen_is_repainted_row_by_row(self) -> None:
+        # A cast payload goes to a raw terminal, where a bare newline drops a
+        # row without returning the carriage and the screen comes back as a
+        # staircase.
+        _write_cast(self.cast, [(0.0, "live")])
+        append_checkpoint_frames(self.cast, [_step(0, "menu", "MENU\nitem")])
+
+        text = frames_from_cast(self.cast)[-1].text_lines(trim_right=True)
+        self.assertEqual("MENU", text[0])
+        self.assertEqual("item", text[1])
+
+    @requires_pyte
+    def test_a_checkpoint_paints_over_the_screen_before_it(self) -> None:
+        # Each screen is a whole picture, so a shorter one must not leave the
+        # tail of a longer one behind it.
+        _write_cast(self.cast, [(0.0, "live")])
+        steps = [_step(0, "long", "abcdefgh"), _step(1, "short", "xy")]
+        append_checkpoint_frames(self.cast, steps)
+
+        self.assertEqual("xy", frames_from_cast(self.cast)[-1].text_lines(trim_right=True)[0])
+
+    @requires_pyte
+    def test_the_failure_screen_is_appended_too(self) -> None:
+        # The frame a reviewer most wants held is the one the run died on.
+        _write_cast(self.cast, [(0.0, "live")])
+        steps = [_step(0, "ok", "fine"), _step(1, "boom", "ERROR", CaptureKind.FAILURE)]
+        self.assertEqual(2, append_checkpoint_frames(self.cast, steps))
+
+        self.assertEqual("ERROR", frames_from_cast(self.cast)[-1].text_lines(trim_right=True)[0])
+
+    def test_a_cast_missing_its_final_newline_is_not_spliced(self) -> None:
+        # A recorder killed mid-write leaves one; appending blind would fuse
+        # two events into one unparseable line.
+        header = json.dumps({"version": 2, "width": 80, "height": 24})
+        self.cast.write_text(f"{header}\n[0.0, \"o\", \"a\"]", encoding="utf-8")
+
+        append_checkpoint_frames(self.cast, [_step(0, "one", "first")])
+        self.assertEqual(3, len(self._events()))
+
+    def test_a_hold_that_would_stall_the_timestamps_is_rejected(self) -> None:
+        _write_cast(self.cast, [(0.0, "a")])
+        steps = [_step(0, "one", "first")]
+        for bad in (0.0, -1.0, float("nan"), float("inf")):
+            with self.subTest(hold=bad):
+                with self.assertRaises(ValueError):
+                    append_checkpoint_frames(self.cast, steps, hold_seconds=bad)
+        # Rejected before anything was written.
+        self.assertEqual(1, len(self._events()))
+
+    def test_the_event_encoder_is_pinned_to_what_rust_emits(self) -> None:
+        # The Rust implementation writes these same lines with `serde_json`:
+        # compact separators, non-ASCII left as UTF-8. Python's defaults are
+        # neither, so the encoder is pinned and this is what holds it there.
+        _write_cast(self.cast, [(0.0, "a")])
+        append_checkpoint_frames(self.cast, [_step(0, "unicode", "héllo")], hold_seconds=1.0)
+
+        appended = self.cast.read_text(encoding="utf-8").splitlines()[-2]
+        self.assertEqual('[1.0,"o","\\u001b[m\\u001b[H\\u001b[2Jhéllo"]', appended)
 
 
 if __name__ == "__main__":

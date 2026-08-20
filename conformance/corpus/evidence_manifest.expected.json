@@ -1,5 +1,6 @@
 {
   "files": {
+    "session-with-checkpoints.cast": "{\"version\":2,\"width\":80,\"height\":24}\n[0.5,\"o\",\"MENU\"]\n[1.25,\"o\",\"\\r\\nitem one\"]\n[4.25,\"o\",\"\\u001b[m\\u001b[H\\u001b[2JMENU\\r\\nitem one\"]\n[7.25,\"o\",\"\\u001b[m\\u001b[H\\u001b[2JMENU\\r\\nitem one\"]\n[10.25,\"o\",\"\\u001b[m\\u001b[H\\u001b[2JRECOVERED\"]\n[13.25,\"o\",\"\\u001b[m\\u001b[H\\u001b[2JLAST SCREEN\"]\n[16.25,\"o\",\"\\u001b[m\\u001b[H\\u001b[2JERROR\"]\n[19.25,\"o\",\"\\u001b[m\\u001b[H\\u001b[2J\\u001b[31mALERT\\u001b[0m\"]\n[22.25,\"o\",\"\\u001b[m\\u001b[H\\u001b[2JALERT\"]\n[25.25,\"o\",\"\\u001b[m\"]\n",
     "step-00-menu-open.png": "png",
     "step-00-menu-open.txt": "MENU\nitem one",
     "step-01-menu-open-again.txt": "MENU\nitem one",

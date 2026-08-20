@@ -12,6 +12,11 @@ is not agreeing on the files. The first run of this harness found the two
 implementations writing byte-identical manifests pointing at step text files
 that differed by a trailing newline.
 
+The same reasoning covers the cast this writes into the publish directory: a
+manifest agreeing about a recording's path is not agreeing about the recording,
+and once ``append_checkpoint_frames`` puts the evidence sequence on the end of
+one, the cast is the artifact a reviewer actually watches.
+
 The scenario is not a corpus file, unlike the step and assertion harnesses.
 There is only one document shape to compare and it is built by calling an API
 rather than by replaying data, so the cases are the code below and the Rust
@@ -37,6 +42,7 @@ from pathlib import Path
 sys.path.insert(0, os.environ.get("TERMPROOF_PYTHON_REPO", str(Path(__file__).parent.parent / "python")))
 
 from termproof.attributed import AttributedScreen  # noqa: E402
+from termproof.cast_video import append_checkpoint_frames  # noqa: E402
 from termproof.collector import (  # noqa: E402
     MANIFEST_FILE,
     CaptureKind,
@@ -50,6 +56,15 @@ from termproof.collector import (  # noqa: E402
 #: Stands in for the publish directory, which differs on every machine and
 #: between the two halves.
 DIRECTORY_PLACEHOLDER = "@DIR"
+
+#: A recorded session for the checkpoint frames to be appended to. Written out
+#: by hand rather than by a recorder: a real header carries a wall-clock
+#: timestamp and the host's ``SHELL`` and ``TERM``, none of which either
+#: implementation controls.
+BASE_CAST = '{"version":2,"width":80,"height":24}\n[0.5,"o","MENU"]\n[1.25,"o","\\r\\nitem one"]\n'
+
+#: Filename for that cast inside the publish directory.
+CHECKPOINT_CAST = "session-with-checkpoints.cast"
 
 IDENTITY = RunIdentity(
     recipe_name="login",
@@ -130,6 +145,15 @@ def build(directory: Path) -> tuple[dict[str, object], dict[str, str]]:
         )
     )
     document = json.loads(manifest.path.read_text(encoding="utf-8"))
+
+    # The evidence sequence written onto the end of a recording. Every captured
+    # screen above goes in, including the SGR-escaped one and the two-line one,
+    # so the appended payloads exercise both JSON escaping and the carriage
+    # returns a raw terminal needs.
+    cast = directory / CHECKPOINT_CAST
+    cast.write_text(BASE_CAST, encoding="utf-8")
+    append_checkpoint_frames(cast, collector.steps)
+
     # `evidence.json` is excluded: it is `document`, and recording it twice
     # would let the two copies disagree.
     files = {

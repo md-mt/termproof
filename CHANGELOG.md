@@ -54,6 +54,20 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
   in `test_text_can_be_captured_without_a_source` rather than only being
   exercised.
 
+### Python — Added
+
+- **`termproof.cast_video.append_checkpoint_frames`:** appends the captured
+  checkpoint screens to a cast as held trailing frames, so a recording ends by
+  replaying the evidence sequence instead of stopping on whatever the last
+  keystroke painted — one artifact to watch rather than fifteen stills to open.
+  Each screen repaints the whole grid and is held for `hold_seconds`, defaulting
+  to the three of `DEFAULT_CHECKPOINT_HOLD`. It appends only: the header and
+  every recorded event are left as the session wrote them, and the new
+  timestamps continue from the last one in the file rather than restarting at
+  zero, so the result is still a valid asciinema v2 cast. A run that captured
+  nothing is a silent no-op, and nothing about it needs the session to still be
+  running.
+
 ### Python — Changed
 
 - **evidence:** the step-screenshot dedup was written out twice — once in
@@ -178,6 +192,15 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
   "must be a positive integer" was wrong for them, and `0.5` satisfies
   "positive" while still being refused.
 
+### Rust — Added
+
+- **`evidence::cast_video::append_checkpoint_frames`:** the same capability with
+  the same semantics, taking `hold_seconds: Option<f64>` where Python takes a
+  defaulted keyword and returning `Err` where Python raises `ValueError`. The
+  two write byte-identical events for the same screens: the Python encoder is
+  pinned to `serde_json`'s compact, raw-UTF-8 shape, and the evidence-manifest
+  conformance pair now compares an appended cast alongside the step files.
+
 ### Rust — Changed
 
 - Nothing. `SvgMetrics` in `terminal::attributed` already took every default
@@ -195,8 +218,8 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
   rasterises small. Python's raster renderers have floored at 320x160 since
   they existed, so the two already disagreed here; this release restores that
   status quo rather than changing it. Giving `SvgMetrics` a raster floor to
-  match is worth doing and is deliberately not done here — it would be a Rust
-  behaviour change in a release whose Rust half is otherwise untouched.
+  match is worth doing and is deliberately not done here — it would change what
+  Rust renders, in a release that changes no other Rust rendering behaviour.
 
 ## [0.4.0] — 2026-08-19
 

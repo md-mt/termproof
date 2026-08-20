@@ -399,6 +399,16 @@ A manifest is a set of paths, and agreeing on paths is not agreeing on files.
 Python was changed to match Rust, which writes what an assertion was actually
 evaluated against with nothing added to it.
 
+The same reasoning brought a cast into the scenario. After publishing, each half
+writes a fixed asciinema v2 file into the publish directory and runs
+`append_checkpoint_frames` over the captured steps, so the appended evidence
+sequence is compared byte-for-byte along with the step text. A manifest agreeing
+about a recording's path is not agreeing about the recording, and the cast is
+what a reviewer actually watches. It also holds the two event encoders together:
+`serde_json` writes compact separators and raw UTF-8, and Python's `json`
+defaults to neither, so the Python side pins both explicitly and this is what
+would catch it drifting back.
+
 ## What is deliberately neutralised
 
 Two things in the scenario are properties of the machine rather than of either

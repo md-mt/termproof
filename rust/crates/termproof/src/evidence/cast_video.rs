@@ -22,14 +22,25 @@
 //! exists for, and reimplementing it on `vt100` would be rebuilding a player to
 //! avoid a dependency the format's own tooling uses. Stated here rather than
 //! left for a reviewer to notice.
+//!
+//! # Trailing checkpoint frames
+//!
+//! [`append_checkpoint_frames`] writes the captured screens onto the end of a
+//! cast as held frames, so the recording finishes by replaying the evidence
+//! sequence instead of stopping on whatever the last keystroke painted. It is
+//! the reason a reviewer watches one artifact rather than opening fifteen
+//! stills, and it works on a closed cast — nothing about it needs the session
+//! that produced the file to still be running.
 
 use std::fs;
+use std::io::Write;
 use std::path::Path;
 use std::process::Command;
 use std::time::Duration;
 
 use avt::Vt;
 
+use crate::evidence::collector::CapturedStep;
 use crate::terminal::attributed::palette_color;
 use crate::terminal::attributed::rgb_color;
 use crate::terminal::attributed::screen_svg;
@@ -49,6 +60,29 @@ const RSVG_CONVERT: &str = "/usr/bin/rsvg-convert";
 const FFMPEG: &str = "/usr/local/bin/ffmpeg";
 const RSVG_TIMEOUT: Duration = Duration::from_secs(30);
 const FFMPEG_TIMEOUT: Duration = Duration::from_secs(120);
+
+/// Seconds an appended checkpoint screen stays up before the next one paints.
+///
+/// Long enough to read a screen of terminal text, short enough that fifteen of
+/// them are still a recording someone sits through. The same three seconds
+/// `agg --last-frame-duration` and the Python `DEFAULT_CHECKPOINT_HOLD` use, so
+/// a recording's closing hold does not change pace depending on who wrote it.
+pub const DEFAULT_CHECKPOINT_HOLD: f64 = 3.0;
+
+/// Repaint the whole grid: reset the pen, home the cursor, clear the screen.
+///
+/// A checkpoint screen is a complete picture, not a delta, so it is painted
+/// over whatever the previous frame left rather than after it.
+const REPAINT_PREFIX: &str = "\x1b[m\x1b[H\x1b[2J";
+
+/// Written once after the last checkpoint, purely to keep the recording
+/// running for one more hold.
+///
+/// A cast ends at its final event, so without this the last screen — the one
+/// the run ended on, and the one a reviewer skipped to the end for — would
+/// flash for an instant instead of being held like every screen before it. An
+/// SGR reset is the cheapest event that changes nothing on screen.
+const HOLD_TERMINATOR: &str = "\x1b[m";
 
 /// `(executable, args, timeout)` -> `Ok(())` or an error message.
 pub type ToolRunner = Box<dyn Fn(&str, &[String], Duration) -> Result<(), String> + Send + Sync>;
@@ -291,6 +325,119 @@ impl CastVideoConverter {
     }
 }
 
+/// Append each captured screen to `cast_path` as a held trailing frame.
+///
+/// A cast stops at whatever the last keystroke painted, which is rarely the
+/// evidence — the checkpoints that made the run reviewable have already
+/// scrolled away by then. This writes them back onto the end, in capture
+/// order, each one repainting the whole grid and held for `hold_seconds`
+/// (default [`DEFAULT_CHECKPOINT_HOLD`]) before the next. A reviewer then
+/// watches one recording instead of opening every still beside it.
+///
+/// Returns how many frames were appended. An empty `steps` is a silent no-op:
+/// the file is not opened, let alone rewritten.
+///
+/// # What it does to the file
+///
+/// Appends only. The header and every recorded event are left exactly as the
+/// session wrote them, and the new events carry on from the last timestamp in
+/// the file rather than restarting at zero, so the result is still a valid
+/// asciinema v2 cast with timestamps that only increase. The session does not
+/// have to be running — this reads and appends to a closed file, which is what
+/// lets it run after `close()` has already reported the exit code.
+///
+/// Every captured step is appended, [`CaptureKind::Failure`](crate::evidence::CaptureKind)
+/// included. A run's failure screen is the frame a reviewer most wants held,
+/// so filtering by kind would drop exactly the wrong one.
+///
+/// The first checkpoint lands one hold after the session's final event, which
+/// leaves the live ending on screen for a beat before the replay starts.
+///
+/// # Errors
+///
+/// If the cast cannot be read or appended to, if it has no header line, or if
+/// `hold_seconds` is not a positive, finite number of seconds — a hold that is
+/// not would stall or reverse the timestamps this promises to keep increasing.
+pub fn append_checkpoint_frames(
+    cast_path: &str,
+    steps: &[CapturedStep],
+    hold_seconds: Option<f64>,
+) -> Result<usize, String> {
+    if steps.is_empty() {
+        return Ok(0);
+    }
+    let hold = hold_seconds.unwrap_or(DEFAULT_CHECKPOINT_HOLD);
+    if !hold.is_finite() || hold <= 0.0 {
+        return Err(format!(
+            "checkpoint hold must be a positive number of seconds, got {hold}"
+        ));
+    }
+
+    let contents = fs::read_to_string(cast_path).map_err(|e| e.to_string())?;
+    let mut lines = contents.lines();
+    lines.next().ok_or("empty cast file")?;
+    let last_event_at = last_event_time(lines);
+
+    let mut appended = String::new();
+    // A cast written by a crashed recorder can lack its final newline, and
+    // appending to it blind would splice two events into one unparseable line.
+    if !contents.ends_with('\n') {
+        appended.push('\n');
+    }
+    for (offset, step) in steps.iter().enumerate() {
+        let at = last_event_at + hold * (offset + 1) as f64;
+        appended.push_str(&cast_event_line(at, &repaint(&step.screen))?);
+    }
+    let end = last_event_at + hold * (steps.len() + 1) as f64;
+    appended.push_str(&cast_event_line(end, HOLD_TERMINATOR)?);
+
+    let mut file = fs::OpenOptions::new()
+        .append(true)
+        .open(cast_path)
+        .map_err(|e| e.to_string())?;
+    file.write_all(appended.as_bytes())
+        .map_err(|e| e.to_string())?;
+    Ok(steps.len())
+}
+
+/// The latest timestamp already in the cast, so the appended frames continue
+/// from the session instead of restarting at zero.
+///
+/// The largest rather than the last: a cast is written in order, but reading
+/// the maximum costs nothing and keeps the monotonicity promise even against a
+/// file some other tool has already appended to out of order.
+fn last_event_time<'a>(lines: impl Iterator<Item = &'a str>) -> f64 {
+    lines
+        .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
+        .filter_map(|event| event.get(0).and_then(|v| v.as_f64()))
+        .filter(|at| at.is_finite())
+        .fold(0.0_f64, f64::max)
+}
+
+/// One screen's worth of output data: a full repaint, with the newlines a
+/// terminal needs rather than the ones a text file has.
+fn repaint(screen: &str) -> String {
+    format!(
+        "{REPAINT_PREFIX}{}",
+        screen.replace("\r\n", "\n").replace('\n', "\r\n")
+    )
+}
+
+/// Serialise one `[timestamp, "o", data]` event, newline included.
+///
+/// The Python implementation writes these same lines, and pins its encoder to
+/// `serde_json`'s shape — compact separators, raw UTF-8 — so the two produce
+/// the same bytes for the same screens and the conformance pair can compare
+/// them literally.
+fn cast_event_line(at: f64, data: &str) -> Result<String, String> {
+    // Six decimals, matching what the recorders on both sides write, so the
+    // appended lines do not carry more precision than the ones above them.
+    let at = (at * 1e6).round() / 1e6;
+    let event = serde_json::json!([at, "o", data]);
+    let line = serde_json::to_string(&event).map_err(|e| e.to_string())?;
+    Ok(format!("{line}\n"))
+}
+
 /// Build an attributed screen from an `avt` grid.
 ///
 /// Lives here rather than in [`crate::terminal`] so that module stays
@@ -370,6 +517,8 @@ mod tests {
     use std::sync::Mutex;
 
     use super::*;
+    use crate::evidence::CaptureKind;
+    use crate::terminal::attributed::attributed_screen_from_text;
 
     fn cast_with(events: &str) -> (tempfile::TempDir, String) {
         let dir = tempfile::tempdir().unwrap();
@@ -560,6 +709,198 @@ mod tests {
         let expected = screen_svg(&frames("[0.0, \"o\", \"hi\"]\n")[0], &conv.metrics());
         let seen = seen.lock().expect("poisoned");
         assert_eq!(seen.first().map(String::as_str), Some(expected.as_str()));
+    }
+
+    // -- Trailing checkpoint frames -----------------------------------------
+
+    fn step(index: usize, label: &str, screen: &str, kind: CaptureKind) -> CapturedStep {
+        CapturedStep {
+            index,
+            label: label.to_string(),
+            kind,
+            screen: screen.to_string(),
+            attributed: attributed_screen_from_text(screen, 10, 3),
+            raw_output: None,
+        }
+    }
+
+    fn checkpoint(index: usize, label: &str, screen: &str) -> CapturedStep {
+        step(index, label, screen, CaptureKind::Checkpoint)
+    }
+
+    /// Every event in the cast as `(timestamp, data)`, header dropped.
+    fn events_in(path: &str) -> Vec<(f64, String)> {
+        fs::read_to_string(path)
+            .unwrap()
+            .lines()
+            .skip(1)
+            .map(|line| serde_json::from_str::<serde_json::Value>(line).expect("valid event"))
+            .map(|e| {
+                (
+                    e[0].as_f64().expect("timestamp"),
+                    e[2].as_str().expect("data").to_string(),
+                )
+            })
+            .collect()
+    }
+
+    #[test]
+    fn checkpoints_are_appended_in_capture_order() {
+        let (_dir, path) = cast_with("[0.5, \"o\", \"live\"]\n");
+        let steps = [
+            checkpoint(0, "one", "first"),
+            checkpoint(1, "two", "second"),
+        ];
+        assert_eq!(append_checkpoint_frames(&path, &steps, None).unwrap(), 2);
+
+        let events = events_in(&path);
+        // The session's own event, the two checkpoints, and the closing hold.
+        assert_eq!(events.len(), 4);
+        assert_eq!(events[0].1, "live");
+        assert!(events[1].1.ends_with("first"), "{:?}", events[1].1);
+        assert!(events[2].1.ends_with("second"), "{:?}", events[2].1);
+        assert_eq!(events[3].1, HOLD_TERMINATOR);
+    }
+
+    #[test]
+    fn timestamps_continue_from_the_session_and_only_increase() {
+        let (_dir, path) = cast_with("[0.5, \"o\", \"a\"]\n[2.25, \"o\", \"b\"]\n");
+        let steps = [
+            checkpoint(0, "one", "first"),
+            checkpoint(1, "two", "second"),
+        ];
+        append_checkpoint_frames(&path, &steps, Some(1.5)).unwrap();
+
+        let times: Vec<f64> = events_in(&path).iter().map(|(at, _)| *at).collect();
+        assert_eq!(times, vec![0.5, 2.25, 3.75, 5.25, 6.75]);
+        assert!(times.windows(2).all(|w| w[1] > w[0]));
+    }
+
+    #[test]
+    fn the_hold_is_the_gap_between_frames_and_defaults() {
+        let (_dir, path) = cast_with("[0.0, \"o\", \"a\"]\n");
+        let steps = [
+            checkpoint(0, "one", "first"),
+            checkpoint(1, "two", "second"),
+        ];
+        append_checkpoint_frames(&path, &steps, None).unwrap();
+
+        let times: Vec<f64> = events_in(&path).iter().map(|(at, _)| *at).collect();
+        let hold = DEFAULT_CHECKPOINT_HOLD;
+        // The last checkpoint is held as long as the ones before it, which is
+        // what the closing event is for.
+        assert_eq!(times, vec![0.0, hold, 2.0 * hold, 3.0 * hold]);
+    }
+
+    #[test]
+    fn no_checkpoints_is_a_silent_no_op() {
+        let (_dir, path) = cast_with("[0.0, \"o\", \"a\"]\n");
+        let before = fs::read_to_string(&path).unwrap();
+        assert_eq!(append_checkpoint_frames(&path, &[], None).unwrap(), 0);
+        assert_eq!(fs::read_to_string(&path).unwrap(), before);
+
+        // No-op, not merely harmless: a run that captured nothing must not
+        // fail, and must not need the cast to be there to be told so.
+        let missing = format!("{path}.does-not-exist");
+        assert_eq!(append_checkpoint_frames(&missing, &[], None).unwrap(), 0);
+    }
+
+    #[test]
+    fn the_appended_cast_still_replays() {
+        let (_dir, path) = cast_with("[0.0, \"o\", \"live\"]\n");
+        let steps = [
+            checkpoint(0, "one", "first"),
+            checkpoint(1, "two", "second"),
+        ];
+        append_checkpoint_frames(&path, &steps, None).unwrap();
+
+        // Replaying it is the strongest statement that it is still a cast:
+        // the player parses the header, every event and every payload.
+        let frames = CastVideoConverter::new().frames_from_cast(&path).unwrap();
+        let painted: Vec<String> = frames
+            .iter()
+            .map(|f| f.text_lines(true)[0].clone())
+            .collect();
+        assert_eq!(painted.last().unwrap(), "second");
+        assert!(painted.contains(&"live".to_string()));
+        assert!(
+            painted.iter().position(|t| t == "first") < painted.iter().position(|t| t == "second"),
+            "the evidence replays in capture order"
+        );
+    }
+
+    #[test]
+    fn a_multi_line_screen_is_repainted_row_by_row() {
+        // A cast payload goes to a raw terminal, where a bare newline drops a
+        // row without returning the carriage and the screen comes back as a
+        // staircase.
+        let (_dir, path) = cast_with("[0.0, \"o\", \"live\"]\n");
+        append_checkpoint_frames(&path, &[checkpoint(0, "menu", "MENU\nitem")], None).unwrap();
+
+        let frames = CastVideoConverter::new().frames_from_cast(&path).unwrap();
+        let text = frames.last().unwrap().text_lines(true);
+        assert_eq!(text[0], "MENU");
+        assert_eq!(text[1], "item");
+    }
+
+    #[test]
+    fn a_checkpoint_paints_over_the_screen_before_it() {
+        // Each screen is a whole picture, so a shorter one must not leave the
+        // tail of a longer one behind it.
+        let (_dir, path) = cast_with("[0.0, \"o\", \"live\"]\n");
+        let steps = [
+            checkpoint(0, "long", "abcdefgh"),
+            checkpoint(1, "short", "xy"),
+        ];
+        append_checkpoint_frames(&path, &steps, None).unwrap();
+
+        let frames = CastVideoConverter::new().frames_from_cast(&path).unwrap();
+        assert_eq!(frames.last().unwrap().text_lines(true)[0], "xy");
+    }
+
+    #[test]
+    fn the_failure_screen_is_appended_too() {
+        // The frame a reviewer most wants held is the one the run died on.
+        let (_dir, path) = cast_with("[0.0, \"o\", \"live\"]\n");
+        let steps = [
+            checkpoint(0, "ok", "fine"),
+            step(1, "boom", "ERROR", CaptureKind::Failure),
+        ];
+        assert_eq!(append_checkpoint_frames(&path, &steps, None).unwrap(), 2);
+
+        let frames = CastVideoConverter::new().frames_from_cast(&path).unwrap();
+        assert_eq!(frames.last().unwrap().text_lines(true)[0], "ERROR");
+    }
+
+    #[test]
+    fn a_cast_missing_its_final_newline_is_not_spliced() {
+        // A recorder killed mid-write leaves one; appending blind would fuse
+        // two events into one unparseable line.
+        let dir = tempfile::tempdir().unwrap();
+        let cast = dir.path().join("r.cast");
+        fs::write(
+            &cast,
+            "{\"version\":2,\"width\":10,\"height\":3}\n[0.0, \"o\", \"a\"]",
+        )
+        .unwrap();
+        let path = cast.to_string_lossy().to_string();
+
+        append_checkpoint_frames(&path, &[checkpoint(0, "one", "first")], None).unwrap();
+        assert_eq!(events_in(&path).len(), 3);
+    }
+
+    #[test]
+    fn a_hold_that_would_stall_the_timestamps_is_rejected() {
+        let (_dir, path) = cast_with("[0.0, \"o\", \"a\"]\n");
+        let steps = [checkpoint(0, "one", "first")];
+        for bad in [0.0, -1.0, f64::NAN, f64::INFINITY] {
+            assert!(
+                append_checkpoint_frames(&path, &steps, Some(bad)).is_err(),
+                "hold {bad} should be rejected"
+            );
+        }
+        // Rejected before anything was written.
+        assert_eq!(events_in(&path).len(), 1);
     }
 
     #[test]

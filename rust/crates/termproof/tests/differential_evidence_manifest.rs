@@ -22,6 +22,11 @@
 //! run of this harness found exactly that: byte-identical manifests pointing at
 //! step text that differed by a trailing newline.
 //!
+//! The same reasoning covers the cast written into the publish directory: a
+//! manifest agreeing about a recording's path is not agreeing about the
+//! recording, and once `append_checkpoint_frames` puts the evidence sequence on
+//! the end of one, the cast is the artifact a reviewer actually watches.
+//!
 //! # Determinism
 //!
 //! Two things about the scenario are properties of the machine rather than of
@@ -40,6 +45,7 @@
 
 use std::path::Path;
 
+use termproof::evidence::cast_video::append_checkpoint_frames;
 use termproof::evidence::collector::{
     CaptureKind, EvidenceCollector, EvidencePublisher, Recording, RunIdentity,
 };
@@ -49,6 +55,16 @@ use termproof::terminal::inmemory::InMemorySession;
 
 /// Stands in for the publish directory. Matches the oracle's placeholder.
 const DIRECTORY_PLACEHOLDER: &str = "@DIR";
+
+/// A recorded session for the checkpoint frames to be appended to. Written out
+/// by hand rather than by a recorder: a real header carries a wall-clock
+/// timestamp and the host's `SHELL` and `TERM`, none of which either
+/// implementation controls.
+const BASE_CAST: &str =
+    "{\"version\":2,\"width\":80,\"height\":24}\n[0.5,\"o\",\"MENU\"]\n[1.25,\"o\",\"\\r\\nitem one\"]\n";
+
+/// Filename for that cast inside the publish directory.
+const CHECKPOINT_CAST: &str = "session-with-checkpoints.cast";
 
 /// The document the oracle recorded. Loaded at runtime, as the other
 /// differential tests load their corpora.
@@ -162,6 +178,15 @@ fn the_published_manifest_matches_the_python_document() {
 
     let written = std::fs::read_to_string(manifest.path()).expect("manifest readable");
     let document: serde_json::Value = serde_json::from_str(&written).expect("manifest is JSON");
+
+    // The evidence sequence written onto the end of a recording. Every captured
+    // screen above goes in, including the SGR-escaped one and the two-line one,
+    // so the appended payloads exercise both JSON escaping and the carriage
+    // returns a raw terminal needs.
+    let cast = directory.join(CHECKPOINT_CAST);
+    std::fs::write(&cast, BASE_CAST).expect("base cast written");
+    append_checkpoint_frames(&cast.to_string_lossy(), collector.steps(), None)
+        .expect("checkpoint frames appended");
 
     // `evidence.json` is excluded: it is `document`, and recording it twice
     // would let the two copies disagree.
