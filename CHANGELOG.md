@@ -87,12 +87,23 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
   one non-fatal step; **a conversion that failed leaves nothing to upload, so no
   upload is attempted** — reporting a store error for a video that was never
   encoded is exactly what two independent consumer implementations got wrong.
-  Nothing raises: a recording is evidence about a run, not part of its verdict.
-  Every failure instead lands on the `Recording`'s `error`, prefixed with the
-  name of the step that produced it — `save cast`, `append checkpoint frames`,
-  `convert` or `upload` — and two failures in one call are joined with `"; "` so
-  neither is lost. A callable that reports success and writes no cast is
-  reported as step 1 failing, not left for step 2 to discover as a missing file.
+  No failure a step *reports* raises: a recording is evidence about a run, not
+  part of its verdict. Every failure instead lands on the `Recording`'s `error`,
+  prefixed with the name of the step that produced it — `save cast`,
+  `append checkpoint frames`, `convert` or `upload` — and two failures in one
+  call are joined with `"; "` so neither is lost. The promise stops where
+  `Exception` does: a `KeyboardInterrupt` or `SystemExit` from one of the three
+  caller-supplied seams propagates and the recording is lost rather than
+  degraded, which the docstring now says outright.
+
+  **A step is not believed, it is checked.** Each of the three seams is
+  caller-supplied, and the outcome worse than any recorded failure is a
+  `Recording` that reports none — no `error`, a `video` that is not on disk, and
+  a `url` for it. So a `save_cast` that returns having written no file, a
+  converter that returns a path it did not write, and an uploader that returns
+  an empty string are each recorded as *that* step failing
+  (`convert: reported success but wrote no file at <path>`, and so on), rather
+  than left for the next step to trip over and take the blame.
 
 - **`termproof.collector.EvidencePublisher.video_converter`**, beside the
   existing `renderer` and `uploader`, with `termproof.collector.VideoConverterLike`
@@ -247,6 +258,39 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
   "must be a positive integer" was wrong for them, and `0.5` satisfies
   "positive" while still being refused.
 
+### Rust — Changed (breaking)
+
+- **`evidence::collector::EvidencePublisher` gained a fifth public field,
+  `video_converter: Option<CastVideoConverter>`, which stops the struct being
+  constructible by literal.** Every field of `EvidencePublisher` is `pub` and
+  the struct is not `#[non_exhaustive]`, so an external crate writing
+  `EvidencePublisher { dir, identity, renderer, uploader }` no longer compiles;
+  `cargo semver-checks` reports it as `constructible_struct_adds_field`. Nothing
+  else about the type moved — the four existing fields keep their names, types
+  and meanings, and `EvidencePublisher::new` plus the `with_*` builders
+  (`with_renderer`, `with_uploader`, and the new `with_video_converter`) compile
+  unchanged.
+
+  **To fix a literal, build through the constructor**, which is what every
+  in-tree caller and every doc example already does:
+
+  ```rust
+  // was
+  let publisher = EvidencePublisher { dir, identity, renderer, uploader: Some(u) };
+  // now
+  let publisher = EvidencePublisher::new(dir, identity)
+      .with_renderer(renderer)
+      .with_uploader(u);
+  ```
+
+  Filed as breaking rather than as an addition because the pre-1.0 rule in this
+  file's preamble is about what a consumer's source does, not about what the
+  crate meant to offer. The seam had to hang somewhere, and the alternative
+  shape — passing the converter to `record_session` instead of the publisher —
+  would have avoided the break at the cost of putting one of the publisher's
+  three seams somewhere other than the publisher. That trade is worth stating;
+  it is not free either way.
+
 ### Rust — Added
 
 - **`result::score_from` and `result::assertion_map`:** the same two functions
@@ -259,15 +303,15 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
   steps with the same semantics and the same rule about which of them run after
   a failure, taking `save_cast: FnOnce(&Path) -> Result<(), String>` where
   Python takes a callable that raises. It returns nothing rather than a
-  `Result`, for the reason nothing on the Python side raises: no failure may
-  fail the run. `&mut self`, because it appends a `Recording`; `publish` stays
-  `&self`. The four step names it prefixes an error with are the same four
-  strings both implementations write, which the conformance pair now compares.
+  `Result`, for the reason nothing on the Python side raises: no failure a step
+  reports may fail the run. `&mut self`, because it appends a `Recording`;
+  `publish` stays `&self`. The four step names it prefixes an error with are the
+  same four strings both implementations write, which the conformance pair now
+  compares.
 
-- **`evidence::collector::EvidencePublisher::video_converter`** and
-  `with_video_converter`, beside the existing `renderer` and `uploader` and in
-  the same builder style. Holds a `CastVideoConverter`, and is `Option` for the
-  reason the Python field is.
+- `with_video_converter`, beside the existing `with_renderer` and
+  `with_uploader` and in the same builder style. The field it sets is the
+  breaking part above.
 
 - **`evidence::cast_video::append_checkpoint_frames`:** the same capability with
   the same semantics, taking `hold_seconds: Option<f64>` where Python takes a
