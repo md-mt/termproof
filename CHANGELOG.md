@@ -148,8 +148,12 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
 - **`evidence.svg.min_width` and `evidence.svg.min_height` are new keys**, both
   defaulting to `0`. They make every `SvgStyle` field reachable from YAML, which
   is what lets the pin-the-old-output recipe above be exact below the old floor.
-  On a raster renderer they raise the floor but cannot lower it below
-  320x160.
+  On the two renderers that rasterise that SVG — `png_rsvg` and the
+  `attributed_rsvg` video backend — they raise the floor but cannot lower it
+  below 320x160. They do not reach the `png` renderer, which is configured by
+  `evidence.png` and keeps its own fixed 320x160 floor; making one knob govern
+  both would mean giving `PngRenderConfig` its own pair, which is a separate
+  change.
 
 - **`evidence.png.fg` and `evidence.png.bg` follow the same palette**, moving
   `bg` from `#101418` to `#0b0f14`, so the PNG and SVG screenshots of one run

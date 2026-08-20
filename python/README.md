@@ -240,7 +240,7 @@ evidence:
 read off the config dataclasses rather than restated beside them.
 
 - `evidence.svg` is the same geometry as `SvgStyle`, under the names the YAML uses, and takes every default from the same `DEFAULT_*` constants in `termproof/attributed.py`. `SvgStyle` is canonical; `SvgRenderConfig` is how a run overrides it. The two used to disagree in every field — see [`CHANGELOG.md`](../CHANGELOG.md) for what moved and how to pin the old values.
-- `evidence.svg.min_width`/`min_height` floor the canvas and default to `0`, because a viewer scales an SVG. They do not reach the rasterisers as a *ceiling*: `png`, `png_rsvg` and the `attributed_rsvg` video backend always render at least 320x160, since a PNG is a fixed pixel count. Setting them higher raises that floor; setting them lower does not lower it.
+- `evidence.svg.min_width`/`min_height` floor the SVG canvas and default to `0`, because a viewer scales an SVG. On the two renderers that rasterise that SVG — `png_rsvg` and the `attributed_rsvg` video backend — setting them higher raises the floor, and setting them lower does not lower it below 320x160, since a PNG is a fixed pixel count. They do **not** reach the `png` renderer at all: it is configured by `evidence.png` and measures its own cell off the PIL face, and its own 320x160 floor is not adjustable.
 - `evidence.video.fps` is the default for `--video-fps`; the flag wins when passed.
 - A `null` video knob means "omit that flag"; `fps_cap: null` keeps `agg`'s cap tied to the output fps.
 - `png.font_size` applies only when `png.font_path` is set — the bundled bitmap face has one fixed size.

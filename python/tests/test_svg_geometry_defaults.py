@@ -75,6 +75,12 @@ class CanonicalConstantsTest(unittest.TestCase):
         self.assertEqual("Noto Sans Mono, Liberation Mono, monospace", FONT_STACK)
         self.assertEqual("#e6edf3", DEFAULT_FG)
         self.assertEqual("#0b0f14", DEFAULT_BG)
+        # The raster floor belongs here too. Every test in RasterFloorTest
+        # asserts against these names rather than against 320/160, so without
+        # this pin the constants are the one pair of geometry numbers in the
+        # package that could still be moved without failing anything.
+        self.assertEqual(320, RASTER_MIN_WIDTH)
+        self.assertEqual(160, RASTER_MIN_HEIGHT)
 
     def test_svg_style_takes_every_default_from_a_constant(self) -> None:
         style = SvgStyle()
