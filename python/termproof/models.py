@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
@@ -152,6 +153,22 @@ class PublishedArtifact:
 
 @dataclass(frozen=True)
 class RunResult:
+    """One recipe × one renderer, as a canonical result payload.
+
+    ``score`` is the fraction of assertions that held, in ``0.0..=1.0``.
+    **A run that asserted nothing scores 1.0, not 0.0.** That is part of this
+    contract rather than a choice each producer makes, because a score is read
+    comparatively: a consumer that scored the empty set ``0.0`` would publish
+    numbers that look like these and rank against them wrongly. The reading is
+    "no assertion failed", which is what an empty set reports; "nothing was
+    verified" is carried by ``assertions`` being empty, and a caller that cares
+    about it should read that rather than the score.
+
+    :func:`score_from` computes it from a name → passed mapping and
+    :func:`score_from_assertions` from an :class:`AssertionResult` list; both
+    are the same rule, and neither should be re-derived by a caller.
+    """
+
     recipe_name: str
     passed: bool
     exit_code: int | None
@@ -243,11 +260,44 @@ def load_recipe(path: Path) -> Recipe:
     return replace(recipe, source_path=str(path))
 
 
+def score_from(assertions: Mapping[str, bool]) -> float:
+    """:attr:`RunResult.score` for a name → passed mapping.
+
+    **An empty mapping scores 1.0.** See :class:`RunResult` for why that is the
+    contract and not each caller's decision.
+
+    The mapping's ordering cannot affect the result — only how many values are
+    true and how many there are — so a caller that collected its assertions in
+    a different order gets the same number. Two entries under one name are one
+    entry, which is the difference from :func:`score_from_assertions`: a list
+    keeps duplicates and weighs each of them.
+    """
+    return _score_of(assertions.values())
+
+
+def assertion_map(pairs: Iterable[tuple[str, bool]]) -> dict[str, bool]:
+    """The mapping :func:`score_from` scores, from ``(name, passed)`` pairs.
+
+    The last pair for a name wins, as assigning into the mapping would.
+    """
+    return {str(name): bool(passed) for name, passed in pairs}
+
+
 def score_from_assertions(assertions: list[AssertionResult]) -> float:
-    if not assertions:
+    """:attr:`RunResult.score` from assertion results (all pass → 1.0, else fraction)."""
+    return _score_of(assertion.passed for assertion in assertions)
+
+
+def _score_of(values: Iterable[bool]) -> float:
+    """The one scoring rule, over whatever the caller counted as an assertion."""
+    total = 0
+    passed = 0
+    for value in values:
+        total += 1
+        passed += 1 if value else 0
+    if total == 0 or passed == total:
         return 1.0
-    passed = sum(1 for assertion in assertions if assertion.passed)
-    return 1.0 if passed == len(assertions) else passed / len(assertions)
+    return passed / total
 
 
 def _normalize_renderers(value: Any) -> dict[str, list[str]]:

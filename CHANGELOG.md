@@ -56,6 +56,20 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
 
 ### Python — Added
 
+- **`termproof.models.score_from` and `termproof.models.assertion_map`:**
+  `score_from` scores a name → passed mapping the way `RunResult.score` is
+  defined — the fraction that held — and `assertion_map` builds that mapping
+  from `(name, passed)` pairs, last pair for a name winning. Consumers were
+  each writing those four lines, which was fine for the arithmetic and not fine
+  for the one decision inside it: **a run that asserted nothing scores `1.0`,
+  not `0.0`**, and a consumer that chose the other way published numbers that
+  looked comparable to these and were not. That choice is now stated in the
+  `RunResult` docstring and in `spec/003-builtin-assertions/spec.md` FR-022,
+  as part of the result contract rather than as a note on one function.
+  `score_from_assertions` is unchanged in behaviour and now delegates to the
+  same rule; the difference between the two shapes is that a list weighs
+  duplicate names once each and a mapping folds them into one entry.
+
 - **`termproof.cast_video.append_checkpoint_frames`:** appends the captured
   checkpoint screens to a cast as held trailing frames, so a recording ends by
   replaying the evidence sequence instead of stopping on whatever the last
@@ -197,6 +211,12 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
 
 ### Rust — Added
 
+- **`result::score_from` and `result::assertion_map`:** the same two functions
+  with the same semantics, `score_from` taking `&BTreeMap<String, bool>` and
+  `assertion_map` collecting `(impl Into<String>, bool)` pairs. The empty-map
+  case is `1.0` here too, and is documented on `RunResult::score` — the field
+  the number ends up in — rather than only on the function that computes it.
+
 - **`evidence::cast_video::append_checkpoint_frames`:** the same capability with
   the same semantics, taking `hold_seconds: Option<f64>` where Python takes a
   defaulted keyword and returning `Err` where Python raises `ValueError`. The
@@ -209,7 +229,14 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
 
 ### Rust — Changed
 
-- Nothing. `SvgMetrics` in `terminal::attributed` already took every default
+- **scoring:** `assertions::score` and `RunResult::score_from_assertions` were
+  two hand-written copies of the same arithmetic, and `result::score_from`
+  would have made a third. All three now call one private rule in `result`.
+  Nothing observable moved — the assertion differential harness reproduces the
+  committed corpus, `score` cases included — and the point is that the
+  empty-set answer can no longer drift between them.
+
+- On SVG geometry, nothing. `SvgMetrics` in `terminal::attributed` already took every default
   from the `DEFAULT_*` constants beside it, `ScreenshotRenderer` and
   `CastVideoConverter` already referenced those same constants rather than
   restating them, and the Rust stack was already the Linux-first one — the

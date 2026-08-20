@@ -427,9 +427,21 @@ the detail strings literally.
 - **FR-022** `[BYTE-EXACT]` A run's `score` is `1.0` when the evaluated assertion list is
   empty; otherwise `1.0` when all assertions passed, and `passed_count / total_count`
   otherwise. `total_count` includes the synthetic exit-code assertion.
-  **Authority**: `SOURCE` (`models.py:172`, `score_from_assertions`). Note the first branch:
+  **Authority**: `SOURCE` (`models.py`, `score_from_assertions`). Note the first branch:
   a recipe with `expect_exit_code: null` and no assertions scores `1.0` while asserting
   nothing.
+
+  **The empty case is contract, not each producer's choice.** A score is read
+  comparatively, so a producer that scored the empty set `0.0` would publish numbers that
+  look like these and rank against them wrongly. `1.0` reads as "no assertion failed",
+  which is what an empty set reports; "nothing was verified" is carried by the assertion
+  list being empty, and a consumer that cares about it reads that rather than the score.
+  The rule is computed once per implementation and shared by every shape that needs it —
+  `models.score_from` / `models.score_from_assertions` in Python,
+  `result::score_from` / `RunResult::score_from_assertions` / `assertions::score` in Rust.
+  `score_from` takes a name → passed map, whose ordering cannot affect the result and in
+  which two entries under one name are one entry; the list form keeps duplicates and
+  weighs each of them.
 
 - **FR-023** `[BYTE-EXACT]` A run's overall `passed` is true only when **every** step passed
   **and** every assertion passed. A failing step fails the run even if all assertions pass.
