@@ -514,6 +514,28 @@ class RecordSessionTest(unittest.TestCase):
             self.assertTrue(error.startswith("append checkpoint frames: "), error)
             self.assertIsNotNone(recording.video)
 
+    def test_two_failures_are_both_recorded(self) -> None:
+        # `error` is one field, so a second failure must not evict the first:
+        # a report that names only the conversion sends a reader looking for a
+        # broken encoder when the evidence never reached the cast either.
+        #
+        # The Rust mirror asserts this inside
+        # `an_append_failure_does_not_stop_the_conversion`, where a real
+        # `CastVideoConverter` cannot read the empty cast either and so fails
+        # of its own accord.
+        with tempfile.TemporaryDirectory() as tmpdir:
+            publisher = EvidencePublisher(
+                directory=Path(tmpdir),
+                identity=_identity(),
+                video_converter=_BrokenConverter(),
+            )
+            collector = self._collector()
+            collector.record_session("empty", publisher, lambda dest: dest.write_text(""))
+
+            error = collector.recordings[0].error or ""
+            self.assertTrue(error.startswith("append checkpoint frames: "), error)
+            self.assertTrue(error.endswith("; convert: encoder exploded"), error)
+
     def test_a_publisher_with_no_video_converter_says_so(self) -> None:
         # Not silence: `record_session` was called to produce a video, so a
         # publisher that cannot is a failure of the convert step.
@@ -578,9 +600,11 @@ class RecordSessionTest(unittest.TestCase):
             collector = self._collector()
             collector.record_session("full-session", publisher, _save_a_cast)
 
-            self.assertEqual(
-                "upload: uploader returned no URL", collector.recordings[0].error
-            )
+            recording = collector.recordings[0]
+            self.assertEqual("upload: uploader returned no URL", recording.error)
+            # Step 4 is last: a declined upload costs the URL, not the video.
+            self.assertIsNotNone(recording.video)
+            self.assertIsNone(recording.url)
 
     def test_a_publisher_with_no_uploader_is_not_a_failure(self) -> None:
         # Absent is not broken: a publisher without an uploader was not asked to
