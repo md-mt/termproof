@@ -147,7 +147,8 @@ run`:
 - `termproof::parity` — compares two runs and reports where they disagree.
 - `termproof::before_after` — reports which outcomes flipped.
 - `termproof::selection` — maps a changeset onto recipes via `ci_paths`.
-- `termproof::run_config` — a whole run described by one file.
+- `termproof::run_config` — a whole run described by one file, plus
+  `run_config::cli` under the `clap` feature: the flags that fill one in.
 - `termproof::vocabulary` — a configurable failure detector.
 - `termproof::build_info` — provenance for the binary under test.
 - `terminal::attributed` — a per-cell screen carrying colours, styles and

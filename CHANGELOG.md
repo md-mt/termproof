@@ -328,6 +328,55 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
   sub-module path would be a second papercut on top of the first.
   ([#199](https://github.com/md-mt/termproof/issues/199))
 
+- **`run_config::cli`, behind the new opt-in `clap` feature:** the command line
+  that fills in a `RunConfig`. `run_config` has modelled a whole run since it
+  landed — `RunConfig`, `Discovery`, `Selection`, `Execution`, `BinarySource`,
+  `Output`, `Publisher`, `Requirements`, and `pick(flag, configured, builtin)`
+  for how the three sources of an answer rank — but nothing populated it from
+  argv, so each consumer wrote that layer again. Measured on one of them, a TUI
+  validator: 23 `clap` argument builders and about 200 lines whose only job was
+  to get from flags to this crate's own type, with `pick()` re-derived by hand
+  once per flag (#197).
+
+  Six functions, re-exported at the `run_config` root:
+  `clap_command()` for the standard flags on a bare command;
+  `augment_args(Command)` for adding them to a consumer's own, so extra `.arg()`
+  calls compose and the consumer keeps its name, version and subcommands;
+  `from_matches(&ArgMatches)` for exactly what the flags said;
+  `configured(&ArgMatches)` for the file `--run-config` names;
+  `merge(flags, configured, builtin)` for `pick()` applied to every field at
+  once; and `resolve(&ArgMatches, builtin)` for all of it in one call.
+
+  Two rules are load-bearing and are asserted rather than described. No flag
+  carries a `default_value` — a defaulted flag is indistinguishable from a
+  passed one, and if the two look alike a config file can never override one,
+  which is what `run_config`'s precedence section warned about; the built-in
+  therefore arrives as the `builtin: &RunConfig` argument. And a flag passed
+  empty is a flag passed: `--renderer ''` beats a configured renderer, because
+  reading it as unset would add a fourth state to `pick()`'s three and put every
+  consumer back to remembering which flags have it.
+
+  **Reconciled against `termproof.cli`.** Where the two name the same thing they
+  use the same flag: `--priority`, `--recipe-name` (repeatable in both) and
+  `--renderer`. The rest is new, and no name is reused for a second meaning:
+
+  | This layer | Python's `termproof.cli` | Why |
+  |---|---|---|
+  | `--run-config PATH` | `--config PATH` is the *plugin registry* (`VerifierConfig`) | Two different config files. Reusing `--config` would be the one collision worth avoiding, and a consumer that has both still needs to name each. |
+  | `--artifact-dir DIR` | `--out DIR` | Not the same thing. `--out` is one directory that the report path is also derived from; `RunConfig` separates `artifact_dir`, `report_path` and `result_json_path`, so no flag here has `--out`'s meaning. |
+  | `--all`, `--changed-files` | — | `Selection` has four arms; Python's CLI exposes two of them. All four get a flag, in one `ArgGroup`, so "all *and* a priority" is a usage error rather than something this layer has to rank. |
+  | `--root`, `--repo-marker`, `--exclude`, `--transport`, `--model`, `--effort`, `--binary-installed`, `--binary-build`, `--env`, `--timeout-scale`, `--publisher`, `--publisher-setting`, `--require-uploaded-media`, `--require-media-publisher` | — | Fields `RunConfig` has and Python has no counterpart for. |
+
+  The feature is off by default, so a consumer that does not name it does not
+  compile `clap`. CI's feature powerset is enumerated from the feature list, so
+  it grew from sixteen combinations to thirty-two by construction, and both the
+  default build without `clap` and every build that names it are exercised.
+
+  Python is deliberately unchanged. `run_config` is Rust-only — there is no
+  `termproof.run_config`, and the conformance pair has nothing to compare —
+  so this closes an asymmetry rather than opening one. `termproof.cli` is an
+  `argparse` *program*; this is a library layer, and no binary is added.
+
 ### Rust — Changed
 
 - **scoring:** `assertions::score` and `RunResult::score_from_assertions` were

@@ -33,7 +33,12 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 45
+    # 75, not 45, because the feature powerset doubled with `clap` (#197) and
+    # that step is most of the job. Measured locally on a warm cache at roughly
+    # 50 seconds per combination, so thirty-two is ~28 minutes before the other
+    # steps and before a cold CI build. The headroom is for the doubling, not a
+    # sign the job got slower per unit of work.
+    timeout-minutes: 75
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master (2026-08-05)
@@ -49,21 +54,25 @@ jobs:
       # `--all-features` cannot catch a feature that only builds alongside
       # another, which is the failure mode an undeclared `dep:` produces. So
       # check the whole powerset rather than a sample (#27, extended for
-      # `schema` in #28 and for `junit` in #34). `json-schema` implies `schema`,
-      # so some combinations resolve to the same set as others — they are run
-      # anyway, because what is being checked is that every combination a
-      # consumer can *write* compiles, not every set cargo can resolve.
-      # `default` and `--all-features` are the same set today and the steps
-      # above already cover them.
+      # `schema` in #28, `junit` in #34 and `clap` in #197). `json-schema`
+      # implies `schema`, so some combinations resolve to the same set as
+      # others — they are run anyway, because what is being checked is that
+      # every combination a consumer can *write* compiles, not every set cargo
+      # can resolve. `clap` is the first feature that is not in `default`, so
+      # `default` and `--all-features` are no longer the same set: the steps
+      # above cover `--all-features`, and the combination naming the other four
+      # below is `default`.
       #
       # The list is enumerated from FEATURES rather than written out, so adding
       # a feature grows the matrix by construction and cannot be half-extended:
-      # four features is sixteen combinations, and the count is printed so a
-      # silently shrinking matrix is visible in the log.
+      # five features is thirty-two combinations, and the count is printed so a
+      # silently shrinking matrix is visible in the log. Growth is doubling, so
+      # a sixth feature is the point at which this wants splitting across the
+      # job matrix rather than another entry in the array.
       - name: clippy and test each feature combination
         run: |
           set -eux
-          FEATURES=(evidence junit json-schema schema)
+          FEATURES=(evidence junit json-schema schema clap)
           total=$((1 << ${#FEATURES[@]}))
           echo "feature powerset: $total combinations"
           for mask in $(seq 0 $((total - 1))); do
