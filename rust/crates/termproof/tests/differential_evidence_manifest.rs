@@ -22,6 +22,11 @@
 //! run of this harness found exactly that: byte-identical manifests pointing at
 //! step text that differed by a trailing newline.
 //!
+//! The same reasoning covers the cast written into the publish directory: a
+//! manifest agreeing about a recording's path is not agreeing about the
+//! recording, and once `append_checkpoint_frames` puts the evidence sequence on
+//! the end of one, the cast is the artifact a reviewer actually watches.
+//!
 //! # Determinism
 //!
 //! Two things about the scenario are properties of the machine rather than of
@@ -40,6 +45,7 @@
 
 use std::path::Path;
 
+use termproof::evidence::cast_video::append_checkpoint_frames;
 use termproof::evidence::collector::{
     CaptureKind, EvidenceCollector, EvidencePublisher, Recording, RunIdentity,
 };
@@ -49,6 +55,38 @@ use termproof::terminal::inmemory::InMemorySession;
 
 /// Stands in for the publish directory. Matches the oracle's placeholder.
 const DIRECTORY_PLACEHOLDER: &str = "@DIR";
+
+/// A recorded session for the checkpoint frames to be appended to. Written out
+/// by hand rather than by a recorder: a real header carries a wall-clock
+/// timestamp and the host's `SHELL` and `TERM`, none of which either
+/// implementation controls.
+///
+/// It opens by setting a scroll region, because that is what a full-screen TUI
+/// leaves behind and it is the state an append has to undo: without the
+/// `\x1b[r` in the repaint prefix, a checkpoint taller than the region scrolls
+/// rows out of the frame. The corpus records the prefix bytes, so both
+/// implementations are held to resetting it.
+const BASE_CAST: &str = "{\"version\":2,\"width\":80,\"height\":24}\n\
+     [0.5,\"o\",\"\\u001b[3;20rMENU\"]\n\
+     [1.25,\"o\",\"\\r\\nitem one\"]\n";
+
+/// Filename for that cast inside the publish directory.
+const CHECKPOINT_CAST: &str = "session-with-checkpoints.cast";
+
+/// A second append over the same steps at an explicit, fractional hold, which
+/// the default-hold cast cannot cover.
+///
+/// Its base ends on a seventh decimal on purpose. That is what a Rust-recorded
+/// cast ends on — `CastRecorder` writes `as_secs_f64()` unrounded — and it is
+/// the only input shape that tells the two languages' rounding apart:
+/// `round(at, 6)` writes 0.9 and 1.3 for the second and fourth frames where the
+/// rule both sides actually run writes 0.900001 and 1.300001. Over a
+/// whole-decimal base the two agree everywhere, so a corpus built on one would
+/// regenerate byte-for-byte with the Python transcription reverted.
+const FRACTIONAL_HOLD: f64 = 0.2;
+const FRACTIONAL_HOLD_CAST: &str = "session-with-fractional-hold.cast";
+const FRACTIONAL_BASE_CAST: &str =
+    "{\"version\":2,\"width\":80,\"height\":24}\n[0.5000005,\"o\",\"MENU\"]\n";
 
 /// The document the oracle recorded. Loaded at runtime, as the other
 /// differential tests load their corpora.
@@ -162,6 +200,24 @@ fn the_published_manifest_matches_the_python_document() {
 
     let written = std::fs::read_to_string(manifest.path()).expect("manifest readable");
     let document: serde_json::Value = serde_json::from_str(&written).expect("manifest is JSON");
+
+    // The evidence sequence written onto the end of a recording. Every captured
+    // screen above goes in, including the SGR-escaped one and the two-line one,
+    // so the appended payloads exercise both JSON escaping and the carriage
+    // returns a raw terminal needs.
+    let cast = directory.join(CHECKPOINT_CAST);
+    std::fs::write(&cast, BASE_CAST).expect("base cast written");
+    append_checkpoint_frames(&cast.to_string_lossy(), collector.steps(), None)
+        .expect("checkpoint frames appended");
+
+    let fractional = directory.join(FRACTIONAL_HOLD_CAST);
+    std::fs::write(&fractional, FRACTIONAL_BASE_CAST).expect("fractional base cast written");
+    append_checkpoint_frames(
+        &fractional.to_string_lossy(),
+        collector.steps(),
+        Some(FRACTIONAL_HOLD),
+    )
+    .expect("checkpoint frames appended at a fractional hold");
 
     // `evidence.json` is excluded: it is `document`, and recording it twice
     // would let the two copies disagree.

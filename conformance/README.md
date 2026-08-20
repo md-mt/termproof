@@ -399,6 +399,39 @@ A manifest is a set of paths, and agreeing on paths is not agreeing on files.
 Python was changed to match Rust, which writes what an assertion was actually
 evaluated against with nothing added to it.
 
+The same reasoning brought a cast into the scenario. After publishing, each half
+writes a fixed asciinema v2 file into the publish directory and runs
+`append_checkpoint_frames` over the captured steps, so the appended evidence
+sequence is compared byte-for-byte along with the step text. A manifest agreeing
+about a recording's path is not agreeing about the recording, and the cast is
+what a reviewer actually watches.
+
+There are two of them, and each is there for something the other cannot reach:
+
+- `session-with-checkpoints.cast` runs at the default hold, so the corpus is
+  what stops the two implementations' defaults drifting apart. Its base sets a
+  scroll region, the state a full-screen TUI leaves behind, so the repaint
+  prefix that has to undo it is recorded too.
+- `session-with-fractional-hold.cast` passes an explicit `0.2`, which the
+  default cast cannot cover, over a base ending on a seventh decimal — the only
+  input shape that tells the two languages' rounding apart.
+
+They also hold the two event encoders together. `serde_json` writes compact
+separators and raw UTF-8 where Python's `json` defaults to neither, and Rust
+rounds by scaling and breaking halves away from zero where Python's
+`round(at, 6)` rounds the exact decimal and breaks halves to even. Both are
+pinned explicitly on the Python side, and this is what would catch either
+drifting back.
+
+The seventh decimal is the whole point of that second base, and it is worth
+saying why, because the obvious choice does not work. Over a whole-decimal base
+the two rounding rules agree on every frame, so a corpus recorded from one
+regenerates byte-for-byte with the Python transcription reverted to
+`round(at, 6)` and the differential test cannot see the difference either. A
+base of `0.5000005` — which is what a Rust-recorded cast ends on, since
+`CastRecorder` writes `as_secs_f64()` unrounded — separates them at three of the
+eight appended frames.
+
 ## What is deliberately neutralised
 
 Two things in the scenario are properties of the machine rather than of either

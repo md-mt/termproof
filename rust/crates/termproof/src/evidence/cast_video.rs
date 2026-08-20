@@ -22,14 +22,25 @@
 //! exists for, and reimplementing it on `vt100` would be rebuilding a player to
 //! avoid a dependency the format's own tooling uses. Stated here rather than
 //! left for a reviewer to notice.
+//!
+//! # Trailing checkpoint frames
+//!
+//! [`append_checkpoint_frames`] writes the captured screens onto the end of a
+//! cast as held frames, so the recording finishes by replaying the evidence
+//! sequence instead of stopping on whatever the last keystroke painted. It is
+//! the reason a reviewer watches one artifact rather than opening fifteen
+//! stills, and it works on a closed cast — nothing about it needs the session
+//! that produced the file to still be running.
 
 use std::fs;
+use std::io::Write;
 use std::path::Path;
 use std::process::Command;
 use std::time::Duration;
 
 use avt::Vt;
 
+use crate::evidence::collector::CapturedStep;
 use crate::terminal::attributed::palette_color;
 use crate::terminal::attributed::rgb_color;
 use crate::terminal::attributed::screen_svg;
@@ -49,6 +60,68 @@ const RSVG_CONVERT: &str = "/usr/bin/rsvg-convert";
 const FFMPEG: &str = "/usr/local/bin/ffmpeg";
 const RSVG_TIMEOUT: Duration = Duration::from_secs(30);
 const FFMPEG_TIMEOUT: Duration = Duration::from_secs(120);
+
+/// Seconds an appended checkpoint screen stays up before the next one paints.
+///
+/// Long enough to read a screen of terminal text, short enough that fifteen of
+/// them are still a recording someone sits through. The same three seconds
+/// `agg --last-frame-duration` and the Python `DEFAULT_CHECKPOINT_HOLD` use, so
+/// a recording's closing hold does not change pace depending on who wrote it.
+pub const DEFAULT_CHECKPOINT_HOLD: f64 = 3.0;
+
+/// Repaint the whole grid: reset the pen, reset the scroll region, home the
+/// cursor, clear the screen.
+///
+/// A checkpoint screen is a complete picture, not a delta, so it is painted
+/// over whatever the previous frame left rather than after it.
+///
+/// # Why the scroll region is in there
+///
+/// `\x1b[2J` erases the display and leaves DECSTBM exactly as the recorded
+/// session set it. A full-screen TUI — the class of program this crate exists
+/// to record — sets a scroll region and does not clear it on exit, so without
+/// `\x1b[r` a screen taller than the region scrolls inside it and rows of the
+/// evidence are destroyed on the way in. An eight-row screen painted into a
+/// region of rows 3-6 comes back as `L1 L2 L5 L6 L7 L8`: still a valid cast,
+/// still plays, simply not the screen that was captured. Resetting the margins
+/// also neutralises origin mode, which only relocates the origin relative to
+/// them.
+///
+/// A soft reset (`\x1b[!p`) would cover more state in one sequence and is the
+/// obvious thing to reach for. It is not used because `avt` implements it and
+/// `pyte` does not, so the two replay paths this crate renders through would
+/// disagree about what the frame says — the one outcome worth avoiding more
+/// than the state it would have reset.
+const REPAINT_PREFIX: &str = "\x1b[m\x1b[r\x1b[H\x1b[2J";
+
+/// Written once after the last checkpoint, purely to keep the recording
+/// running for one more hold.
+///
+/// A cast ends at its final event, so without this the last screen — the one
+/// the run ended on, and the one a reviewer skipped to the end for — would
+/// flash for an instant instead of being held like every screen before it. An
+/// SGR reset is the cheapest event that changes nothing on screen.
+const HOLD_TERMINATOR: &str = "\x1b[m";
+
+/// Shortest hold that survives being written down.
+///
+/// Timestamps go out at six decimals, so a hold below a microsecond lands two
+/// frames on the same one however positive it looked going in — `1e-9` puts
+/// every appended event at the session's end time.
+///
+/// A whole microsecond, rather than a hold that merely *rounds* to one, because
+/// rounding up is not advancing: `6e-7` rounds to `1e-6` and still writes frames
+/// 1 and 2 at the same timestamp.
+///
+/// This is a floor on the input, not a proof about the output, and the
+/// difference shows at the floor itself: a hold of exactly `1e-6` on a cast
+/// whose last event carries an exact half-microsecond — `999.9999995` — still
+/// collides its first two frames, because both round to `1000.000001`. It takes
+/// the floor exactly *and* a half-microsecond base together, so no recorded
+/// session reaches it; every hold above the floor is safe at any base. Stated
+/// rather than papered over, since the alternative is comparing against the
+/// previous rounded value and carrying that state through the loop.
+pub const MIN_CHECKPOINT_HOLD: f64 = 1e-6;
 
 /// `(executable, args, timeout)` -> `Ok(())` or an error message.
 pub type ToolRunner = Box<dyn Fn(&str, &[String], Duration) -> Result<(), String> + Send + Sync>;
@@ -291,6 +364,130 @@ impl CastVideoConverter {
     }
 }
 
+/// Append each captured screen to `cast_path` as a held trailing frame.
+///
+/// A cast stops at whatever the last keystroke painted, which is rarely the
+/// evidence — the checkpoints that made the run reviewable have already
+/// scrolled away by then. This writes them back onto the end, in capture
+/// order, each one repainting the whole grid and held for `hold_seconds`
+/// (default [`DEFAULT_CHECKPOINT_HOLD`]) before the next. A reviewer then
+/// watches one recording instead of opening every still beside it.
+///
+/// Returns how many frames were appended. An empty `steps` is a silent no-op:
+/// the file is not opened, let alone rewritten.
+///
+/// # What it does to the file
+///
+/// Appends only. The header and every recorded event are left exactly as the
+/// session wrote them, and the new events carry on from the last timestamp in
+/// the file rather than restarting at zero, so the result is still a valid
+/// asciinema v2 cast with timestamps that only increase. The session does not
+/// have to be running — this reads and appends to a closed file, which is what
+/// lets it run after `close()` has already reported the exit code.
+///
+/// Every captured step is appended, [`CaptureKind::Failure`](crate::evidence::CaptureKind)
+/// included. A run's failure screen is the frame a reviewer most wants held,
+/// so filtering by kind would drop exactly the wrong one.
+///
+/// The first checkpoint lands one hold after the session's final event, which
+/// leaves the live ending on screen for a beat before the replay starts.
+///
+/// # Errors
+///
+/// If the cast is empty or cannot be read or appended to, or if `hold_seconds`
+/// is not a finite hold of at least [`MIN_CHECKPOINT_HOLD`]. `1e-9` is rejected
+/// for the same reason `0.0` is: it leaves every appended event on the same
+/// timestamp once written at six decimals, which is the stall this promises not
+/// to produce.
+pub fn append_checkpoint_frames(
+    cast_path: &str,
+    steps: &[CapturedStep],
+    hold_seconds: Option<f64>,
+) -> Result<usize, String> {
+    if steps.is_empty() {
+        return Ok(0);
+    }
+    let hold = hold_seconds.unwrap_or(DEFAULT_CHECKPOINT_HOLD);
+    if !hold.is_finite() || hold < MIN_CHECKPOINT_HOLD {
+        return Err(format!(
+            "checkpoint hold must be at least {MIN_CHECKPOINT_HOLD} seconds, got {hold}"
+        ));
+    }
+
+    let contents = fs::read_to_string(cast_path).map_err(|e| e.to_string())?;
+    let mut lines = contents.lines();
+    lines.next().ok_or("empty cast file")?;
+    let last_event_at = last_event_time(lines);
+
+    let mut appended = String::new();
+    // A cast written by a crashed recorder can lack its final newline, and
+    // appending to it blind would splice two events into one unparseable line.
+    if !contents.ends_with('\n') {
+        appended.push('\n');
+    }
+    for (offset, step) in steps.iter().enumerate() {
+        let at = last_event_at + hold * (offset + 1) as f64;
+        appended.push_str(&cast_event_line(at, &repaint(&step.screen))?);
+    }
+    let end = last_event_at + hold * (steps.len() + 1) as f64;
+    appended.push_str(&cast_event_line(end, HOLD_TERMINATOR)?);
+
+    let mut file = fs::OpenOptions::new()
+        .append(true)
+        .open(cast_path)
+        .map_err(|e| e.to_string())?;
+    file.write_all(appended.as_bytes())
+        .map_err(|e| e.to_string())?;
+    Ok(steps.len())
+}
+
+/// The latest timestamp already in the cast, so the appended frames continue
+/// from the session instead of restarting at zero.
+///
+/// The largest rather than the last: a cast is written in order, but reading
+/// the maximum costs nothing and keeps the monotonicity promise even against a
+/// file some other tool has already appended to out of order.
+fn last_event_time<'a>(lines: impl Iterator<Item = &'a str>) -> f64 {
+    lines
+        .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
+        .filter_map(|event| event.get(0).and_then(|v| v.as_f64()))
+        .filter(|at| at.is_finite())
+        .fold(0.0_f64, f64::max)
+}
+
+/// One screen's worth of output data: a full repaint, with the newlines a
+/// terminal needs rather than the ones a text file has.
+fn repaint(screen: &str) -> String {
+    format!(
+        "{REPAINT_PREFIX}{}",
+        screen.replace("\r\n", "\n").replace('\n', "\r\n")
+    )
+}
+
+/// Serialise one `[timestamp, "o", data]` event, newline included.
+///
+/// The Python implementation writes these same lines, and pins its encoder to
+/// `serde_json`'s shape — compact separators, raw UTF-8 — so the two produce
+/// the same bytes for the same screens and the conformance pair can compare
+/// them literally.
+fn cast_event_line(at: f64, data: &str) -> Result<String, String> {
+    let event = serde_json::json!([round_micros(at), "o", data]);
+    let line = serde_json::to_string(&event).map_err(|e| e.to_string())?;
+    Ok(format!("{line}\n"))
+}
+
+/// Six decimals, so a fractional hold reads as `1.35` rather than as the
+/// sixteen digits binary addition actually produces.
+///
+/// Python transcribes this expression rather than calling its own `round(at, 6)`
+/// — that rounds the exact decimal, and halves to even, where this scales first
+/// and rounds halves away from zero. The two disagree on values these lines can
+/// carry (`5e-7` is the smallest), and a rounding rule the implementations
+/// almost share is worse than no rounding at all.
+fn round_micros(at: f64) -> f64 {
+    (at * 1e6).round() / 1e6
+}
+
 /// Build an attributed screen from an `avt` grid.
 ///
 /// Lives here rather than in [`crate::terminal`] so that module stays
@@ -370,6 +567,8 @@ mod tests {
     use std::sync::Mutex;
 
     use super::*;
+    use crate::evidence::CaptureKind;
+    use crate::terminal::attributed::attributed_screen_from_text;
 
     fn cast_with(events: &str) -> (tempfile::TempDir, String) {
         let dir = tempfile::tempdir().unwrap();
@@ -560,6 +759,304 @@ mod tests {
         let expected = screen_svg(&frames("[0.0, \"o\", \"hi\"]\n")[0], &conv.metrics());
         let seen = seen.lock().expect("poisoned");
         assert_eq!(seen.first().map(String::as_str), Some(expected.as_str()));
+    }
+
+    // -- Trailing checkpoint frames -----------------------------------------
+
+    fn step(index: usize, label: &str, screen: &str, kind: CaptureKind) -> CapturedStep {
+        CapturedStep {
+            index,
+            label: label.to_string(),
+            kind,
+            screen: screen.to_string(),
+            attributed: attributed_screen_from_text(screen, 10, 3),
+            raw_output: None,
+        }
+    }
+
+    fn checkpoint(index: usize, label: &str, screen: &str) -> CapturedStep {
+        step(index, label, screen, CaptureKind::Checkpoint)
+    }
+
+    /// Every event's timestamp exactly as it was written, header dropped.
+    ///
+    /// As text, not as `f64`, because the bytes are the contract: the Python
+    /// side asserts the same strings and the conformance corpus compares these
+    /// lines literally, so how a value is spelled matters as much as what it
+    /// is. Parsing back would hide a formatting divergence entirely.
+    fn timestamp_text(path: &str) -> Vec<String> {
+        fs::read_to_string(path)
+            .unwrap()
+            .lines()
+            .skip(1)
+            .map(|line| {
+                line.trim_start_matches('[')
+                    .split(',')
+                    .next()
+                    .expect("timestamp")
+                    .to_string()
+            })
+            .collect()
+    }
+
+    /// Every event in the cast as `(timestamp, data)`, header dropped.
+    fn events_in(path: &str) -> Vec<(f64, String)> {
+        fs::read_to_string(path)
+            .unwrap()
+            .lines()
+            .skip(1)
+            .map(|line| serde_json::from_str::<serde_json::Value>(line).expect("valid event"))
+            .map(|e| {
+                (
+                    e[0].as_f64().expect("timestamp"),
+                    e[2].as_str().expect("data").to_string(),
+                )
+            })
+            .collect()
+    }
+
+    #[test]
+    fn checkpoints_are_appended_in_capture_order() {
+        let (_dir, path) = cast_with("[0.5, \"o\", \"live\"]\n");
+        let steps = [
+            checkpoint(0, "one", "first"),
+            checkpoint(1, "two", "second"),
+        ];
+        assert_eq!(append_checkpoint_frames(&path, &steps, None).unwrap(), 2);
+
+        let events = events_in(&path);
+        // The session's own event, the two checkpoints, and the closing hold.
+        assert_eq!(events.len(), 4);
+        assert_eq!(events[0].1, "live");
+        assert!(events[1].1.ends_with("first"), "{:?}", events[1].1);
+        assert!(events[2].1.ends_with("second"), "{:?}", events[2].1);
+        assert_eq!(events[3].1, HOLD_TERMINATOR);
+    }
+
+    #[test]
+    fn timestamps_continue_from_the_session_and_only_increase() {
+        let (_dir, path) = cast_with("[0.5, \"o\", \"a\"]\n[2.25, \"o\", \"b\"]\n");
+        let steps = [
+            checkpoint(0, "one", "first"),
+            checkpoint(1, "two", "second"),
+        ];
+        append_checkpoint_frames(&path, &steps, Some(1.5)).unwrap();
+
+        let times: Vec<f64> = events_in(&path).iter().map(|(at, _)| *at).collect();
+        assert_eq!(times, vec![0.5, 2.25, 3.75, 5.25, 6.75]);
+        assert!(times.windows(2).all(|w| w[1] > w[0]));
+    }
+
+    #[test]
+    fn the_hold_is_the_gap_between_frames_and_defaults() {
+        let (_dir, path) = cast_with("[0.0, \"o\", \"a\"]\n");
+        let steps = [
+            checkpoint(0, "one", "first"),
+            checkpoint(1, "two", "second"),
+        ];
+        append_checkpoint_frames(&path, &steps, None).unwrap();
+
+        // The last checkpoint is held as long as the ones before it, which is
+        // what the closing event is for.
+        //
+        // Spelled 3.0 rather than `DEFAULT_CHECKPOINT_HOLD`: written in terms of
+        // the constant, this passes just as happily if the two implementations'
+        // defaults drift apart, which is the one thing it is here to stop. The
+        // Python side pins the same literal.
+        let times: Vec<f64> = events_in(&path).iter().map(|(at, _)| *at).collect();
+        assert_eq!(times, vec![0.0, 3.0, 6.0, 9.0]);
+    }
+
+    #[test]
+    fn a_fractional_hold_is_rounded_the_way_python_rounds() {
+        // Two claims in one case, because one input carries both.
+        //
+        // That rounding happens at all: unrounded, these timestamps go out as
+        // 0.7000005 and 1.1000005000000002, and a reviewer reading them should
+        // not have to.
+        //
+        // And that Python rounds the same way: the base carries a seventh
+        // decimal, which is what a Rust-recorded cast ends on — `CastRecorder`
+        // writes `as_secs_f64()` unrounded — and that is where the two
+        // languages' obvious spellings part. Python's `round(at, 6)` would
+        // write 0.9 and 1.3 for the second and fourth frames where this writes
+        // 0.900001 and 1.300001, which is why that side transcribes
+        // `round_micros` instead of calling it. A whole-decimal base does not
+        // discriminate: both spellings agree on every frame, and a test built
+        // on one would pass with the transcription reverted.
+        //
+        // Asserted as text because the Python side asserts the same strings.
+        let (_dir, path) = cast_with("[0.5000005, \"o\", \"a\"]\n");
+        let steps = [
+            checkpoint(0, "one", "first"),
+            checkpoint(1, "two", "second"),
+            checkpoint(2, "three", "third"),
+        ];
+        append_checkpoint_frames(&path, &steps, Some(0.2)).unwrap();
+        assert_eq!(
+            timestamp_text(&path),
+            vec!["0.5000005", "0.700001", "0.900001", "1.100001", "1.300001"]
+        );
+    }
+
+    #[test]
+    fn no_checkpoints_is_a_silent_no_op() {
+        let (_dir, path) = cast_with("[0.0, \"o\", \"a\"]\n");
+        let before = fs::read_to_string(&path).unwrap();
+        assert_eq!(append_checkpoint_frames(&path, &[], None).unwrap(), 0);
+        assert_eq!(fs::read_to_string(&path).unwrap(), before);
+
+        // No-op, not merely harmless: a run that captured nothing must not
+        // fail, and must not need the cast to be there to be told so.
+        let missing = format!("{path}.does-not-exist");
+        assert_eq!(append_checkpoint_frames(&missing, &[], None).unwrap(), 0);
+    }
+
+    #[test]
+    fn the_appended_cast_still_replays() {
+        let (_dir, path) = cast_with("[0.0, \"o\", \"live\"]\n");
+        let steps = [
+            checkpoint(0, "one", "first"),
+            checkpoint(1, "two", "second"),
+        ];
+        append_checkpoint_frames(&path, &steps, None).unwrap();
+
+        // Replaying it is the strongest statement that it is still a cast:
+        // the player parses the header, every event and every payload.
+        let frames = CastVideoConverter::new().frames_from_cast(&path).unwrap();
+        let painted: Vec<String> = frames
+            .iter()
+            .map(|f| f.text_lines(true)[0].clone())
+            .collect();
+        assert_eq!(painted.last().unwrap(), "second");
+        assert!(painted.contains(&"live".to_string()));
+        assert!(
+            painted.iter().position(|t| t == "first") < painted.iter().position(|t| t == "second"),
+            "the evidence replays in capture order"
+        );
+    }
+
+    #[test]
+    fn a_multi_line_screen_is_repainted_row_by_row() {
+        // A cast payload goes to a raw terminal, where a bare newline drops a
+        // row without returning the carriage and the screen comes back as a
+        // staircase.
+        let (_dir, path) = cast_with("[0.0, \"o\", \"live\"]\n");
+        append_checkpoint_frames(&path, &[checkpoint(0, "menu", "MENU\nitem")], None).unwrap();
+
+        let frames = CastVideoConverter::new().frames_from_cast(&path).unwrap();
+        let text = frames.last().unwrap().text_lines(true);
+        assert_eq!(text[0], "MENU");
+        assert_eq!(text[1], "item");
+    }
+
+    #[test]
+    fn a_scroll_region_left_by_the_session_does_not_eat_rows() {
+        // The failure this guards is the quietest one available: a full-screen
+        // TUI leaves DECSTBM set, the evidence screen is taller than the region,
+        // and painting it scrolls rows out of existence. The cast stays valid
+        // and plays fine; it just shows a screen that was never captured.
+        let dir = tempfile::tempdir().unwrap();
+        let cast = dir.path().join("r.cast");
+        fs::write(
+            &cast,
+            "{\"version\":2,\"width\":20,\"height\":8}\n\
+             [0.0, \"o\", \"\\u001b[3;6r\\u001b[?6h\"]\n",
+        )
+        .unwrap();
+        let path = cast.to_string_lossy().to_string();
+
+        let screen = "L1\nL2\nL3\nL4\nL5\nL6\nL7\nL8";
+        append_checkpoint_frames(&path, &[checkpoint(0, "full", screen)], None).unwrap();
+
+        let frames = CastVideoConverter::new().frames_from_cast(&path).unwrap();
+        assert_eq!(
+            frames.last().unwrap().text_lines(true),
+            vec!["L1", "L2", "L3", "L4", "L5", "L6", "L7", "L8"],
+            "rows were scrolled out of the region instead of painted"
+        );
+    }
+
+    #[test]
+    fn a_checkpoint_paints_over_the_screen_before_it() {
+        // Each screen is a whole picture, so a shorter one must not leave the
+        // tail of a longer one behind it.
+        let (_dir, path) = cast_with("[0.0, \"o\", \"live\"]\n");
+        let steps = [
+            checkpoint(0, "long", "abcdefgh"),
+            checkpoint(1, "short", "xy"),
+        ];
+        append_checkpoint_frames(&path, &steps, None).unwrap();
+
+        let frames = CastVideoConverter::new().frames_from_cast(&path).unwrap();
+        assert_eq!(frames.last().unwrap().text_lines(true)[0], "xy");
+    }
+
+    #[test]
+    fn the_failure_screen_is_appended_too() {
+        // The frame a reviewer most wants held is the one the run died on.
+        let (_dir, path) = cast_with("[0.0, \"o\", \"live\"]\n");
+        let steps = [
+            checkpoint(0, "ok", "fine"),
+            step(1, "boom", "ERROR", CaptureKind::Failure),
+        ];
+        assert_eq!(append_checkpoint_frames(&path, &steps, None).unwrap(), 2);
+
+        let frames = CastVideoConverter::new().frames_from_cast(&path).unwrap();
+        assert_eq!(frames.last().unwrap().text_lines(true)[0], "ERROR");
+    }
+
+    #[test]
+    fn a_cast_missing_its_final_newline_is_not_spliced() {
+        // A recorder killed mid-write leaves one; appending blind would fuse
+        // two events into one unparseable line.
+        let dir = tempfile::tempdir().unwrap();
+        let cast = dir.path().join("r.cast");
+        fs::write(
+            &cast,
+            "{\"version\":2,\"width\":10,\"height\":3}\n[0.0, \"o\", \"a\"]",
+        )
+        .unwrap();
+        let path = cast.to_string_lossy().to_string();
+
+        append_checkpoint_frames(&path, &[checkpoint(0, "one", "first")], None).unwrap();
+        assert_eq!(events_in(&path).len(), 3);
+    }
+
+    #[test]
+    fn a_hold_that_would_stall_the_timestamps_is_rejected() {
+        let (_dir, path) = cast_with("[0.0, \"o\", \"a\"]\n");
+        let steps = [checkpoint(0, "one", "first")];
+        // 1e-9 is the case the name is about: positive and finite, so an
+        // `is_finite() && > 0.0` check waves it through, and then six-decimal
+        // timestamps land every appended event on the same one.
+        //
+        // 6e-7 and 7.5e-7 are what make the *floor* the thing under test rather
+        // than any check that happens to reject a tiny number. They are the
+        // holds that round up to a whole microsecond without advancing by one,
+        // so they are accepted by a check on the rounded hold and still collide
+        // — 6e-7 gives 1e-6, 1e-6, 2e-6, 2e-6. A hold below half a microsecond
+        // cannot make that point: 5e-7 and smaller round to zero on the Python
+        // side, so the weaker check rejects them too and the mirrored test
+        // passes there either way.
+        for bad in [0.0, -1.0, f64::NAN, f64::INFINITY, 1e-9, 6e-7, 7.5e-7] {
+            assert!(
+                append_checkpoint_frames(&path, &steps, Some(bad)).is_err(),
+                "hold {bad} should be rejected"
+            );
+        }
+        // Rejected before anything was written.
+        assert_eq!(events_in(&path).len(), 1);
+
+        // The floor is a floor, not a value swept up to. Spelled 1e-6 rather
+        // than `MIN_CHECKPOINT_HOLD` for the reason the default hold is spelled
+        // 3.0: in terms of the constant this follows it wherever it goes, and
+        // the two implementations would be free to disagree about which holds
+        // they accept.
+        assert_eq!(MIN_CHECKPOINT_HOLD, 1e-6);
+        assert!(append_checkpoint_frames(&path, &steps, Some(1e-6)).is_ok());
+        let times: Vec<f64> = events_in(&path).iter().map(|(at, _)| *at).collect();
+        assert!(times.windows(2).all(|w| w[1] > w[0]), "{times:?}");
     }
 
     #[test]

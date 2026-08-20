@@ -12,6 +12,11 @@ is not agreeing on the files. The first run of this harness found the two
 implementations writing byte-identical manifests pointing at step text files
 that differed by a trailing newline.
 
+The same reasoning covers the cast this writes into the publish directory: a
+manifest agreeing about a recording's path is not agreeing about the recording,
+and once ``append_checkpoint_frames`` puts the evidence sequence on the end of
+one, the cast is the artifact a reviewer actually watches.
+
 The scenario is not a corpus file, unlike the step and assertion harnesses.
 There is only one document shape to compare and it is built by calling an API
 rather than by replaying data, so the cases are the code below and the Rust
@@ -37,6 +42,7 @@ from pathlib import Path
 sys.path.insert(0, os.environ.get("TERMPROOF_PYTHON_REPO", str(Path(__file__).parent.parent / "python")))
 
 from termproof.attributed import AttributedScreen  # noqa: E402
+from termproof.cast_video import append_checkpoint_frames  # noqa: E402
 from termproof.collector import (  # noqa: E402
     MANIFEST_FILE,
     CaptureKind,
@@ -50,6 +56,39 @@ from termproof.collector import (  # noqa: E402
 #: Stands in for the publish directory, which differs on every machine and
 #: between the two halves.
 DIRECTORY_PLACEHOLDER = "@DIR"
+
+#: A recorded session for the checkpoint frames to be appended to. Written out
+#: by hand rather than by a recorder: a real header carries a wall-clock
+#: timestamp and the host's ``SHELL`` and ``TERM``, none of which either
+#: implementation controls.
+#:
+#: It opens by setting a scroll region, because that is what a full-screen TUI
+#: leaves behind and it is the state an append has to undo: without the
+#: ``\x1b[r`` in the repaint prefix, a checkpoint taller than the region scrolls
+#: rows out of the frame. The corpus records the prefix bytes, so both
+#: implementations are held to resetting it.
+BASE_CAST = (
+    '{"version":2,"width":80,"height":24}\n'
+    '[0.5,"o","\\u001b[3;20rMENU"]\n'
+    '[1.25,"o","\\r\\nitem one"]\n'
+)
+
+#: Filename for that cast inside the publish directory.
+CHECKPOINT_CAST = "session-with-checkpoints.cast"
+
+#: A second append over the same steps at an explicit, fractional hold, which
+#: the default-hold cast cannot cover.
+#:
+#: Its base ends on a seventh decimal on purpose. That is what a Rust-recorded
+#: cast ends on -- ``CastRecorder`` writes ``as_secs_f64()`` unrounded -- and it
+#: is the only input shape that tells the two languages' rounding apart:
+#: ``round(at, 6)`` writes 0.9 and 1.3 for the second and fourth frames where
+#: the rule both sides actually run writes 0.900001 and 1.300001. Over a
+#: whole-decimal base the two agree everywhere, so a corpus built on one would
+#: regenerate byte-for-byte with the Python transcription reverted.
+FRACTIONAL_HOLD = 0.2
+FRACTIONAL_HOLD_CAST = "session-with-fractional-hold.cast"
+FRACTIONAL_BASE_CAST = '{"version":2,"width":80,"height":24}\n[0.5000005,"o","MENU"]\n'
 
 IDENTITY = RunIdentity(
     recipe_name="login",
@@ -130,6 +169,19 @@ def build(directory: Path) -> tuple[dict[str, object], dict[str, str]]:
         )
     )
     document = json.loads(manifest.path.read_text(encoding="utf-8"))
+
+    # The evidence sequence written onto the end of a recording. Every captured
+    # screen above goes in, including the SGR-escaped one and the two-line one,
+    # so the appended payloads exercise both JSON escaping and the carriage
+    # returns a raw terminal needs.
+    cast = directory / CHECKPOINT_CAST
+    cast.write_text(BASE_CAST, encoding="utf-8")
+    append_checkpoint_frames(cast, collector.steps)
+
+    fractional = directory / FRACTIONAL_HOLD_CAST
+    fractional.write_text(FRACTIONAL_BASE_CAST, encoding="utf-8")
+    append_checkpoint_frames(fractional, collector.steps, hold_seconds=FRACTIONAL_HOLD)
+
     # `evidence.json` is excluded: it is `document`, and recording it twice
     # would let the two copies disagree.
     files = {
