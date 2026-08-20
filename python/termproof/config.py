@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, field, fields
+from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
 from typing import Any, get_args, get_type_hints
 
@@ -11,103 +11,6 @@ try:
     import yaml
 except ImportError:
     yaml = None  # type: ignore[assignment]
-
-
-# -- built-in defaults (mirror current hardcoded behavior) ------------------
-
-BUILTIN_DEFAULTS: dict[str, Any] = {
-    "steps": {
-        "wait_for_text": "termproof.builtin_steps:WaitForText",
-        "wait_for_idle": "termproof.builtin_steps:WaitForIdle",
-        "send_text": "termproof.builtin_steps:SendText",
-        "send_line": "termproof.builtin_steps:SendLine",
-        "press": "termproof.builtin_steps:Press",
-        "sleep": "termproof.builtin_steps:Sleep",
-        "wait_for_regex": "termproof.builtin_steps:WaitForRegex",
-    },
-    "assertions": {
-        "output_contains": "termproof.builtin_assertions:OutputContains",
-        "output_not_contains": "termproof.builtin_assertions:OutputNotContains",
-        "screen_contains": "termproof.builtin_assertions:ScreenContains",
-        "screen_not_contains": "termproof.builtin_assertions:ScreenNotContains",
-        "step_screen_contains": "termproof.builtin_assertions:StepScreenContains",
-        "exit_code": "termproof.builtin_assertions:ExitCode",
-        "file_exists": "termproof.builtin_assertions:FileExists",
-        "file_contains": "termproof.builtin_assertions:FileContains",
-        "json_schema": "termproof.builtin_assertions:JsonSchema",
-    },
-    "agent_runners": {
-        "codex": "termproof.agent_driven:CodexCliAgentRunner",
-    },
-    "execution_modes": {
-        "scripted_pty": "termproof.builtin_modes:ScriptedPtyMode",
-        "scripted_process": "termproof.builtin_modes:ScriptedProcessMode",
-        "agent_driven": "termproof.builtin_modes:AgentDrivenMode",
-    },
-    "reporters": {
-        "markdown": "termproof.builtin_reporters:MarkdownReporter",
-        "junit_xml": "termproof.builtin_reporters:JUnitXmlReporter",
-    },
-    "screen_renderers": {
-        "svg": "termproof.builtin_renderers:SvgRenderer",
-        "png": "termproof.builtin_renderers:PngRenderer",
-        "png_rsvg": "termproof.rsvg:RsvgPngRenderer",
-    },
-    "video_backends": {
-        "agg_ffmpeg": "termproof.builtin_video:AggFfmpegBackend",
-        "attributed_rsvg": "termproof.cast_video:RsvgFfmpegBackend",
-    },
-    "artifact_publishers": {
-        "s3": "termproof.evidence_publish:S3ArtifactPublisher",
-    },
-    "session_backend": "termproof.builtin_session:PexpectBackend",
-    "docker": {
-        "image": "",
-        "workdir": "/workspace",
-        "volumes": [{"host": ".", "container": "/workspace"}],
-        "env": {},
-    },
-    "defaults": {
-        "idle_cap_seconds": 3.0,
-    },
-    # Evidence-rendering parameters. Every value here reproduces the behavior
-    # that was previously hardcoded in the renderers and the video pipeline, so
-    # an unconfigured run is byte-identical to one from before they were
-    # extracted. See docs/evidence-quality.md for the researched alternatives.
-    "evidence": {
-        "svg": {
-            "char_width": 9,
-            "line_height": 20,
-            "padding": 18,
-            "font_size": 14,
-            "font_family": "ui-monospace,SFMono-Regular,Menlo,Consolas,monospace",
-            "fg": "#e6edf3",
-            "bg": "#101418",
-        },
-        "png": {
-            "scale": 1,
-            "padding": 18,
-            "font_size": 14,
-            "font_path": None,
-            "fg": "#e6edf3",
-            "bg": "#101418",
-        },
-        "video": {
-            "fps": 60,
-            "fps_cap": None,
-            "pix_fmt": "yuv420p",
-            "crf": None,
-            "preset": None,
-            "tune": None,
-            "idle_time_limit": None,
-            "last_frame_duration": None,
-            "theme": None,
-            "font_size": None,
-            "font_family": None,
-        },
-        "dedup_step_screenshots": False,
-    },
-}
 
 
 # -- config model -----------------------------------------------------------
@@ -221,6 +124,78 @@ class VerifierConfig:
     def builtin(cls) -> VerifierConfig:
         """Return a config populated entirely from BUILTIN_DEFAULTS."""
         return _from_mapping(BUILTIN_DEFAULTS)
+
+
+# -- built-in defaults ------------------------------------------------------
+
+BUILTIN_DEFAULTS: dict[str, Any] = {
+    "steps": {
+        "wait_for_text": "termproof.builtin_steps:WaitForText",
+        "wait_for_idle": "termproof.builtin_steps:WaitForIdle",
+        "send_text": "termproof.builtin_steps:SendText",
+        "send_line": "termproof.builtin_steps:SendLine",
+        "press": "termproof.builtin_steps:Press",
+        "sleep": "termproof.builtin_steps:Sleep",
+        "wait_for_regex": "termproof.builtin_steps:WaitForRegex",
+    },
+    "assertions": {
+        "output_contains": "termproof.builtin_assertions:OutputContains",
+        "output_not_contains": "termproof.builtin_assertions:OutputNotContains",
+        "screen_contains": "termproof.builtin_assertions:ScreenContains",
+        "screen_not_contains": "termproof.builtin_assertions:ScreenNotContains",
+        "step_screen_contains": "termproof.builtin_assertions:StepScreenContains",
+        "exit_code": "termproof.builtin_assertions:ExitCode",
+        "file_exists": "termproof.builtin_assertions:FileExists",
+        "file_contains": "termproof.builtin_assertions:FileContains",
+        "json_schema": "termproof.builtin_assertions:JsonSchema",
+    },
+    "agent_runners": {
+        "codex": "termproof.agent_driven:CodexCliAgentRunner",
+    },
+    "execution_modes": {
+        "scripted_pty": "termproof.builtin_modes:ScriptedPtyMode",
+        "scripted_process": "termproof.builtin_modes:ScriptedProcessMode",
+        "agent_driven": "termproof.builtin_modes:AgentDrivenMode",
+    },
+    "reporters": {
+        "markdown": "termproof.builtin_reporters:MarkdownReporter",
+        "junit_xml": "termproof.builtin_reporters:JUnitXmlReporter",
+    },
+    "screen_renderers": {
+        "svg": "termproof.builtin_renderers:SvgRenderer",
+        "png": "termproof.builtin_renderers:PngRenderer",
+        "png_rsvg": "termproof.rsvg:RsvgPngRenderer",
+    },
+    "video_backends": {
+        "agg_ffmpeg": "termproof.builtin_video:AggFfmpegBackend",
+        "attributed_rsvg": "termproof.cast_video:RsvgFfmpegBackend",
+    },
+    "artifact_publishers": {
+        "s3": "termproof.evidence_publish:S3ArtifactPublisher",
+    },
+    "session_backend": "termproof.builtin_session:PexpectBackend",
+    "docker": {
+        "image": "",
+        "workdir": "/workspace",
+        "volumes": [{"host": ".", "container": "/workspace"}],
+        "env": {},
+    },
+    "defaults": {
+        "idle_cap_seconds": 3.0,
+    },
+    # Evidence-rendering parameters, read off the dataclasses above rather than
+    # restated here. This block is what documents every knob and its default
+    # (python/README.md points at it), and a documented default that disagrees
+    # with the one a renderer actually applies is worse than no documentation:
+    # it is a promise the code does not keep. Deriving it means the two cannot
+    # drift. See docs/evidence-quality.md for the researched alternatives.
+    "evidence": {
+        "svg": asdict(SvgRenderConfig()),
+        "png": asdict(PngRenderConfig()),
+        "video": asdict(VideoConfig()),
+        "dedup_step_screenshots": EvidenceConfig().dedup_step_screenshots,
+    },
+}
 
 
 # -- cascading YAML loader --------------------------------------------------
