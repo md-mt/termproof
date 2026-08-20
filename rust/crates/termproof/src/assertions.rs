@@ -493,12 +493,12 @@ fn describe_json_error(input: &str, error: &serde_json::Error) -> String {
 
 /// The score a set of assertion results earns (FR-022): the fraction that
 /// passed, and `1.0` when there are none to fail.
+///
+/// The rule itself lives in [`crate::result`], with the empty-set case
+/// documented on [`crate::result::RunResult::score`]; this is the same rule
+/// over the legacy [`crate::models::AssertionResult`], not a second one.
 pub fn score(results: &[AssertionResult]) -> f64 {
-    if results.is_empty() {
-        return 1.0;
-    }
-    let passed = results.iter().filter(|r| r.passed).count();
-    passed as f64 / results.len() as f64
+    crate::result::score_of(results.iter().map(|r| r.passed))
 }
 
 /// The built-in registry, for a caller that needs to know whether a name is

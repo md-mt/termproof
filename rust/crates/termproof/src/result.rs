@@ -164,7 +164,19 @@ pub struct RunResult {
     pub execution: String,
     /// Renderer name (`default`, …).
     pub renderer: String,
-    /// Score `0.0..1.0`.
+    /// Fraction of assertions that held, in `0.0..=1.0`.
+    ///
+    /// **A run that asserted nothing scores `1.0`, not `0.0`.** That is part of
+    /// this contract rather than a choice each producer makes, because a score
+    /// is read comparatively: a consumer that scored the empty set `0.0` would
+    /// publish numbers that look like these and rank against them wrongly. The
+    /// reading is "no assertion failed", which is what an empty set reports;
+    /// "nothing was verified" is carried by `assertions` being empty, and a
+    /// caller that cares about it should read that rather than the score.
+    ///
+    /// [`score_from`] computes it from a name → passed map and
+    /// [`RunResult::score_from_assertions`] from an [`AssertionResult`] list;
+    /// both are the same rule, and neither should be re-derived by a caller.
     pub score: f64,
     /// Per-step results in order.
     pub steps: Vec<StepResult>,
@@ -174,18 +186,54 @@ pub struct RunResult {
     pub artifacts: BTreeMap<String, String>,
 }
 
+/// [`RunResult::score`] for a name → passed map: the fraction that held.
+///
+/// **An empty map scores `1.0`.** See [`RunResult::score`] for why that is the
+/// contract and not each caller's decision.
+///
+/// The map's ordering cannot affect the result — only how many values are true
+/// and how many there are — so a caller that collected its assertions in a
+/// different order gets the same number. Two entries under one name are one
+/// entry, which is the difference from
+/// [`RunResult::score_from_assertions`]: a list keeps duplicates and weighs
+/// each of them.
+pub fn score_from(assertions: &BTreeMap<String, bool>) -> f64 {
+    score_of(assertions.values().copied())
+}
+
+/// The map [`score_from`] scores, from `(name, passed)` pairs.
+///
+/// The last pair for a name wins, as inserting into the map would.
+pub fn assertion_map<I, S>(pairs: I) -> BTreeMap<String, bool>
+where
+    I: IntoIterator<Item = (S, bool)>,
+    S: Into<String>,
+{
+    pairs
+        .into_iter()
+        .map(|(name, passed)| (name.into(), passed))
+        .collect()
+}
+
+/// The one scoring rule, over whatever the caller counted as an assertion.
+pub(crate) fn score_of(values: impl IntoIterator<Item = bool>) -> f64 {
+    let mut total = 0usize;
+    let mut passed = 0usize;
+    for value in values {
+        total += 1;
+        passed += usize::from(value);
+    }
+    if total == 0 || passed == total {
+        1.0
+    } else {
+        passed as f64 / total as f64
+    }
+}
+
 impl RunResult {
-    /// Compute score from assertion results (all pass → 1.0, else fraction).
+    /// [`RunResult::score`] from assertion results (all pass → 1.0, else fraction).
     pub fn score_from_assertions(assertions: &[AssertionResult]) -> f64 {
-        if assertions.is_empty() {
-            return 1.0;
-        }
-        let passed = assertions.iter().filter(|a| a.passed).count();
-        if passed == assertions.len() {
-            1.0
-        } else {
-            passed as f64 / assertions.len() as f64
-        }
+        score_of(assertions.iter().map(|a| a.passed))
     }
 
     /// Serialize to canonical JSON value (BTreeMap ensures stable key ordering).
@@ -259,6 +307,69 @@ mod tests {
             steps: vec![],
             assertions: vec![],
             artifacts: BTreeMap::new(),
+        }
+    }
+
+    fn assertion(name: &str, passed: bool) -> AssertionResult {
+        AssertionResult {
+            name: name.to_string(),
+            passed,
+            detail: String::new(),
+        }
+    }
+
+    #[test]
+    fn an_empty_assertion_map_scores_one_not_zero() {
+        // The contract decision this function exists to make once: see the
+        // `RunResult::score` docs.
+        assert_eq!(score_from(&BTreeMap::new()), 1.0);
+    }
+
+    #[test]
+    fn a_map_scores_the_fraction_that_held() {
+        assert_eq!(score_from(&assertion_map([("a", true), ("b", true)])), 1.0);
+        assert_eq!(
+            score_from(&assertion_map([("a", false), ("b", false)])),
+            0.0
+        );
+        assert_eq!(score_from(&assertion_map([("a", true), ("b", false)])), 0.5);
+        assert_eq!(
+            score_from(&assertion_map([("a", true), ("b", true), ("c", false)])),
+            2.0 / 3.0
+        );
+    }
+
+    #[test]
+    fn the_order_the_pairs_arrived_in_cannot_move_the_score() {
+        let forwards = assertion_map([("a", true), ("b", false), ("c", false)]);
+        let backwards = assertion_map([("c", false), ("b", false), ("a", true)]);
+        assert_eq!(score_from(&forwards), score_from(&backwards));
+    }
+
+    #[test]
+    fn a_repeated_name_is_one_assertion_and_the_last_value_wins() {
+        let map = assertion_map([("a", true), ("a", false)]);
+        assert_eq!(map.len(), 1);
+        assert_eq!(score_from(&map), 0.0);
+    }
+
+    #[test]
+    fn the_list_and_the_map_score_the_same_assertions_alike() {
+        // One rule, two shapes: the list keeps duplicates, so this is only
+        // stated for distinct names.
+        let cases: [&[(&str, bool)]; 4] = [
+            &[],
+            &[("a", true)],
+            &[("a", false), ("b", false)],
+            &[("a", true), ("b", false), ("c", true)],
+        ];
+        for case in cases {
+            let list: Vec<_> = case.iter().map(|(n, p)| assertion(n, *p)).collect();
+            assert_eq!(
+                RunResult::score_from_assertions(&list),
+                score_from(&assertion_map(case.iter().copied())),
+                "{case:?}"
+            );
         }
     }
 

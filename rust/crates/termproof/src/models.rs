@@ -173,7 +173,8 @@ pub struct RunResult {
     pub execution: String,
     /// Renderer.
     pub renderer: String,
-    /// Score 0..1.
+    /// Score 0..1, under the contract on [`crate::result::RunResult::score`]
+    /// — an empty assertion set scores `1.0`.
     pub score: f64,
     /// Step results.
     pub steps: Vec<StepResult>,
