@@ -96,6 +96,23 @@ Each run writes under `.termproof/runs/<run-id>/` (or the `--out` you provide):
 - `report.md` — per-run review summary
 - `latest-report.md` — aggregate report for multi-recipe runs
 
+## Evidence collector
+
+`termproof.collector.EvidenceCollector` is the ordered step model for a caller
+driving its own run rather than a recipe. `capture` and `capture_failure` pull
+from a `ScreenSource`; `capture_text` records a screen you already hold — text
+recovered from a log, or a golden file in a test:
+
+```python
+collector.capture_text("from-log", recovered)
+collector.capture_text("post-mortem", last_screen, CaptureKind.FAILURE)
+```
+
+**This is the one collector signature the two implementations do not share.**
+Here `kind` defaults to `CaptureKind.CHECKPOINT`; Rust takes it positionally,
+as `capture_text(label, screen, CaptureKind::Checkpoint)`. The meaning, the
+ordering and the resulting manifest are identical.
+
 ## Recipe example
 
 ```json
