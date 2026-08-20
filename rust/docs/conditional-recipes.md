@@ -238,6 +238,16 @@ and for the seams that do not require it to have run anything.
   outcomes flipped, the reporters, the JUnit writer, the uploader. **This crate
   does not have to have run the scenario in order to compare, report and publish
   it.**
+- **`termproof::recipe::RecipeMeta`** — the other half of the same idea, on the
+  way in rather than on the way out. `name`, `description`, `intent`,
+  `priority`, `execution`, `determinism` and `ci_paths` describe a scenario the
+  same way whether it is declarative or yours, so they are a type you can
+  construct without a `Recipe` and therefore without inventing a `command`.
+  `Recipe` holds one and flattens it, so a recipe file is unchanged on disk.
+  It implements `selection::Selectable`, which is what closes the "no
+  `ci_paths` to select on" gap listed above for a consumer who keeps their own
+  runner: they have `ci_paths`, in our type, and `selection::select` takes it
+  (#199).
 
 All three of shape 1, 2 and 3 are a few lines against the driver. The optional
 alert, with the detail that matters:

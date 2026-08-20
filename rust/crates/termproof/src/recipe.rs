@@ -153,15 +153,46 @@ pub struct Assertion {
     pub extra: HashMap<String, serde_json::Value>,
 }
 
-/// Typed recipe model.
+/// What a recipe says about itself, independent of how it is driven.
+///
+/// These seven fields answer "which scenario is this, how much does it matter,
+/// and which sources does it cover" — questions that have the same answer
+/// whether the scenario is a declarative [`Recipe`] or a consumer's own
+/// imperative runner. Only the *driving* half of a recipe is declarative, and
+/// only that half is out of reach for a suite that branches on what the screen
+/// shows; the description is not, and used to be reachable only by constructing
+/// a [`Recipe`], which such a suite cannot do.
+///
+/// [`Recipe`] holds one of these and flattens it, so a recipe file is unchanged
+/// on disk: `name` and `ci_paths` are still top-level keys. An imperative
+/// caller constructs one directly and gets [`crate::selection::Selectable`] for
+/// free, because that trait is implemented here rather than only on [`Recipe`].
+///
+/// Product-specific knobs do not belong here. [`Recipe::extension`] is the
+/// sanctioned home for those, and a consumer's own struct is the other.
+///
+/// ```
+/// use termproof::recipe::RecipeMeta;
+/// use termproof::selection::{select_names, SelectionConfig};
+///
+/// let recipes = vec![
+///     RecipeMeta::new("smoke"),
+///     RecipeMeta {
+///         ci_paths: vec!["src/payments/**".to_string()],
+///         ..RecipeMeta::new("payments")
+///     },
+/// ];
+/// let config = SelectionConfig {
+///     harness_root: "verify/",
+///     repo_marker: "/repo/",
+///     smoke: &["smoke"],
+/// };
+/// let changed = vec!["src/payments/api.rs".to_string()];
+/// assert_eq!(select_names(&recipes, &changed, &config), ["smoke", "payments"]);
+/// ```
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "schema", derive(JsonSchema))]
-pub struct Recipe {
-    /// Recipe format version; defaults to `1` for legacy recipes.
-    #[serde(default = "default_recipe_version")]
-    #[cfg_attr(feature = "schema", schemars(range(min = 1, max = 1)))]
-    pub recipe_version: u32,
-
+pub struct RecipeMeta {
     /// Human-readable recipe identifier.
     pub name: String,
 
@@ -188,6 +219,55 @@ pub struct Recipe {
     /// CI path filters.
     #[serde(default)]
     pub ci_paths: Vec<String>,
+}
+
+impl RecipeMeta {
+    /// Metadata for `name`, with every other field at the value a recipe file
+    /// that omits it would get.
+    ///
+    /// The defaults come from the same functions the `serde` attributes use, so
+    /// this and a parsed recipe cannot drift.
+    pub fn new(name: impl Into<String>) -> Self {
+        Self {
+            name: name.into(),
+            ..Self::default()
+        }
+    }
+}
+
+impl Default for RecipeMeta {
+    /// The defaults a recipe file gets for the fields it omits — except `name`,
+    /// which has no default in the schema and is empty here.
+    fn default() -> Self {
+        Self {
+            name: String::new(),
+            description: default_description(),
+            intent: default_intent(),
+            priority: default_priority(),
+            execution: default_execution(),
+            determinism: default_determinism(),
+            ci_paths: Vec::new(),
+        }
+    }
+}
+
+/// Typed recipe model.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(JsonSchema))]
+pub struct Recipe {
+    /// Recipe format version; defaults to `1` for legacy recipes.
+    #[serde(default = "default_recipe_version")]
+    #[cfg_attr(feature = "schema", schemars(range(min = 1, max = 1)))]
+    pub recipe_version: u32,
+
+    /// What the recipe says about itself: name, description, intent, priority,
+    /// execution, determinism and `ci_paths`.
+    ///
+    /// Flattened, so these stay top-level keys in a recipe file and in the
+    /// schema. The nesting is a Rust-side split only.
+    #[serde(flatten)]
+    #[cfg_attr(feature = "schema", schemars(flatten))]
+    pub meta: RecipeMeta,
 
     /// Checks list (human-readable expectations).
     #[serde(default)]
@@ -298,7 +378,7 @@ mod tests {
         let recipe: Recipe =
             serde_json::from_str(r#"{"name":"x","command":{"argv":["true"]}}"#).expect("parse");
         assert_eq!(recipe.recipe_version, 1);
-        assert_eq!(recipe.priority, "P2");
+        assert_eq!(recipe.meta.priority, "P2");
         assert_eq!(recipe.cols, 100);
         assert_eq!(recipe.timeout_seconds, 30.0);
         assert_eq!(recipe.expect_exit_code, Some(0));
@@ -320,8 +400,8 @@ mod tests {
         let yaml_str = "name: x\ncommand:\n  argv: [echo, hi]\nrecipe_version: 1\n";
         let from_json = Recipe::from_str(json_str, None).expect("json");
         let from_yaml = Recipe::from_str(yaml_str, None).expect("yaml");
-        assert_eq!(from_json.name, "x");
-        assert_eq!(from_yaml.name, "x");
+        assert_eq!(from_json.meta.name, "x");
+        assert_eq!(from_yaml.meta.name, "x");
         assert_eq!(from_json.command.argv, from_yaml.command.argv);
     }
 
