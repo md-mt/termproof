@@ -27,6 +27,15 @@
 //! recording, and once `append_checkpoint_frames` puts the evidence sequence on
 //! the end of one, the cast is the artifact a reviewer actually watches.
 //!
+//! The scenario also drives `record_session` down each of its outcomes, because
+//! the `error` it writes onto a `Recording` is a string in the manifest and has
+//! to be the *same* string on both sides — "which step failed" is only useful to
+//! a reader if it does not depend on which implementation produced the run. One
+//! failure is deliberately left out: an append that fails. Its message comes
+//! from `append_checkpoint_frames` itself, which words its complaints
+//! differently in the two languages, so it is covered by unit tests on each side
+//! rather than recorded here as a divergence.
+//!
 //! # Determinism
 //!
 //! Two things about the scenario are properties of the machine rather than of
@@ -45,7 +54,7 @@
 
 use std::path::Path;
 
-use termproof::evidence::cast_video::append_checkpoint_frames;
+use termproof::evidence::cast_video::{append_checkpoint_frames, CastVideoConverter};
 use termproof::evidence::collector::{
     CaptureKind, EvidenceCollector, EvidencePublisher, Recording, RunIdentity,
 };
@@ -112,6 +121,51 @@ impl ArtifactUploader for StubUploader {
     fn last_error(&self) -> Option<&str> {
         None
     }
+}
+
+/// Declines without saying why. Reports no `last_error` so that this half falls
+/// back on the shared message, which is all the oracle's protocol can express.
+struct RefusingUploader;
+
+impl ArtifactUploader for RefusingUploader {
+    fn upload(&mut self, _path: &str) -> Option<String> {
+        None
+    }
+
+    fn last_error(&self) -> Option<&str> {
+        None
+    }
+}
+
+/// A converter whose tools write a fixed byte instead of running.
+///
+/// `convert` still replays the cast and renders every frame; the oracle's
+/// counterpart is a hand-written stub that writes the same byte and reads
+/// nothing. Neither the frame count nor the encoder reaches the manifest — the
+/// video *path* and the file at it are what the two sides have to agree on.
+fn stub_converter() -> CastVideoConverter {
+    CastVideoConverter::with_runner(Box::new(|exe, args, _timeout| {
+        let (path, bytes): (&String, &[u8]) = if exe.ends_with("ffmpeg") {
+            (args.last().ok_or("stub converter: no output")?, b"mp4")
+        } else {
+            let at = args
+                .iter()
+                .position(|a| a == "--output")
+                .ok_or("stub converter: no --output argument")?;
+            (args.get(at + 1).ok_or("stub converter: no output")?, b"png")
+        };
+        std::fs::write(path, bytes).map_err(|e| e.to_string())
+    }))
+}
+
+/// Fails with a message neither language contributes to.
+fn broken_converter() -> CastVideoConverter {
+    CastVideoConverter::with_runner(Box::new(|_, _, _| Err("encoder exploded".to_string())))
+}
+
+/// Writes [`BASE_CAST`], the way a real `save_cast` would.
+fn save_base_cast(dest: &Path) -> Result<(), String> {
+    std::fs::write(dest, BASE_CAST).map_err(|e| e.to_string())
 }
 
 /// A session serving `screen` and `raw`, the Rust equivalent of the oracle's
@@ -192,6 +246,39 @@ fn the_published_manifest_matches_the_python_document() {
     collector.attach_recording(
         Recording::new("failed-encode", "/tmp/broken.cast").with_error("video conversion failed"),
     );
+
+    // `record_session`, once per outcome. Every publisher writes into the same
+    // directory and differs only in the seam under test, so the recordings are
+    // numbered consecutively and their artifacts all land in `files`.
+    let mut working = EvidencePublisher::new(&directory, identity())
+        .with_renderer(stub_renderer())
+        .with_uploader(Box::new(StubUploader))
+        .with_video_converter(stub_converter());
+    // All five steps succeed: cast, appended evidence, video, URL.
+    collector.record_session("recorded", &mut working, save_base_cast);
+    // Step 1 fails, so nothing downstream runs.
+    collector.record_session("unsaveable", &mut working, |_| {
+        Err("disk on fire".to_string())
+    });
+    // Step 1 fails quietly, which is still step 1.
+    collector.record_session("silent-save", &mut working, |_| Ok(()));
+    // Step 3 has nothing to convert with.
+    let mut no_converter = EvidencePublisher::new(&directory, identity())
+        .with_renderer(stub_renderer())
+        .with_uploader(Box::new(StubUploader));
+    collector.record_session("no-converter", &mut no_converter, save_base_cast);
+    // Step 3 fails, so step 4 is not attempted: no URL, and no upload error.
+    let mut bad_encode = EvidencePublisher::new(&directory, identity())
+        .with_renderer(stub_renderer())
+        .with_uploader(Box::new(StubUploader))
+        .with_video_converter(broken_converter());
+    collector.record_session("bad-encode", &mut bad_encode, save_base_cast);
+    // Step 4 fails, which costs the URL and not the video.
+    let mut no_url = EvidencePublisher::new(&directory, identity())
+        .with_renderer(stub_renderer())
+        .with_uploader(Box::new(RefusingUploader))
+        .with_video_converter(stub_converter());
+    collector.record_session("no-url", &mut no_url, save_base_cast);
 
     let mut publisher = EvidencePublisher::new(&directory, identity())
         .with_renderer(stub_renderer())

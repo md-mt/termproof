@@ -60,11 +60,25 @@ Folding one of the two *file layouts* into the other is a different change from
 sharing the dedup, and not one to smuggle in here: it would move the paths
 :func:`termproof.evidence.render_artifacts` has always written, which every
 existing reader of a run directory depends on.
+
+A whole-session recording is five steps, and four of them can fail
+-------------------------------------------------------------------
+
+:meth:`EvidenceCollector.record_session` is the wiring between the pieces
+around it: it saves the live session's cast through a caller-supplied callable,
+appends the captured checkpoints to it with
+:func:`termproof.cast_video.append_checkpoint_frames`, converts it to a video,
+uploads the video, and records the outcome on a :class:`Recording`. Every
+consumer that wanted a video of the whole run wrote that sequence itself, and
+what they got wrong was never the happy path — it was which step is allowed to
+fail, and what the run is told when one does. See
+:meth:`EvidenceCollector.record_session` for the rule.
 """
 
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
@@ -83,6 +97,24 @@ MANIFEST_FILE = "evidence.json"
 
 #: Longest label fragment allowed in a generated filename.
 MAX_LABEL_IN_FILENAME = 40
+
+# Names of the four fallible steps of `EvidenceCollector.record_session`, as
+# they appear at the front of a `Recording.error`.
+#
+# Spelled once each, and asserted literally in the tests, because "which step
+# failed" is the whole point of the field: a report that says only that
+# something went wrong sends a reader back to the machine that produced it. The
+# Rust implementation writes the same four strings.
+_STEP_SAVE_CAST = "save cast"
+_STEP_APPEND_FRAMES = "append checkpoint frames"
+_STEP_CONVERT = "convert"
+_STEP_UPLOAD = "upload"
+
+# Step 3's failure when the publisher was never given a converter.
+_NO_VIDEO_CONVERTER = "no video converter configured"
+
+# Step 4's failure when the uploader declined without saying why.
+_NO_URL = "uploader returned no URL"
 
 
 class RawOutput(Enum):
@@ -236,6 +268,21 @@ class UploaderLike(Protocol):
     def upload(self, path: Path) -> str | None: ...
 
 
+class VideoConverterLike(Protocol):
+    """Turns a cast into a video and says where the video landed.
+
+    Mirrors Rust's ``CastVideoConverter::convert``, and is satisfied by
+    :class:`termproof.cast_video.RsvgFfmpegBackend`. Deliberately not the
+    :class:`termproof.protocols.VideoBackend` shape: that one takes an ``fps``
+    and returns nothing, so every caller would have to invent an output path
+    and a frame rate before it could ask for a video.
+
+    Raises on failure — the counterpart of Rust's ``Err``.
+    """
+
+    def convert(self, cast_path: Path, video_path: Path | None = None) -> Path: ...
+
+
 @dataclass
 class EvidencePublisher:
     """Where published evidence goes and how it gets there."""
@@ -250,6 +297,16 @@ class EvidencePublisher:
     #: Uploads are best-effort: a failure leaves the step's ``url`` empty
     #: rather than failing the publish.
     uploader: UploaderLike | None = None
+    #: Encodes a session recording, for
+    #: :meth:`EvidenceCollector.record_session` and for nothing else —
+    #: :meth:`EvidenceCollector.publish` renders stills and does not encode.
+    #:
+    #: Optional rather than defaulted because a converter is two more binaries
+    #: on the host (``rsvg-convert`` and ``ffmpeg``), and a publisher that is
+    #: only ever going to write stills should not imply them. A
+    #: ``record_session`` against a publisher without one records that as the
+    #: ``convert`` step failing.
+    video_converter: VideoConverterLike | None = None
 
     def manifest_path(self) -> Path:
         return self.directory / MANIFEST_FILE
@@ -428,6 +485,134 @@ class EvidenceCollector:
         """
         self._recordings.append(recording)
 
+    def record_session(
+        self,
+        label: str,
+        publisher: EvidencePublisher,
+        save_cast: Callable[[Path], None],
+    ) -> None:
+        """Save the session's cast, derive a video from it, upload it, and
+        record the outcome.
+
+        The five steps, in order:
+
+        1. write the live session's cast, by calling *save_cast* with the path
+           to write to — the collector picks the path so the cast lands beside
+           the stills it belongs with;
+        2. append the captured checkpoints to that cast as held trailing
+           frames, through
+           :func:`termproof.cast_video.append_checkpoint_frames`;
+        3. convert the cast to a video, through the publisher's
+           :attr:`~EvidencePublisher.video_converter`;
+        4. upload the video, through the publisher's
+           :attr:`~EvidencePublisher.uploader`;
+        5. attach a :class:`Recording` describing what came of all that, which
+           :meth:`publish` then writes into the manifest.
+
+        **No failure fails the run.** Nothing here raises, on purpose: a
+        recording is evidence *about* a run, not part of its verdict, so a
+        missing video degrades the report and nothing else. Every failure lands
+        on the ``Recording`` instead, prefixed with the name of the step that
+        produced it — ``save cast``, ``append checkpoint frames``, ``convert``
+        or ``upload`` — and reaches the report from there. Two failures in one
+        call are joined with ``"; "``, so neither is lost to the other. Step 5
+        is the only one that cannot fail: it appends to a list.
+
+        **Which later steps run after a failure.** A step runs only when the
+        step before it produced the thing it works on. That is the whole rule,
+        and it decides every case:
+
+        ==================  =================  ==========================================
+        step that failed    what still runs    why
+        ==================  =================  ==========================================
+        1, save cast        nothing            no cast to append to, convert or upload
+        2, append frames    3 and 4            the cast is still on disk and still
+                                               convertible; it just ends on the session
+                                               instead of on the evidence
+        3, convert          nothing after it   there is no video to upload
+        4, upload           —                  it is last; ``video`` is still recorded,
+                                               only ``url`` is missing
+        ==================  =================  ==========================================
+
+        The case worth naming is the one a hand-written version gets wrong: **an
+        upload is never attempted after a failed conversion.** Uploading the
+        path a conversion did not produce is how a run ends up reporting a store
+        error for a video that was never encoded.
+
+        A publisher with no uploader is not a failure — it is a publisher that
+        was not asked to upload, exactly as in :meth:`publish`. A publisher with
+        no *converter* is a failure, because converting is what this method was
+        called to do.
+
+        *save_cast* writes a cast to the path it is handed, and raises to say it
+        could not; the exception's text becomes the step-1 message, where Rust
+        takes an ``Err(String)``. A callable that returns normally and writes
+        nothing is treated as step 1 failing, rather than left for step 2 to
+        discover as a missing file: the step that lied is the one worth naming.
+        """
+        # Imported here, not at module scope: `cast_video` imports
+        # `CapturedStep` from this module, so a top-level import would close
+        # the cycle. Nothing else in the collector needs the video path.
+        from .cast_video import append_checkpoint_frames
+
+        stem = _recording_file_stem(len(self._recordings), label)
+        cast_path = publisher.directory / f"{stem}.cast"
+        recording = Recording(label=label, cast=str(cast_path))
+        errors: list[str] = []
+
+        # 1. Write the cast. The directory is created here rather than left to
+        #    the callable: the collector chose the path, so the collector owes
+        #    it somewhere to be written.
+        try:
+            publisher.directory.mkdir(parents=True, exist_ok=True)
+            save_cast(cast_path)
+        except Exception as exc:  # noqa: BLE001 - no failure may fail the run
+            recording.error = f"{_STEP_SAVE_CAST}: {exc}"
+            self._recordings.append(recording)
+            return
+        if not cast_path.is_file():
+            recording.error = (
+                f"{_STEP_SAVE_CAST}: reported success but wrote no file at {cast_path}"
+            )
+            self._recordings.append(recording)
+            return
+
+        # 2. Put the evidence sequence on the end of it. Non-fatal: the cast is
+        #    on disk either way, and a recording that stops on the session is
+        #    worth more than no recording at all.
+        try:
+            append_checkpoint_frames(cast_path, self._steps)
+        except Exception as exc:  # noqa: BLE001 - no failure may fail the run
+            errors.append(f"{_STEP_APPEND_FRAMES}: {exc}")
+
+        # 3. Encode it.
+        video_path = publisher.directory / f"{stem}.mp4"
+        if publisher.video_converter is None:
+            errors.append(f"{_STEP_CONVERT}: {_NO_VIDEO_CONVERTER}")
+        else:
+            try:
+                video = Path(publisher.video_converter.convert(cast_path, video_path))
+            except Exception as exc:  # noqa: BLE001 - no failure may fail the run
+                errors.append(f"{_STEP_CONVERT}: {exc}")
+            else:
+                recording.video = str(video)
+                # 4. Share it. Only reachable with a video in hand.
+                if publisher.uploader is not None:
+                    try:
+                        url = publisher.uploader.upload(video)
+                    except Exception as exc:  # noqa: BLE001 - no failure may fail the run
+                        errors.append(f"{_STEP_UPLOAD}: {exc}")
+                    else:
+                        if url is None:
+                            errors.append(f"{_STEP_UPLOAD}: {_NO_URL}")
+                        else:
+                            recording.url = url
+
+        # 5. Record what happened, including which step it happened in.
+        if errors:
+            recording.error = "; ".join(errors)
+        self._recordings.append(recording)
+
     @property
     def steps(self) -> list[CapturedStep]:
         return list(self._steps)
@@ -541,6 +726,16 @@ def _sanitize(value: str) -> str:
     return "".join(c if c.isalnum() or c in "-_" else "-" for c in value)
 
 
+def _recording_file_stem(index: int, label: str) -> str:
+    """Filename stem shared by a recording's cast and video.
+
+    Numbered like :meth:`CapturedStep.file_stem` and for the same reason: labels
+    are caller-supplied and may repeat, and two recordings called
+    ``full-session`` must not overwrite each other's cast.
+    """
+    return f"recording-{index:02d}-{_sanitize(label[:MAX_LABEL_IN_FILENAME])}"
+
+
 #: A source built from a screen the caller already has. Useful in tests and for
 #: replaying a cast, neither of which has a live program to read from.
 def static_source(screen: str, raw_output: str = "") -> ScreenSource:
@@ -570,5 +765,6 @@ __all__ = [
     "RunIdentity",
     "ScreenCapture",
     "ScreenSource",
+    "VideoConverterLike",
     "static_source",
 ]

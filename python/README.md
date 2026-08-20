@@ -113,6 +113,33 @@ Here `kind` defaults to `CaptureKind.CHECKPOINT`; Rust takes it positionally,
 as `capture_text(label, screen, CaptureKind::Checkpoint)`. The meaning, the
 ordering and the resulting manifest are identical.
 
+### Recording the whole session
+
+`record_session` is the five-step sequence around a video: save the live
+session's cast through the callable you pass, append the captured checkpoints
+to it as held trailing frames, convert it, upload it, and attach a `Recording`
+that `publish` writes into the manifest.
+
+```python
+publisher = EvidencePublisher(
+    directory=run_dir / "evidence",
+    identity=identity,
+    video_converter=RsvgFfmpegBackend(),
+    uploader=my_uploader,
+)
+collector.record_session("full-session", publisher, lambda dest: session.save_cast(dest))
+manifest = collector.publish(publisher)
+```
+
+**No step may fail the run**, so nothing here raises: a recording is evidence
+about a run, not part of its verdict. Each failure lands on the `Recording`'s
+`error` instead, prefixed with the step that produced it — `save cast`,
+`append checkpoint frames`, `convert` or `upload` — and two of them in one call
+are joined with `"; "`. A step runs only when the step before it produced what
+it works on, so a failed save skips everything after it and **a failed
+conversion is never uploaded**; a failed append is the one non-fatal case,
+because the cast is on disk and still convertible either way.
+
 ## Recipe example
 
 ```json

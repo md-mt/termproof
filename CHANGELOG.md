@@ -70,6 +70,44 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
   same rule; the difference between the two shapes is that a list weighs
   duplicate names once each and a mapping folds them into one entry.
 
+- **`termproof.collector.EvidenceCollector.record_session`:** the wiring 0.4.0
+  left out. `Recording`, `attach_recording`, the cast-to-video backends and the
+  upload seam all existed; nothing joined them, so every consumer that wanted a
+  video of a whole run wrote the same five-step sequence itself. This is that
+  sequence: save the live session's cast through a caller-supplied callable,
+  append the captured checkpoints to it with `append_checkpoint_frames`,
+  convert it to a video, upload the video, and attach a `Recording` that
+  `publish` then writes into the manifest.
+
+  **The error handling is the part worth having upstream, and it is a stated
+  rule rather than an accident of control flow: a step runs only when the step
+  before it produced the thing it works on.** A cast that could not be saved
+  leaves nothing to append to, convert or upload, so steps 2–4 are skipped; an
+  append that failed leaves the cast on disk and still convertible, so it is the
+  one non-fatal step; **a conversion that failed leaves nothing to upload, so no
+  upload is attempted** — reporting a store error for a video that was never
+  encoded is exactly what two independent consumer implementations got wrong.
+  Nothing raises: a recording is evidence about a run, not part of its verdict.
+  Every failure instead lands on the `Recording`'s `error`, prefixed with the
+  name of the step that produced it — `save cast`, `append checkpoint frames`,
+  `convert` or `upload` — and two failures in one call are joined with `"; "` so
+  neither is lost. A callable that reports success and writes no cast is
+  reported as step 1 failing, not left for step 2 to discover as a missing file.
+
+- **`termproof.collector.EvidencePublisher.video_converter`**, beside the
+  existing `renderer` and `uploader`, with `termproof.collector.VideoConverterLike`
+  as its protocol. Optional rather than defaulted, because a converter is two
+  more binaries on the host; a `record_session` against a publisher without one
+  records that as the `convert` step failing, since converting is what it was
+  called to do.
+
+- **`termproof.cast_video.RsvgFfmpegBackend.convert`** and `output_path_for`,
+  which satisfy that protocol: `render` is the `VideoBackend` method and is
+  unchanged, and `convert` supplies the two things it makes a caller invent — an
+  output path and a frame rate. The rate is the configured
+  `evidence.video.fps`, or `DEFAULT_FPS` when the backend was not built from a
+  config, which is the rate Rust's `CastVideoConverter` defaults to.
+
 - **`termproof.cast_video.append_checkpoint_frames`:** appends the captured
   checkpoint screens to a cast as held trailing frames, so a recording ends by
   replaying the evidence sequence instead of stopping on whatever the last
@@ -216,6 +254,20 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
   `assertion_map` collecting `(impl Into<String>, bool)` pairs. The empty-map
   case is `1.0` here too, and is documented on `RunResult::score` — the field
   the number ends up in — rather than only on the function that computes it.
+
+- **`evidence::collector::EvidenceCollector::record_session`:** the same five
+  steps with the same semantics and the same rule about which of them run after
+  a failure, taking `save_cast: FnOnce(&Path) -> Result<(), String>` where
+  Python takes a callable that raises. It returns nothing rather than a
+  `Result`, for the reason nothing on the Python side raises: no failure may
+  fail the run. `&mut self`, because it appends a `Recording`; `publish` stays
+  `&self`. The four step names it prefixes an error with are the same four
+  strings both implementations write, which the conformance pair now compares.
+
+- **`evidence::collector::EvidencePublisher::video_converter`** and
+  `with_video_converter`, beside the existing `renderer` and `uploader` and in
+  the same builder style. Holds a `CastVideoConverter`, and is `Option` for the
+  reason the Python field is.
 
 - **`evidence::cast_video::append_checkpoint_frames`:** the same capability with
   the same semantics, taking `hold_seconds: Option<f64>` where Python takes a

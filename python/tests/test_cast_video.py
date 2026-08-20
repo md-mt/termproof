@@ -11,6 +11,7 @@ from unittest import mock
 from termproof.attributed import AttributedCell, AttributedScreen, attributed_screen_from_text
 from termproof.cast_video import (
     DEFAULT_CHECKPOINT_HOLD,
+    DEFAULT_FPS,
     DEFAULT_IDLE_TIME_LIMIT,
     MIN_CHECKPOINT_HOLD,
     RsvgFfmpegBackend,
@@ -322,6 +323,27 @@ class RsvgFfmpegBackendTest(unittest.TestCase):
 
         backend = RsvgFfmpegBackend.from_config(EvidenceConfig(video=VideoConfig(idle_time_limit=3.0)))
         self.assertEqual(3.0, backend.idle_time_limit)
+
+    def test_convert_returns_where_the_video_landed(self) -> None:
+        # The seam `EvidenceCollector.record_session` drives: `render` returns
+        # nothing, so a caller that wants a video path has to be handed one.
+        out = self.tmp / "elsewhere.mp4"
+        self.assertEqual(out, self._backend().convert(self.cast, out))
+        self.assertEqual(self.runner.calls[-1][0], "/fake/ffmpeg")
+        self.assertIn(str(out), self.runner.calls[-1][1])
+
+    def test_convert_defaults_the_video_beside_the_cast(self) -> None:
+        self.assertEqual(self.tmp / "s.mp4", self._backend().convert(self.cast))
+
+    def test_convert_encodes_at_the_rate_rust_defaults_to(self) -> None:
+        # An unconfigured backend is the counterpart of `CastVideoConverter`'s
+        # own default, so the two implementations record at one frame rate.
+        self._backend().convert(self.cast)
+        self.assertIn(str(DEFAULT_FPS), self.runner.calls[-1][1])
+
+    def test_convert_honours_a_configured_frame_rate(self) -> None:
+        self._backend(video=VideoConfig(fps=12)).convert(self.cast)
+        self.assertIn("12", self.runner.calls[-1][1])
 
 
 #: Replaying an appended cast through the real emulator is the strongest check

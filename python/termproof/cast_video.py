@@ -419,6 +419,27 @@ class RsvgFfmpegBackend:
             str(output_path),
         ]
 
+    def output_path_for(self, cast_path: Path) -> Path:
+        """The default video path for *cast_path*: the same path as an ``.mp4``."""
+        return cast_path.with_suffix(".mp4")
+
+    def convert(self, cast_path: Path, video_path: Path | None = None) -> Path:
+        """Render *cast_path* to MP4 and return where the video landed.
+
+        The seam :meth:`termproof.collector.EvidenceCollector.record_session`
+        drives, and the counterpart of Rust's ``CastVideoConverter::convert``.
+        :meth:`render` is the :class:`~termproof.protocols.VideoBackend`
+        protocol method and is unchanged; this one supplies the two things that
+        protocol makes a caller invent — an output path and a frame rate.
+
+        The frame rate is the configured ``evidence.video.fps`` when this
+        backend was built from a config, and :data:`DEFAULT_FPS` otherwise,
+        which is the rate Rust's converter defaults to.
+        """
+        output = self.output_path_for(cast_path) if video_path is None else video_path
+        self.render(cast_path, output, DEFAULT_FPS if self.video is None else self.video.fps)
+        return output
+
     def render(self, cast_path: Path, output_path: Path, fps: int) -> None:
         rsvg = self._resolve(self.rsvg_path, RSVG_CONVERT)
         ffmpeg = self._resolve(self.ffmpeg_path, FFMPEG)

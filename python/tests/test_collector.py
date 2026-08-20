@@ -351,6 +351,294 @@ class RecordingTest(unittest.TestCase):
         self.assertNotIn("recordings", document)
 
 
+#: A cast with one event, the shape ``save_cast`` is expected to produce.
+_A_CAST = '{"version":2,"width":10,"height":3}\n[0.5,"o","live"]\n'
+
+
+def _save_a_cast(dest: Path) -> None:
+    """Writes :data:`_A_CAST` and returns, the way a real ``save_cast`` would."""
+    dest.write_text(_A_CAST, encoding="utf-8")
+
+
+class _StubConverter:
+    """Writes a fixed byte instead of shelling out to rsvg-convert and ffmpeg."""
+
+    def __init__(self) -> None:
+        self.converted: list[Path] = []
+
+    def convert(self, cast_path: Path, video_path: Path | None = None) -> Path:
+        output = cast_path.with_suffix(".mp4") if video_path is None else video_path
+        self.converted.append(cast_path)
+        output.write_text("mp4", encoding="utf-8")
+        return output
+
+
+class _BrokenConverter:
+    def convert(self, cast_path: Path, video_path: Path | None = None) -> Path:
+        raise RuntimeError("encoder exploded")
+
+
+class _RefusingUploader:
+    """Declines without saying why, which is all the protocol allows."""
+
+    def upload(self, path: Path) -> str | None:
+        return None
+
+
+class _ExplodingUploader:
+    def upload(self, path: Path) -> str | None:
+        raise RuntimeError("store down")
+
+
+class RecordSessionTest(unittest.TestCase):
+    """The five-step session recording, and what each step's failure does.
+
+    Mirrors ``record_session``'s tests in ``collector.rs``. Nothing here may
+    raise: a recording is evidence about a run, not part of its verdict, so a
+    test that fails by exception rather than by assertion is itself the bug.
+    """
+
+    def _collector(self) -> EvidenceCollector:
+        collector = EvidenceCollector()
+        collector.capture("only", static_source("screen text"))
+        return collector
+
+    def test_record_session_runs_the_five_steps_in_order(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            directory = Path(tmpdir) / "evidence"
+            uploader = _Uploader()
+            publisher = EvidencePublisher(
+                directory=directory,
+                identity=_identity(),
+                renderer=_RecordingRenderer(),
+                uploader=uploader,
+                video_converter=_StubConverter(),
+            )
+            collector = self._collector()
+            collector.record_session("full-session", publisher, _save_a_cast)
+
+            recording = collector.recordings[0]
+            self.assertEqual("full-session", recording.label)
+            self.assertIsNone(recording.error)
+
+            # 1. The cast is where the collector said it would be.
+            cast = Path(recording.cast)
+            self.assertEqual("recording-00-full-session.cast", cast.name)
+            contents = cast.read_text(encoding="utf-8")
+
+            # 2. With the captured screen appended to it, which is the whole
+            #    reason step 2 exists: the session's own last frame is not the
+            #    evidence.
+            self.assertTrue(contents.startswith(_A_CAST), contents)
+            self.assertIn("screen text", contents)
+
+            # 3 and 4.
+            video = Path(recording.video or "")
+            self.assertEqual("recording-00-full-session.mp4", video.name)
+            self.assertEqual("mp4", video.read_text(encoding="utf-8"))
+            self.assertEqual(f"https://example/{video.name}", recording.url)
+            self.assertEqual([video], uploader.uploaded)
+
+            # 5. And all of it reaches the manifest, which is what a report
+            #    reads.
+            manifest = collector.publish(publisher)
+            document = json.loads(manifest.path.read_text())
+
+        self.assertEqual(1, len(document["recordings"]))
+        self.assertEqual(str(video), document["recordings"][0]["video"])
+
+    def test_a_cast_that_cannot_be_saved_stops_the_sequence(self) -> None:
+        # Nothing downstream has anything to work on, so nothing downstream
+        # runs -- and the recording says which step it was.
+        def explode(dest: Path) -> None:
+            raise RuntimeError("disk on fire")
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            uploader = _Uploader()
+            converter = _StubConverter()
+            publisher = EvidencePublisher(
+                directory=Path(tmpdir),
+                identity=_identity(),
+                uploader=uploader,
+                video_converter=converter,
+            )
+            collector = self._collector()
+            collector.record_session("full-session", publisher, explode)
+
+            recording = collector.recordings[0]
+            self.assertEqual("save cast: disk on fire", recording.error)
+            self.assertIsNone(recording.video)
+            self.assertIsNone(recording.url)
+            self.assertEqual([], converter.converted)
+            self.assertEqual([], uploader.uploaded)
+            self.assertFalse(Path(recording.cast).exists())
+
+    def test_a_save_that_writes_nothing_is_the_save_step_failing(self) -> None:
+        # A callable that returns normally and writes no file is step 1 going
+        # wrong, not step 2 finding a missing file: blaming the append would
+        # send a reader to the wrong code.
+        with tempfile.TemporaryDirectory() as tmpdir:
+            converter = _StubConverter()
+            publisher = EvidencePublisher(
+                directory=Path(tmpdir), identity=_identity(), video_converter=converter
+            )
+            collector = self._collector()
+            collector.record_session("full-session", publisher, lambda dest: None)
+
+            error = collector.recordings[0].error or ""
+            self.assertTrue(error.startswith("save cast: "), error)
+            self.assertIn("wrote no file", error)
+            self.assertEqual([], converter.converted)
+
+    def test_an_append_failure_does_not_stop_the_conversion(self) -> None:
+        # Step 2 is the one non-fatal step: the cast is on disk either way, and
+        # a recording that ends on the session is worth more than none.
+        #
+        # An empty cast is the append failure reachable through
+        # `record_session`, the hold not being caller-supplied here. The stub
+        # converter does not read the cast, so this can assert the video
+        # survived; the Rust mirror uses a real `CastVideoConverter`, which
+        # cannot read an empty cast either, and asserts instead that step 3 was
+        # attempted and both failures were recorded.
+        with tempfile.TemporaryDirectory() as tmpdir:
+            publisher = EvidencePublisher(
+                directory=Path(tmpdir),
+                identity=_identity(),
+                video_converter=_StubConverter(),
+            )
+            collector = self._collector()
+            collector.record_session("empty", publisher, lambda dest: dest.write_text(""))
+
+            recording = collector.recordings[0]
+            error = recording.error or ""
+            self.assertTrue(error.startswith("append checkpoint frames: "), error)
+            self.assertIsNotNone(recording.video)
+
+    def test_a_publisher_with_no_video_converter_says_so(self) -> None:
+        # Not silence: `record_session` was called to produce a video, so a
+        # publisher that cannot is a failure of the convert step.
+        with tempfile.TemporaryDirectory() as tmpdir:
+            publisher = EvidencePublisher(directory=Path(tmpdir), identity=_identity())
+            collector = self._collector()
+            collector.record_session("full-session", publisher, _save_a_cast)
+
+            recording = collector.recordings[0]
+            self.assertEqual("convert: no video converter configured", recording.error)
+            # Steps 1 and 2 still happened, so the cast is still evidence.
+            self.assertIn("screen text", Path(recording.cast).read_text(encoding="utf-8"))
+            self.assertIsNone(recording.video)
+
+    def test_a_failed_conversion_is_never_uploaded(self) -> None:
+        # The error path a hand-written version gets wrong: uploading the path
+        # a conversion did not produce, and reporting a store failure for a
+        # video that was never encoded.
+        with tempfile.TemporaryDirectory() as tmpdir:
+            uploader = _Uploader()
+            publisher = EvidencePublisher(
+                directory=Path(tmpdir),
+                identity=_identity(),
+                uploader=uploader,
+                video_converter=_BrokenConverter(),
+            )
+            collector = self._collector()
+            collector.record_session("full-session", publisher, _save_a_cast)
+
+            recording = collector.recordings[0]
+            self.assertEqual("convert: encoder exploded", recording.error)
+            self.assertIsNone(recording.video)
+            self.assertIsNone(recording.url)
+            self.assertEqual([], uploader.uploaded)
+
+    def test_a_failed_upload_keeps_the_video(self) -> None:
+        # Step 4 is last, so its failure costs the URL and nothing else. The
+        # video is still on disk and still worth naming.
+        with tempfile.TemporaryDirectory() as tmpdir:
+            publisher = EvidencePublisher(
+                directory=Path(tmpdir),
+                identity=_identity(),
+                uploader=_ExplodingUploader(),
+                video_converter=_StubConverter(),
+            )
+            collector = self._collector()
+            collector.record_session("full-session", publisher, _save_a_cast)
+
+            recording = collector.recordings[0]
+            self.assertEqual("upload: store down", recording.error)
+            self.assertIsNotNone(recording.video)
+            self.assertIsNone(recording.url)
+
+    def test_an_uploader_that_declines_without_a_reason_still_names_the_step(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            publisher = EvidencePublisher(
+                directory=Path(tmpdir),
+                identity=_identity(),
+                uploader=_RefusingUploader(),
+                video_converter=_StubConverter(),
+            )
+            collector = self._collector()
+            collector.record_session("full-session", publisher, _save_a_cast)
+
+            self.assertEqual(
+                "upload: uploader returned no URL", collector.recordings[0].error
+            )
+
+    def test_a_publisher_with_no_uploader_is_not_a_failure(self) -> None:
+        # Absent is not broken: a publisher without an uploader was not asked to
+        # upload, exactly as in `publish`.
+        with tempfile.TemporaryDirectory() as tmpdir:
+            publisher = EvidencePublisher(
+                directory=Path(tmpdir),
+                identity=_identity(),
+                video_converter=_StubConverter(),
+            )
+            collector = self._collector()
+            collector.record_session("full-session", publisher, _save_a_cast)
+
+            recording = collector.recordings[0]
+            self.assertIsNone(recording.error)
+            self.assertIsNotNone(recording.video)
+            self.assertIsNone(recording.url)
+
+    def test_two_recordings_with_one_label_do_not_share_a_cast(self) -> None:
+        # Labels are caller-supplied and may repeat; the second recording must
+        # not overwrite the first one's evidence.
+        with tempfile.TemporaryDirectory() as tmpdir:
+            publisher = EvidencePublisher(
+                directory=Path(tmpdir),
+                identity=_identity(),
+                video_converter=_StubConverter(),
+            )
+            collector = self._collector()
+            collector.record_session("full-session", publisher, _save_a_cast)
+            collector.record_session("full-session", publisher, _save_a_cast)
+
+            first, second = collector.recordings
+            self.assertNotEqual(first.cast, second.cast)
+            self.assertNotEqual(first.video, second.video)
+            self.assertEqual("recording-01-full-session.cast", Path(second.cast).name)
+            self.assertEqual([None, None], [first.error, second.error])
+
+    def test_a_recorded_session_sits_beside_a_hand_attached_one(self) -> None:
+        # `record_session` and `attach_recording` write to the same list, in
+        # call order, so a caller that encodes its own video is not shut out.
+        with tempfile.TemporaryDirectory() as tmpdir:
+            publisher = EvidencePublisher(
+                directory=Path(tmpdir),
+                identity=_identity(),
+                video_converter=_StubConverter(),
+            )
+            collector = self._collector()
+            collector.attach_recording(Recording(label="hand-made", cast="/tmp/other.cast"))
+            collector.record_session("full-session", publisher, _save_a_cast)
+
+            manifest = collector.publish(publisher)
+            document = json.loads(manifest.path.read_text())
+
+        self.assertEqual(
+            ["hand-made", "full-session"], [r["label"] for r in document["recordings"]]
+        )
+
+
 class AttachToTest(unittest.TestCase):
     """Joining a manifest to a result, which is what stops A being paired with B."""
 
