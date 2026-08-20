@@ -30,11 +30,16 @@
 //! The scenario also drives `record_session` down each of its outcomes, because
 //! the `error` it writes onto a `Recording` is a string in the manifest and has
 //! to be the *same* string on both sides — "which step failed" is only useful to
-//! a reader if it does not depend on which implementation produced the run. One
-//! failure is deliberately left out: an append that fails. Its message comes
-//! from `append_checkpoint_frames` itself, which words its complaints
-//! differently in the two languages, so it is covered by unit tests on each side
-//! rather than recorded here as a divergence.
+//! a reader if it does not depend on which implementation produced the run.
+//!
+//! Two failures are deliberately left out, both because the two implementations
+//! word them differently and pinning either would make this harness certify a
+//! divergence: an **append that fails**, whose message comes from
+//! `append_checkpoint_frames` itself, and an **upload that declines with a
+//! reason**, whose message comes from `ArtifactUploader::last_error` — which the
+//! oracle's `UploaderLike` has no counterpart for. `no-url` and `blank-url`
+//! therefore pin the shared fallback, not the shipped behaviour; see
+//! `conformance/README.md`.
 //!
 //! # Determinism
 //!
@@ -123,6 +128,23 @@ impl ArtifactUploader for StubUploader {
     }
 }
 
+/// Returns an empty string, which is no URL.
+///
+/// A distinct scenario from [`RefusingUploader`] even though both produce the
+/// same message: the two implementations reject the empty string in their own
+/// code, so this is what stops one of them keeping it.
+struct BlankUploader;
+
+impl ArtifactUploader for BlankUploader {
+    fn upload(&mut self, _path: &str) -> Option<String> {
+        Some(String::new())
+    }
+
+    fn last_error(&self) -> Option<&str> {
+        None
+    }
+}
+
 /// Declines without saying why. Reports no `last_error` so that this half falls
 /// back on the shared message, which is all the oracle's protocol can express.
 struct RefusingUploader;
@@ -161,6 +183,15 @@ fn stub_converter() -> CastVideoConverter {
 /// Fails with a message neither language contributes to.
 fn broken_converter() -> CastVideoConverter {
     CastVideoConverter::with_runner(Box::new(|_, _, _| Err("encoder exploded".to_string())))
+}
+
+/// Reports success and writes nothing.
+///
+/// Every invocation exits cleanly and produces no file, which is what a real
+/// `ffmpeg` misconfigured for its output looks like. Both implementations have
+/// to refuse it, and to refuse it with the same words.
+fn silent_converter() -> CastVideoConverter {
+    CastVideoConverter::with_runner(Box::new(|_, _, _| Ok(())))
 }
 
 /// Writes [`BASE_CAST`], the way a real `save_cast` would.
@@ -273,12 +304,31 @@ fn the_published_manifest_matches_the_python_document() {
         .with_uploader(Box::new(StubUploader))
         .with_video_converter(broken_converter());
     collector.record_session("bad-encode", &mut bad_encode, save_base_cast);
+    // Step 3 reports success and writes nothing, which is step 3 lying — the
+    // same guard as `silent-save`, one step further down.
+    let mut silent_encode = EvidencePublisher::new(&directory, identity())
+        .with_renderer(stub_renderer())
+        .with_uploader(Box::new(StubUploader))
+        .with_video_converter(silent_converter());
+    collector.record_session("silent-encode", &mut silent_encode, save_base_cast);
     // Step 4 fails, which costs the URL and not the video.
     let mut no_url = EvidencePublisher::new(&directory, identity())
         .with_renderer(stub_renderer())
         .with_uploader(Box::new(RefusingUploader))
         .with_video_converter(stub_converter());
     collector.record_session("no-url", &mut no_url, save_base_cast);
+    // Step 4 returning an empty string, which is no URL.
+    let mut blank_url = EvidencePublisher::new(&directory, identity())
+        .with_renderer(stub_renderer())
+        .with_uploader(Box::new(BlankUploader))
+        .with_video_converter(stub_converter());
+    collector.record_session("blank-url", &mut blank_url, save_base_cast);
+    // An empty label, the one input on which the two filename schemes could
+    // part: this half builds the stem through `sanitize_component`, which
+    // substitutes "default" for a component that sanitises to nothing, and the
+    // oracle's `_sanitize` does not. That half applies the same fallback, and
+    // this is what holds it there.
+    collector.record_session("", &mut working, save_base_cast);
 
     let mut publisher = EvidencePublisher::new(&directory, identity())
         .with_renderer(stub_renderer())

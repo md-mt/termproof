@@ -378,6 +378,19 @@ class _BrokenConverter:
         raise RuntimeError("encoder exploded")
 
 
+class _SilentConverter:
+    """Reports success and writes nothing.
+
+    The plausible shape of a lying converter, not a contrived one: an ``ffmpeg``
+    that exits 0 without producing its output leaves ``convert`` returning a
+    path that does not exist, and ``VideoConverterLike`` is a public protocol
+    whose whole purpose is third-party converters.
+    """
+
+    def convert(self, cast_path: Path, video_path: Path | None = None) -> Path:
+        return cast_path.with_suffix(".mp4") if video_path is None else video_path
+
+
 class _RefusingUploader:
     """Declines without saying why, which is all the protocol allows."""
 
@@ -388,6 +401,11 @@ class _RefusingUploader:
 class _ExplodingUploader:
     def upload(self, path: Path) -> str | None:
         raise RuntimeError("store down")
+
+
+class _BlankUploader:
+    def upload(self, path: Path) -> str | None:
+        return ""
 
 
 class RecordSessionTest(unittest.TestCase):
@@ -571,6 +589,49 @@ class RecordSessionTest(unittest.TestCase):
             self.assertIsNone(recording.url)
             self.assertEqual([], uploader.uploaded)
 
+    def test_a_converter_that_writes_nothing_is_the_convert_step_failing(self) -> None:
+        # The counterpart of test_a_save_that_writes_nothing_..., and the worse
+        # of the two if it is missed: taken on trust, a converter that returns a
+        # path it did not write produces a Recording with no error, a video that
+        # is not there and a URL for it -- a run reporting success for evidence
+        # that does not exist.
+        with tempfile.TemporaryDirectory() as tmpdir:
+            uploader = _Uploader()
+            publisher = EvidencePublisher(
+                directory=Path(tmpdir),
+                identity=_identity(),
+                uploader=uploader,
+                video_converter=_SilentConverter(),
+            )
+            collector = self._collector()
+            collector.record_session("full-session", publisher, _save_a_cast)
+
+            recording = collector.recordings[0]
+            error = recording.error or ""
+            self.assertTrue(error.startswith("convert: "), error)
+            self.assertIn("wrote no file", error)
+            self.assertIsNone(recording.video)
+            self.assertIsNone(recording.url)
+            self.assertEqual([], uploader.uploaded)
+
+    def test_an_empty_url_is_no_url(self) -> None:
+        # `url: ""` on a recording with no error claims a link a reader cannot
+        # follow, which is the same false success as a video that is not there.
+        with tempfile.TemporaryDirectory() as tmpdir:
+            publisher = EvidencePublisher(
+                directory=Path(tmpdir),
+                identity=_identity(),
+                uploader=_BlankUploader(),
+                video_converter=_StubConverter(),
+            )
+            collector = self._collector()
+            collector.record_session("full-session", publisher, _save_a_cast)
+
+            recording = collector.recordings[0]
+            self.assertEqual("upload: uploader returned no URL", recording.error)
+            self.assertIsNone(recording.url)
+            self.assertIsNotNone(recording.video)
+
     def test_a_failed_upload_keeps_the_video(self) -> None:
         # Step 4 is last, so its failure costs the URL and nothing else. The
         # video is still on disk and still worth naming.
@@ -641,6 +702,21 @@ class RecordSessionTest(unittest.TestCase):
             self.assertNotEqual(first.video, second.video)
             self.assertEqual("recording-01-full-session.cast", Path(second.cast).name)
             self.assertEqual([None, None], [first.error, second.error])
+
+    def test_an_empty_label_names_a_recording_the_way_rust_names_it(self) -> None:
+        # The one input where the two implementations' filename schemes could
+        # part: Rust's `sanitize_component` substitutes "default" for a
+        # component that sanitises to nothing and `_sanitize` does not, so this
+        # stem applies the same fallback. Pinned literally, and in the
+        # conformance corpus, because a recording's `cast` and `video` are
+        # strings in the manifest.
+        self.assertEqual(
+            "recording-00-default", collector_module._recording_file_stem(0, "")
+        )
+        # A label that sanitises to something is not touched by the fallback.
+        self.assertEqual(
+            "recording-01---", collector_module._recording_file_stem(1, "!!")
+        )
 
     def test_a_recorded_session_sits_beside_a_hand_attached_one(self) -> None:
         # `record_session` and `attach_recording` write to the same list, in

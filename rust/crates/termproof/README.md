@@ -154,7 +154,11 @@ a comment on each one that sits above the oldest workable version.
   the step that produced it — `save cast`, `append checkpoint frames`,
   `convert` or `upload`. A step runs only when the step before it produced what
   it works on, so a failed save skips everything after it and **a failed
-  conversion is never uploaded**; a failed append is the one non-fatal case.
+  conversion is never uploaded**; a failed append is the one non-fatal case. A
+  step is not believed either: a closure that writes no cast, a converter that
+  returns a path it did not write, and an uploader that returns an empty string
+  are each recorded as that step failing, rather than reaching the manifest as
+  a recording that claims a video nobody can open.
 - `render_svg` / `render_by_extension` — plain screen text to an SVG, in
   default colours.
 - `ScreenshotRenderer` — an attributed grid to a PNG, with the colours the

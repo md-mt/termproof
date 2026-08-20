@@ -480,13 +480,40 @@ impl EvidenceCollector {
     /// publisher with no *converter* is a failure, because converting is what
     /// this method was called to do.
     ///
+    /// # A step is not believed, it is checked
+    ///
+    /// Every step here is a caller-supplied seam, and the outcome worse than
+    /// any recorded failure is a `Recording` that reports none: no `error`, a
+    /// `video` that is not on disk, and a `url` for it. So each step that
+    /// claims to have produced something is asked for the thing:
+    ///
+    /// - step 1 reporting `Ok(())` with no file at the path is
+    ///   `save cast: reported success but wrote no file at <path>`;
+    /// - step 3 returning a path it did not write is
+    ///   `convert: reported success but wrote no file at <path>`;
+    /// - step 4 returning an empty string is treated as having returned
+    ///   nothing, because a `url` of `""` is a link no reader can follow.
+    ///
+    /// In each case the step that lied is the one named, rather than leaving
+    /// the next step to trip over the absence and take the blame. Step 2
+    /// produces nothing to check — it edits the cast in place — and step 5
+    /// appends to a `Vec`.
+    ///
     /// # `save_cast`
     ///
     /// Returns `Ok(())` having written a cast to the path it was handed, or
-    /// `Err` describing why it could not. A closure that reports success and
-    /// writes nothing is treated as step 1 failing, rather than left for step 2
-    /// to discover as a missing file: the step that lied is the one worth
-    /// naming.
+    /// `Err` describing why it could not.
+    ///
+    /// # What *can* still escape
+    ///
+    /// "No failure fails the run" is about failures the seams report. It is not
+    /// a catch-all: a **panic** in `save_cast`, in the converter or in the
+    /// uploader unwinds through this method like any other, and because the
+    /// `Recording` is attached at the end, an unwind loses it rather than
+    /// degrading it. That is deliberate — a panic is not a failed step, it is a
+    /// broken program — but it is the boundary of the promise, and the Python
+    /// implementation draws it in the same place by catching `Exception` and
+    /// not `BaseException`.
     ///
     /// ```no_run
     /// # use termproof::evidence::collector::{EvidenceCollector, EvidencePublisher, RunIdentity};
@@ -545,10 +572,24 @@ impl EvidenceCollector {
             errors.push(format!("{STEP_APPEND_FRAMES}: {message}"));
         }
 
-        // 3. Encode it.
+        // 3. Encode it, and check it. A converter that returns a path it did
+        //    not write is step 3 lying in exactly the way a `save_cast` that
+        //    writes nothing is step 1 lying; taken on trust it produces the one
+        //    outcome worse than a recorded failure, a `Recording` with no error,
+        //    a video that is not there and a URL for it.
         let video_path = path_string(&publisher.dir.join(format!("{stem}.mp4")));
         let converted = match &publisher.video_converter {
-            Some(converter) => converter.convert(&cast_string, Some(&video_path)),
+            Some(converter) => {
+                converter
+                    .convert(&cast_string, Some(&video_path))
+                    .and_then(|video| {
+                        if Path::new(&video).is_file() {
+                            Ok(video)
+                        } else {
+                            Err(format!("reported success but wrote no file at {video}"))
+                        }
+                    })
+            }
             None => Err(NO_VIDEO_CONVERTER.to_string()),
         };
         match converted {
@@ -556,7 +597,10 @@ impl EvidenceCollector {
                 recording.video = Some(video.clone());
                 // 4. Share it. Only reachable with a video in hand.
                 if let Some(uploader) = publisher.uploader.as_mut() {
-                    match uploader.upload(&video) {
+                    // An empty URL is no URL, the same scepticism `last_error`
+                    // already gets below: `url: ""` on a recording with no
+                    // error claims a link a reader cannot follow.
+                    match uploader.upload(&video).filter(|url| !url.is_empty()) {
                         Some(url) => recording.url = Some(url),
                         None => {
                             let detail = uploader
@@ -1306,6 +1350,17 @@ mod tests {
         CastVideoConverter::with_runner(Box::new(|_, _, _| Err("encoder exploded".to_string())))
     }
 
+    /// A converter whose tools all report success and write nothing.
+    ///
+    /// The plausible shape of a lying converter, not a contrived one: an
+    /// `ffmpeg` that exits 0 without producing its output leaves `convert`
+    /// returning `Ok(path)` for a path that does not exist, and
+    /// `CastVideoConverter::with_runner` is public precisely so a caller can
+    /// substitute its own tools.
+    fn silent_converter() -> CastVideoConverter {
+        CastVideoConverter::with_runner(Box::new(|_, _, _| Ok(())))
+    }
+
     /// An uploader that counts what it was asked to upload.
     struct CountingUploader(Arc<Mutex<Vec<String>>>);
 
@@ -1490,6 +1545,64 @@ mod tests {
     }
 
     #[test]
+    fn a_converter_that_writes_nothing_is_the_convert_step_failing() {
+        // The counterpart of `a_save_that_writes_nothing_is_the_save_step_failing`,
+        // and the worse of the two if it is missed: taken on trust, a converter
+        // that returns a path it did not write produces a `Recording` with no
+        // error, a video that is not there and a URL for it — a run reporting
+        // success for evidence that does not exist.
+        let dir = tempfile::tempdir().expect("tempdir");
+        let uploaded = Arc::new(Mutex::new(Vec::new()));
+        let mut publisher = publisher(dir.path())
+            .with_video_converter(silent_converter())
+            .with_uploader(Box::new(CountingUploader(uploaded.clone())));
+
+        let mut collector = one_capture();
+        collector.record_session("full-session", &mut publisher, save_a_cast);
+
+        let recording = &collector.recordings()[0];
+        let error = recording.error.clone().expect("error");
+        assert!(error.starts_with("convert: "), "{error}");
+        assert!(error.contains("wrote no file"), "{error}");
+        assert_eq!(recording.video, None, "a video that is not on disk");
+        assert_eq!(recording.url, None);
+        assert!(
+            uploaded.lock().expect("poisoned").is_empty(),
+            "a video that was never written must not be uploaded"
+        );
+    }
+
+    #[test]
+    fn an_empty_url_is_no_url() {
+        // `url: ""` on a recording with no error claims a link a reader cannot
+        // follow, which is the same false success as a video that is not there.
+        struct Blank;
+        impl ArtifactUploader for Blank {
+            fn upload(&mut self, _: &str) -> Option<String> {
+                Some(String::new())
+            }
+            fn last_error(&self) -> Option<&str> {
+                None
+            }
+        }
+        let dir = tempfile::tempdir().expect("tempdir");
+        let mut publisher = publisher(dir.path())
+            .with_video_converter(stub_converter())
+            .with_uploader(Box::new(Blank));
+
+        let mut collector = one_capture();
+        collector.record_session("full-session", &mut publisher, save_a_cast);
+
+        let recording = &collector.recordings()[0];
+        assert_eq!(
+            recording.error.as_deref(),
+            Some("upload: uploader returned no URL")
+        );
+        assert_eq!(recording.url, None);
+        assert!(recording.video.is_some());
+    }
+
+    #[test]
     fn a_failed_upload_keeps_the_video() {
         // Step 4 is last, so its failure costs the URL and nothing else. The
         // video is still on disk and still worth naming.
@@ -1575,6 +1688,19 @@ mod tests {
             .cast
             .ends_with("recording-01-full-session.cast"));
         assert!(recordings.iter().all(|r| r.error.is_none()));
+    }
+
+    #[test]
+    fn an_empty_label_names_a_recording_the_way_python_names_it() {
+        // The one input where the two implementations' filename schemes could
+        // part: `sanitize_component` substitutes "default" for a component that
+        // sanitises to nothing and Python's `_sanitize` does not, so Python
+        // applies the same fallback when building this stem. Pinned literally,
+        // and in the conformance corpus, because a recording's `cast` and
+        // `video` are strings in the manifest.
+        assert_eq!(recording_file_stem(0, ""), "recording-00-default");
+        // A label that sanitises to something is not touched by the fallback.
+        assert_eq!(recording_file_stem(1, "!!"), "recording-01---");
     }
 
     #[test]

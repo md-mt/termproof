@@ -509,14 +509,23 @@ class EvidenceCollector:
         5. attach a :class:`Recording` describing what came of all that, which
            :meth:`publish` then writes into the manifest.
 
-        **No failure fails the run.** Nothing here raises, on purpose: a
-        recording is evidence *about* a run, not part of its verdict, so a
-        missing video degrades the report and nothing else. Every failure lands
-        on the ``Recording`` instead, prefixed with the name of the step that
-        produced it — ``save cast``, ``append checkpoint frames``, ``convert``
-        or ``upload`` — and reaches the report from there. Two failures in one
-        call are joined with ``"; "``, so neither is lost to the other. Step 5
-        is the only one that cannot fail: it appends to a list.
+        **No failure a step reports fails the run.** A recording is evidence
+        *about* a run, not part of its verdict, so a missing video degrades the
+        report and nothing else. Every failure lands on the ``Recording``
+        instead, prefixed with the name of the step that produced it —
+        ``save cast``, ``append checkpoint frames``, ``convert`` or ``upload`` —
+        and reaches the report from there. Two failures in one call are joined
+        with ``"; "``, so neither is lost to the other. Step 5 is the only one
+        that cannot fail: it appends to a list.
+
+        That promise has a boundary, and it is where ``Exception`` stops. A
+        ``KeyboardInterrupt`` or ``SystemExit`` from any of the three
+        caller-supplied seams propagates, and because the ``Recording`` is
+        attached at the end, it is lost rather than degraded. That is
+        deliberate — those are not failed steps, they are the process being
+        told to stop — and Rust draws the line in the same place: a panic in
+        the closure, the converter or the uploader unwinds through
+        ``record_session`` like any other.
 
         **Which later steps run after a failure.** A step runs only when the
         step before it produced the thing it works on. That is the whole rule,
@@ -544,11 +553,27 @@ class EvidenceCollector:
         no *converter* is a failure, because converting is what this method was
         called to do.
 
+        **A step is not believed, it is checked.** Every step here is a
+        caller-supplied seam, and the outcome worse than any recorded failure is
+        a ``Recording`` that reports none: no ``error``, a ``video`` that is not
+        on disk, and a ``url`` for it. So each step that claims to have produced
+        something is asked for the thing:
+
+        * step 1 returning normally with no file at the path is
+          ``save cast: reported success but wrote no file at <path>``;
+        * step 3 returning a path it did not write is
+          ``convert: reported success but wrote no file at <path>``;
+        * step 4 returning an empty string is treated as having returned
+          nothing, because a ``url`` of ``""`` is a link no reader can follow.
+
+        In each case the step that lied is the one named, rather than leaving
+        the next step to trip over the absence and take the blame. Step 2
+        produces nothing to check — it edits the cast in place — and step 5
+        appends to a list.
+
         *save_cast* writes a cast to the path it is handed, and raises to say it
         could not; the exception's text becomes the step-1 message, where Rust
-        takes an ``Err(String)``. A callable that returns normally and writes
-        nothing is treated as step 1 failing, rather than left for step 2 to
-        discover as a missing file: the step that lied is the one worth naming.
+        takes an ``Err(String)``.
         """
         # Imported here, not at module scope: `cast_video` imports
         # `CapturedStep` from this module, so a top-level import would close
@@ -585,7 +610,11 @@ class EvidenceCollector:
         except Exception as exc:  # noqa: BLE001 - no failure may fail the run
             errors.append(f"{_STEP_APPEND_FRAMES}: {exc}")
 
-        # 3. Encode it.
+        # 3. Encode it, and check it. A converter that returns a path it did not
+        #    write is step 3 lying in exactly the way a `save_cast` that writes
+        #    nothing is step 1 lying; taken on trust it produces the one outcome
+        #    worse than a recorded failure, a `Recording` with no error, a video
+        #    that is not there and a URL for it.
         video_path = publisher.directory / f"{stem}.mp4"
         if publisher.video_converter is None:
             errors.append(f"{_STEP_CONVERT}: {_NO_VIDEO_CONVERTER}")
@@ -595,18 +624,26 @@ class EvidenceCollector:
             except Exception as exc:  # noqa: BLE001 - no failure may fail the run
                 errors.append(f"{_STEP_CONVERT}: {exc}")
             else:
-                recording.video = str(video)
-                # 4. Share it. Only reachable with a video in hand.
-                if publisher.uploader is not None:
-                    try:
-                        url = publisher.uploader.upload(video)
-                    except Exception as exc:  # noqa: BLE001 - no failure may fail the run
-                        errors.append(f"{_STEP_UPLOAD}: {exc}")
-                    else:
-                        if url is None:
-                            errors.append(f"{_STEP_UPLOAD}: {_NO_URL}")
+                if not video.is_file():
+                    errors.append(
+                        f"{_STEP_CONVERT}: reported success but wrote no file at {video}"
+                    )
+                else:
+                    recording.video = str(video)
+                    # 4. Share it. Only reachable with a video in hand.
+                    if publisher.uploader is not None:
+                        try:
+                            url = publisher.uploader.upload(video)
+                        except Exception as exc:  # noqa: BLE001 - no failure may fail the run
+                            errors.append(f"{_STEP_UPLOAD}: {exc}")
                         else:
-                            recording.url = url
+                            # An empty URL is no URL: `url: ""` on a recording
+                            # with no error claims a link a reader cannot
+                            # follow.
+                            if not url:
+                                errors.append(f"{_STEP_UPLOAD}: {_NO_URL}")
+                            else:
+                                recording.url = url
 
         # 5. Record what happened, including which step it happened in.
         if errors:
@@ -726,14 +763,33 @@ def _sanitize(value: str) -> str:
     return "".join(c if c.isalnum() or c in "-_" else "-" for c in value)
 
 
+#: What Rust's ``store::sanitize_component`` substitutes for a component that
+#: sanitises to nothing. ``_sanitize`` has no such fallback, so the two disagree
+#: for an empty label — see :func:`_recording_file_stem`.
+_EMPTY_COMPONENT = "default"
+
+
 def _recording_file_stem(index: int, label: str) -> str:
     """Filename stem shared by a recording's cast and video.
 
     Numbered like :meth:`CapturedStep.file_stem` and for the same reason: labels
     are caller-supplied and may repeat, and two recordings called
     ``full-session`` must not overwrite each other's cast.
+
+    The empty-label fallback is applied here rather than in :func:`_sanitize`.
+    Rust builds this stem through ``store::sanitize_component``, which yields
+    ``"default"`` for a component that sanitises to nothing where ``_sanitize``
+    yields ``""``; a recording's ``cast`` and ``video`` are strings in the
+    manifest, so left alone the two implementations would write different paths
+    for ``record_session("", ...)``. The conformance pair records an empty-label
+    recording for that reason.
+
+    :meth:`CapturedStep.file_stem` still differs from Rust's the same way for
+    the same input. Converging ``_sanitize`` itself would move paths that
+    already ship, so it stays a change of its own; this narrows the divergence
+    to the surface that predates it rather than extending it to a new one.
     """
-    return f"recording-{index:02d}-{_sanitize(label[:MAX_LABEL_IN_FILENAME])}"
+    return f"recording-{index:02d}-{_sanitize(label[:MAX_LABEL_IN_FILENAME]) or _EMPTY_COMPONENT}"
 
 
 #: A source built from a screen the caller already has. Useful in tests and for

@@ -445,16 +445,41 @@ per outcome, over publishers that differ only in the seam under test:
 | `silent-save` | step 1 reporting success and writing nothing, which is still step 1 |
 | `no-converter` | a publisher with no video converter, which is the `convert` step failing |
 | `bad-encode` | a conversion that fails, and the upload that must not follow it |
+| `silent-encode` | step 3 reporting success and writing nothing — the `silent-save` guard, one step down |
 | `no-url` | an upload that declines, which costs the URL and not the video |
+| `blank-url` | an upload that returns `""`, which both sides have to reject rather than record |
+| *(empty label)* | the one input on which the two filename schemes could part |
 
 The recordings' own casts and videos land in the publish directory, so they are
 compared as files too, not only as paths.
 
-One failure is deliberately absent: an append that fails. Its message comes from
-`append_checkpoint_frames`, which words its complaints differently in the two
-languages — `empty cast file` against `<path> is empty: a cast has a header
-line` — so recording it here would freeze a divergence in the corpus rather than
-check a shared surface. Each implementation covers it in its own unit tests.
+The empty-label case is there because a recording's `cast` and `video` are
+strings in the manifest and the two implementations build them differently at
+exactly one input: Rust goes through `store::sanitize_component`, which
+substitutes `default` for a component that sanitises to nothing, and Python's
+`_sanitize` returns `""`. `_recording_file_stem` applies the same fallback so
+the two agree, and this case is what holds it there. `CapturedStep.file_stem`
+still differs the same way for the same input — pre-existing, not driven by this
+scenario, and listed under "outside" below.
+
+Two failures are deliberately absent:
+
+- **An append that fails.** Its message comes from `append_checkpoint_frames`,
+  which words its complaints differently in the two languages — `empty cast
+  file` against `<path> is empty: a cast has a header line` — so recording it
+  here would freeze a divergence in the corpus rather than check a shared
+  surface. Each implementation covers it in its own unit tests.
+- **An upload that declines *with a reason*.** Rust reads
+  `ArtifactUploader::last_error()`; Python's `UploaderLike` has no such
+  accessor, so a Python uploader says why by raising. `no-url` and `blank-url`
+  therefore pin the *shared fallback* — `upload: uploader returned no URL`,
+  emitted when there is no reason to be had — and not the shipped behaviour:
+  `FallbackUploader`,
+  the only non-test `ArtifactUploader` in the crate, sets `last_error` on every
+  failure, so in practice Rust writes `upload: all uploaders returned no URL`
+  where Python writes `upload: uploader returned no URL`. That disagreement is
+  real and is recorded here rather than in the corpus, because pinning it would
+  make the harness certify a divergence.
 
 ## What is deliberately neutralised
 
