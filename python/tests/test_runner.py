@@ -583,7 +583,7 @@ class EvidencePluginConstructionTest(unittest.TestCase):
             runner.screen_renderer_registry.get("svg").render("hello", output, 80, 24)
             svg = output.read_text(encoding="utf-8")
         self.assertIn('fill="#ff0000"', svg)
-        self.assertNotIn("#101418", svg)
+        self.assertNotIn(config.evidence.svg.bg, svg)
 
     def test_configured_png_colour_reaches_the_renderer_a_run_uses(self) -> None:
         config = VerifierConfig.builtin()

@@ -152,7 +152,7 @@ evidence:
     # palette: an attempt that supplied only (bg, fg) rendered at 14.2%
     # background accuracy, which is unreadable. Treat that as the acceptance
     # test if you set this.
-    # theme: "101418,e6edf3,<16 palette colours>"
+    # theme: "0b0f14,e6edf3,<16 palette colours>"
 
   # Skips writing a second image when a step's screen is unchanged, and records
   # every step in steps-manifest.json so nothing is lost. ~32% of screenshot
@@ -174,8 +174,8 @@ evidence:
   # render from a grid, they set the theme around the colour the grid carries.
   svg:
     fg: "#e6edf3"
-    bg: "#101418"
-    font_size: 14
+    bg: "#0b0f14"
+    font_size: 16
 ```
 
 > **`yuv444p` compatibility caveat, not fully discharged.** H.264 `yuv444p`

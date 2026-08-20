@@ -5,7 +5,16 @@ from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
 from typing import Any, get_args, get_type_hints
 
-from .attributed import SvgStyle
+from .attributed import (
+    DEFAULT_BG,
+    DEFAULT_CELL_H,
+    DEFAULT_CELL_W,
+    DEFAULT_FG,
+    DEFAULT_FONT_PX,
+    DEFAULT_PADDING,
+    FONT_STACK,
+    SvgStyle,
+)
 
 try:
     import yaml
@@ -34,16 +43,40 @@ class DockerBackendConfig:
 
 @dataclass(frozen=True)
 class SvgRenderConfig:
-    char_width: int = 9
-    line_height: int = 20
-    padding: int = 18
-    font_size: int = 14
-    font_family: str = "ui-monospace,SFMono-Regular,Menlo,Consolas,monospace"
-    fg: str = "#e6edf3"
-    bg: str = "#101418"
+    """The ``evidence.svg`` YAML section: SVG geometry as a *run* configures it.
+
+    :class:`~termproof.attributed.SvgStyle` is canonical. Every default below is
+    the matching ``DEFAULT_*`` constant from :mod:`termproof.attributed`, under
+    the name the YAML uses (``char_width`` for ``cell_w``, ``line_height`` for
+    ``cell_h``, ``font_size`` for ``font_px``), and :meth:`style` is the one
+    place that translates between the two. Nothing here restates a value.
+
+    Reach for this type when a run's YAML or a renderer plugin should be able to
+    override the geometry; reach for ``SvgStyle`` when calling
+    :func:`~termproof.attributed.screen_svg` directly. They render identically
+    when unconfigured, which they did not always do — CHANGELOG.md says what
+    moved and how to pin the old values.
+    """
+
+    char_width: float = DEFAULT_CELL_W
+    line_height: float = DEFAULT_CELL_H
+    padding: int = DEFAULT_PADDING
+    font_size: int = DEFAULT_FONT_PX
+    font_family: str = FONT_STACK
+    fg: str = DEFAULT_FG
+    bg: str = DEFAULT_BG
 
     def style(self, cols: int, rows: int) -> SvgStyle:
-        """Geometry for a *cols* x *rows* grid, shared by every SVG-backed renderer."""
+        """Geometry for a *cols* x *rows* grid, shared by every SVG-backed renderer.
+
+        No canvas floor. ``SvgStyle.min_width``/``min_height`` stay at their own
+        default of zero, so a three-row screen renders a three-row canvas rather
+        than a three-row grid marooned in a 320x160 field. An SVG is resolution
+        independent — a viewer scales it — so a floor buys nothing there and
+        costs the guarantee that the canvas is exactly grid plus padding. The
+        raster path keeps its floor, in ``PngRenderer``, because a PNG is a
+        fixed pixel count and a 40x60 one really is unreadable.
+        """
         return SvgStyle(
             columns=cols,
             rows=rows,
@@ -54,8 +87,6 @@ class SvgRenderConfig:
             font_family=self.font_family,
             fg=self.fg,
             bg=self.bg,
-            min_width=320,
-            min_height=160,
         )
 
 
@@ -67,12 +98,18 @@ class PngRenderConfig:
     # the glyphs of the default bitmap face, which has one fixed size. Scaling
     # up therefore spreads the same text over a larger image unless
     # ``font_path`` is also set, which is what yields a higher-DPI screenshot.
+    #
+    # ``fg``/``bg`` are the shared palette's, not this renderer's own: the two
+    # screenshot formats of one run should not disagree about what colour the
+    # terminal is. ``padding``, ``font_size`` and ``scale`` stay independent —
+    # they are raster quantities with no SVG counterpart, since this renderer
+    # measures its cell from the PIL face rather than from a cell grid.
     scale: int = 1
     padding: int = 18
     font_size: int = 14
     font_path: str | None = None
-    fg: str = "#e6edf3"
-    bg: str = "#101418"
+    fg: str = DEFAULT_FG
+    bg: str = DEFAULT_BG
 
 
 @dataclass(frozen=True)
@@ -309,11 +346,16 @@ _EVIDENCE_MINIMUMS: dict[str, int] = {
 
 
 def _check_field_range(label: str, name: str, value: Any) -> None:
-    """Reject an out-of-range size or rate, naming the key as the type check does."""
+    """Reject an out-of-range size or rate, naming the key as the type check does.
+
+    Range only; the type is `_check_field_type`'s job. ``char_width`` and
+    ``line_height`` take a float, so a message about integers would be wrong
+    for them and there is nothing this check needs to say about the type.
+    """
     minimum = _EVIDENCE_MINIMUMS.get(f"{label}.{name}")
     if minimum is None or value is None or value >= minimum:
         return
-    wording = "a positive integer" if minimum == 1 else "a nonnegative integer"
+    wording = "positive" if minimum == 1 else "nonnegative"
     raise ValueError(f"{label}.{name} must be {wording}, got {value!r}")
 
 

@@ -78,6 +78,84 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
   `EvidenceCollector` owns capture-while-running, `render_artifacts` owns
   rendering a finished `RunResult`, and neither owns the dedup.
 
+- **This release changes rendered screenshots.** `SvgStyle` and
+  `SvgRenderConfig` both described SVG geometry and their defaults disagreed in
+  every single field. `SvgStyle` is now the single canonical definition and
+  `SvgRenderConfig` takes each default from the same `DEFAULT_*` constant in
+  `termproof.attributed` instead of restating it, so an unconfigured
+  `screen_svg(screen, SvgStyle())` and an unconfigured `SvgRenderer` finally
+  produce the same image. What moved, on the `evidence.svg` side:
+
+  | key | was | is |
+  |---|---|---|
+  | `char_width` | `9` | `10.0` (`DEFAULT_CELL_W`) |
+  | `line_height` | `20` | `22.0` (`DEFAULT_CELL_H`) |
+  | `font_size` | `14` | `16` (`DEFAULT_FONT_PX`) |
+  | `padding` | `18` | `10` (`DEFAULT_PADDING`) |
+  | `bg` | `#101418` | `#0b0f14` (`DEFAULT_BG`) |
+  | `font_family` | `ui-monospace,SFMono-Regular,Menlo,Consolas,monospace` | `Noto Sans Mono, Liberation Mono, monospace` (`FONT_STACK`) |
+
+  A 120x40 screen was 1116x836 and is now 1220x900. `fg` did not move. To keep
+  the old output exactly, pin all six in `.termproof/config.yaml`:
+
+  ```yaml
+  evidence:
+    svg:
+      char_width: 9
+      line_height: 20
+      font_size: 14
+      padding: 18
+      bg: "#101418"
+      font_family: "ui-monospace,SFMono-Regular,Menlo,Consolas,monospace"
+  ```
+
+  Note that pinning `font_family` restores a stack naming three fonts that
+  exist on macOS and Windows and none that exist on a stock Linux image. It
+  collapses to generic `monospace` there, and `Menlo` resolves to
+  *proportional* DejaVu Sans on some images, which overflows the cell grid the
+  attributed renderer is built on. That is why the canonical stack names
+  `Noto Sans Mono` and `Liberation Mono` ahead of the generic fallback.
+
+  `char_width` and `line_height` are now typed `float` rather than `int`, which
+  widens what they accept; an integer in YAML still loads.
+
+- **The SVG canvas has no minimum size.** `SvgRenderConfig.style()` used to set
+  `min_width: 320, min_height: 160` while `SvgStyle`'s own defaults were `0` —
+  a third disagreement, invisible at 120x40 because the floors do not bind
+  there. Both paths are floorless now, so the canvas is exactly
+  `grid + 2 * padding` at any size: a 3x2 grid renders 50x64, not 320x160. The
+  `min_width`/`min_height` fields stay on `SvgStyle` for a caller that
+  rasterises at intrinsic size and wants a floor. `PngRenderer` keeps its
+  320x160 floor, because a PNG is a fixed pixel count rather than a scalable
+  document.
+
+- **`evidence.png.fg` and `evidence.png.bg` follow the same palette**, moving
+  `bg` from `#101418` to `#0b0f14`, so the PNG and SVG screenshots of one run
+  no longer disagree about what colour the terminal is. `png.padding`,
+  `png.font_size` and `png.scale` are unchanged — they are raster quantities
+  with no SVG counterpart. Pin `evidence.png.bg: "#101418"` to keep the old
+  PNG background.
+
+- **The checked-in evidence corpus under `python/examples/artifacts/` was
+  regenerated** — 156 SVG files, which is what the new geometry looks like.
+  `CorpusByteIdentityTest` requires exactly that of any change to the defaults,
+  so the new bytes are in the diff rather than in a later surprise.
+
+- `BUILTIN_DEFAULTS["evidence"]` is now read off the config dataclasses with
+  `asdict()` rather than restating each default beside the field that declares
+  it. `python/README.md` points at that dict as the documentation of every
+  knob, so it could not be allowed to drift from the values a renderer applies.
+
+### Rust — Changed
+
+- Nothing. `SvgMetrics` in `terminal::attributed` already took every default
+  from the `DEFAULT_*` constants beside it, `ScreenshotRenderer` and
+  `CastVideoConverter` already referenced those same constants rather than
+  restating them, and the Rust stack was already the Linux-first one — the
+  Python defaults moved *onto* the values Rust has been rendering all along.
+  The two implementations agree on SVG geometry for the first time. Rust has no
+  `min_width`/`min_height` concept, which is the behaviour both now have.
+
 ## [0.4.0] — 2026-08-19
 
 ### Rust — Changed
