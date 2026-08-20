@@ -24,9 +24,18 @@ picture cannot answer that question.
 Which of this and :mod:`termproof.evidence` to use
 --------------------------------------------------
 
-Both render screens and both dedupe them, and they are **not** layered on one
-another. They answer different questions and produce different documents, so
-the split is deliberate rather than pending cleanup:
+Who owns what:
+
+* :class:`EvidenceCollector` owns capture — deciding *while a run is going on*
+  which moments are worth keeping — and publishing what it captured.
+* :func:`termproof.evidence.render_artifacts` owns rendering the artifacts a
+  finished :class:`RunResult` already carries, whose step list the recipe fixed
+  before the run started.
+* :class:`termproof.dedup.Deduper` owns the "has this screen changed?" rule, for
+  both of them. Neither implements it; there is one copy in the package.
+
+They still write different documents, and that is why one is not a thin wrapper
+over the other:
 
 ===============  =================================  ===============================
                  :mod:`termproof.evidence`          this module
@@ -35,8 +44,7 @@ Driven by        a finished :class:`RunResult`      a caller, while it runs
 Step list        the recipe's, fixed in advance     whatever the caller captured
 Writes           ``final.*``, ``steps/``,           ``step-NN-label.*`` and
                  ``steps-manifest.json``, video     ``evidence.json``
-Dedup fingerprint the step's grid, or one parsed    the grid the source reported,
-                 from its ANSI text                 or one built from plain lines
+Dedup verdict    :class:`~termproof.dedup.Deduper`  :class:`~termproof.dedup.Deduper`
 Dedup records    ``unchanged_from_previous``        ``same_as: {index, label}``
 Dedup is         off unless configured              always on
 A render failure fails the run                      is recorded on the step
@@ -48,10 +56,10 @@ Use :mod:`termproof.evidence` for a declarative recipe run by
 this module when the caller decides what to capture as it goes, which a
 declarative recipe cannot express.
 
-Consolidating the two would mean changing the file layout
+Folding one of the two *file layouts* into the other is a different change from
+sharing the dedup, and not one to smuggle in here: it would move the paths
 :func:`termproof.evidence.render_artifacts` has always written, which every
-existing reader of a run directory depends on. That is a separate change with
-its own compatibility question, not a tidy-up to fold in here.
+existing reader of a run directory depends on.
 """
 
 from __future__ import annotations
@@ -63,6 +71,7 @@ from pathlib import Path
 from typing import Protocol
 
 from .attributed import DEFAULT_COLUMNS, DEFAULT_ROWS, AttributedScreen, attributed_screen_from_lines
+from .dedup import Deduper
 from .models import RunResult
 
 #: Schema version of the published manifest. Shared with the Rust
@@ -441,10 +450,12 @@ class EvidenceCollector:
         publisher.directory.mkdir(parents=True, exist_ok=True)
         extension = getattr(publisher.renderer, "extension", "png")
         published: list[PublishedStep] = []
-        # The image the dedup verdict refers to. Tracked as a step rather than
-        # a label because labels are caller-supplied and may repeat.
+        deduper = Deduper()
+        # The image the deduper's answer refers to. `Deduper.check` reports a
+        # label, and labels are caller-supplied and may repeat; tracking the
+        # step alongside is exact, because the deduper only ever looks back one
+        # rendered step and this is it.
         last_rendered: tuple[ReusedFrom, str, str | None] | None = None
-        previous_fingerprint: str | None = None
 
         for step in self._steps:
             stem = step.file_stem()
@@ -470,17 +481,17 @@ class EvidenceCollector:
                 raw_output=raw_output_path,
             )
 
-            # Fingerprint the grid the image is rendered from, not the text, so
-            # that a colour-only change counts as a change.
-            fingerprint = step.attributed.render_fingerprint()
-            if fingerprint == previous_fingerprint and last_rendered is not None:
-                source, image, url = last_rendered
-                entry.same_as = source
-                entry.screenshot = image
-                entry.url = url
-            elif publisher.renderer is None:
-                previous_fingerprint = None
-            else:
+            # The deduper fingerprints the grid the image is rendered from, not
+            # the text, so that a colour-only change counts as a change.
+            if deduper.check(step.label, step.attributed) is not None:
+                # Nothing to point at when there is no renderer: no image was
+                # ever made, so the step keeps its text and no screenshot.
+                if last_rendered is not None:
+                    source, image, url = last_rendered
+                    entry.same_as = source
+                    entry.screenshot = image
+                    entry.url = url
+            elif publisher.renderer is not None:
                 image_path = publisher.directory / f"{stem}.{extension}"
                 try:
                     publisher.renderer.render_attributed(
@@ -491,21 +502,19 @@ class EvidenceCollector:
                     )
                 except Exception as exc:  # noqa: BLE001 - best effort by contract
                     entry.error = str(exc)
-                    # Without this, the next identical screen is told to reuse
-                    # an image that was never produced.
+                    # `Deduper.forget`'s contract. Without it the next identical
+                    # screen is told to reuse an image that was never produced.
+                    deduper.forget()
                     last_rendered = None
-                    previous_fingerprint = None
-                    published.append(entry)
-                    continue
-                url = _upload(publisher, image_path)
-                entry.screenshot = str(image_path)
-                entry.url = url
-                last_rendered = (
-                    ReusedFrom(index=step.index, label=step.label),
-                    str(image_path),
-                    url,
-                )
-            previous_fingerprint = fingerprint
+                else:
+                    url = _upload(publisher, image_path)
+                    entry.screenshot = str(image_path)
+                    entry.url = url
+                    last_rendered = (
+                        ReusedFrom(index=step.index, label=step.label),
+                        str(image_path),
+                        url,
+                    )
             published.append(entry)
 
         manifest = EvidenceManifest(

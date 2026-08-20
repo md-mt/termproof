@@ -54,6 +54,30 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
   in `test_text_can_be_captured_without_a_source` rather than only being
   exercised.
 
+### Python — Changed
+
+- **evidence:** the step-screenshot dedup was written out twice — once in
+  `EvidenceCollector.publish` and once in `evidence._render_step_screens` —
+  and the two copies shared no code, so nothing stopped them drifting on what
+  counts as a changed screen. Both now ask the new `termproof.dedup.Deduper`,
+  which is the single copy of the rule. `termproof.dedup` mirrors
+  `termproof::evidence::dedup`, where the Rust implementation has kept the rule
+  in one place since the consolidation; the Python package flattens the Rust
+  `evidence::` namespace into top-level modules, so it lands beside
+  `termproof.collector` rather than inside `termproof.evidence`.
+
+  Nothing observable moved. `render_artifacts` writes the same `steps/` layout
+  and the same `steps-manifest.json`, still gated on
+  `evidence.dedup_step_screenshots` and still off by default; `publish` writes
+  the same `evidence.json`, byte-for-byte — `conformance/probe_evidence_manifest.py`
+  reproduces the committed corpus unchanged. The two file layouts are still
+  separate, and folding one into the other is still a compatibility question of
+  its own rather than something to smuggle into a dedup fix.
+
+  Both module docstrings now say plainly which type owns what:
+  `EvidenceCollector` owns capture-while-running, `render_artifacts` owns
+  rendering a finished `RunResult`, and neither owns the dedup.
+
 ## [0.4.0] — 2026-08-19
 
 ### Rust — Changed
