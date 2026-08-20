@@ -404,10 +404,24 @@ writes a fixed asciinema v2 file into the publish directory and runs
 `append_checkpoint_frames` over the captured steps, so the appended evidence
 sequence is compared byte-for-byte along with the step text. A manifest agreeing
 about a recording's path is not agreeing about the recording, and the cast is
-what a reviewer actually watches. It also holds the two event encoders together:
-`serde_json` writes compact separators and raw UTF-8, and Python's `json`
-defaults to neither, so the Python side pins both explicitly and this is what
-would catch it drifting back.
+what a reviewer actually watches.
+
+There are two of them, and each is there for something the other cannot reach:
+
+- `session-with-checkpoints.cast` runs at the default hold, so the corpus is
+  what stops the two implementations' defaults drifting apart. Its base sets a
+  scroll region, the state a full-screen TUI leaves behind, so the repaint
+  prefix that has to undo it is recorded too.
+- `session-with-fractional-hold.cast` passes an explicit `0.2`, which the
+  default cast cannot cover, and lands on timestamps that binary addition gets
+  wrong — pinning both halves to the same six-decimal answer.
+
+They also hold the two event encoders together. `serde_json` writes compact
+separators and raw UTF-8 where Python's `json` defaults to neither, and Rust
+rounds by scaling and breaking halves away from zero where Python's
+`round(at, 6)` rounds the exact decimal and breaks halves to even. Both are
+pinned explicitly on the Python side, and this is what would catch either
+drifting back.
 
 ## What is deliberately neutralised
 

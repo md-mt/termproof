@@ -74,10 +74,27 @@ DEFAULT_LAST_FRAME_DURATION = 3.0
 #: so a recording's closing hold does not change pace depending on who wrote it.
 DEFAULT_CHECKPOINT_HOLD = 3.0
 
-# Repaint the whole grid: reset the pen, home the cursor, clear the screen. A
-# checkpoint screen is a complete picture, not a delta, so it is painted over
-# whatever the previous frame left rather than after it.
-_REPAINT_PREFIX = "\x1b[m\x1b[H\x1b[2J"
+# Repaint the whole grid: reset the pen, reset the scroll region, home the
+# cursor, clear the screen. A checkpoint screen is a complete picture, not a
+# delta, so it is painted over whatever the previous frame left rather than
+# after it.
+#
+# `\x1b[2J` erases the display and leaves DECSTBM exactly as the recorded
+# session set it. A full-screen TUI -- the class of program this package exists
+# to record -- sets a scroll region and does not clear it on exit, so without
+# `\x1b[r` a screen taller than the region scrolls inside it and rows of the
+# evidence are destroyed on the way in. An eight-row screen painted into a
+# region of rows 3-6 comes back as `L1 L2 L5 L6 L7 L8`: still a valid cast,
+# still plays, simply not the screen that was captured. Resetting the margins
+# also neutralises origin mode, which only relocates the origin relative to
+# them.
+#
+# A soft reset (`\x1b[!p`) would cover more state in one sequence and is the
+# obvious thing to reach for. It is not used because `avt` implements it and
+# `pyte` does not, so the two replay paths this project renders through would
+# disagree about what the frame says -- the one outcome worth avoiding more
+# than the state it would have reset.
+_REPAINT_PREFIX = "\x1b[m\x1b[r\x1b[H\x1b[2J"
 
 # Written once after the last checkpoint, purely to keep the recording running
 # for one more hold. A cast ends at its final event, so without it the last
@@ -85,6 +102,15 @@ _REPAINT_PREFIX = "\x1b[m\x1b[H\x1b[2J"
 # for -- would flash for an instant instead of being held like every screen
 # before it. An SGR reset is the cheapest event that changes nothing on screen.
 _HOLD_TERMINATOR = "\x1b[m"
+
+#: Shortest hold that survives being written down. Timestamps go out at six
+#: decimals, so a hold below a microsecond lands two frames on the same one
+#: however positive it looked going in -- ``1e-9`` puts every appended event at
+#: the session's end time. Requiring a whole microsecond, rather than a hold
+#: that merely rounds to one, is what makes the increase hold for *every*
+#: multiple: a gap of at least 1e-6 in the input is still a gap after rounding,
+#: where ``5e-7`` rounds frames 1 and 2 together.
+MIN_CHECKPOINT_HOLD = 1e-6
 
 
 class ScreenReplay(Protocol):
@@ -212,17 +238,32 @@ def _repaint(screen: str) -> str:
     return _REPAINT_PREFIX + screen.replace("\r\n", "\n").replace("\n", "\r\n")
 
 
+def _round_micros(at: float) -> float:
+    """Six decimals, so a fractional hold reads as ``1.35`` rather than as the
+    sixteen digits binary addition actually produces.
+
+    Not ``round(at, 6)``. That rounds the exact decimal and breaks halves to
+    even; Rust's ``(at * 1e6).round() / 1e6`` scales first and breaks halves
+    away from zero. The two disagree on values these lines can carry -- ``5e-7``
+    is the smallest -- and a rounding rule the two implementations almost share
+    is worse than no rounding at all, so Rust's expression is transcribed
+    instead. Timestamps here are non-negative by construction, which is what
+    lets ``floor`` stand in for the away-from-zero half.
+    """
+    scaled = at * 1e6
+    floor = math.floor(scaled)
+    return (floor + 1 if scaled - floor >= 0.5 else floor) / 1e6
+
+
 def _cast_event_line(at: float, data: str) -> str:
     """Serialise one ``[timestamp, "o", data]`` event, newline included.
 
     The encoder is pinned rather than left at the language default because the
     Rust implementation writes these same lines: compact separators and raw
     UTF-8 are what ``serde_json`` emits, so the two produce the same bytes for
-    the same screens. Six decimals, matching what the recorders on both sides
-    write, so the appended lines carry no more precision than the ones above
-    them.
+    the same screens.
     """
-    event = json.dumps([round(at, 6), "o", data], ensure_ascii=False, separators=(",", ":"))
+    event = json.dumps([_round_micros(at), "o", data], ensure_ascii=False, separators=(",", ":"))
     return event + "\n"
 
 
@@ -259,15 +300,20 @@ def append_checkpoint_frames(
     The first checkpoint lands one hold after the session's final event, which
     leaves the live ending on screen for a beat before the replay starts.
 
-    :raises ValueError: if the cast has no header line, or if *hold_seconds* is
-        not a positive, finite number of seconds -- a hold that is not would
-        stall or reverse the timestamps this promises to keep increasing.
+    :raises ValueError: if the cast is empty, or if *hold_seconds* is not a
+        finite hold of at least :data:`MIN_CHECKPOINT_HOLD`. ``1e-9`` is
+        rejected for the same reason ``0.0`` is: it leaves every appended event
+        on the same timestamp once written at six decimals, which is the stall
+        this promises not to produce.
+    :raises OSError: if the cast cannot be read or appended to. Rust returns
+        these as ``Err`` alongside the validation failures above; here they stay
+        the exception the standard library already raised.
     """
     if not steps:
         return 0
-    if not math.isfinite(hold_seconds) or hold_seconds <= 0:
+    if not math.isfinite(hold_seconds) or hold_seconds < MIN_CHECKPOINT_HOLD:
         raise ValueError(
-            f"checkpoint hold must be a positive number of seconds, got {hold_seconds}"
+            f"checkpoint hold must be at least {MIN_CHECKPOINT_HOLD} seconds, got {hold_seconds}"
         )
 
     contents = cast_path.read_text(encoding="utf-8")
@@ -416,6 +462,7 @@ __all__ = [
     "DEFAULT_IDLE_TIME_LIMIT",
     "DEFAULT_LAST_FRAME_DURATION",
     "FFMPEG",
+    "MIN_CHECKPOINT_HOLD",
     "ReplayFactory",
     "RsvgFfmpegBackend",
     "ScreenReplay",

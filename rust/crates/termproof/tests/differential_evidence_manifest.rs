@@ -60,11 +60,28 @@ const DIRECTORY_PLACEHOLDER: &str = "@DIR";
 /// by hand rather than by a recorder: a real header carries a wall-clock
 /// timestamp and the host's `SHELL` and `TERM`, none of which either
 /// implementation controls.
-const BASE_CAST: &str =
-    "{\"version\":2,\"width\":80,\"height\":24}\n[0.5,\"o\",\"MENU\"]\n[1.25,\"o\",\"\\r\\nitem one\"]\n";
+///
+/// It opens by setting a scroll region, because that is what a full-screen TUI
+/// leaves behind and it is the state an append has to undo: without the
+/// `\x1b[r` in the repaint prefix, a checkpoint taller than the region scrolls
+/// rows out of the frame. The corpus records the prefix bytes, so both
+/// implementations are held to resetting it.
+const BASE_CAST: &str = "{\"version\":2,\"width\":80,\"height\":24}\n\
+     [0.5,\"o\",\"\\u001b[3;20rMENU\"]\n\
+     [1.25,\"o\",\"\\r\\nitem one\"]\n";
 
 /// Filename for that cast inside the publish directory.
 const CHECKPOINT_CAST: &str = "session-with-checkpoints.cast";
+
+/// A second append over the same steps at an explicit, fractional hold. The
+/// default-hold cast above lands on whole and quarter seconds, which any
+/// rounding rule reproduces; 0.1 + 0.2 does not, and this is what holds the two
+/// implementations to the same six-decimal answer. It also covers the explicit
+/// `hold_seconds` path, which the default cast cannot.
+const FRACTIONAL_HOLD: f64 = 0.2;
+const FRACTIONAL_HOLD_CAST: &str = "session-with-fractional-hold.cast";
+const FRACTIONAL_BASE_CAST: &str =
+    "{\"version\":2,\"width\":80,\"height\":24}\n[0.1,\"o\",\"MENU\"]\n";
 
 /// The document the oracle recorded. Loaded at runtime, as the other
 /// differential tests load their corpora.
@@ -187,6 +204,15 @@ fn the_published_manifest_matches_the_python_document() {
     std::fs::write(&cast, BASE_CAST).expect("base cast written");
     append_checkpoint_frames(&cast.to_string_lossy(), collector.steps(), None)
         .expect("checkpoint frames appended");
+
+    let fractional = directory.join(FRACTIONAL_HOLD_CAST);
+    std::fs::write(&fractional, FRACTIONAL_BASE_CAST).expect("fractional base cast written");
+    append_checkpoint_frames(
+        &fractional.to_string_lossy(),
+        collector.steps(),
+        Some(FRACTIONAL_HOLD),
+    )
+    .expect("checkpoint frames appended at a fractional hold");
 
     // `evidence.json` is excluded: it is `document`, and recording it twice
     // would let the two copies disagree.

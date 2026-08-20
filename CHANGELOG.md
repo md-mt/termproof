@@ -60,13 +60,16 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
   checkpoint screens to a cast as held trailing frames, so a recording ends by
   replaying the evidence sequence instead of stopping on whatever the last
   keystroke painted — one artifact to watch rather than fifteen stills to open.
-  Each screen repaints the whole grid and is held for `hold_seconds`, defaulting
-  to the three of `DEFAULT_CHECKPOINT_HOLD`. It appends only: the header and
-  every recorded event are left as the session wrote them, and the new
-  timestamps continue from the last one in the file rather than restarting at
-  zero, so the result is still a valid asciinema v2 cast. A run that captured
-  nothing is a silent no-op, and nothing about it needs the session to still be
-  running.
+  Each screen repaints the whole grid — pen, scroll region, cursor and all, so a
+  scroll region the recorded TUI left set cannot scroll rows of the evidence out
+  of the frame — and is held for `hold_seconds`, defaulting to the three of
+  `DEFAULT_CHECKPOINT_HOLD` and floored at the microsecond of
+  `MIN_CHECKPOINT_HOLD`, below which two frames would share a timestamp. It
+  appends only: the header and every recorded event are left as the session
+  wrote them, and the new timestamps continue from the last one in the file
+  rather than restarting at zero, so the result is still a valid asciinema v2
+  cast. A run that captured nothing is a silent no-op, and nothing about it
+  needs the session to still be running.
 
 ### Python — Changed
 
@@ -198,8 +201,11 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
   the same semantics, taking `hold_seconds: Option<f64>` where Python takes a
   defaulted keyword and returning `Err` where Python raises `ValueError`. The
   two write byte-identical events for the same screens: the Python encoder is
-  pinned to `serde_json`'s compact, raw-UTF-8 shape, and the evidence-manifest
-  conformance pair now compares an appended cast alongside the step files.
+  pinned to `serde_json`'s compact, raw-UTF-8 shape, its six-decimal rounding
+  transcribes Rust's expression rather than calling `round(at, 6)`, which breaks
+  halves the other way, and the evidence-manifest conformance pair now compares
+  two appended casts — one at the default hold, one at a fractional one that
+  needs the rounding — alongside the step files.
 
 ### Rust — Changed
 

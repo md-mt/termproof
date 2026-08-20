@@ -61,10 +61,29 @@ DIRECTORY_PLACEHOLDER = "@DIR"
 #: by hand rather than by a recorder: a real header carries a wall-clock
 #: timestamp and the host's ``SHELL`` and ``TERM``, none of which either
 #: implementation controls.
-BASE_CAST = '{"version":2,"width":80,"height":24}\n[0.5,"o","MENU"]\n[1.25,"o","\\r\\nitem one"]\n'
+#:
+#: It opens by setting a scroll region, because that is what a full-screen TUI
+#: leaves behind and it is the state an append has to undo: without the
+#: ``\x1b[r`` in the repaint prefix, a checkpoint taller than the region scrolls
+#: rows out of the frame. The corpus records the prefix bytes, so both
+#: implementations are held to resetting it.
+BASE_CAST = (
+    '{"version":2,"width":80,"height":24}\n'
+    '[0.5,"o","\\u001b[3;20rMENU"]\n'
+    '[1.25,"o","\\r\\nitem one"]\n'
+)
 
 #: Filename for that cast inside the publish directory.
 CHECKPOINT_CAST = "session-with-checkpoints.cast"
+
+#: A second append over the same steps at an explicit, fractional hold. The
+#: default-hold cast above lands on whole and quarter seconds, which any
+#: rounding rule reproduces; 0.1 + 0.2 does not, and this is what holds the two
+#: implementations to the same six-decimal answer. It also covers the explicit
+#: ``hold_seconds`` path, which the default cast cannot.
+FRACTIONAL_HOLD = 0.2
+FRACTIONAL_HOLD_CAST = "session-with-fractional-hold.cast"
+FRACTIONAL_BASE_CAST = '{"version":2,"width":80,"height":24}\n[0.1,"o","MENU"]\n'
 
 IDENTITY = RunIdentity(
     recipe_name="login",
@@ -153,6 +172,10 @@ def build(directory: Path) -> tuple[dict[str, object], dict[str, str]]:
     cast = directory / CHECKPOINT_CAST
     cast.write_text(BASE_CAST, encoding="utf-8")
     append_checkpoint_frames(cast, collector.steps)
+
+    fractional = directory / FRACTIONAL_HOLD_CAST
+    fractional.write_text(FRACTIONAL_BASE_CAST, encoding="utf-8")
+    append_checkpoint_frames(fractional, collector.steps, hold_seconds=FRACTIONAL_HOLD)
 
     # `evidence.json` is excluded: it is `document`, and recording it twice
     # would let the two copies disagree.

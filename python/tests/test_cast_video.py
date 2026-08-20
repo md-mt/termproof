@@ -12,6 +12,7 @@ from termproof.attributed import AttributedCell, AttributedScreen, attributed_sc
 from termproof.cast_video import (
     DEFAULT_CHECKPOINT_HOLD,
     DEFAULT_IDLE_TIME_LIMIT,
+    MIN_CHECKPOINT_HOLD,
     RsvgFfmpegBackend,
     append_checkpoint_frames,
     frames_from_cast,
@@ -382,10 +383,31 @@ class AppendCheckpointFramesTest(unittest.TestCase):
         steps = [_step(0, "one", "first"), _step(1, "two", "second")]
         append_checkpoint_frames(self.cast, steps)
 
-        hold = DEFAULT_CHECKPOINT_HOLD
         # The last checkpoint is held as long as the ones before it, which is
         # what the closing event is for.
-        self.assertEqual([0.0, hold, 2 * hold, 3 * hold], [at for at, _ in self._events()])
+        #
+        # Spelled 3.0 rather than DEFAULT_CHECKPOINT_HOLD: written in terms of
+        # the constant, this passes just as happily if the two implementations'
+        # defaults drift apart, which is the one thing it is here to stop. The
+        # Rust side pins the same literal.
+        self.assertEqual([0.0, 3.0, 6.0, 9.0], [at for at, _ in self._events()])
+        self.assertEqual(3.0, DEFAULT_CHECKPOINT_HOLD)
+
+    def test_a_fractional_hold_is_rounded_to_six_decimals(self) -> None:
+        # Binary addition puts 0.1 + 0.2 at 0.30000000000000004, and a reviewer
+        # reading timestamps should not have to. Asserted as text because the
+        # Rust side asserts the same strings: agreeing on the rounded value is
+        # the point, and `round(at, 6)` here would not have produced it -- it
+        # breaks halves to even where Rust breaks them away from zero.
+        _write_cast(self.cast, [(0.1, "a")])
+        steps = [_step(0, "one", "first"), _step(1, "two", "second"), _step(2, "three", "third")]
+        append_checkpoint_frames(self.cast, steps, hold_seconds=0.2)
+
+        written = self.cast.read_text(encoding="utf-8").splitlines()[1:]
+        self.assertEqual(
+            ["0.1", "0.3", "0.5", "0.7", "0.9"],
+            [line.lstrip("[").split(",")[0] for line in written],
+        )
 
     def test_no_checkpoints_is_a_silent_no_op(self) -> None:
         _write_cast(self.cast, [(0.0, "a")])
@@ -435,6 +457,25 @@ class AppendCheckpointFramesTest(unittest.TestCase):
         self.assertEqual("item", text[1])
 
     @requires_pyte
+    def test_a_scroll_region_left_by_the_session_does_not_eat_rows(self) -> None:
+        # The failure this guards is the quietest one available: a full-screen
+        # TUI leaves DECSTBM set, the evidence screen is taller than the region,
+        # and painting it scrolls rows out of existence. The cast stays valid
+        # and plays fine; it just shows a screen that was never captured.
+        header = json.dumps({"version": 2, "width": 20, "height": 8})
+        event = json.dumps([0.0, "o", "\x1b[3;6r\x1b[?6h"])
+        self.cast.write_text(f"{header}\n{event}\n", encoding="utf-8")
+
+        rows = [f"L{i}" for i in range(1, 9)]
+        append_checkpoint_frames(self.cast, [_step(0, "full", "\n".join(rows))])
+
+        self.assertEqual(
+            rows,
+            frames_from_cast(self.cast)[-1].text_lines(trim_right=True),
+            "rows were scrolled out of the region instead of painted",
+        )
+
+    @requires_pyte
     def test_a_checkpoint_paints_over_the_screen_before_it(self) -> None:
         # Each screen is a whole picture, so a shorter one must not leave the
         # tail of a longer one behind it.
@@ -465,12 +506,23 @@ class AppendCheckpointFramesTest(unittest.TestCase):
     def test_a_hold_that_would_stall_the_timestamps_is_rejected(self) -> None:
         _write_cast(self.cast, [(0.0, "a")])
         steps = [_step(0, "one", "first")]
-        for bad in (0.0, -1.0, float("nan"), float("inf")):
+        # 1e-9 is in the list because it is the case the name is about: it is
+        # positive and finite, so an `isfinite and > 0` check waves it through,
+        # and then six-decimal timestamps land every appended event on the same
+        # one. 5e-7 is there because rounding *up* to a microsecond is not
+        # enough either -- frames 1 and 2 still collide.
+        for bad in (0.0, -1.0, float("nan"), float("inf"), 1e-9, 5e-7):
             with self.subTest(hold=bad):
                 with self.assertRaises(ValueError):
                     append_checkpoint_frames(self.cast, steps, hold_seconds=bad)
         # Rejected before anything was written.
         self.assertEqual(1, len(self._events()))
+
+        # The floor is a floor, not a value swept up to: one microsecond is
+        # accepted and its timestamps do increase.
+        append_checkpoint_frames(self.cast, steps, hold_seconds=MIN_CHECKPOINT_HOLD)
+        times = [at for at, _ in self._events()]
+        self.assertTrue(all(b > a for a, b in zip(times, times[1:], strict=False)))
 
     def test_the_event_encoder_is_pinned_to_what_rust_emits(self) -> None:
         # The Rust implementation writes these same lines with `serde_json`:
@@ -480,7 +532,7 @@ class AppendCheckpointFramesTest(unittest.TestCase):
         append_checkpoint_frames(self.cast, [_step(0, "unicode", "héllo")], hold_seconds=1.0)
 
         appended = self.cast.read_text(encoding="utf-8").splitlines()[-2]
-        self.assertEqual('[1.0,"o","\\u001b[m\\u001b[H\\u001b[2Jhéllo"]', appended)
+        self.assertEqual('[1.0,"o","\\u001b[m\\u001b[r\\u001b[H\\u001b[2Jhéllo"]', appended)
 
 
 if __name__ == "__main__":

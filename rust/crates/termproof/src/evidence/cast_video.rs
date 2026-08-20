@@ -69,11 +69,30 @@ const FFMPEG_TIMEOUT: Duration = Duration::from_secs(120);
 /// a recording's closing hold does not change pace depending on who wrote it.
 pub const DEFAULT_CHECKPOINT_HOLD: f64 = 3.0;
 
-/// Repaint the whole grid: reset the pen, home the cursor, clear the screen.
+/// Repaint the whole grid: reset the pen, reset the scroll region, home the
+/// cursor, clear the screen.
 ///
 /// A checkpoint screen is a complete picture, not a delta, so it is painted
 /// over whatever the previous frame left rather than after it.
-const REPAINT_PREFIX: &str = "\x1b[m\x1b[H\x1b[2J";
+///
+/// # Why the scroll region is in there
+///
+/// `\x1b[2J` erases the display and leaves DECSTBM exactly as the recorded
+/// session set it. A full-screen TUI — the class of program this crate exists
+/// to record — sets a scroll region and does not clear it on exit, so without
+/// `\x1b[r` a screen taller than the region scrolls inside it and rows of the
+/// evidence are destroyed on the way in. An eight-row screen painted into a
+/// region of rows 3-6 comes back as `L1 L2 L5 L6 L7 L8`: still a valid cast,
+/// still plays, simply not the screen that was captured. Resetting the margins
+/// also neutralises origin mode, which only relocates the origin relative to
+/// them.
+///
+/// A soft reset (`\x1b[!p`) would cover more state in one sequence and is the
+/// obvious thing to reach for. It is not used because `avt` implements it and
+/// `pyte` does not, so the two replay paths this crate renders through would
+/// disagree about what the frame says — the one outcome worth avoiding more
+/// than the state it would have reset.
+const REPAINT_PREFIX: &str = "\x1b[m\x1b[r\x1b[H\x1b[2J";
 
 /// Written once after the last checkpoint, purely to keep the recording
 /// running for one more hold.
@@ -83,6 +102,16 @@ const REPAINT_PREFIX: &str = "\x1b[m\x1b[H\x1b[2J";
 /// flash for an instant instead of being held like every screen before it. An
 /// SGR reset is the cheapest event that changes nothing on screen.
 const HOLD_TERMINATOR: &str = "\x1b[m";
+
+/// Shortest hold that survives being written down.
+///
+/// Timestamps go out at six decimals, so a hold below a microsecond lands two
+/// frames on the same one however positive it looked going in — `1e-9` puts
+/// every appended event at the session's end time. Requiring a whole
+/// microsecond, rather than a hold that merely rounds to one, is what makes the
+/// increase hold for *every* multiple: a gap of at least 1e-6 in the input is
+/// still a gap after rounding, where `5e-7` rounds frames 1 and 2 together.
+pub const MIN_CHECKPOINT_HOLD: f64 = 1e-6;
 
 /// `(executable, args, timeout)` -> `Ok(())` or an error message.
 pub type ToolRunner = Box<dyn Fn(&str, &[String], Duration) -> Result<(), String> + Send + Sync>;
@@ -355,9 +384,11 @@ impl CastVideoConverter {
 ///
 /// # Errors
 ///
-/// If the cast cannot be read or appended to, if it has no header line, or if
-/// `hold_seconds` is not a positive, finite number of seconds — a hold that is
-/// not would stall or reverse the timestamps this promises to keep increasing.
+/// If the cast is empty or cannot be read or appended to, or if `hold_seconds`
+/// is not a finite hold of at least [`MIN_CHECKPOINT_HOLD`]. `1e-9` is rejected
+/// for the same reason `0.0` is: it leaves every appended event on the same
+/// timestamp once written at six decimals, which is the stall this promises not
+/// to produce.
 pub fn append_checkpoint_frames(
     cast_path: &str,
     steps: &[CapturedStep],
@@ -367,9 +398,9 @@ pub fn append_checkpoint_frames(
         return Ok(0);
     }
     let hold = hold_seconds.unwrap_or(DEFAULT_CHECKPOINT_HOLD);
-    if !hold.is_finite() || hold <= 0.0 {
+    if !hold.is_finite() || hold < MIN_CHECKPOINT_HOLD {
         return Err(format!(
-            "checkpoint hold must be a positive number of seconds, got {hold}"
+            "checkpoint hold must be at least {MIN_CHECKPOINT_HOLD} seconds, got {hold}"
         ));
     }
 
@@ -430,12 +461,21 @@ fn repaint(screen: &str) -> String {
 /// the same bytes for the same screens and the conformance pair can compare
 /// them literally.
 fn cast_event_line(at: f64, data: &str) -> Result<String, String> {
-    // Six decimals, matching what the recorders on both sides write, so the
-    // appended lines do not carry more precision than the ones above them.
-    let at = (at * 1e6).round() / 1e6;
-    let event = serde_json::json!([at, "o", data]);
+    let event = serde_json::json!([round_micros(at), "o", data]);
     let line = serde_json::to_string(&event).map_err(|e| e.to_string())?;
     Ok(format!("{line}\n"))
+}
+
+/// Six decimals, so a fractional hold reads as `1.35` rather than as the
+/// sixteen digits binary addition actually produces.
+///
+/// Python transcribes this expression rather than calling its own `round(at, 6)`
+/// — that rounds the exact decimal, and halves to even, where this scales first
+/// and rounds halves away from zero. The two disagree on values these lines can
+/// carry (`5e-7` is the smallest), and a rounding rule the implementations
+/// almost share is worse than no rounding at all.
+fn round_micros(at: f64) -> f64 {
+    (at * 1e6).round() / 1e6
 }
 
 /// Build an attributed screen from an `avt` grid.
@@ -728,6 +768,25 @@ mod tests {
         step(index, label, screen, CaptureKind::Checkpoint)
     }
 
+    /// Every event's timestamp exactly as it was written, header dropped.
+    ///
+    /// As text, not as `f64`: a parsed number cannot tell `0.3` from
+    /// `0.30000000000000004`, which is what the rounding is for.
+    fn timestamp_text(path: &str) -> Vec<String> {
+        fs::read_to_string(path)
+            .unwrap()
+            .lines()
+            .skip(1)
+            .map(|line| {
+                line.trim_start_matches('[')
+                    .split(',')
+                    .next()
+                    .expect("timestamp")
+                    .to_string()
+            })
+            .collect()
+    }
+
     /// Every event in the cast as `(timestamp, data)`, header dropped.
     fn events_in(path: &str) -> Vec<(f64, String)> {
         fs::read_to_string(path)
@@ -785,11 +844,34 @@ mod tests {
         ];
         append_checkpoint_frames(&path, &steps, None).unwrap();
 
-        let times: Vec<f64> = events_in(&path).iter().map(|(at, _)| *at).collect();
-        let hold = DEFAULT_CHECKPOINT_HOLD;
         // The last checkpoint is held as long as the ones before it, which is
         // what the closing event is for.
-        assert_eq!(times, vec![0.0, hold, 2.0 * hold, 3.0 * hold]);
+        //
+        // Spelled 3.0 rather than `DEFAULT_CHECKPOINT_HOLD`: written in terms of
+        // the constant, this passes just as happily if the two implementations'
+        // defaults drift apart, which is the one thing it is here to stop. The
+        // Python side pins the same literal.
+        let times: Vec<f64> = events_in(&path).iter().map(|(at, _)| *at).collect();
+        assert_eq!(times, vec![0.0, 3.0, 6.0, 9.0]);
+    }
+
+    #[test]
+    fn a_fractional_hold_is_rounded_to_six_decimals() {
+        // Binary addition puts 0.1 + 0.2 at 0.30000000000000004, and a reviewer
+        // reading timestamps should not have to. Asserted as text because the
+        // Python side asserts the same strings: agreeing on the rounded value is
+        // the point, and `round(at, 6)` there would not have produced it.
+        let (_dir, path) = cast_with("[0.1, \"o\", \"a\"]\n");
+        let steps = [
+            checkpoint(0, "one", "first"),
+            checkpoint(1, "two", "second"),
+            checkpoint(2, "three", "third"),
+        ];
+        append_checkpoint_frames(&path, &steps, Some(0.2)).unwrap();
+        assert_eq!(
+            timestamp_text(&path),
+            vec!["0.1", "0.3", "0.5", "0.7", "0.9"]
+        );
     }
 
     #[test]
@@ -844,6 +926,33 @@ mod tests {
     }
 
     #[test]
+    fn a_scroll_region_left_by_the_session_does_not_eat_rows() {
+        // The failure this guards is the quietest one available: a full-screen
+        // TUI leaves DECSTBM set, the evidence screen is taller than the region,
+        // and painting it scrolls rows out of existence. The cast stays valid
+        // and plays fine; it just shows a screen that was never captured.
+        let dir = tempfile::tempdir().unwrap();
+        let cast = dir.path().join("r.cast");
+        fs::write(
+            &cast,
+            "{\"version\":2,\"width\":20,\"height\":8}\n\
+             [0.0, \"o\", \"\\u001b[3;6r\\u001b[?6h\"]\n",
+        )
+        .unwrap();
+        let path = cast.to_string_lossy().to_string();
+
+        let screen = "L1\nL2\nL3\nL4\nL5\nL6\nL7\nL8";
+        append_checkpoint_frames(&path, &[checkpoint(0, "full", screen)], None).unwrap();
+
+        let frames = CastVideoConverter::new().frames_from_cast(&path).unwrap();
+        assert_eq!(
+            frames.last().unwrap().text_lines(true),
+            vec!["L1", "L2", "L3", "L4", "L5", "L6", "L7", "L8"],
+            "rows were scrolled out of the region instead of painted"
+        );
+    }
+
+    #[test]
     fn a_checkpoint_paints_over_the_screen_before_it() {
         // Each screen is a whole picture, so a shorter one must not leave the
         // tail of a longer one behind it.
@@ -893,7 +1002,12 @@ mod tests {
     fn a_hold_that_would_stall_the_timestamps_is_rejected() {
         let (_dir, path) = cast_with("[0.0, \"o\", \"a\"]\n");
         let steps = [checkpoint(0, "one", "first")];
-        for bad in [0.0, -1.0, f64::NAN, f64::INFINITY] {
+        // 1e-9 is in the list because it is the case the name is about: it is
+        // positive and finite, so an `is_finite() && > 0.0` check waves it
+        // through, and then six-decimal timestamps land every appended event on
+        // the same one. 5e-7 is there because rounding *up* to a microsecond is
+        // not enough either — frames 1 and 2 still collide.
+        for bad in [0.0, -1.0, f64::NAN, f64::INFINITY, 1e-9, 5e-7] {
             assert!(
                 append_checkpoint_frames(&path, &steps, Some(bad)).is_err(),
                 "hold {bad} should be rejected"
@@ -901,6 +1015,12 @@ mod tests {
         }
         // Rejected before anything was written.
         assert_eq!(events_in(&path).len(), 1);
+
+        // The floor is a floor, not a value swept up to: one microsecond is
+        // accepted and its timestamps do increase.
+        assert!(append_checkpoint_frames(&path, &steps, Some(MIN_CHECKPOINT_HOLD)).is_ok());
+        let times: Vec<f64> = events_in(&path).iter().map(|(at, _)| *at).collect();
+        assert!(times.windows(2).all(|w| w[1] > w[0]), "{times:?}");
     }
 
     #[test]
