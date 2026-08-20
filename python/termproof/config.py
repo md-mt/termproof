@@ -1,11 +1,20 @@
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, field, fields
+from dataclasses import asdict, dataclass, field, fields, replace
 from pathlib import Path
 from typing import Any, get_args, get_type_hints
 
-from .attributed import SvgStyle
+from .attributed import (
+    DEFAULT_BG,
+    DEFAULT_CELL_H,
+    DEFAULT_CELL_W,
+    DEFAULT_FG,
+    DEFAULT_FONT_PX,
+    DEFAULT_PADDING,
+    FONT_STACK,
+    SvgStyle,
+)
 
 try:
     import yaml
@@ -13,7 +22,182 @@ except ImportError:
     yaml = None  # type: ignore[assignment]
 
 
-# -- built-in defaults (mirror current hardcoded behavior) ------------------
+# -- config model -----------------------------------------------------------
+
+@dataclass(frozen=True)
+class GlobalDefaults:
+    # Cap for the post-script idle wait in PTY mode. None means wait for
+    # quiescence up to the recipe timeout instead of a fixed cap.
+    idle_cap_seconds: float | None = 3.0
+
+
+@dataclass(frozen=True)
+class DockerBackendConfig:
+    image: str = ""
+    workdir: str = "/workspace"
+    volumes: list[Any] = field(
+        default_factory=lambda: [{"host": ".", "container": "/workspace"}]
+    )
+    env: dict[str, str] = field(default_factory=dict)
+
+
+# Smallest useful rasterised screenshot, in pixels. A PNG is a fixed pixel
+# count, so below roughly this a screenshot stops being readable evidence; an
+# SVG is resolution independent and needs no floor, which is why this lives
+# here rather than in the canonical geometry. Every renderer that turns the
+# markup into pixels applies it: ``PngRenderer`` directly, and the two that
+# rasterise the SVG at its intrinsic size through ``SvgRenderConfig``'s
+# :meth:`~SvgRenderConfig.raster_style`.
+RASTER_MIN_WIDTH = 320
+RASTER_MIN_HEIGHT = 160
+
+
+@dataclass(frozen=True)
+class SvgRenderConfig:
+    """The ``evidence.svg`` YAML section: SVG geometry as a *run* configures it.
+
+    :class:`~termproof.attributed.SvgStyle` is canonical. Every default below is
+    the matching ``DEFAULT_*`` constant from :mod:`termproof.attributed`, under
+    the name the YAML uses (``char_width`` for ``cell_w``, ``line_height`` for
+    ``cell_h``, ``font_size`` for ``font_px``), and :meth:`style` is the one
+    place that translates between the two. Nothing here restates a value.
+
+    Reach for this type when a run's YAML or a renderer plugin should be able to
+    override the geometry; reach for ``SvgStyle`` when calling
+    :func:`~termproof.attributed.screen_svg` directly. They render identically
+    when unconfigured, which they did not always do — CHANGELOG.md says what
+    moved and how to pin the old values.
+    """
+
+    char_width: float = DEFAULT_CELL_W
+    line_height: float = DEFAULT_CELL_H
+    padding: int = DEFAULT_PADDING
+    font_size: int = DEFAULT_FONT_PX
+    font_family: str = FONT_STACK
+    fg: str = DEFAULT_FG
+    bg: str = DEFAULT_BG
+    min_width: int = 0
+    min_height: int = 0
+
+    def style(self, cols: int, rows: int) -> SvgStyle:
+        """Vector geometry for a *cols* x *rows* grid, for an SVG-emitting renderer.
+
+        No canvas floor unless one is asked for: ``min_width``/``min_height``
+        default to zero, as they do on ``SvgStyle``, so a three-row screen
+        renders a three-row canvas rather than a three-row grid marooned in a
+        320x160 field. An SVG is resolution independent — a viewer scales it —
+        so a floor buys nothing there and costs the guarantee that the canvas
+        is exactly grid plus padding.
+
+        A renderer that turns this into pixels wants :meth:`raster_style`
+        instead, where that reasoning does not hold.
+        """
+        return SvgStyle(
+            columns=cols,
+            rows=rows,
+            cell_w=float(self.char_width),
+            cell_h=float(self.line_height),
+            font_px=self.font_size,
+            padding=self.padding,
+            font_family=self.font_family,
+            fg=self.fg,
+            bg=self.bg,
+            min_width=self.min_width,
+            min_height=self.min_height,
+        )
+
+    def raster_style(self, cols: int, rows: int) -> SvgStyle:
+        """:meth:`style`, floored at :data:`RASTER_MIN_WIDTH` x :data:`RASTER_MIN_HEIGHT`.
+
+        For a renderer that rasterises the markup at its intrinsic size —
+        ``rsvg-convert`` with no ``-w``/``-h``/``-z`` gives a PNG whose pixel
+        dimensions are the SVG's ``width``/``height`` attributes, so the vector
+        path's "a viewer will scale it" argument does not reach it. The floor is
+        a hard lower bound rather than a default, which is how ``PngRenderer``
+        has always applied the same two numbers.
+        """
+        floored = self.style(cols, rows)
+        return replace(
+            floored,
+            min_width=max(floored.min_width, RASTER_MIN_WIDTH),
+            min_height=max(floored.min_height, RASTER_MIN_HEIGHT),
+        )
+
+
+@dataclass(frozen=True)
+class PngRenderConfig:
+    # ``font_path`` of None keeps PIL's bundled proportional bitmap face.
+    # ``font_size`` is only consulted when a font path is given.
+    # ``scale`` multiplies the canvas, the padding and the line pitch, but not
+    # the glyphs of the default bitmap face, which has one fixed size. Scaling
+    # up therefore spreads the same text over a larger image unless
+    # ``font_path`` is also set, which is what yields a higher-DPI screenshot.
+    #
+    # ``fg``/``bg`` are the shared palette's, not this renderer's own: the two
+    # screenshot formats of one run should not disagree about what colour the
+    # terminal is. ``padding``, ``font_size`` and ``scale`` stay independent —
+    # they are raster quantities with no SVG counterpart, since this renderer
+    # measures its cell from the PIL face rather than from a cell grid.
+    scale: int = 1
+    padding: int = 18
+    font_size: int = 14
+    font_path: str | None = None
+    fg: str = DEFAULT_FG
+    bg: str = DEFAULT_BG
+
+
+@dataclass(frozen=True)
+class VideoConfig:
+    # None means "omit the flag", so the default command line is the one the
+    # pipeline built before these were configurable. ``fps_cap`` of None keeps
+    # agg's cap tied to the effective output fps, as it was.
+    fps: int = 60
+    fps_cap: int | None = None
+    pix_fmt: str = "yuv420p"
+    crf: int | None = None
+    preset: str | None = None
+    tune: str | None = None
+    idle_time_limit: float | None = None
+    last_frame_duration: float | None = None
+    theme: str | None = None
+    font_size: int | None = None
+    font_family: str | None = None
+
+
+@dataclass(frozen=True)
+class EvidenceConfig:
+    # ``dedup_step_screenshots`` writes one image per distinct screen instead of
+    # one per step, and a steps-manifest.json that maps every step onto the
+    # image representing it. Off by default: it changes the artifact layout, so
+    # a consumer that globs the step directory has to read the manifest first.
+    svg: SvgRenderConfig = SvgRenderConfig()
+    png: PngRenderConfig = PngRenderConfig()
+    video: VideoConfig = VideoConfig()
+    dedup_step_screenshots: bool = False
+
+
+@dataclass(frozen=True)
+class VerifierConfig:
+    steps: dict[str, str]
+    assertions: dict[str, str]
+    agent_runners: dict[str, str]
+    execution_modes: dict[str, str]
+    reporters: dict[str, str]
+    screen_renderers: dict[str, str]
+    video_backends: dict[str, str]
+    artifact_publishers: dict[str, str]
+    session_backend: str
+    docker: DockerBackendConfig
+    defaults: GlobalDefaults
+    evidence: EvidenceConfig
+
+    @classmethod
+    def builtin(cls) -> VerifierConfig:
+        """Return a config populated entirely from BUILTIN_DEFAULTS."""
+        return _from_mapping(BUILTIN_DEFAULTS)
+
+
+# -- built-in defaults ------------------------------------------------------
 
 BUILTIN_DEFAULTS: dict[str, Any] = {
     "steps": {
@@ -70,157 +254,19 @@ BUILTIN_DEFAULTS: dict[str, Any] = {
     "defaults": {
         "idle_cap_seconds": 3.0,
     },
-    # Evidence-rendering parameters. Every value here reproduces the behavior
-    # that was previously hardcoded in the renderers and the video pipeline, so
-    # an unconfigured run is byte-identical to one from before they were
-    # extracted. See docs/evidence-quality.md for the researched alternatives.
+    # Evidence-rendering parameters, read off the dataclasses above rather than
+    # restated here. This block is what documents every knob and its default
+    # (python/README.md points at it), and a documented default that disagrees
+    # with the one a renderer actually applies is worse than no documentation:
+    # it is a promise the code does not keep. Deriving it means the two cannot
+    # drift. See docs/evidence-quality.md for the researched alternatives.
     "evidence": {
-        "svg": {
-            "char_width": 9,
-            "line_height": 20,
-            "padding": 18,
-            "font_size": 14,
-            "font_family": "ui-monospace,SFMono-Regular,Menlo,Consolas,monospace",
-            "fg": "#e6edf3",
-            "bg": "#101418",
-        },
-        "png": {
-            "scale": 1,
-            "padding": 18,
-            "font_size": 14,
-            "font_path": None,
-            "fg": "#e6edf3",
-            "bg": "#101418",
-        },
-        "video": {
-            "fps": 60,
-            "fps_cap": None,
-            "pix_fmt": "yuv420p",
-            "crf": None,
-            "preset": None,
-            "tune": None,
-            "idle_time_limit": None,
-            "last_frame_duration": None,
-            "theme": None,
-            "font_size": None,
-            "font_family": None,
-        },
-        "dedup_step_screenshots": False,
+        "svg": asdict(SvgRenderConfig()),
+        "png": asdict(PngRenderConfig()),
+        "video": asdict(VideoConfig()),
+        "dedup_step_screenshots": EvidenceConfig().dedup_step_screenshots,
     },
 }
-
-
-# -- config model -----------------------------------------------------------
-
-@dataclass(frozen=True)
-class GlobalDefaults:
-    # Cap for the post-script idle wait in PTY mode. None means wait for
-    # quiescence up to the recipe timeout instead of a fixed cap.
-    idle_cap_seconds: float | None = 3.0
-
-
-@dataclass(frozen=True)
-class DockerBackendConfig:
-    image: str = ""
-    workdir: str = "/workspace"
-    volumes: list[Any] = field(
-        default_factory=lambda: [{"host": ".", "container": "/workspace"}]
-    )
-    env: dict[str, str] = field(default_factory=dict)
-
-
-@dataclass(frozen=True)
-class SvgRenderConfig:
-    char_width: int = 9
-    line_height: int = 20
-    padding: int = 18
-    font_size: int = 14
-    font_family: str = "ui-monospace,SFMono-Regular,Menlo,Consolas,monospace"
-    fg: str = "#e6edf3"
-    bg: str = "#101418"
-
-    def style(self, cols: int, rows: int) -> SvgStyle:
-        """Geometry for a *cols* x *rows* grid, shared by every SVG-backed renderer."""
-        return SvgStyle(
-            columns=cols,
-            rows=rows,
-            cell_w=float(self.char_width),
-            cell_h=float(self.line_height),
-            font_px=self.font_size,
-            padding=self.padding,
-            font_family=self.font_family,
-            fg=self.fg,
-            bg=self.bg,
-            min_width=320,
-            min_height=160,
-        )
-
-
-@dataclass(frozen=True)
-class PngRenderConfig:
-    # ``font_path`` of None keeps PIL's bundled proportional bitmap face.
-    # ``font_size`` is only consulted when a font path is given.
-    # ``scale`` multiplies the canvas, the padding and the line pitch, but not
-    # the glyphs of the default bitmap face, which has one fixed size. Scaling
-    # up therefore spreads the same text over a larger image unless
-    # ``font_path`` is also set, which is what yields a higher-DPI screenshot.
-    scale: int = 1
-    padding: int = 18
-    font_size: int = 14
-    font_path: str | None = None
-    fg: str = "#e6edf3"
-    bg: str = "#101418"
-
-
-@dataclass(frozen=True)
-class VideoConfig:
-    # None means "omit the flag", so the default command line is the one the
-    # pipeline built before these were configurable. ``fps_cap`` of None keeps
-    # agg's cap tied to the effective output fps, as it was.
-    fps: int = 60
-    fps_cap: int | None = None
-    pix_fmt: str = "yuv420p"
-    crf: int | None = None
-    preset: str | None = None
-    tune: str | None = None
-    idle_time_limit: float | None = None
-    last_frame_duration: float | None = None
-    theme: str | None = None
-    font_size: int | None = None
-    font_family: str | None = None
-
-
-@dataclass(frozen=True)
-class EvidenceConfig:
-    # ``dedup_step_screenshots`` writes one image per distinct screen instead of
-    # one per step, and a steps-manifest.json that maps every step onto the
-    # image representing it. Off by default: it changes the artifact layout, so
-    # a consumer that globs the step directory has to read the manifest first.
-    svg: SvgRenderConfig = SvgRenderConfig()
-    png: PngRenderConfig = PngRenderConfig()
-    video: VideoConfig = VideoConfig()
-    dedup_step_screenshots: bool = False
-
-
-@dataclass(frozen=True)
-class VerifierConfig:
-    steps: dict[str, str]
-    assertions: dict[str, str]
-    agent_runners: dict[str, str]
-    execution_modes: dict[str, str]
-    reporters: dict[str, str]
-    screen_renderers: dict[str, str]
-    video_backends: dict[str, str]
-    artifact_publishers: dict[str, str]
-    session_backend: str
-    docker: DockerBackendConfig
-    defaults: GlobalDefaults
-    evidence: EvidenceConfig
-
-    @classmethod
-    def builtin(cls) -> VerifierConfig:
-        """Return a config populated entirely from BUILTIN_DEFAULTS."""
-        return _from_mapping(BUILTIN_DEFAULTS)
 
 
 # -- cascading YAML loader --------------------------------------------------
@@ -324,6 +370,8 @@ _EVIDENCE_MINIMUMS: dict[str, int] = {
     "evidence.svg.line_height": 1,
     "evidence.svg.font_size": 1,
     "evidence.svg.padding": 0,
+    "evidence.svg.min_width": 0,
+    "evidence.svg.min_height": 0,
     "evidence.png.scale": 1,
     "evidence.png.font_size": 1,
     "evidence.png.padding": 0,
@@ -334,12 +382,17 @@ _EVIDENCE_MINIMUMS: dict[str, int] = {
 
 
 def _check_field_range(label: str, name: str, value: Any) -> None:
-    """Reject an out-of-range size or rate, naming the key as the type check does."""
+    """Reject an out-of-range size or rate, naming the key as the type check does.
+
+    Range only; the type is `_check_field_type`'s job. The message names the
+    bound rather than a class of number: ``char_width`` and ``line_height`` take
+    a float, so "a positive integer" would be wrong for them, and "positive"
+    would be a rule ``char_width: 0.5`` satisfies while still being refused.
+    """
     minimum = _EVIDENCE_MINIMUMS.get(f"{label}.{name}")
     if minimum is None or value is None or value >= minimum:
         return
-    wording = "a positive integer" if minimum == 1 else "a nonnegative integer"
-    raise ValueError(f"{label}.{name} must be {wording}, got {value!r}")
+    raise ValueError(f"{label}.{name} must be at least {minimum}, got {value!r}")
 
 
 def _mapping(raw: Any, label: str) -> dict[str, Any]:

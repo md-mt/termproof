@@ -10,7 +10,12 @@ from unittest import mock
 from PIL import Image, ImageDraw, ImageFont
 
 from termproof import evidence
-from termproof.attributed import AttributedScreen, attributed_screen_from_ansi_text
+from termproof.attributed import (
+    DEFAULT_BG,
+    DEFAULT_FG,
+    AttributedScreen,
+    attributed_screen_from_ansi_text,
+)
 from termproof.builtin_renderers import PngRenderer, SvgRenderer
 from termproof.builtin_video import AggFfmpegBackend
 from termproof.config import (
@@ -125,8 +130,18 @@ class CorpusByteIdentityTest(unittest.TestCase):
 
 
 class PngDefaultsTest(unittest.TestCase):
-    def _legacy_png(self, text: str, output_path: Path, cols: int, rows: int) -> None:
-        """The PNG renderer exactly as it was before the parameters moved to config."""
+    def _expected_png(self, text: str, output_path: Path, cols: int, rows: int) -> None:
+        """The raster geometry the PNG renderer is meant to have, written out longhand.
+
+        Everything here except the two colours is the renderer as it was before
+        the parameters moved to config: the cell measured off the PIL face, the
+        18px margin, and the 320x160 canvas floor. The floor is the one that
+        matters to keep — a PNG is a fixed pixel count, so a 40x60 one really is
+        unreadable, which is why the SVG path dropped its floor and this one did
+        not. The colours are the shared palette's (``DEFAULT_FG``/``DEFAULT_BG``)
+        rather than the ``#101418`` literal this renderer used to carry, so the
+        two screenshot formats of one run agree on what colour the terminal is.
+        """
         font = ImageFont.load_default()
         bbox = font.getbbox("M")
         char_width = max(9, bbox[2] - bbox[0])
@@ -134,22 +149,22 @@ class PngDefaultsTest(unittest.TestCase):
         padding = 18
         width = max(320, cols * char_width + padding * 2)
         height = max(160, rows * line_height + padding * 2)
-        image = Image.new("RGB", (int(width), int(height)), "#101418")
+        image = Image.new("RGB", (int(width), int(height)), DEFAULT_BG)
         draw = ImageDraw.Draw(image)
         for index, line in enumerate(text.splitlines()[:rows] or [""]):
             y = padding + line_height * index
-            draw.text((padding, y), line[:cols], font=font, fill="#e6edf3")
+            draw.text((padding, y), line[:cols], font=font, fill=DEFAULT_FG)
         output_path.parent.mkdir(parents=True, exist_ok=True)
         image.save(output_path, format="PNG")
 
-    def test_default_png_renderer_is_byte_identical_to_the_previous_literals(self) -> None:
+    def test_default_png_renderer_keeps_its_raster_geometry_and_canvas_floor(self) -> None:
         text = "hello png\nsecond line with a much longer body of text\n\ttab"
         with tempfile.TemporaryDirectory() as tmp:
-            legacy = Path(tmp) / "legacy.png"
+            expected = Path(tmp) / "expected.png"
             current = Path(tmp) / "current.png"
-            self._legacy_png(text, legacy, 80, 24)
+            self._expected_png(text, expected, 80, 24)
             PngRenderer.from_config(_builtin_evidence()).render(text, current, 80, 24)
-            self.assertEqual(legacy.read_bytes(), current.read_bytes())
+            self.assertEqual(expected.read_bytes(), current.read_bytes())
 
     def test_font_path_loads_a_truetype_face_at_the_scaled_size(self) -> None:
         config = PngRenderConfig(font_path="/fonts/mono.ttf", font_size=10, scale=2)

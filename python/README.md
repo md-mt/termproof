@@ -223,9 +223,9 @@ hard-coded in the renderers and the video pipeline, split into `svg`, `png`, and
 ```yaml
 evidence:
   svg:
-    font_size: 14
+    font_size: 16
     fg: "#e6edf3"
-    bg: "#101418"
+    bg: "#0b0f14"
   png:
     scale: 1
     font_path: null
@@ -236,10 +236,11 @@ evidence:
   dedup_step_screenshots: false
 ```
 
-`BUILTIN_DEFAULTS` in `termproof/config.py` lists every knob with its default.
-Each default reproduces the behavior from before the knobs existed, so a run
-with no `evidence` block renders byte-identical artifacts.
+`BUILTIN_DEFAULTS` in `termproof/config.py` lists every knob with its default,
+read off the config dataclasses rather than restated beside them.
 
+- `evidence.svg` is the same geometry as `SvgStyle`, under the names the YAML uses, and takes every default from the same `DEFAULT_*` constants in `termproof/attributed.py`. `SvgStyle` is canonical; `SvgRenderConfig` is how a run overrides it. The two used to disagree in every field — see [`CHANGELOG.md`](../CHANGELOG.md) for what moved and how to pin the old values.
+- `evidence.svg.min_width`/`min_height` floor the SVG canvas and default to `0`, because a viewer scales an SVG. On the two renderers that rasterise that SVG — `png_rsvg` and the `attributed_rsvg` video backend — setting them higher raises the floor, and setting them lower does not lower it below 320x160, since a PNG is a fixed pixel count. They do **not** reach the `png` renderer at all: it is configured by `evidence.png` and measures its own cell off the PIL face, and its own 320x160 floor is not adjustable.
 - `evidence.video.fps` is the default for `--video-fps`; the flag wins when passed.
 - A `null` video knob means "omit that flag"; `fps_cap: null` keeps `agg`'s cap tied to the output fps.
 - `png.font_size` applies only when `png.font_path` is set — the bundled bitmap face has one fixed size.

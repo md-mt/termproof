@@ -230,10 +230,17 @@ docker:
 
 
 class EvidenceConfigTest(unittest.TestCase):
-    def test_builtin_evidence_defaults_reproduce_the_previous_literals(self) -> None:
+    def test_builtin_evidence_defaults_are_the_canonical_literals(self) -> None:
+        """Spelled out, because these numbers are somebody's artifacts.
+
+        ``tests/test_svg_geometry_defaults.py`` pins the SVG half against
+        ``SvgStyle`` so the two cannot drift apart again; this pins what they
+        both are, so moving them together is still a deliberate act with the
+        new values in the diff.
+        """
         evidence = VerifierConfig.builtin().evidence
         self.assertEqual(
-            (9, 20, 18, 14, "#e6edf3", "#101418"),
+            (10.0, 22.0, 10, 16, "#e6edf3", "#0b0f14"),
             (
                 evidence.svg.char_width,
                 evidence.svg.line_height,
@@ -244,11 +251,13 @@ class EvidenceConfigTest(unittest.TestCase):
             ),
         )
         self.assertEqual(
-            "ui-monospace,SFMono-Regular,Menlo,Consolas,monospace",
+            "Noto Sans Mono, Liberation Mono, monospace",
             evidence.svg.font_family,
         )
+        # No vector floor; the rasterisers apply their own, see RasterFloorTest.
+        self.assertEqual((0, 0), (evidence.svg.min_width, evidence.svg.min_height))
         self.assertEqual(
-            (1, 18, 14, None, "#e6edf3", "#101418"),
+            (1, 18, 14, None, "#e6edf3", "#0b0f14"),
             (
                 evidence.png.scale,
                 evidence.png.padding,
@@ -311,7 +320,7 @@ class EvidenceConfigTest(unittest.TestCase):
         self.assertTrue(config.evidence.dedup_step_screenshots)
         self.assertEqual(8, config.evidence.svg.char_width)
         self.assertEqual("#ffffff", config.evidence.svg.fg)
-        self.assertEqual(20, config.evidence.svg.line_height)  # untouched key keeps its default
+        self.assertEqual(22.0, config.evidence.svg.line_height)  # untouched key keeps its default
         self.assertEqual(2, config.evidence.png.scale)
         self.assertEqual("/fonts/mono.ttf", config.evidence.png.font_path)
         self.assertEqual("yuv444p", config.evidence.video.pix_fmt)

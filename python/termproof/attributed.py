@@ -305,7 +305,18 @@ class AttributedScreen:
 
 @dataclass(frozen=True)
 class SvgStyle:
-    """Geometry and palette for :func:`screen_svg`."""
+    """Geometry and palette for :func:`screen_svg` — the canonical defaults.
+
+    This is the one definition of what an unconfigured TermProof screenshot
+    looks like, and the ``DEFAULT_*`` constants above are the one definition of
+    the values in it. :class:`~termproof.config.SvgRenderConfig` is the same
+    geometry as a run's YAML spells it, and takes every default from those
+    constants rather than restating them; its ``style()`` is the translation.
+    Rust's ``SvgMetrics`` mirrors this struct against the same constant names.
+
+    Reach for ``SvgStyle`` when calling :func:`screen_svg` directly, and for
+    ``SvgRenderConfig`` when the geometry should be configurable per run.
+    """
 
     columns: int = DEFAULT_COLUMNS
     rows: int = DEFAULT_ROWS
@@ -316,7 +327,12 @@ class SvgStyle:
     font_family: str = FONT_STACK
     fg: str = DEFAULT_FG
     bg: str = DEFAULT_BG
-    # Floors for a very small grid, so a two-line screen is not a sliver.
+    # Opt-in canvas floors for a very small grid. Off by default: an SVG is
+    # resolution independent, so a floor only surrounds a small grid with dead
+    # background and breaks the otherwise exact `canvas == grid + 2 * padding`
+    # relation. A caller that rasterises at intrinsic size wants them, and
+    # every TermProof renderer that does sets them via
+    # `SvgRenderConfig.raster_style`.
     min_width: int = 0
     min_height: int = 0
 
