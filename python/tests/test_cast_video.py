@@ -393,19 +393,30 @@ class AppendCheckpointFramesTest(unittest.TestCase):
         self.assertEqual([0.0, 3.0, 6.0, 9.0], [at for at, _ in self._events()])
         self.assertEqual(3.0, DEFAULT_CHECKPOINT_HOLD)
 
-    def test_a_fractional_hold_is_rounded_to_six_decimals(self) -> None:
-        # Binary addition puts 0.1 + 0.2 at 0.30000000000000004, and a reviewer
-        # reading timestamps should not have to. Asserted as text because the
-        # Rust side asserts the same strings: agreeing on the rounded value is
-        # the point, and `round(at, 6)` here would not have produced it -- it
-        # breaks halves to even where Rust breaks them away from zero.
-        _write_cast(self.cast, [(0.1, "a")])
+    def test_a_fractional_hold_is_rounded_the_way_rust_rounds(self) -> None:
+        # Two claims in one case, because one input carries both.
+        #
+        # That rounding happens at all: unrounded, these timestamps go out as
+        # 0.7000005 and 1.1000005000000002, and a reviewer reading them should
+        # not have to.
+        #
+        # And that it is *Rust's* rounding: the base carries a seventh decimal,
+        # which is what a Rust-recorded cast ends on -- `CastRecorder` writes
+        # `as_secs_f64()` unrounded -- and that is where the two rules part.
+        # `round(at, 6)` would write 0.9 and 1.3 for the second and fourth
+        # frames where the transcribed rule writes 0.900001 and 1.300001. A
+        # whole-decimal base does not discriminate: both rules agree on every
+        # frame, and a test built on one would pass with the transcription
+        # reverted.
+        #
+        # Asserted as text because the Rust side asserts the same strings.
+        _write_cast(self.cast, [(0.5000005, "a")])
         steps = [_step(0, "one", "first"), _step(1, "two", "second"), _step(2, "three", "third")]
         append_checkpoint_frames(self.cast, steps, hold_seconds=0.2)
 
         written = self.cast.read_text(encoding="utf-8").splitlines()[1:]
         self.assertEqual(
-            ["0.1", "0.3", "0.5", "0.7", "0.9"],
+            ["0.5000005", "0.700001", "0.900001", "1.100001", "1.300001"],
             [line.lstrip("[").split(",")[0] for line in written],
         )
 
@@ -506,21 +517,31 @@ class AppendCheckpointFramesTest(unittest.TestCase):
     def test_a_hold_that_would_stall_the_timestamps_is_rejected(self) -> None:
         _write_cast(self.cast, [(0.0, "a")])
         steps = [_step(0, "one", "first")]
-        # 1e-9 is in the list because it is the case the name is about: it is
-        # positive and finite, so an `isfinite and > 0` check waves it through,
-        # and then six-decimal timestamps land every appended event on the same
-        # one. 5e-7 is there because rounding *up* to a microsecond is not
-        # enough either -- frames 1 and 2 still collide.
-        for bad in (0.0, -1.0, float("nan"), float("inf"), 1e-9, 5e-7):
+        # 1e-9 is the case the name is about: positive and finite, so an
+        # `isfinite and > 0` check waves it through, and then six-decimal
+        # timestamps land every appended event on the same one.
+        #
+        # 6e-7 and 7.5e-7 are what make the *floor* the thing under test rather
+        # than any check that happens to reject a tiny number. They are the
+        # holds that round up to a whole microsecond without advancing by one,
+        # so they are accepted by a check on the rounded hold and still collide
+        # -- 6e-7 gives 1e-06, 1e-06, 2e-06, 2e-06. A hold below half a
+        # microsecond cannot make that point: 5e-7 and smaller round to zero, so
+        # the weaker check rejects them too and the test passes either way.
+        for bad in (0.0, -1.0, float("nan"), float("inf"), 1e-9, 6e-7, 7.5e-7):
             with self.subTest(hold=bad):
                 with self.assertRaises(ValueError):
                     append_checkpoint_frames(self.cast, steps, hold_seconds=bad)
         # Rejected before anything was written.
         self.assertEqual(1, len(self._events()))
 
-        # The floor is a floor, not a value swept up to: one microsecond is
-        # accepted and its timestamps do increase.
-        append_checkpoint_frames(self.cast, steps, hold_seconds=MIN_CHECKPOINT_HOLD)
+        # The floor is a floor, not a value swept up to. Spelled 1e-6 rather
+        # than MIN_CHECKPOINT_HOLD for the reason the default hold is spelled
+        # 3.0: in terms of the constant this follows it wherever it goes, and
+        # the two implementations would be free to disagree about which holds
+        # they accept.
+        self.assertEqual(1e-6, MIN_CHECKPOINT_HOLD)
+        append_checkpoint_frames(self.cast, steps, hold_seconds=1e-6)
         times = [at for at, _ in self._events()]
         self.assertTrue(all(b > a for a, b in zip(times, times[1:], strict=False)))
 

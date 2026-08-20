@@ -106,10 +106,20 @@ _HOLD_TERMINATOR = "\x1b[m"
 #: Shortest hold that survives being written down. Timestamps go out at six
 #: decimals, so a hold below a microsecond lands two frames on the same one
 #: however positive it looked going in -- ``1e-9`` puts every appended event at
-#: the session's end time. Requiring a whole microsecond, rather than a hold
-#: that merely rounds to one, is what makes the increase hold for *every*
-#: multiple: a gap of at least 1e-6 in the input is still a gap after rounding,
-#: where ``5e-7`` rounds frames 1 and 2 together.
+#: the session's end time.
+#:
+#: A whole microsecond, rather than a hold that merely *rounds* to one, because
+#: rounding up is not advancing: ``6e-7`` rounds to ``1e-6`` and still writes
+#: frames 1 and 2 at the same timestamp.
+#:
+#: This is a floor on the input, not a proof about the output, and the
+#: difference shows at the floor itself: a hold of exactly ``1e-6`` on a cast
+#: whose last event carries an exact half-microsecond -- ``999.9999995`` --
+#: still collides its first two frames, because both round to ``1000.000001``.
+#: It takes the floor exactly *and* a half-microsecond base together, so no
+#: recorded session reaches it; every hold above the floor is safe at any base.
+#: Stated rather than papered over, since the alternative is comparing against
+#: the previous rounded value and carrying that state through the loop.
 MIN_CHECKPOINT_HOLD = 1e-6
 
 

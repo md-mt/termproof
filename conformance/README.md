@@ -413,8 +413,8 @@ There are two of them, and each is there for something the other cannot reach:
   scroll region, the state a full-screen TUI leaves behind, so the repaint
   prefix that has to undo it is recorded too.
 - `session-with-fractional-hold.cast` passes an explicit `0.2`, which the
-  default cast cannot cover, and lands on timestamps that binary addition gets
-  wrong — pinning both halves to the same six-decimal answer.
+  default cast cannot cover, over a base ending on a seventh decimal — the only
+  input shape that tells the two languages' rounding apart.
 
 They also hold the two event encoders together. `serde_json` writes compact
 separators and raw UTF-8 where Python's `json` defaults to neither, and Rust
@@ -422,6 +422,15 @@ rounds by scaling and breaking halves away from zero where Python's
 `round(at, 6)` rounds the exact decimal and breaks halves to even. Both are
 pinned explicitly on the Python side, and this is what would catch either
 drifting back.
+
+The seventh decimal is the whole point of that second base, and it is worth
+saying why, because the obvious choice does not work. Over a whole-decimal base
+the two rounding rules agree on every frame, so a corpus recorded from one
+regenerates byte-for-byte with the Python transcription reverted to
+`round(at, 6)` and the differential test cannot see the difference either. A
+base of `0.5000005` — which is what a Rust-recorded cast ends on, since
+`CastRecorder` writes `as_secs_f64()` unrounded — separates them at three of the
+eight appended frames.
 
 ## What is deliberately neutralised
 

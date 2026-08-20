@@ -107,10 +107,20 @@ const HOLD_TERMINATOR: &str = "\x1b[m";
 ///
 /// Timestamps go out at six decimals, so a hold below a microsecond lands two
 /// frames on the same one however positive it looked going in — `1e-9` puts
-/// every appended event at the session's end time. Requiring a whole
-/// microsecond, rather than a hold that merely rounds to one, is what makes the
-/// increase hold for *every* multiple: a gap of at least 1e-6 in the input is
-/// still a gap after rounding, where `5e-7` rounds frames 1 and 2 together.
+/// every appended event at the session's end time.
+///
+/// A whole microsecond, rather than a hold that merely *rounds* to one, because
+/// rounding up is not advancing: `6e-7` rounds to `1e-6` and still writes frames
+/// 1 and 2 at the same timestamp.
+///
+/// This is a floor on the input, not a proof about the output, and the
+/// difference shows at the floor itself: a hold of exactly `1e-6` on a cast
+/// whose last event carries an exact half-microsecond — `999.9999995` — still
+/// collides its first two frames, because both round to `1000.000001`. It takes
+/// the floor exactly *and* a half-microsecond base together, so no recorded
+/// session reaches it; every hold above the floor is safe at any base. Stated
+/// rather than papered over, since the alternative is comparing against the
+/// previous rounded value and carrying that state through the loop.
 pub const MIN_CHECKPOINT_HOLD: f64 = 1e-6;
 
 /// `(executable, args, timeout)` -> `Ok(())` or an error message.
@@ -770,8 +780,10 @@ mod tests {
 
     /// Every event's timestamp exactly as it was written, header dropped.
     ///
-    /// As text, not as `f64`: a parsed number cannot tell `0.3` from
-    /// `0.30000000000000004`, which is what the rounding is for.
+    /// As text, not as `f64`, because the bytes are the contract: the Python
+    /// side asserts the same strings and the conformance corpus compares these
+    /// lines literally, so how a value is spelled matters as much as what it
+    /// is. Parsing back would hide a formatting divergence entirely.
     fn timestamp_text(path: &str) -> Vec<String> {
         fs::read_to_string(path)
             .unwrap()
@@ -856,12 +868,25 @@ mod tests {
     }
 
     #[test]
-    fn a_fractional_hold_is_rounded_to_six_decimals() {
-        // Binary addition puts 0.1 + 0.2 at 0.30000000000000004, and a reviewer
-        // reading timestamps should not have to. Asserted as text because the
-        // Python side asserts the same strings: agreeing on the rounded value is
-        // the point, and `round(at, 6)` there would not have produced it.
-        let (_dir, path) = cast_with("[0.1, \"o\", \"a\"]\n");
+    fn a_fractional_hold_is_rounded_the_way_python_rounds() {
+        // Two claims in one case, because one input carries both.
+        //
+        // That rounding happens at all: unrounded, these timestamps go out as
+        // 0.7000005 and 1.1000005000000002, and a reviewer reading them should
+        // not have to.
+        //
+        // And that Python rounds the same way: the base carries a seventh
+        // decimal, which is what a Rust-recorded cast ends on — `CastRecorder`
+        // writes `as_secs_f64()` unrounded — and that is where the two
+        // languages' obvious spellings part. Python's `round(at, 6)` would
+        // write 0.9 and 1.3 for the second and fourth frames where this writes
+        // 0.900001 and 1.300001, which is why that side transcribes
+        // `round_micros` instead of calling it. A whole-decimal base does not
+        // discriminate: both spellings agree on every frame, and a test built
+        // on one would pass with the transcription reverted.
+        //
+        // Asserted as text because the Python side asserts the same strings.
+        let (_dir, path) = cast_with("[0.5000005, \"o\", \"a\"]\n");
         let steps = [
             checkpoint(0, "one", "first"),
             checkpoint(1, "two", "second"),
@@ -870,7 +895,7 @@ mod tests {
         append_checkpoint_frames(&path, &steps, Some(0.2)).unwrap();
         assert_eq!(
             timestamp_text(&path),
-            vec!["0.1", "0.3", "0.5", "0.7", "0.9"]
+            vec!["0.5000005", "0.700001", "0.900001", "1.100001", "1.300001"]
         );
     }
 
@@ -1002,12 +1027,19 @@ mod tests {
     fn a_hold_that_would_stall_the_timestamps_is_rejected() {
         let (_dir, path) = cast_with("[0.0, \"o\", \"a\"]\n");
         let steps = [checkpoint(0, "one", "first")];
-        // 1e-9 is in the list because it is the case the name is about: it is
-        // positive and finite, so an `is_finite() && > 0.0` check waves it
-        // through, and then six-decimal timestamps land every appended event on
-        // the same one. 5e-7 is there because rounding *up* to a microsecond is
-        // not enough either — frames 1 and 2 still collide.
-        for bad in [0.0, -1.0, f64::NAN, f64::INFINITY, 1e-9, 5e-7] {
+        // 1e-9 is the case the name is about: positive and finite, so an
+        // `is_finite() && > 0.0` check waves it through, and then six-decimal
+        // timestamps land every appended event on the same one.
+        //
+        // 6e-7 and 7.5e-7 are what make the *floor* the thing under test rather
+        // than any check that happens to reject a tiny number. They are the
+        // holds that round up to a whole microsecond without advancing by one,
+        // so they are accepted by a check on the rounded hold and still collide
+        // — 6e-7 gives 1e-6, 1e-6, 2e-6, 2e-6. A hold below half a microsecond
+        // cannot make that point: 5e-7 and smaller round to zero on the Python
+        // side, so the weaker check rejects them too and the mirrored test
+        // passes there either way.
+        for bad in [0.0, -1.0, f64::NAN, f64::INFINITY, 1e-9, 6e-7, 7.5e-7] {
             assert!(
                 append_checkpoint_frames(&path, &steps, Some(bad)).is_err(),
                 "hold {bad} should be rejected"
@@ -1016,9 +1048,13 @@ mod tests {
         // Rejected before anything was written.
         assert_eq!(events_in(&path).len(), 1);
 
-        // The floor is a floor, not a value swept up to: one microsecond is
-        // accepted and its timestamps do increase.
-        assert!(append_checkpoint_frames(&path, &steps, Some(MIN_CHECKPOINT_HOLD)).is_ok());
+        // The floor is a floor, not a value swept up to. Spelled 1e-6 rather
+        // than `MIN_CHECKPOINT_HOLD` for the reason the default hold is spelled
+        // 3.0: in terms of the constant this follows it wherever it goes, and
+        // the two implementations would be free to disagree about which holds
+        // they accept.
+        assert_eq!(MIN_CHECKPOINT_HOLD, 1e-6);
+        assert!(append_checkpoint_frames(&path, &steps, Some(1e-6)).is_ok());
         let times: Vec<f64> = events_in(&path).iter().map(|(at, _)| *at).collect();
         assert!(times.windows(2).all(|w| w[1] > w[0]), "{times:?}");
     }
