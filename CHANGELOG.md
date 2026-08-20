@@ -41,7 +41,18 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
 
 ## [Unreleased]
 
-Nothing yet.
+### Docs
+
+- **Both READMEs now say that `EvidenceCollector.capture_text` is the one
+  collector signature the two implementations do not share.** Rust takes the
+  `CaptureKind` positionally and Python defaults it to
+  `CaptureKind.CHECKPOINT`; each is idiomatic where it sits, and neither README
+  mentioned the method at all, so a reader carrying the symmetry the rest of
+  the surface has would have carried it here too and been wrong. Reported by a
+  consumer running both implementations against the same collector code. The
+  signatures are unchanged — the Python default is now covered by an assertion
+  in `test_text_can_be_captured_without_a_source` rather than only being
+  exercised.
 
 ## [0.4.0] — 2026-08-19
 

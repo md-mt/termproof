@@ -137,6 +137,14 @@ a comment on each one that sits above the oldest workable version.
 
 ### `evidence` — screenshots, video, reports
 
+- `EvidenceCollector` — an ordered step model for a caller driving its own run.
+  `capture` and `capture_failure` pull from a `ScreenSource`;
+  `capture_text(label, screen, kind)` records a screen the caller already
+  holds, and takes the `CaptureKind` positionally. **This is the one collector
+  signature the two implementations do not share**: Python's is
+  `capture_text(label, screen, kind=CaptureKind.CHECKPOINT)`, so the Rust call
+  spells out `CaptureKind::Checkpoint` where the Python one may omit it. The
+  meaning, the ordering and the resulting manifest are identical.
 - `render_svg` / `render_by_extension` — plain screen text to an SVG, in
   default colours.
 - `ScreenshotRenderer` — an attributed grid to a PNG, with the colours the

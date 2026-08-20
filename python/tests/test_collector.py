@@ -127,6 +127,9 @@ class CaptureTest(unittest.TestCase):
         self.assertEqual(3, len(steps))
         self.assertEqual(1, steps[1].index)
         self.assertEqual("recovered", steps[1].screen)
+        # The default the READMEs document as the difference from Rust, which
+        # takes the kind positionally.
+        self.assertEqual(CaptureKind.CHECKPOINT, steps[1].kind)
         self.assertEqual(CaptureKind.FAILURE, steps[2].kind)
         self.assertIsNone(steps[2].raw_output)
 
