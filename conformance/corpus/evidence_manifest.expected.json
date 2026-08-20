@@ -1,0 +1,124 @@
+{
+  "files": {
+    "step-00-menu-open.png": "png",
+    "step-00-menu-open.txt": "MENU\nitem one",
+    "step-01-menu-open-again.txt": "MENU\nitem one",
+    "step-02-from-log.png": "png",
+    "step-02-from-log.txt": "RECOVERED",
+    "step-03-post-mortem.png": "png",
+    "step-03-post-mortem.txt": "LAST SCREEN",
+    "step-04-boom-raw.txt": "log bytes",
+    "step-04-boom.png": "png",
+    "step-04-boom.txt": "ERROR",
+    "step-05-styled.png": "png",
+    "step-05-styled.txt": "\u001b[31mALERT\u001b[0m",
+    "step-06-unstyled.png": "png",
+    "step-06-unstyled.txt": "ALERT"
+  },
+  "manifest": {
+    "manifest_version": 1,
+    "recordings": [
+      {
+        "cast": "/tmp/session.cast",
+        "error": null,
+        "label": "full-session",
+        "url": "https://example.invalid/session.mp4",
+        "video": "/tmp/session.mp4"
+      },
+      {
+        "cast": "/tmp/broken.cast",
+        "error": "video conversion failed",
+        "label": "failed-encode",
+        "url": null,
+        "video": null
+      }
+    ],
+    "run": {
+      "recipe_name": "login",
+      "renderer": "default",
+      "run_id": "20240101-000000-000000-login-default-1"
+    },
+    "steps": [
+      {
+        "error": null,
+        "index": 0,
+        "kind": "checkpoint",
+        "label": "menu-open",
+        "raw_output": null,
+        "same_as": null,
+        "screen_text": "@DIR/step-00-menu-open.txt",
+        "screenshot": "@DIR/step-00-menu-open.png",
+        "url": "https://example.invalid/step-00-menu-open.png"
+      },
+      {
+        "error": null,
+        "index": 1,
+        "kind": "checkpoint",
+        "label": "menu-open-again",
+        "raw_output": null,
+        "same_as": {
+          "index": 0,
+          "label": "menu-open"
+        },
+        "screen_text": "@DIR/step-01-menu-open-again.txt",
+        "screenshot": "@DIR/step-00-menu-open.png",
+        "url": "https://example.invalid/step-00-menu-open.png"
+      },
+      {
+        "error": null,
+        "index": 2,
+        "kind": "checkpoint",
+        "label": "from-log",
+        "raw_output": null,
+        "same_as": null,
+        "screen_text": "@DIR/step-02-from-log.txt",
+        "screenshot": "@DIR/step-02-from-log.png",
+        "url": "https://example.invalid/step-02-from-log.png"
+      },
+      {
+        "error": null,
+        "index": 3,
+        "kind": "failure",
+        "label": "post-mortem",
+        "raw_output": null,
+        "same_as": null,
+        "screen_text": "@DIR/step-03-post-mortem.txt",
+        "screenshot": "@DIR/step-03-post-mortem.png",
+        "url": "https://example.invalid/step-03-post-mortem.png"
+      },
+      {
+        "error": null,
+        "index": 4,
+        "kind": "failure",
+        "label": "boom",
+        "raw_output": "@DIR/step-04-boom-raw.txt",
+        "same_as": null,
+        "screen_text": "@DIR/step-04-boom.txt",
+        "screenshot": "@DIR/step-04-boom.png",
+        "url": "https://example.invalid/step-04-boom.png"
+      },
+      {
+        "error": null,
+        "index": 5,
+        "kind": "checkpoint",
+        "label": "styled",
+        "raw_output": null,
+        "same_as": null,
+        "screen_text": "@DIR/step-05-styled.txt",
+        "screenshot": "@DIR/step-05-styled.png",
+        "url": "https://example.invalid/step-05-styled.png"
+      },
+      {
+        "error": null,
+        "index": 6,
+        "kind": "checkpoint",
+        "label": "unstyled",
+        "raw_output": null,
+        "same_as": null,
+        "screen_text": "@DIR/step-06-unstyled.txt",
+        "screenshot": "@DIR/step-06-unstyled.png",
+        "url": "https://example.invalid/step-06-unstyled.png"
+      }
+    ]
+  }
+}
