@@ -258,39 +258,6 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
   "must be a positive integer" was wrong for them, and `0.5` satisfies
   "positive" while still being refused.
 
-### Rust — Changed (breaking)
-
-- **`evidence::collector::EvidencePublisher` gained a fifth public field,
-  `video_converter: Option<CastVideoConverter>`, which stops the struct being
-  constructible by literal.** Every field of `EvidencePublisher` is `pub` and
-  the struct is not `#[non_exhaustive]`, so an external crate writing
-  `EvidencePublisher { dir, identity, renderer, uploader }` no longer compiles;
-  `cargo semver-checks` reports it as `constructible_struct_adds_field`. Nothing
-  else about the type moved — the four existing fields keep their names, types
-  and meanings, and `EvidencePublisher::new` plus the `with_*` builders
-  (`with_renderer`, `with_uploader`, and the new `with_video_converter`) compile
-  unchanged.
-
-  **To fix a literal, build through the constructor**, which is what every
-  in-tree caller and every doc example already does:
-
-  ```rust
-  // was
-  let publisher = EvidencePublisher { dir, identity, renderer, uploader: Some(u) };
-  // now
-  let publisher = EvidencePublisher::new(dir, identity)
-      .with_renderer(renderer)
-      .with_uploader(u);
-  ```
-
-  Filed as breaking rather than as an addition because the pre-1.0 rule in this
-  file's preamble is about what a consumer's source does, not about what the
-  crate meant to offer. The seam had to hang somewhere, and the alternative
-  shape — passing the converter to `record_session` instead of the publisher —
-  would have avoided the break at the cost of putting one of the publisher's
-  three seams somewhere other than the publisher. That trade is worth stating;
-  it is not free either way.
-
 ### Rust — Added
 
 - **`result::score_from` and `result::assertion_map`:** the same two functions
@@ -349,6 +316,39 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
   status quo rather than changing it. Giving `SvgMetrics` a raster floor to
   match is worth doing and is deliberately not done here — it would change what
   Rust renders, in a release that changes no other Rust rendering behaviour.
+
+### Rust — Changed (breaking)
+
+- **`evidence::collector::EvidencePublisher` gained a fifth public field,
+  `video_converter: Option<CastVideoConverter>`, which stops the struct being
+  constructible by literal.** Every field of `EvidencePublisher` is `pub` and
+  the struct is not `#[non_exhaustive]`, so an external crate writing
+  `EvidencePublisher { dir, identity, renderer, uploader }` no longer compiles;
+  `cargo semver-checks` reports it as `constructible_struct_adds_field`. Nothing
+  else about the type moved — the four existing fields keep their names, types
+  and meanings, and `EvidencePublisher::new` plus the `with_*` builders
+  (`with_renderer`, `with_uploader`, and the new `with_video_converter`) compile
+  unchanged.
+
+  **To fix a literal, build through the constructor**, which is what every
+  in-tree caller and every doc example already does:
+
+  ```rust
+  // was
+  let publisher = EvidencePublisher { dir, identity, renderer, uploader: Some(u) };
+  // now
+  let publisher = EvidencePublisher::new(dir, identity)
+      .with_renderer(renderer)
+      .with_uploader(u);
+  ```
+
+  Filed as breaking rather than as an addition because the pre-1.0 rule in this
+  file's preamble is about what a consumer's source does, not about what the
+  crate meant to offer. The seam had to hang somewhere, and the alternative
+  shape — passing the converter to `record_session` instead of the publisher —
+  would have avoided the break at the cost of putting one of the publisher's
+  three seams somewhere other than the publisher. That trade is worth stating;
+  it is not free either way.
 
 ## [0.4.0] — 2026-08-19
 
