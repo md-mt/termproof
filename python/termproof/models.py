@@ -19,6 +19,44 @@ class CommandSpec:
 
 
 @dataclass(frozen=True)
+class RecipeMeta:
+    """What a recipe says about itself, independent of how it is driven.
+
+    These seven fields answer "which scenario is this, how much does it matter,
+    and which sources does it cover" — questions with the same answer whether
+    the scenario is a declarative :class:`Recipe` or a host's own imperative
+    runner. Only the *driving* half of a recipe is declarative, and only that
+    half is out of reach for a suite that branches on what the screen shows.
+    The description is not, and used to be reachable only by constructing a
+    :class:`Recipe`, which needs a ``command`` such a suite has no single
+    honest value for.
+
+    A host builds one of these directly and hands it to
+    :func:`termproof.selection.select_names` as ``(meta.name, meta.ci_paths)``,
+    or reads one off a :class:`Recipe` through :attr:`Recipe.meta`.
+
+    Product-specific knobs do not belong here; a host's own class beside this
+    one is their home.
+
+    ``Recipe`` does **not** inherit from this. It would be the closer mirror of
+    the Rust side, where ``Recipe`` embeds ``RecipeMeta`` and flattens it, but
+    dataclass inheritance puts base fields first, which would move ``command``
+    behind six defaulted fields and force it keyword-only — changing the
+    positional signature of ``Recipe``. This package treats that as a break
+    worth avoiding (see :class:`StepResult`). The two field lists are held
+    together by ``tests/test_recipe_meta.py`` instead.
+    """
+
+    name: str
+    description: str = ""
+    intent: str = ""
+    priority: str = "P2"
+    execution: str = "scripted"
+    determinism: str = "deterministic"
+    ci_paths: list[str] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
 class Recipe:
     name: str
     command: CommandSpec
@@ -39,6 +77,33 @@ class Recipe:
     cols: int = 100
     rows: int = 30
     source_path: str | None = None
+
+    @property
+    def meta(self) -> RecipeMeta:
+        """This recipe's descriptive half as a :class:`RecipeMeta`.
+
+        A copy, not a view: ``Recipe`` is frozen, and ``ci_paths`` is copied
+        rather than aliased so mutating the returned list cannot reach back
+        into the recipe. A property rather than a field, so nothing about
+        ``Recipe``'s own signature, field order or ``repr`` moves.
+
+        **This is the one place the two implementations differ in semantics
+        rather than only in spelling.** Rust's ``Recipe`` embeds ``RecipeMeta``
+        as an owned field, so ``recipe.meta.ci_paths.push(x)`` mutates the
+        recipe there; here the same expression is a no-op. Neither is wrong —
+        Rust's follows from embedding and this follows from ``Recipe`` being
+        frozen — but a reader carrying one across to the other would be wrong,
+        so both sides say so.
+        """
+        return RecipeMeta(
+            name=self.name,
+            description=self.description,
+            intent=self.intent,
+            priority=self.priority,
+            execution=self.execution,
+            determinism=self.determinism,
+            ci_paths=list(self.ci_paths),
+        )
 
 
 @dataclass(frozen=True)

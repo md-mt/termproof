@@ -16,6 +16,17 @@ three differential harnesses and on how to regenerate a corpus. Read it before
 changing anything a harness compares — regenerating an expected file to make a
 test pass is how a real divergence gets recorded as correct.
 
+## Rust has two `Recipe` types and they are not interchangeable
+
+`recipe::Recipe` is the typed, schema-generating, extension-preserving model —
+it is what `schema`, `selection` and `validation` mean by a recipe.
+`models::Recipe` (also exported as `ModelRecipe`) is a separate, narrower struct
+with no `determinism`, `ci_paths`, `renderers` or extension map, and it is the
+one `runner`, `execution`, `agent` and the CLI actually run. Grep hits for a
+field name land in both. Decide which one an issue is about before changing
+either, and expect a change to "the recipe model" to be incomplete if it touched
+only one. Python has a single `models.Recipe`, so the mirror is one-to-two here.
+
 ## A test can be gated by more than the suite it lives in
 
 `python/scripts/run_stdlib_tests.py` re-runs a listed subset of test modules in

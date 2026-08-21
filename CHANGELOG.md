@@ -134,6 +134,27 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
   cast. A run that captured nothing is a silent no-op, and nothing about it
   needs the session to still be running.
 
+- **`models.RecipeMeta` and `Recipe.meta`:** the same seven descriptive fields
+  as the Rust `recipe::RecipeMeta`, with the same defaults, as a frozen
+  dataclass a host with an imperative suite can build without a `Recipe` — and
+  therefore without inventing a `command`. `Recipe.meta` hands over its own
+  descriptive half as one, copying `ci_paths` rather than aliasing it.
+
+  **`Recipe` does not inherit from it**, which is the one place the two
+  implementations differ in shape rather than in semantics. Rust embeds and
+  flattens; Python cannot, because dataclass inheritance puts base fields
+  first, which would move `command` behind six defaulted fields and force it
+  keyword-only — changing `Recipe`'s positional signature, a break this package
+  states it avoids in `StepResult`'s docstring. `Recipe`'s field list, order,
+  defaults and positional signature are therefore unchanged, and pinned by
+  `tests/test_recipe_meta.py`, which also holds the two field lists to the same
+  names and defaults since nothing in the language does.
+
+  Selection needed nothing: `selection.select_names` has always taken
+  `(name, ci_paths)` pairs, so the gap `Selectable` closed on the Rust side in
+  0.4.0 never existed here.
+  ([#199](https://github.com/md-mt/termproof/issues/199))
+
 ### Python — Changed
 
 - **evidence:** the step-screenshot dedup was written out twice — once in
@@ -290,6 +311,23 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
   two appended casts — one at the default hold, one at a fractional one that
   needs the rounding — alongside the step files.
 
+- **`recipe::RecipeMeta`:** the seven fields that describe a recipe — `name`,
+  `description`, `intent`, `priority`, `execution`, `determinism`, `ci_paths` —
+  as a type that can be constructed on its own. They describe a scenario the
+  same way whether it is driven declaratively or by a consumer's own runner,
+  but they used to be reachable only by constructing a `Recipe`, which needs a
+  `command` an imperative suite has no single honest value for; one such
+  consumer re-declared all seven, field name for field name. `RecipeMeta::new`
+  takes a name and fills the rest from the same functions `serde` uses for the
+  file defaults, so hand-built and parsed metadata cannot drift. It implements
+  `selection::Selectable`, so selection by `ci_paths` came free for those
+  consumers rather than needing a trait impl of their own. Re-exported at the
+  crate root as `termproof::RecipeMeta`, the way every other public type in
+  `recipe` is — the consumer this is for is the one whose `Recipe { .. }`
+  literal just stopped compiling, and asking them to also discover a
+  sub-module path would be a second papercut on top of the first.
+  ([#199](https://github.com/md-mt/termproof/issues/199))
+
 ### Rust — Changed
 
 - **scoring:** `assertions::score` and `RunResult::score_from_assertions` were
@@ -298,6 +336,40 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
   Nothing observable moved — the assertion differential harness reproduces the
   committed corpus, `score` cases included — and the point is that the
   empty-set answer can no longer drift between them.
+
+- **`Recipe` holds its descriptive fields in a `RecipeMeta` and flattens it.**
+  Nothing moved on the wire: a recipe file parses the same, serialises to
+  byte-identical text with the same key order, and generates a byte-identical
+  JSON Schema — pinned by `tests/recipe_meta.rs`, which asserts the exact
+  serialised strings recorded from the pre-split tree, and by the existing
+  `schema_snapshot.rs`, which still reaches through the flattened type.
+
+  **What breaks:** Rust code that names `recipe.name`, `recipe.priority` or any
+  of the other five reads them through `recipe.meta` now, and a `Recipe { .. }`
+  literal has to supply `meta` instead. `cargo semver-checks` reports it as
+  `struct_pub_field_missing` and `constructible_struct_adds_field` and asks for
+  a major bump, which under this project's pre-1.0 rule is the minor digit. A
+  `Deref` from `Recipe` to `RecipeMeta` would have kept field *reads*
+  compiling; it was declined, because it would not have saved the literals or
+  quietened `semver-checks`, and it would have put a smart-pointer conversion
+  on a plain data type to hide a break rather than state it. In this repository
+  the change touched three assertions and one trait impl.
+
+  **The version did not move.** This break ships on 0.4.x by maintainer
+  decision, waived rather than versioned, through the same mechanism #196
+  established: `struct_pub_field_missing = "allow"` joins
+  `constructible_struct_adds_field` under
+  `[package.metadata.cargo-semver-checks.lints]`, with the decision and the
+  release line it was granted for recorded beside it. The waiver is scoped to
+  a lint rather than to a struct because that is the only granularity
+  cargo-semver-checks offers, so — exactly as in #196 — two tests bound it:
+  `every_public_field_of_the_recipe_is_accounted_for` names every field of
+  `Recipe` in an exhaustive literal, so no field of the struct the waiver was
+  granted for can arrive or leave silently while the lint is off, and
+  `the_recipe_semver_waiver_is_scoped_to_the_release_it_was_granted_for` fails
+  the build the moment the version leaves 0.4.x. `docs/publishing.md`'s
+  release checklist lists both waivers.
+  ([#199](https://github.com/md-mt/termproof/issues/199))
 
 - On SVG geometry, nothing. `SvgMetrics` in `terminal::attributed` already took every default
   from the `DEFAULT_*` constants beside it, `ScreenshotRenderer` and

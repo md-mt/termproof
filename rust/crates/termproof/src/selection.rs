@@ -36,7 +36,7 @@
 //! };
 //!
 //! let picked = select(&recipes, &["src/payments/api.rs".to_string()], &config);
-//! let names: Vec<&str> = picked.iter().map(|r| r.name.as_str()).collect();
+//! let names: Vec<&str> = picked.iter().map(|r| r.meta.name.as_str()).collect();
 //! assert_eq!(names, ["smoke", "payments"]);
 //! ```
 
@@ -45,7 +45,7 @@ use std::collections::HashSet;
 use globset::GlobBuilder;
 use globset::GlobSetBuilder;
 
-use crate::recipe::Recipe;
+use crate::recipe::{Recipe, RecipeMeta};
 
 /// Facts about one repository's layout that selection needs.
 ///
@@ -93,6 +93,10 @@ pub fn changed_files_from_file(path: &str) -> std::io::Result<Vec<String>> {
 /// implements it too, for callers who would rather not write a trait impl to
 /// ask a question — that pairing is what the Python implementation's
 /// `select_names` has always taken.
+///
+/// Since #199 the imperative caller has a third option that costs nothing:
+/// [`RecipeMeta`] implements this, and it is a type such a caller can hold as
+/// its own metadata rather than re-declaring `name` and `ci_paths` beside it.
 pub trait Selectable {
     /// The recipe's name.
     fn name(&self) -> &str;
@@ -101,13 +105,23 @@ pub trait Selectable {
     fn ci_paths(&self) -> &[String];
 }
 
-impl Selectable for Recipe {
+impl Selectable for RecipeMeta {
     fn name(&self) -> &str {
         &self.name
     }
 
     fn ci_paths(&self) -> &[String] {
         &self.ci_paths
+    }
+}
+
+impl Selectable for Recipe {
+    fn name(&self) -> &str {
+        self.meta.name()
+    }
+
+    fn ci_paths(&self) -> &[String] {
+        self.meta.ci_paths()
     }
 }
 

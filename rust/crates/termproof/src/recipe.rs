@@ -153,15 +153,46 @@ pub struct Assertion {
     pub extra: HashMap<String, serde_json::Value>,
 }
 
-/// Typed recipe model.
+/// What a recipe says about itself, independent of how it is driven.
+///
+/// These seven fields answer "which scenario is this, how much does it matter,
+/// and which sources does it cover" — questions that have the same answer
+/// whether the scenario is a declarative [`Recipe`] or a consumer's own
+/// imperative runner. Only the *driving* half of a recipe is declarative, and
+/// only that half is out of reach for a suite that branches on what the screen
+/// shows; the description is not, and used to be reachable only by constructing
+/// a [`Recipe`], which such a suite cannot do.
+///
+/// [`Recipe`] holds one of these and flattens it, so a recipe file is unchanged
+/// on disk: `name` and `ci_paths` are still top-level keys. An imperative
+/// caller constructs one directly and gets [`crate::selection::Selectable`] for
+/// free, because that trait is implemented here rather than only on [`Recipe`].
+///
+/// Product-specific knobs do not belong here. [`Recipe::extension`] is the
+/// sanctioned home for those, and a consumer's own struct is the other.
+///
+/// ```
+/// use termproof::recipe::RecipeMeta;
+/// use termproof::selection::{select_names, SelectionConfig};
+///
+/// let recipes = vec![
+///     RecipeMeta::new("smoke"),
+///     RecipeMeta {
+///         ci_paths: vec!["src/payments/**".to_string()],
+///         ..RecipeMeta::new("payments")
+///     },
+/// ];
+/// let config = SelectionConfig {
+///     harness_root: "verify/",
+///     repo_marker: "/repo/",
+///     smoke: &["smoke"],
+/// };
+/// let changed = vec!["src/payments/api.rs".to_string()];
+/// assert_eq!(select_names(&recipes, &changed, &config), ["smoke", "payments"]);
+/// ```
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "schema", derive(JsonSchema))]
-pub struct Recipe {
-    /// Recipe format version; defaults to `1` for legacy recipes.
-    #[serde(default = "default_recipe_version")]
-    #[cfg_attr(feature = "schema", schemars(range(min = 1, max = 1)))]
-    pub recipe_version: u32,
-
+pub struct RecipeMeta {
     /// Human-readable recipe identifier.
     pub name: String,
 
@@ -188,6 +219,60 @@ pub struct Recipe {
     /// CI path filters.
     #[serde(default)]
     pub ci_paths: Vec<String>,
+}
+
+impl RecipeMeta {
+    /// Metadata for `name`, with every other field at the value a recipe file
+    /// that omits it would get.
+    ///
+    /// The defaults come from the same functions the `serde` attributes use, so
+    /// this and a parsed recipe cannot drift.
+    pub fn new(name: impl Into<String>) -> Self {
+        Self {
+            name: name.into(),
+            ..Self::default()
+        }
+    }
+}
+
+impl Default for RecipeMeta {
+    /// The defaults a recipe file gets for the fields it omits — except `name`,
+    /// which has no default in the schema and is empty here.
+    fn default() -> Self {
+        Self {
+            name: String::new(),
+            description: default_description(),
+            intent: default_intent(),
+            priority: default_priority(),
+            execution: default_execution(),
+            determinism: default_determinism(),
+            ci_paths: Vec::new(),
+        }
+    }
+}
+
+/// Typed recipe model.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(JsonSchema))]
+pub struct Recipe {
+    /// Recipe format version; defaults to `1` for legacy recipes.
+    #[serde(default = "default_recipe_version")]
+    #[cfg_attr(feature = "schema", schemars(range(min = 1, max = 1)))]
+    pub recipe_version: u32,
+
+    /// What the recipe says about itself: name, description, intent, priority,
+    /// execution, determinism and `ci_paths`.
+    ///
+    /// Flattened, so these stay top-level keys in a recipe file and in the
+    /// schema. The nesting is a Rust-side split only.
+    ///
+    /// This is an owned field, so `recipe.meta.ci_paths.push(..)` mutates the
+    /// recipe. Python's `Recipe.meta` is a property returning a copy, and the
+    /// same expression there is a no-op — the one place the two
+    /// implementations differ in semantics rather than only in spelling.
+    #[serde(flatten)]
+    #[cfg_attr(feature = "schema", schemars(flatten))]
+    pub meta: RecipeMeta,
 
     /// Checks list (human-readable expectations).
     #[serde(default)]
@@ -294,11 +379,77 @@ mod tests {
     use super::*;
 
     #[test]
+    fn every_public_field_of_the_recipe_is_accounted_for() {
+        // Half of what the waived `struct_pub_field_missing` lint bought.
+        //
+        // Moving seven fields into `RecipeMeta` is what the lint fires on, and
+        // `Cargo.toml` turns it off on the captain's decision that 0.4.x
+        // stands. Off, it is off for every struct in the crate, which is the
+        // only granularity cargo-semver-checks offers — so this recovers the
+        // cover for the struct the waiver was granted for.
+        //
+        // The assertions are incidental. **The exhaustive literal is the
+        // test**: a field leaving `Recipe`, being renamed, or a new one
+        // arriving all stop this compiling. That second case is why this one
+        // test serves both waived lints for this struct — `Recipe.meta` is the
+        // `constructible_struct_adds_field` finding, and it is named here.
+        let recipe = Recipe {
+            recipe_version: RECIPE_VERSION,
+            meta: RecipeMeta::new("x"),
+            checks: Vec::new(),
+            operator: HashMap::new(),
+            renderers: default_renderers(),
+            command: CommandSpec {
+                argv: vec!["true".to_string()],
+                cwd: None,
+                env: HashMap::new(),
+                pty: true,
+                extension: HashMap::new(),
+            },
+            steps: Vec::new(),
+            assertions: Vec::new(),
+            expect_exit_code: Some(0),
+            timeout_seconds: 30.0,
+            cols: 100,
+            rows: 30,
+            source_path: None,
+            extension: HashMap::new(),
+        };
+        assert_eq!(recipe.meta.name, "x");
+        assert_eq!(recipe.command.argv, ["true"]);
+        assert!(recipe.source_path.is_none());
+    }
+
+    #[test]
+    fn the_recipe_semver_waiver_is_scoped_to_the_release_it_was_granted_for() {
+        // The other half, and the same reasoning as its twin in
+        // `evidence::collector`: the waiver is a decision about *this* release
+        // line, not a permanent exemption. It was granted on termproof staying
+        // on 0.4.x; the moment the version leaves 0.4.x that reasoning has
+        // expired and the waiver has to be re-decided rather than carried
+        // along, so this fails the build instead of letting it ride.
+        //
+        // Matched on the lint name alone: `cargo package` normalises the
+        // manifest, so the spacing around the value is not ours to rely on.
+        let manifest = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/Cargo.toml"));
+        let waived = manifest.contains("struct_pub_field_missing");
+        let version = env!("CARGO_PKG_VERSION");
+        assert!(
+            !waived || version.starts_with("0.4."),
+            "the struct_pub_field_missing waiver in Cargo.toml was granted for \
+             0.4.x and this crate is {version}. Re-decide it: either the break \
+             is now carried by the version bump and the waiver, its comment and \
+             `every_public_field_of_the_recipe_is_accounted_for` all go, or it \
+             is re-granted for the new line and this test moves with it."
+        );
+    }
+
+    #[test]
     fn legacy_recipe_defaults_version_to_one() {
         let recipe: Recipe =
             serde_json::from_str(r#"{"name":"x","command":{"argv":["true"]}}"#).expect("parse");
         assert_eq!(recipe.recipe_version, 1);
-        assert_eq!(recipe.priority, "P2");
+        assert_eq!(recipe.meta.priority, "P2");
         assert_eq!(recipe.cols, 100);
         assert_eq!(recipe.timeout_seconds, 30.0);
         assert_eq!(recipe.expect_exit_code, Some(0));
@@ -320,8 +471,8 @@ mod tests {
         let yaml_str = "name: x\ncommand:\n  argv: [echo, hi]\nrecipe_version: 1\n";
         let from_json = Recipe::from_str(json_str, None).expect("json");
         let from_yaml = Recipe::from_str(yaml_str, None).expect("yaml");
-        assert_eq!(from_json.name, "x");
-        assert_eq!(from_yaml.name, "x");
+        assert_eq!(from_json.meta.name, "x");
+        assert_eq!(from_yaml.meta.name, "x");
         assert_eq!(from_json.command.argv, from_yaml.command.argv);
     }
 
