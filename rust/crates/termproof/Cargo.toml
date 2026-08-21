@@ -35,6 +35,35 @@ exclude = [
 [package.metadata.docs.rs]
 all-features = true
 
+# One waived semver lint, and the reason it is waived rather than fixed.
+#
+# `EvidencePublisher` gained a fifth public field, `video_converter`, and every
+# field of it is `pub` with no `#[non_exhaustive]`, so an external crate writing
+# `EvidencePublisher { dir, identity, renderer, uploader }` stopped compiling
+# (#196). Under the pre-1.0 rule in `docs/publishing.md` that is a minor bump.
+# The captain's decision on #196 is that termproof stays on 0.4.x and this
+# break is waived, so the lint is turned off here rather than the version being
+# moved or the job being disabled — `CHANGELOG.md` still describes the break in
+# full under `Rust — Changed (breaking)`, because a waiver is a decision about
+# the version and not a claim that nothing broke.
+#
+# **This is the tool's own scoped mechanism and it is scoped to a lint, not to a
+# struct.** cargo-semver-checks has no per-item allow, so while this line is
+# here a new `pub` field on *any* exhaustively-constructible public struct in
+# the crate passes CI unremarked. Two things bound that:
+#
+#   - `every_public_field_of_the_publisher_is_accounted_for` in
+#     `evidence::collector` pins `EvidencePublisher`'s field list, so the struct
+#     this waiver was granted for cannot grow another field silently;
+#   - the waiver is scoped in time to 0.4.x, and
+#     `the_semver_waiver_is_scoped_to_the_release_it_was_granted_for` fails the
+#     build when the version leaves that line, which is when the decision that
+#     justified it expires.
+#
+# Delete both this entry and those two tests together, or neither.
+[package.metadata.cargo-semver-checks.lints]
+constructible_struct_adds_field = "allow"
+
 [lints]
 workspace = true
 

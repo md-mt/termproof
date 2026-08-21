@@ -240,6 +240,18 @@ The workflow enforces the mechanical items; these are the ones it cannot.
       on crates.io. The Security workflow runs this on every pull request, so
       by release time it should already be green; re-run it at the tag to be
       sure.
+- [ ] **Read `[package.metadata.cargo-semver-checks.lints]` in
+      `crates/termproof/Cargo.toml` before trusting the line above.** Any lint
+      listed there is waived, so the check passing does not mean nothing broke —
+      it means nothing broke *except* what a waiver already covers. Each entry
+      carries the decision that granted it and the release line it was granted
+      for, and `CHANGELOG.md` describes the break itself under a
+      `— Changed (breaking)` heading regardless. A waiver is a decision about
+      the version, not a claim of compatibility. Today there is one:
+      `constructible_struct_adds_field`, for the `EvidencePublisher` field
+      addition in #196, scoped to 0.4.x — bumping past 0.4.x fails
+      `the_semver_waiver_is_scoped_to_the_release_it_was_granted_for` until it
+      is re-decided.
 - [ ] The maturity warning in the crate's README still describes the port
       accurately. It is what the crates.io front page carries; a stale one is
       a claim of parity that has not been earned.
@@ -302,7 +314,8 @@ file is copied into each crate directory; keep the copies in sync with the root
   that, and duplicating it would mean two places to keep correct.
 - `.github/workflows/rust-security.yml` — dependency/advisory policy (`cargo deny
   check` against `deny.toml`), public-API compatibility (`cargo semver-checks`
-  against the latest published `termproof`), and package-tarball verification
+  against the latest published `termproof`, minus any lint waived in
+  `crates/termproof/Cargo.toml`), and package-tarball verification
   (`cargo package -p termproof` plus content assertions). It runs on every
   pull request and push, and the deny check also runs weekly on a schedule so
   a newly published advisory is caught without a code change.

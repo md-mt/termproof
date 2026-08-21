@@ -350,6 +350,27 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
   three seams somewhere other than the publisher. That trade is worth stating;
   it is not free either way.
 
+  **The version does not move for it.** The pre-1.0 rule above says a breaking
+  change bumps the minor digit; the decision on [#196](https://github.com/md-mt/termproof/pull/196)
+  is that termproof stays on 0.4.x and this break is waived instead. So
+  `constructible_struct_adds_field` is set to `allow` in
+  `[package.metadata.cargo-semver-checks.lints]` in
+  `rust/crates/termproof/Cargo.toml` — the tool's own scoped mechanism, one
+  lint, rather than a version bump or a disabled CI job. **This entry is not
+  rewritten to match:** a waiver decides what the version does about a break,
+  not whether the break happened, and a consumer whose literal stopped
+  compiling needs the paragraphs above whatever the digit says.
+
+  The waiver is scoped in two directions, because at lint granularity it would
+  otherwise also cover field additions nobody has decided about:
+  `every_public_field_of_the_publisher_is_accounted_for` builds
+  `EvidencePublisher` from an exhaustive literal, so a sixth field fails to
+  compile, and
+  `the_semver_waiver_is_scoped_to_the_release_it_was_granted_for` fails the
+  build if the version leaves 0.4.x while the waiver is still in place. The
+  release checklist in `rust/docs/publishing.md` now says to read the waiver
+  list before reading the green check.
+
 ## [0.4.0] — 2026-08-19
 
 ### Rust — Changed

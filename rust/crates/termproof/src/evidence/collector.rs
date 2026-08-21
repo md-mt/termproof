@@ -1381,6 +1381,55 @@ mod tests {
     }
 
     #[test]
+    fn every_public_field_of_the_publisher_is_accounted_for() {
+        // Half of what the waived `constructible_struct_adds_field` lint bought.
+        //
+        // `EvidencePublisher` is exhaustively constructible — every field `pub`,
+        // no `#[non_exhaustive]` — and adding `video_converter` broke external
+        // literals. `Cargo.toml` waives the lint that says so, on the captain's
+        // decision that 0.4.x stands; waiving it crate-wide is the only
+        // granularity cargo-semver-checks offers, so this recovers the cover for
+        // the struct the waiver was granted for.
+        //
+        // The assertions are incidental. **The exhaustive literal is the test**:
+        // a sixth field stops this compiling, so the struct cannot grow one
+        // without someone deciding to, which is exactly what the lint was for.
+        let publisher = EvidencePublisher {
+            dir: PathBuf::from("/tmp/evidence"),
+            identity: identity(),
+            renderer: ScreenshotRenderer::new(),
+            uploader: None,
+            video_converter: None,
+        };
+        assert_eq!(publisher.dir, PathBuf::from("/tmp/evidence"));
+        assert!(publisher.uploader.is_none());
+        assert!(publisher.video_converter.is_none());
+    }
+
+    #[test]
+    fn the_semver_waiver_is_scoped_to_the_release_it_was_granted_for() {
+        // The other half: the waiver is a decision about *this* release line,
+        // not a permanent exemption. It was granted on the reasoning that
+        // termproof stays on 0.4.x; the moment the version leaves 0.4.x that
+        // reasoning has expired and the waiver has to be re-decided rather than
+        // carried along, so this fails the build instead of letting it ride.
+        //
+        // Matched on the lint name alone: `cargo package` normalises the
+        // manifest, so the spacing around the value is not ours to rely on.
+        let manifest = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/Cargo.toml"));
+        let waived = manifest.contains("constructible_struct_adds_field");
+        let version = env!("CARGO_PKG_VERSION");
+        assert!(
+            !waived || version.starts_with("0.4."),
+            "the constructible_struct_adds_field waiver in Cargo.toml was granted \
+             for 0.4.x and this crate is {version}. Re-decide it: either the break \
+             is now carried by the version bump and the waiver, its comment and \
+             `every_public_field_of_the_publisher_is_accounted_for` all go, or it \
+             is re-granted for the new line and this test moves with it."
+        );
+    }
+
+    #[test]
     fn record_session_runs_the_five_steps_in_order() {
         let dir = tempfile::tempdir().expect("tempdir");
         let uploaded = Arc::new(Mutex::new(Vec::new()));
