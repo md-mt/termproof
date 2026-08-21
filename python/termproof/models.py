@@ -86,6 +86,14 @@ class Recipe:
         rather than aliased so mutating the returned list cannot reach back
         into the recipe. A property rather than a field, so nothing about
         ``Recipe``'s own signature, field order or ``repr`` moves.
+
+        **This is the one place the two implementations differ in semantics
+        rather than only in spelling.** Rust's ``Recipe`` embeds ``RecipeMeta``
+        as an owned field, so ``recipe.meta.ci_paths.push(x)`` mutates the
+        recipe there; here the same expression is a no-op. Neither is wrong —
+        Rust's follows from embedding and this follows from ``Recipe`` being
+        frozen — but a reader carrying one across to the other would be wrong,
+        so both sides say so.
         """
         return RecipeMeta(
             name=self.name,

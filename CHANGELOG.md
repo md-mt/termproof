@@ -321,7 +321,11 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
   takes a name and fills the rest from the same functions `serde` uses for the
   file defaults, so hand-built and parsed metadata cannot drift. It implements
   `selection::Selectable`, so selection by `ci_paths` came free for those
-  consumers rather than needing a trait impl of their own.
+  consumers rather than needing a trait impl of their own. Re-exported at the
+  crate root as `termproof::RecipeMeta`, the way every other public type in
+  `recipe` is — the consumer this is for is the one whose `Recipe { .. }`
+  literal just stopped compiling, and asking them to also discover a
+  sub-module path would be a second papercut on top of the first.
   ([#199](https://github.com/md-mt/termproof/issues/199))
 
 ### Rust — Changed
@@ -350,6 +354,14 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
   quietened `semver-checks`, and it would have put a smart-pointer conversion
   on a plain data type to hide a break rather than state it. In this repository
   the change touched three assertions and one trait impl.
+
+  **The version did not move.** This break ships on 0.4.x by maintainer
+  decision, waived rather than versioned: the eight findings are named
+  one by one in the new `rust/semver-waivers.toml`, which
+  `.github/scripts/rust/semver-checks.py` holds the job to. Every lint still
+  runs against the published baseline; a break that file does not name fails
+  CI, and so does an entry that stops matching, so the waiver expires with the
+  release that makes it moot rather than quietly becoming a disabled check.
   ([#199](https://github.com/md-mt/termproof/issues/199))
 
 - On SVG geometry, nothing. `SvgMetrics` in `terminal::attributed` already took every default

@@ -129,6 +129,18 @@ fn a_recipes_own_selectable_answers_from_its_metadata() {
 }
 
 #[test]
+fn the_type_is_reachable_from_the_crate_root() {
+    // Every other public type in `recipe` is re-exported at the root, and the
+    // consumer this type is for is the one whose `Recipe { .. }` literal just
+    // stopped compiling — they are already editing an import line. `Recipe`
+    // named from the root here too, so this fails if either export goes.
+    let _: termproof::RecipeMeta = termproof::RecipeMeta::new("x");
+    fn takes_both(_: &termproof::Recipe, _: &termproof::RecipeMeta) {}
+    let recipe: Recipe = serde_json::from_value(populated()).expect("parse");
+    takes_both(&recipe, &recipe.meta);
+}
+
+#[test]
 fn test_defaults_are_the_shared_table() {
     // Mirrored verbatim in `python/tests/test_recipe_meta.py` under the same
     // test name. `name` is the one field with no default in the schema, so it

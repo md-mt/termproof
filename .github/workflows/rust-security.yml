@@ -74,8 +74,15 @@ jobs:
       # crates.io (termproof 0.3.4 today). Fails on any breaking change to a
       # public API — under 0.x that is any change the pre-1.0 convention
       # would call a minor bump (docs/publishing.md).
+      #
+      # Run through the wrapper, not directly: every lint still runs and its
+      # output is echoed verbatim, but findings are held to the named entries
+      # in `rust/semver-waivers.toml`. A break that file does not name fails
+      # here, and so does an entry that has stopped matching — the waiver
+      # cannot outlive the release it was written for. This is not a way to
+      # switch the job off; see the script's docstring.
       - name: cargo semver-checks check-release
-        run: cargo semver-checks check-release -p termproof
+        run: ../.github/scripts/rust/semver-checks.py
 
   package:
     name: Package contents (cargo package)

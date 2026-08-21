@@ -144,6 +144,21 @@ class RecipeIsUnchangedTest(unittest.TestCase):
     def test_metadata_is_a_property_not_a_field(self) -> None:
         self.assertNotIn("meta", [f.name for f in dataclasses.fields(Recipe)])
 
+    def test_the_type_is_reachable_from_the_package_root(self) -> None:
+        # The Rust mirror re-exports `RecipeMeta` at its crate root, so the
+        # two front doors match. `rust/crates/termproof/tests/recipe_meta.rs`
+        # holds the other side.
+        import termproof
+
+        if not hasattr(termproof, "__all__"):
+            # `scripts/run_stdlib_tests.py` substitutes a namespace-only
+            # `termproof` so `termproof.models` can be loaded without the
+            # package's third-party imports. There is no package surface to
+            # check under that gate, and the module under test is unaffected.
+            self.skipTest("no package root under the stdlib-only gate")
+        self.assertIs(termproof.RecipeMeta, RecipeMeta)
+        self.assertIn("RecipeMeta", termproof.__all__)
+
 
 def _default_of(field: dataclasses.Field) -> object:
     """A field's default, calling the factory when there is one."""

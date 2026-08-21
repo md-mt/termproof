@@ -265,6 +265,11 @@ pub struct Recipe {
     ///
     /// Flattened, so these stay top-level keys in a recipe file and in the
     /// schema. The nesting is a Rust-side split only.
+    ///
+    /// This is an owned field, so `recipe.meta.ci_paths.push(..)` mutates the
+    /// recipe. Python's `Recipe.meta` is a property returning a copy, and the
+    /// same expression there is a no-op — the one place the two
+    /// implementations differ in semantics rather than only in spelling.
     #[serde(flatten)]
     #[cfg_attr(feature = "schema", schemars(flatten))]
     pub meta: RecipeMeta,

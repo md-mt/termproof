@@ -1,0 +1,37 @@
+# Breaking changes to the public Rust API that are accepted at the current
+# version, read by `.github/scripts/rust/semver-checks.py`.
+#
+# This is not a way to turn a lint off. Every lint still runs against the
+# published baseline; each line below waives one named finding and nothing
+# else. A break this file does not name fails the job, and a line here that
+# stops matching also fails it — see the script's docstring for why expiry is
+# the point.
+#
+# Adding to this file is a maintainer decision about a release, not a way past
+# a red check. Anything waived here must also be described under `[Unreleased]`
+# in CHANGELOG.md, in the terms a consumer would need to fix their code.
+
+reason = """\
+#199 moved Recipe's seven descriptive fields into a RecipeMeta that Recipe \
+holds and flattens. The serialised form and the generated JSON Schema are \
+byte-identical — only Rust source breaks: `recipe.name` is `recipe.meta.name`, \
+and a `Recipe { .. }` literal supplies `meta`. termproof stays on 0.4.x by \
+maintainer decision, so the break ships waived rather than versioned.\
+"""
+
+waived = [
+  # `Recipe` gained `meta`, so an exhaustive `Recipe { .. }` literal no longer
+  # compiles.
+  "constructible_struct_adds_field: field Recipe.meta",
+
+  # The seven fields that moved into `RecipeMeta`. Reached as `recipe.meta.<x>`
+  # now. Any *other* field of `Recipe` disappearing is not covered here and
+  # will fail the job.
+  "struct_pub_field_missing: field name of struct Recipe",
+  "struct_pub_field_missing: field description of struct Recipe",
+  "struct_pub_field_missing: field intent of struct Recipe",
+  "struct_pub_field_missing: field priority of struct Recipe",
+  "struct_pub_field_missing: field execution of struct Recipe",
+  "struct_pub_field_missing: field determinism of struct Recipe",
+  "struct_pub_field_missing: field ci_paths of struct Recipe",
+]

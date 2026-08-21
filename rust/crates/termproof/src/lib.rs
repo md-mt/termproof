@@ -151,7 +151,9 @@ pub mod vocabulary;
 
 // Re-exports: config + recipe/schema/validation (RUST-004)
 pub use config::VerifierConfig;
-pub use recipe::{Assertion, CommandSpec as RecipeCommandSpec, Recipe, Step, RECIPE_VERSION};
+pub use recipe::{
+    Assertion, CommandSpec as RecipeCommandSpec, Recipe, RecipeMeta, Step, RECIPE_VERSION,
+};
 #[cfg(feature = "json-schema")]
 pub use validation::{has_errors, Severity, ValidationIssue};
 
