@@ -41,6 +41,224 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.4.1] — 2026-08-20
+
+**This is a patch release that carries breaking changes, on purpose.** The rule
+at the top of this file says a breaking change under `0.x` bumps the minor
+digit. This release does not follow it: termproof stays on `0.4.x` by
+maintainer decision, and the two Rust breaks ship with a scoped
+`cargo semver-checks` waiver instead of a version bump. So the digit is not a
+safe summary of this release, and the breaks lead the section rather than
+sitting below the additions. There are three, and each needs something of a
+consumer on 0.4.0:
+
+1. **Every rendered SVG and PNG screenshot changes on the defaults** (Python,
+   [#195](https://github.com/md-mt/termproof/pull/195)). Not an API break — a
+   *your artifacts are different bytes* break, which nothing at compile time
+   catches. A 120x40 screen was 1116x836 and is now 1220x900. The YAML that
+   pins the old output exactly is in the first entry below; carry it forward
+   rather than re-deriving it.
+2. **`EvidencePublisher` gained a fifth public field** (Rust,
+   [#196](https://github.com/md-mt/termproof/pull/196)), so an
+   `EvidencePublisher { .. }` literal in an external crate no longer compiles.
+   Build through `EvidencePublisher::new` and the `with_*` builders instead;
+   the entry below has the before/after.
+3. **`Recipe`'s seven descriptive fields moved into an embedded `RecipeMeta`**
+   (Rust, [#201](https://github.com/md-mt/termproof/pull/201)), so
+   `recipe.name` is `recipe.meta.name`, and a `Recipe { .. }` literal has to
+   supply `meta`. Nothing moved on the wire: recipe files parse, serialise and
+   generate a schema byte-identically.
+
+Neither Rust break is a surprise to `cargo semver-checks` — both are waived
+there, as `constructible_struct_adds_field` and `struct_pub_field_missing`, in
+`[package.metadata.cargo-semver-checks.lints]` in
+`rust/crates/termproof/Cargo.toml`, each recorded with the decision that
+granted it. **A waiver decides what the version does about a break, not whether
+the break happened**, so a green `cargo semver-checks check-release` on 0.4.1
+does not mean nothing broke. Both waivers expire the moment the version leaves
+`0.4.x`, enforced by tests rather than by a note.
+
+### Python — Changed (breaking)
+
+- **This release changes rendered screenshots.** `SvgStyle` and
+  `SvgRenderConfig` both described SVG geometry and their defaults disagreed in
+  every single field. `SvgStyle` is now the single canonical definition and
+  `SvgRenderConfig` takes each default from the same `DEFAULT_*` constant in
+  `termproof.attributed` instead of restating it, so an unconfigured
+  `screen_svg(screen, SvgStyle())` and an unconfigured `SvgRenderer` finally
+  produce the same image. What moved, on the `evidence.svg` side:
+
+  | key | was | is |
+  |---|---|---|
+  | `char_width` | `9` | `10.0` (`DEFAULT_CELL_W`) |
+  | `line_height` | `20` | `22.0` (`DEFAULT_CELL_H`) |
+  | `font_size` | `14` | `16` (`DEFAULT_FONT_PX`) |
+  | `padding` | `18` | `10` (`DEFAULT_PADDING`) |
+  | `bg` | `#101418` | `#0b0f14` (`DEFAULT_BG`) |
+  | `font_family` | `ui-monospace,SFMono-Regular,Menlo,Consolas,monospace` | `Noto Sans Mono, Liberation Mono, monospace` (`FONT_STACK`) |
+
+  A 120x40 screen was 1116x836 and is now 1220x900. `fg` did not move. To keep
+  the old output exactly, pin all six in `.termproof/config.yaml` — **and, if
+  any screen is narrower than 32 columns or shorter than 7 rows, the two floor
+  keys with them**, because below that the old canvas was 320x160 and the six
+  above cannot restore it on their own:
+
+  ```yaml
+  evidence:
+    svg:
+      char_width: 9
+      line_height: 20
+      font_size: 14
+      padding: 18
+      bg: "#101418"
+      font_family: "ui-monospace,SFMono-Regular,Menlo,Consolas,monospace"
+      # Only needed below 32 columns or 7 rows, where the old floor bound.
+      min_width: 320
+      min_height: 160
+  ```
+
+  `min_width`/`min_height` are new `evidence.svg` keys, added so that recipe is
+  exact at every grid size — see the floor entry below.
+
+  Note that pinning `font_family` restores a stack naming three fonts that
+  exist on macOS and Windows and none that exist on a stock Linux image. It
+  collapses to generic `monospace` there, and `Menlo` resolves to
+  *proportional* DejaVu Sans on some images, which overflows the cell grid the
+  attributed renderer is built on. That is why the canonical stack names
+  `Noto Sans Mono` and `Liberation Mono` ahead of the generic fallback.
+
+  `char_width` and `line_height` are now typed `float` rather than `int`, which
+  widens what they accept; an integer in YAML still loads.
+
+- **The SVG canvas has no minimum size; every rasterised one still does.**
+  `SvgRenderConfig.style()` used to set `min_width: 320, min_height: 160` while
+  `SvgStyle`'s own defaults were `0` — a third disagreement, invisible at 120x40
+  because the floors do not bind there. The vector path is floorless now, so an
+  SVG is exactly `grid + 2 * padding` at any size: a 3x2 grid renders 50x64, not
+  320x160. A viewer scales an SVG, so a floor there only surrounds a small grid
+  with dead background.
+
+  That argument stops at the rasterisers, and all three keep the 320x160 floor
+  they had: `PngRenderer`, the `png_rsvg` renderer, and the `attributed_rsvg`
+  video backend. The last two call `rsvg-convert` with no `-w`/`-h`/`-z`, so it
+  renders at intrinsic size and the PNG's pixel dimensions *are* the SVG's
+  `width`/`height` — a 20x4 grid would have become a 220x108 postage stamp.
+  `SvgRenderConfig.raster_style()` is the one place that floor is applied and
+  `RASTER_MIN_WIDTH`/`RASTER_MIN_HEIGHT` in `termproof.config` are the one place
+  the two numbers are written down, `PngRenderer` included.
+
+- **`evidence.svg.min_width` and `evidence.svg.min_height` are new keys**, both
+  defaulting to `0`. They make every `SvgStyle` field reachable from YAML, which
+  is what lets the pin-the-old-output recipe above be exact below the old floor.
+  On the two renderers that rasterise that SVG — `png_rsvg` and the
+  `attributed_rsvg` video backend — they raise the floor but cannot lower it
+  below 320x160. They do not reach the `png` renderer, which is configured by
+  `evidence.png` and keeps its own fixed 320x160 floor; making one knob govern
+  both would mean giving `PngRenderConfig` its own pair, which is a separate
+  change.
+
+- **`evidence.png.fg` and `evidence.png.bg` follow the same palette**, moving
+  `bg` from `#101418` to `#0b0f14`, so the PNG and SVG screenshots of one run
+  no longer disagree about what colour the terminal is. `png.padding`,
+  `png.font_size` and `png.scale` are unchanged — they are raster quantities
+  with no SVG counterpart. Pin `evidence.png.bg: "#101418"` to keep the old
+  PNG background.
+
+- **The checked-in evidence corpus under `python/examples/artifacts/` was
+  regenerated** — 156 SVG files, which is what the new geometry looks like.
+  `CorpusByteIdentityTest` requires exactly that of any change to the defaults,
+  so the new bytes are in the diff rather than in a later surprise.
+
+### Rust — Changed (breaking)
+
+- **`evidence::collector::EvidencePublisher` gained a fifth public field,
+  `video_converter: Option<CastVideoConverter>`, which stops the struct being
+  constructible by literal.** Every field of `EvidencePublisher` is `pub` and
+  the struct is not `#[non_exhaustive]`, so an external crate writing
+  `EvidencePublisher { dir, identity, renderer, uploader }` no longer compiles;
+  `cargo semver-checks` reports it as `constructible_struct_adds_field`. Nothing
+  else about the type moved — the four existing fields keep their names, types
+  and meanings, and `EvidencePublisher::new` plus the `with_*` builders
+  (`with_renderer`, `with_uploader`, and the new `with_video_converter`) compile
+  unchanged.
+
+  **To fix a literal, build through the constructor**, which is what every
+  in-tree caller and every doc example already does:
+
+  ```rust
+  // was
+  let publisher = EvidencePublisher { dir, identity, renderer, uploader: Some(u) };
+  // now
+  let publisher = EvidencePublisher::new(dir, identity)
+      .with_renderer(renderer)
+      .with_uploader(u);
+  ```
+
+  Filed as breaking rather than as an addition because the pre-1.0 rule in this
+  file's preamble is about what a consumer's source does, not about what the
+  crate meant to offer. The seam had to hang somewhere, and the alternative
+  shape — passing the converter to `record_session` instead of the publisher —
+  would have avoided the break at the cost of putting one of the publisher's
+  three seams somewhere other than the publisher. That trade is worth stating;
+  it is not free either way.
+
+  **The version does not move for it.** The pre-1.0 rule above says a breaking
+  change bumps the minor digit; the decision on [#196](https://github.com/md-mt/termproof/pull/196)
+  is that termproof stays on 0.4.x and this break is waived instead. So
+  `constructible_struct_adds_field` is set to `allow` in
+  `[package.metadata.cargo-semver-checks.lints]` in
+  `rust/crates/termproof/Cargo.toml` — the tool's own scoped mechanism, one
+  lint, rather than a version bump or a disabled CI job. **This entry is not
+  rewritten to match:** a waiver decides what the version does about a break,
+  not whether the break happened, and a consumer whose literal stopped
+  compiling needs the paragraphs above whatever the digit says.
+
+  The waiver is scoped in two directions, because at lint granularity it would
+  otherwise also cover field additions nobody has decided about:
+  `every_public_field_of_the_publisher_is_accounted_for` builds
+  `EvidencePublisher` from an exhaustive literal, so a sixth field fails to
+  compile, and
+  `the_semver_waiver_is_scoped_to_the_release_it_was_granted_for` fails the
+  build if the version leaves 0.4.x while the waiver is still in place. The
+  release checklist in `rust/docs/publishing.md` now says to read the waiver
+  list before reading the green check.
+
+- **`Recipe` holds its descriptive fields in a `RecipeMeta` and flattens it.**
+  Nothing moved on the wire: a recipe file parses the same, serialises to
+  byte-identical text with the same key order, and generates a byte-identical
+  JSON Schema — pinned by `tests/recipe_meta.rs`, which asserts the exact
+  serialised strings recorded from the pre-split tree, and by the existing
+  `schema_snapshot.rs`, which still reaches through the flattened type.
+
+  **What breaks:** Rust code that names `recipe.name`, `recipe.priority` or any
+  of the other five reads them through `recipe.meta` now, and a `Recipe { .. }`
+  literal has to supply `meta` instead. `cargo semver-checks` reports it as
+  `struct_pub_field_missing` and `constructible_struct_adds_field` and asks for
+  a major bump, which under this project's pre-1.0 rule is the minor digit. A
+  `Deref` from `Recipe` to `RecipeMeta` would have kept field *reads*
+  compiling; it was declined, because it would not have saved the literals or
+  quietened `semver-checks`, and it would have put a smart-pointer conversion
+  on a plain data type to hide a break rather than state it. In this repository
+  the change touched three assertions and one trait impl.
+
+  **The version did not move.** This break ships on 0.4.x by maintainer
+  decision, waived rather than versioned, through the same mechanism #196
+  established: `struct_pub_field_missing = "allow"` joins
+  `constructible_struct_adds_field` under
+  `[package.metadata.cargo-semver-checks.lints]`, with the decision and the
+  release line it was granted for recorded beside it. The waiver is scoped to
+  a lint rather than to a struct because that is the only granularity
+  cargo-semver-checks offers, so — exactly as in #196 — two tests bound it:
+  `every_public_field_of_the_recipe_is_accounted_for` names every field of
+  `Recipe` in an exhaustive literal, so no field of the struct the waiver was
+  granted for can arrive or leave silently while the lint is off, and
+  `the_recipe_semver_waiver_is_scoped_to_the_release_it_was_granted_for` fails
+  the build the moment the version leaves 0.4.x. `docs/publishing.md`'s
+  release checklist lists both waivers.
+  ([#199](https://github.com/md-mt/termproof/issues/199))
+
 ### Docs
 
 - **Both READMEs now say that `EvidenceCollector.capture_text` is the one
@@ -179,95 +397,6 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
   `EvidenceCollector` owns capture-while-running, `render_artifacts` owns
   rendering a finished `RunResult`, and neither owns the dedup.
 
-- **This release changes rendered screenshots.** `SvgStyle` and
-  `SvgRenderConfig` both described SVG geometry and their defaults disagreed in
-  every single field. `SvgStyle` is now the single canonical definition and
-  `SvgRenderConfig` takes each default from the same `DEFAULT_*` constant in
-  `termproof.attributed` instead of restating it, so an unconfigured
-  `screen_svg(screen, SvgStyle())` and an unconfigured `SvgRenderer` finally
-  produce the same image. What moved, on the `evidence.svg` side:
-
-  | key | was | is |
-  |---|---|---|
-  | `char_width` | `9` | `10.0` (`DEFAULT_CELL_W`) |
-  | `line_height` | `20` | `22.0` (`DEFAULT_CELL_H`) |
-  | `font_size` | `14` | `16` (`DEFAULT_FONT_PX`) |
-  | `padding` | `18` | `10` (`DEFAULT_PADDING`) |
-  | `bg` | `#101418` | `#0b0f14` (`DEFAULT_BG`) |
-  | `font_family` | `ui-monospace,SFMono-Regular,Menlo,Consolas,monospace` | `Noto Sans Mono, Liberation Mono, monospace` (`FONT_STACK`) |
-
-  A 120x40 screen was 1116x836 and is now 1220x900. `fg` did not move. To keep
-  the old output exactly, pin all six in `.termproof/config.yaml` — **and, if
-  any screen is narrower than 32 columns or shorter than 7 rows, the two floor
-  keys with them**, because below that the old canvas was 320x160 and the six
-  above cannot restore it on their own:
-
-  ```yaml
-  evidence:
-    svg:
-      char_width: 9
-      line_height: 20
-      font_size: 14
-      padding: 18
-      bg: "#101418"
-      font_family: "ui-monospace,SFMono-Regular,Menlo,Consolas,monospace"
-      # Only needed below 32 columns or 7 rows, where the old floor bound.
-      min_width: 320
-      min_height: 160
-  ```
-
-  `min_width`/`min_height` are new `evidence.svg` keys, added so that recipe is
-  exact at every grid size — see the floor entry below.
-
-  Note that pinning `font_family` restores a stack naming three fonts that
-  exist on macOS and Windows and none that exist on a stock Linux image. It
-  collapses to generic `monospace` there, and `Menlo` resolves to
-  *proportional* DejaVu Sans on some images, which overflows the cell grid the
-  attributed renderer is built on. That is why the canonical stack names
-  `Noto Sans Mono` and `Liberation Mono` ahead of the generic fallback.
-
-  `char_width` and `line_height` are now typed `float` rather than `int`, which
-  widens what they accept; an integer in YAML still loads.
-
-- **The SVG canvas has no minimum size; every rasterised one still does.**
-  `SvgRenderConfig.style()` used to set `min_width: 320, min_height: 160` while
-  `SvgStyle`'s own defaults were `0` — a third disagreement, invisible at 120x40
-  because the floors do not bind there. The vector path is floorless now, so an
-  SVG is exactly `grid + 2 * padding` at any size: a 3x2 grid renders 50x64, not
-  320x160. A viewer scales an SVG, so a floor there only surrounds a small grid
-  with dead background.
-
-  That argument stops at the rasterisers, and all three keep the 320x160 floor
-  they had: `PngRenderer`, the `png_rsvg` renderer, and the `attributed_rsvg`
-  video backend. The last two call `rsvg-convert` with no `-w`/`-h`/`-z`, so it
-  renders at intrinsic size and the PNG's pixel dimensions *are* the SVG's
-  `width`/`height` — a 20x4 grid would have become a 220x108 postage stamp.
-  `SvgRenderConfig.raster_style()` is the one place that floor is applied and
-  `RASTER_MIN_WIDTH`/`RASTER_MIN_HEIGHT` in `termproof.config` are the one place
-  the two numbers are written down, `PngRenderer` included.
-
-- **`evidence.svg.min_width` and `evidence.svg.min_height` are new keys**, both
-  defaulting to `0`. They make every `SvgStyle` field reachable from YAML, which
-  is what lets the pin-the-old-output recipe above be exact below the old floor.
-  On the two renderers that rasterise that SVG — `png_rsvg` and the
-  `attributed_rsvg` video backend — they raise the floor but cannot lower it
-  below 320x160. They do not reach the `png` renderer, which is configured by
-  `evidence.png` and keeps its own fixed 320x160 floor; making one knob govern
-  both would mean giving `PngRenderConfig` its own pair, which is a separate
-  change.
-
-- **`evidence.png.fg` and `evidence.png.bg` follow the same palette**, moving
-  `bg` from `#101418` to `#0b0f14`, so the PNG and SVG screenshots of one run
-  no longer disagree about what colour the terminal is. `png.padding`,
-  `png.font_size` and `png.scale` are unchanged — they are raster quantities
-  with no SVG counterpart. Pin `evidence.png.bg: "#101418"` to keep the old
-  PNG background.
-
-- **The checked-in evidence corpus under `python/examples/artifacts/` was
-  regenerated** — 156 SVG files, which is what the new geometry looks like.
-  `CorpusByteIdentityTest` requires exactly that of any change to the defaults,
-  so the new bytes are in the diff rather than in a later surprise.
-
 - `BUILTIN_DEFAULTS["evidence"]` is now read off the config dataclasses with
   `asdict()` rather than restating each default beside the field that declares
   it. `python/README.md` points at that dict as the documentation of every
@@ -401,40 +530,6 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
   committed corpus, `score` cases included — and the point is that the
   empty-set answer can no longer drift between them.
 
-- **`Recipe` holds its descriptive fields in a `RecipeMeta` and flattens it.**
-  Nothing moved on the wire: a recipe file parses the same, serialises to
-  byte-identical text with the same key order, and generates a byte-identical
-  JSON Schema — pinned by `tests/recipe_meta.rs`, which asserts the exact
-  serialised strings recorded from the pre-split tree, and by the existing
-  `schema_snapshot.rs`, which still reaches through the flattened type.
-
-  **What breaks:** Rust code that names `recipe.name`, `recipe.priority` or any
-  of the other five reads them through `recipe.meta` now, and a `Recipe { .. }`
-  literal has to supply `meta` instead. `cargo semver-checks` reports it as
-  `struct_pub_field_missing` and `constructible_struct_adds_field` and asks for
-  a major bump, which under this project's pre-1.0 rule is the minor digit. A
-  `Deref` from `Recipe` to `RecipeMeta` would have kept field *reads*
-  compiling; it was declined, because it would not have saved the literals or
-  quietened `semver-checks`, and it would have put a smart-pointer conversion
-  on a plain data type to hide a break rather than state it. In this repository
-  the change touched three assertions and one trait impl.
-
-  **The version did not move.** This break ships on 0.4.x by maintainer
-  decision, waived rather than versioned, through the same mechanism #196
-  established: `struct_pub_field_missing = "allow"` joins
-  `constructible_struct_adds_field` under
-  `[package.metadata.cargo-semver-checks.lints]`, with the decision and the
-  release line it was granted for recorded beside it. The waiver is scoped to
-  a lint rather than to a struct because that is the only granularity
-  cargo-semver-checks offers, so — exactly as in #196 — two tests bound it:
-  `every_public_field_of_the_recipe_is_accounted_for` names every field of
-  `Recipe` in an exhaustive literal, so no field of the struct the waiver was
-  granted for can arrive or leave silently while the lint is off, and
-  `the_recipe_semver_waiver_is_scoped_to_the_release_it_was_granted_for` fails
-  the build the moment the version leaves 0.4.x. `docs/publishing.md`'s
-  release checklist lists both waivers.
-  ([#199](https://github.com/md-mt/termproof/issues/199))
-
 - On SVG geometry, nothing. `SvgMetrics` in `terminal::attributed` already took every default
   from the `DEFAULT_*` constants beside it, `ScreenshotRenderer` and
   `CastVideoConverter` already referenced those same constants rather than
@@ -452,60 +547,6 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
   status quo rather than changing it. Giving `SvgMetrics` a raster floor to
   match is worth doing and is deliberately not done here — it would change what
   Rust renders, in a release that changes no other Rust rendering behaviour.
-
-### Rust — Changed (breaking)
-
-- **`evidence::collector::EvidencePublisher` gained a fifth public field,
-  `video_converter: Option<CastVideoConverter>`, which stops the struct being
-  constructible by literal.** Every field of `EvidencePublisher` is `pub` and
-  the struct is not `#[non_exhaustive]`, so an external crate writing
-  `EvidencePublisher { dir, identity, renderer, uploader }` no longer compiles;
-  `cargo semver-checks` reports it as `constructible_struct_adds_field`. Nothing
-  else about the type moved — the four existing fields keep their names, types
-  and meanings, and `EvidencePublisher::new` plus the `with_*` builders
-  (`with_renderer`, `with_uploader`, and the new `with_video_converter`) compile
-  unchanged.
-
-  **To fix a literal, build through the constructor**, which is what every
-  in-tree caller and every doc example already does:
-
-  ```rust
-  // was
-  let publisher = EvidencePublisher { dir, identity, renderer, uploader: Some(u) };
-  // now
-  let publisher = EvidencePublisher::new(dir, identity)
-      .with_renderer(renderer)
-      .with_uploader(u);
-  ```
-
-  Filed as breaking rather than as an addition because the pre-1.0 rule in this
-  file's preamble is about what a consumer's source does, not about what the
-  crate meant to offer. The seam had to hang somewhere, and the alternative
-  shape — passing the converter to `record_session` instead of the publisher —
-  would have avoided the break at the cost of putting one of the publisher's
-  three seams somewhere other than the publisher. That trade is worth stating;
-  it is not free either way.
-
-  **The version does not move for it.** The pre-1.0 rule above says a breaking
-  change bumps the minor digit; the decision on [#196](https://github.com/md-mt/termproof/pull/196)
-  is that termproof stays on 0.4.x and this break is waived instead. So
-  `constructible_struct_adds_field` is set to `allow` in
-  `[package.metadata.cargo-semver-checks.lints]` in
-  `rust/crates/termproof/Cargo.toml` — the tool's own scoped mechanism, one
-  lint, rather than a version bump or a disabled CI job. **This entry is not
-  rewritten to match:** a waiver decides what the version does about a break,
-  not whether the break happened, and a consumer whose literal stopped
-  compiling needs the paragraphs above whatever the digit says.
-
-  The waiver is scoped in two directions, because at lint granularity it would
-  otherwise also cover field additions nobody has decided about:
-  `every_public_field_of_the_publisher_is_accounted_for` builds
-  `EvidencePublisher` from an exhaustive literal, so a sixth field fails to
-  compile, and
-  `the_semver_waiver_is_scoped_to_the_release_it_was_granted_for` fails the
-  build if the version leaves 0.4.x while the waiver is still in place. The
-  release checklist in `rust/docs/publishing.md` now says to read the waiver
-  list before reading the green check.
 
 ## [0.4.0] — 2026-08-19
 
