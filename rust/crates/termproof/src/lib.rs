@@ -36,8 +36,10 @@
 //!
 //! # Features
 //!
-//! All four are on by default, so a consumer that does not name features gets
-//! the whole crate — the shape that has always been published.
+//! The first four are on by default, so a consumer that does not name features
+//! gets the crate as it has always been published. `clap` is the exception: it
+//! is off by default, so `--all-features` and `default` are no longer the same
+//! set.
 //!
 //! - **`evidence`** — the [`evidence`] module. Off, the crate does not compile
 //!   `image` or `avt`.
@@ -57,6 +59,14 @@
 //!   it, because the derives put `JsonSchema` on the published types themselves
 //!   rather than in a signature; turning it off is how a consumer on a
 //!   different `schemars` major stops carrying two.
+//! - **`clap`** (off) — [`run_config`]'s `cli` submodule: a `clap::Command`
+//!   carrying the standard flags for a [`run_config::RunConfig`], and the parse
+//!   back into one with [`run_config::pick`] applied once rather than per flag.
+//!   Off, the crate does not compile `clap`. It is the only default-off feature
+//!   here, and for the mirror image of the other four's reason: they subtract
+//!   from a shape that was already published, so default-on is what keeps
+//!   turning one off from being a break; this adds a shape that never was, so
+//!   default-off is what keeps it from being a change (#197).
 //!
 //! [`terminal`] has no feature of its own: the crate root is built on it, and
 //! every build drives a terminal, so there is nothing to save.

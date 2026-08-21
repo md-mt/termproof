@@ -134,7 +134,8 @@ the CLI has.
 - `parity` — compares two runs and reports where they disagree.
 - `before_after` — reports which outcomes flipped.
 - `selection` — maps a changeset onto recipes via `ci_paths`.
-- `run_config` — a whole run described by one file.
+- `run_config` — a whole run described by one file, and under the `clap`
+  feature `run_config::cli`, the command line that fills one in.
 - `vocabulary` — a configurable failure detector.
 - `build_info` — provenance for the binary under test.
 - `terminal::attributed` — a per-cell screen (colours, styles, display

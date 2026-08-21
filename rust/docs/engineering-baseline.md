@@ -186,11 +186,23 @@ and this document is updated.
   "junit")] pub use` lines in `evidence` are path aliases that keep the 0.3.1
   paths resolving — they compile no code of their own.
 - Every combination is built and tested, not just `default` and
-  `--all-features`. With four features that is the full powerset of sixteen —
+  `--all-features`. With five features that is the full powerset of thirty-two —
   including those that resolve to the same set as another, because what is
   checked is that every combination a consumer can *write* compiles. The CI
   step enumerates the powerset from a feature list rather than spelling the
   combinations out, so adding a feature grows the matrix by construction.
+
+  Since `clap` (#197), `default` and `--all-features` are also no longer the
+  same set, so neither one alone stands in for the other.
+
+  Growth is doubling, and the ceiling is not far off: measured on the last
+  `main` run before `clap`, sixteen combinations took 7.8 min on ubuntu and 9.3
+  on macos, so thirty-two is ~16-19 min inside a ~18-21 min job. A sixth
+  feature would be ~37 min of powerset in a ~40 min job, against the 60-minute
+  per-job cap `python/tests/test_ci_timeouts.py` enforces. At that point the
+  step wants sharding across the job matrix rather than a sixth entry in the
+  array — the enumerate-from-a-list property is what makes that a mechanical
+  change rather than a rewrite.
 - A feature must not be able to compile a differential harness out. Parity
   evidence is the reason the harnesses exist, and a combination that drops it
   still reports green. Where a feature genuinely removes the capability a case

@@ -31,17 +31,25 @@ the only one that has ever existed on crates.io.
 
 ## Features
 
-All four are on by default, so `termproof = "0.3"` is the whole crate — the
-shape that has always been published.
+The first four are on by default, so `termproof = "0.3"` is the whole crate as
+it has always been published. `clap` is the exception and is opt-in.
 
-| Feature | Enables | Costs |
-|---|---|---|
-| `evidence` | the `evidence` module | `image`, `avt` |
-| `junit` | the `junit` module, and `generate_junit` in `evidence` | `quick-junit` |
-| `json-schema` | `validation`, `pyschema`, and the `json_schema` built-in assertion. Implies `schema` | `jsonschema` |
-| `schema` | the `schema` module, and `JsonSchema` on `Recipe`, `VerifierConfig` and the types they contain | `schemars` |
+| Feature | Default | Enables | Costs |
+|---|---|---|---|
+| `evidence` | on | the `evidence` module | `image`, `avt` |
+| `junit` | on | the `junit` module, and `generate_junit` in `evidence` | `quick-junit` |
+| `json-schema` | on | `validation`, `pyschema`, and the `json_schema` built-in assertion. Implies `schema` | `jsonschema` |
+| `schema` | on | the `schema` module, and `JsonSchema` on `Recipe`, `VerifierConfig` and the types they contain | `schemars` |
+| `clap` | off | `run_config::cli` — a `clap::Command` of the standard `RunConfig` flags, and the parse back into one | `clap`, builder-only (no `clap_derive`) |
 
-Turning all four off takes the crate from 180 transitive dependencies to 66:
+The default-on four and the default-off one are default-on and default-off for
+the same reason. Each of the four *subtracts* from a shape that was already
+published, so on by default is what keeps turning one off from being a break.
+`clap` *adds* a shape that never was, so off by default is what keeps it from
+being a change: a consumer that fills in a `RunConfig` from a file, or from its
+own parser, does not compile `clap` for a layer it will not call.
+
+Turning the four off takes the crate from 180 transitive dependencies to 66:
 
 ```toml
 termproof = { version = "0.3", default-features = false }
@@ -187,7 +195,8 @@ lists the same fourteen.
 - `parity` — compares two runs and reports where they disagree.
 - `before_after` — reports which outcomes flipped between two runs.
 - `selection` — maps a changeset onto the recipes it affects, via `ci_paths`.
-- `run_config` — a whole run described by one file.
+- `run_config` — a whole run described by one file, and under the `clap`
+  feature `run_config::cli`, the command line that fills one in.
 - `vocabulary` — a configurable failure detector.
 - `build_info` — provenance for the binary under test, so a result can be
   traced back to an exact artifact.

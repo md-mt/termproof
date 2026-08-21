@@ -17,6 +17,15 @@
 //! schema below would be dead. The CLI layer is responsible for telling them
 //! apart.
 //!
+//! That layer ships here, behind the off-by-default `clap` feature: the `cli`
+//! submodule emits the standard flags for every field below and parses them
+//! back, with [`pick`] applied once rather than per flag — see
+//! `cli::clap_command` and `cli::resolve`.
+//!
+//! Those three are named in plain code spans rather than as intra-doc links on
+//! purpose: they exist only when the feature is on, and a link from this
+//! ungated paragraph is an unresolved-link warning in every default `cargo doc`.
+//!
 //! # Format
 //!
 //! YAML, with JSON parsing for free — YAML 1.2 is a superset of JSON, so one
@@ -37,6 +46,12 @@ use std::path::Path;
 
 use serde::Deserialize;
 use serde::Serialize;
+
+#[cfg(feature = "clap")]
+pub mod cli;
+
+#[cfg(feature = "clap")]
+pub use cli::{augment_args, clap_command, configured, from_matches, merge, resolve};
 
 /// The precedence rule, in one place.
 ///

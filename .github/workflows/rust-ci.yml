@@ -49,21 +49,34 @@ jobs:
       # `--all-features` cannot catch a feature that only builds alongside
       # another, which is the failure mode an undeclared `dep:` produces. So
       # check the whole powerset rather than a sample (#27, extended for
-      # `schema` in #28 and for `junit` in #34). `json-schema` implies `schema`,
-      # so some combinations resolve to the same set as others — they are run
-      # anyway, because what is being checked is that every combination a
-      # consumer can *write* compiles, not every set cargo can resolve.
-      # `default` and `--all-features` are the same set today and the steps
-      # above already cover them.
+      # `schema` in #28, `junit` in #34 and `clap` in #197). `json-schema`
+      # implies `schema`, so some combinations resolve to the same set as
+      # others — they are run anyway, because what is being checked is that
+      # every combination a consumer can *write* compiles, not every set cargo
+      # can resolve. `clap` is the first feature that is not in `default`, so
+      # `default` and `--all-features` are no longer the same set: the steps
+      # above cover `--all-features`, and the combination naming the other four
+      # below is `default`.
       #
       # The list is enumerated from FEATURES rather than written out, so adding
       # a feature grows the matrix by construction and cannot be half-extended:
-      # four features is sixteen combinations, and the count is printed so a
+      # five features is thirty-two combinations, and the count is printed so a
       # silently shrinking matrix is visible in the log.
+      #
+      # Growth is doubling, so it is worth writing down where the ceiling is.
+      # Measured on run 32429616067, the last `main` run before `clap`: this
+      # step was 7.8 min on ubuntu and 9.3 on macos for sixteen combinations —
+      # ~30-35s each — in a job totalling 10.1 and 12.1. Thirty-two puts the
+      # step at ~16-19 min and the job at ~18-21, which is why the job's
+      # `timeout-minutes` is unchanged at 45. A sixth feature would be ~37 min
+      # of powerset in a ~40 min job, past that headroom and near the 60-minute
+      # cap `python/tests/test_ci_timeouts.py` enforces on every job. That is
+      # the point at which this wants sharding across the job matrix rather
+      # than another entry in the array.
       - name: clippy and test each feature combination
         run: |
           set -eux
-          FEATURES=(evidence junit json-schema schema)
+          FEATURES=(evidence junit json-schema schema clap)
           total=$((1 << ${#FEATURES[@]}))
           echo "feature powerset: $total combinations"
           for mask in $(seq 0 $((total - 1))); do

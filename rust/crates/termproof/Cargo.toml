@@ -103,10 +103,10 @@ struct_pub_field_missing = "allow"
 workspace = true
 
 # Feature names carry a one-line description and the issue that justifies them
-# (docs/engineering-baseline.md §7). All four are default-on, so no consumer
-# sees a change by not asking for one. `evidence` and `json-schema` are from
-# #27: every consumer used to compile all 18 dependencies whether or not it
-# used them. `schema` is from #28, `junit` from #34.
+# (docs/engineering-baseline.md §7). The first four are default-on, so no
+# consumer sees a change by not asking for one. `evidence` and `json-schema`
+# are from #27: every consumer used to compile all 18 dependencies whether or
+# not it used them. `schema` is from #28, `junit` from #34, `clap` from #197.
 #
 # There is deliberately no `terminal`/`core` split. `terminal` is the base layer
 # the crate root is built on — `recipe`, `steps`, `runner`, `execution` and
@@ -159,6 +159,20 @@ json-schema = ["dep:jsonschema", "schema"]
 # the derive registers and will not compile without it.
 schema = ["dep:schemars"]
 
+# The `run_config::cli` layer: a `clap::Command` carrying the standard flags for
+# `RunConfig`, and the parse back into one with the `pick()` precedence applied
+# (#197).
+#
+# Off by default, unlike the other four, and the difference is deliberate. The
+# other four subtract from a shape that has always been published, so default-on
+# is what keeps them from being a break. This one adds a shape that has never
+# been published, so default-off is what keeps *it* from being a change: a
+# consumer that drives `RunConfig` from its own parser, or from a file alone,
+# does not compile `clap` for a layer it will not call. A consumer that wants it
+# names it, which is also the only way an opt-in dependency can be honest about
+# who is paying for it.
+clap = ["dep:clap"]
+
 # The union of what termproof-core, termproof-terminal and termproof-evidence
 # each declared, minus `ab_glyph`, which no code ever referenced (#27).
 # `tempfile` was a dev-dependency of termproof-terminal and a regular dependency
@@ -166,6 +180,7 @@ schema = ["dep:schemars"]
 [dependencies]
 avt = { workspace = true, optional = true }
 chrono.workspace = true
+clap = { workspace = true, optional = true }
 fancy-regex.workspace = true
 globset.workspace = true
 image = { workspace = true, optional = true }

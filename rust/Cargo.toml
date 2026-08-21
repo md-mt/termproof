@@ -233,5 +233,25 @@ thiserror = "2.0"
 avt = "0.16"
 chrono = "0.4"
 globset = "0.4"
-clap = { version = "4.5", features = ["derive"] }
+# Builder API only, so no `derive`. Neither crate that uses clap has a
+# `#[derive(Parser)]` in it — `termproof-cli` says so in its own module doc
+# ("without proc macros so the build does not require proc-macro2 build scripts
+# under sandbox") and `run_config::cli` is `Arg::new`/`ArgGroup`/`value_parser!`
+# throughout — so the feature was compiling `clap_derive` and `heck` for nobody.
+# Measured on `cargo tree -p termproof --no-default-features --features clap`:
+# 80 crates with it, 78 without, and the one it removes is a proc macro.
+# `syn`, `quote` and `proc-macro2` stay regardless — `serde` and `thiserror`
+# need them — so dropping `derive` is worth exactly those two crates, not the
+# whole proc-macro chain (#197).
+#
+# The rest of clap's defaults are deliberately kept. `default-features = false,
+# features = ["std"]` removes nine crates rather than two, and the extra seven
+# are not free: `render_help()` then returns the empty string, so every
+# `.help()` in `run_config::cli` is silently discarded, and errors degrade from
+# "the argument '--all' cannot be used with '--priority <PRIORITY>'" to "an
+# argument cannot be used with one or more of the other specified arguments".
+# This layer's whole product is a `Command` a consumer calls `get_matches()` on;
+# shipping one whose `--help` is blank to save seven crates is the wrong trade,
+# and the consumer cannot undo it from their side.
+clap = { version = "4.5" }
 termproof-plugin-protocol = { path = "crates/termproof-plugin-protocol", version = "0.4.0" }
