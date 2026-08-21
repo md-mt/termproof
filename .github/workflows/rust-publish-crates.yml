@@ -13,6 +13,14 @@
 # failed partway, re-run this workflow from the release; the publish step is
 # idempotent and will skip what already landed.
 #
+# That single gate is deliberate and is what makes the `crates-io` environment
+# approval hook below possible, so nothing here reaches for the tag instead.
+# The cost is that a tag with no release publishes nothing, silently. Both
+# paths that produce a tag therefore also produce a release —
+# rust-auto-release.yml creates both, and rust-release.yml creates the release
+# when a hand-pushed tag arrives without one — and rust-release.yml ends by
+# checking crates.io for the crates this workflow was supposed to upload.
+#
 # ## Why the upload is its own job
 #
 # The upload runs in the `crates-io` GitHub environment. Entering an

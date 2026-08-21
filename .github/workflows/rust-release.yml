@@ -40,6 +40,43 @@
 # the release to be created as a draft and published only after this build
 # succeeded. That is a change to publish-crates.yml's trigger contract, not to
 # this file, and it is not made here.
+#
+# ## A tag pushed by hand is a whole release on its own
+#
+# The Auto-release path is not the only way an `rs-v*` tag appears, and for a
+# long time it was the only one that worked. The attach job used to wait for a
+# release and fail when none arrived, which is exactly what a hand-pushed tag
+# produced — and the failure read as an attachment problem. It was not. The
+# crates publish triggers on a *published release*, so with no release there
+# was no upload to crates.io at all, and one red job among several green ones
+# was the entire signal that a release had silently not happened.
+#
+# So the attach job creates the release itself when the wait finds none. The
+# wait is what makes that safe: on the Auto-release path the release is already
+# there long before this job runs, the loop finds it, and nothing is created.
+#
+# That step must use RELEASE_TOKEN, for the reason rust-auto-release.yml's
+# header gives at length: a release created with the default `GITHUB_TOKEN`
+# does not start publish-crates.yml, and nothing can be re-run to fix it after
+# the fact. A missing token therefore fails this job rather than creating a
+# release that can never publish.
+#
+# One consequence is worth stating plainly, because publish-crates.yml's header
+# says that workflow cannot be hand-triggered into publishing and a reader will
+# generalise it. Dispatching *this* workflow against an `rs-v*` tag takes the
+# same path a tag push does, so it can create a release, and a release is what
+# publishes. That is the intended way to recover a tag whose release is
+# missing, and it is bounded by the same guards: a tag ref, a manifest at
+# exactly that version, no release already there, and the token. A dispatch on
+# a branch reaches none of it — the attach job is gated on the ref being a tag.
+#
+# ## The check at the end
+#
+# Everything above still only proves that the release *path* ran. The failure
+# worth designing against is quieter than a red job: a release that looks
+# finished while no crate shipped. The last job asks crates.io directly whether
+# every crate the publish plan names is there at this version, and fails naming
+# the ones that are not. See .github/scripts/rust/verify-published.sh.
 name: Release (Rust)
 
 on:
@@ -174,12 +211,24 @@ jobs:
     permissions:
       contents: write
     steps:
+      # Full history and tags. The notes rendered below cover the range from
+      # the previous release tag to this one, and neither the range nor the
+      # tags survive a shallow clone.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      # `publish-plan.py` and `release-decide.py` both read `cargo metadata`.
+      - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master (2026-08-05)
+        with:
+          toolchain: "1.96.0"
+
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           path: dist
           merge-multiple: true
 
       - name: Wait for the release to exist
+        id: wait
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
@@ -187,20 +236,92 @@ jobs:
         run: |
           # The tag push that started this build and the release creation are
           # two steps of one workflow, seconds apart, and this job is minutes
-          # behind — so the release is normally already there. It is not there
-          # when a tag was pushed by hand, and then this is a real failure
-          # rather than something to wait out: the archives stay downloadable
-          # as workflow artifacts, and re-running this job after creating the
-          # release will attach them.
+          # behind — so on the Auto-release path the release is already there
+          # and the first check finds it. The loop is what makes the next step
+          # a no-op on that path: by the time it has failed ten times over
+          # 150s, nothing else is going to create this release, and creating
+          # one cannot race the automation into a second.
           for attempt in $(seq 1 10); do
             if gh release view "$TAG" >/dev/null 2>&1; then
               echo "release $TAG exists (check $attempt)"
+              echo "exists=true" >> "$GITHUB_OUTPUT"
               exit 0
             fi
             sleep 15
           done
-          echo "::error::no GitHub release exists for tag '$TAG' after 150s, so there is nothing to attach the binaries to. They are on this run as workflow artifacts. Create the release, then re-run this job."
-          exit 1
+          echo "no GitHub release exists for tag '$TAG' after 150s — this tag was pushed by hand"
+          echo "exists=false" >> "$GITHUB_OUTPUT"
+
+      # Only reached for a hand-pushed tag. This is the step that makes that
+      # path a complete release rather than a build with nowhere to put its
+      # output: creating and publishing the release is also what triggers
+      # publish-crates.yml, which is the only thing that uploads to crates.io.
+      - name: Create the release the tag push did not
+        if: steps.wait.outputs.exists != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          # Not an optimisation. A release created with the default
+          # `GITHUB_TOKEN` does not start publish-crates.yml — GitHub
+          # suppresses those events — and that workflow uploads on
+          # `release: published` and nothing else, so no re-run could recover
+          # it. Failing here leaves a tag with no release, which is fixable.
+          if [ -z "$RELEASE_TOKEN" ]; then
+            echo "::error::the RELEASE_TOKEN secret is not set, so a release created here could never trigger the crates.io publish and no re-run would fix that. The archives are on this run as workflow artifacts. Add the secret (Contents: read and write), or create the release by hand and re-run this job."
+            exit 1
+          fi
+
+          # The same check publish-crates.yml makes on `release: published`,
+          # made before the release exists rather than after — a release this
+          # job creates and that workflow then refuses would publish nothing,
+          # which is the failure this whole path is here to remove.
+          VERSION="$(.github/scripts/rust/publish-plan.py | jq -r .version)"
+          if [ "$TAG" != "rs-v$VERSION" ]; then
+            echo "::error::tag '$TAG' does not match the workspace version '$VERSION' at this commit — expected 'rs-v$VERSION'. publish-crates.yml would refuse a release on this tag, so none is created. Delete the tag and re-cut it, or bump the version."
+            exit 1
+          fi
+
+          # `HEAD`, not `$TAG`, everywhere a revision is resolved. They are the
+          # same commit — this run was started by pushing that tag — but only
+          # one of them is a name that has to have been fetched, and a clone
+          # without tags turns the whole range into a `rev-parse` failure
+          # rather than into the fallback below. `HEAD^` for the same reason,
+          # and so `describe` looks strictly before this release.
+          #
+          # `--at` is what keeps the notes at the version being released: the
+          # deciding mode would derive the bump *after* it.
+          BASE="$(git describe --tags --abbrev=0 --match 'rs-v*.*.*' --match 'rs-baseline-v*.*.*' HEAD^ 2>/dev/null || true)"
+          if [ -n "$BASE" ]; then
+            echo "rendering notes for $BASE..$TAG"
+            .github/scripts/rust/release-decide.py --at "$VERSION" --from "$BASE" --to HEAD > decision.json
+          else
+            echo "no earlier release tag is reachable — rendering notes for the whole history"
+            .github/scripts/rust/release-decide.py --at "$VERSION" --no-auto-base --to HEAD > decision.json
+          fi
+          jq -r .notes decision.json > release-notes.md
+          cat release-notes.md
+
+          # `--verify-tag` refuses to invent a tag; this one is the ref that
+          # started the run, so it exists. A non-zero exit is treated as a
+          # question rather than a verdict for the same reason publish.sh does
+          # it: the losing side of a race is indistinguishable from a failure
+          # until you look at the result.
+          if ! gh release create "$TAG" --title "$TAG" --notes-file release-notes.md --verify-tag; then
+            if ! gh release view "$TAG" >/dev/null 2>&1; then
+              exit 1
+            fi
+            echo "::notice::release $TAG already existed by the time this ran — nothing was created"
+          fi
+
+          {
+            echo "### Created [$TAG](${{ github.server_url }}/${{ github.repository }}/releases/tag/$TAG)"
+            echo
+            echo "The tag was pushed without a release, so this run created one."
+            echo "Publishing it is what triggers the crates.io publish."
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Attach the archives and checksums
         env:
@@ -218,4 +339,92 @@ jobs:
             for f in dist/*.tar.gz.sha256; do
               echo "- \`$(cat "$f")\`"
             done
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # The last word on whether the release actually released anything. Every job
+  # above can be green while crates.io has received nothing — that is not a
+  # hypothetical, it is what happened the first time a tag was pushed by hand —
+  # so the path ends by asking the registry rather than by inferring from the
+  # colour of the jobs above it.
+  #
+  # It runs on both paths and on a re-run, because it is a question about the
+  # registry rather than about this run: once the crates are there the answer
+  # comes back in seconds.
+  #
+  # `!cancelled()` rather than the default, and that is the whole point of the
+  # job. `needs: attach` alone carries an implicit `success()`, which would
+  # skip this in exactly the states it exists to describe: a release created
+  # and then a failed upload leaves a red job named *Attach to release* beside
+  # a registry nobody looked at, which is the shape of the incident this
+  # workflow is being fixed for. A cancelled run is the one case with nothing
+  # to say — the release path did not finish and nobody claimed it did.
+  verify-crates:
+    name: Verify the crates published
+    needs: attach
+    if: ${{ !cancelled() && startsWith(github.ref, 'refs/tags/rs-v') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    permissions:
+      contents: read
+      # `gh release view` below, and `gh run list` for the failure report.
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master (2026-08-05)
+        with:
+          toolchain: "1.96.0"
+
+      # Ask the cheap question first. Polling the registry for forty minutes
+      # is only worth it when something is coming; with no release nothing is,
+      # because the publish triggers on nothing else. This is also what keeps
+      # the job fast when it runs after a failed build: seconds, and a message
+      # that names the consequence — a tag went out and shipped nothing —
+      # rather than leaving that to be inferred from a red job further up.
+      - name: A release exists for this tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            echo "::error::tag '$TAG' has no GitHub release, so no crate was published and none will be — the crates publish triggers on a published release and nothing else. Whatever failed above stopped the release from being created; fix it and re-run this workflow from the tag."
+            exit 1
+          fi
+          echo "release $TAG exists"
+
+      # The set comes from the plan, never from a list written here — the same
+      # property publish-crates.yml has, and for the same reason: a name
+      # written down is a name that goes stale the first time the publish set
+      # changes, and the failure mode is a check that passes over a crate
+      # nobody uploaded.
+      - name: Every crate the plan names is on crates.io
+        run: |
+          PLAN="$(.github/scripts/rust/publish-plan.py)"
+          ORDER="$(jq -r '.order | join(" ")' <<<"$PLAN")"
+          VERSION="$(jq -r .version <<<"$PLAN")"
+          export ORDER VERSION
+          .github/scripts/rust/verify-published.sh
+
+      # Which of the three ways this fails it was. The distinction is the whole
+      # point: "the publish workflow never ran" and "it ran and failed" look
+      # identical from the registry, and only the first one is invisible in the
+      # run list.
+      - name: What the crates publish did
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          {
+            echo "### No crates.io publish for \`$TAG\`"
+            echo
+            echo "Recent \`Publish crates (Rust)\` runs on a published release:"
+            echo
+            gh run list --workflow rust-publish-crates.yml --event release --limit 5 \
+              --json displayTitle,status,conclusion,createdAt,url \
+              --jq '.[] | "- \(.createdAt) \(.status)/\(.conclusion // "—") [\(.displayTitle)](\(.url))"' \
+              || echo "- (could not list runs)"
+            echo
+            echo "No run at all means the release was never published, or was published by an identity whose events do not start workflows."
           } >> "$GITHUB_STEP_SUMMARY"
