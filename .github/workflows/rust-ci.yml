@@ -33,12 +33,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
-    # 75, not 45, because the feature powerset doubled with `clap` (#197) and
-    # that step is most of the job. Measured locally on a warm cache at roughly
-    # 50 seconds per combination, so thirty-two is ~28 minutes before the other
-    # steps and before a cold CI build. The headroom is for the doubling, not a
-    # sign the job got slower per unit of work.
-    timeout-minutes: 75
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master (2026-08-05)
@@ -66,9 +61,18 @@ jobs:
       # The list is enumerated from FEATURES rather than written out, so adding
       # a feature grows the matrix by construction and cannot be half-extended:
       # five features is thirty-two combinations, and the count is printed so a
-      # silently shrinking matrix is visible in the log. Growth is doubling, so
-      # a sixth feature is the point at which this wants splitting across the
-      # job matrix rather than another entry in the array.
+      # silently shrinking matrix is visible in the log.
+      #
+      # Growth is doubling, so it is worth writing down where the ceiling is.
+      # Measured on run 32429616067, the last `main` run before `clap`: this
+      # step was 7.8 min on ubuntu and 9.3 on macos for sixteen combinations —
+      # ~30-35s each — in a job totalling 10.1 and 12.1. Thirty-two puts the
+      # step at ~16-19 min and the job at ~18-21, which is why the job's
+      # `timeout-minutes` is unchanged at 45. A sixth feature would be ~37 min
+      # of powerset in a ~40 min job, past that headroom and near the 60-minute
+      # cap `python/tests/test_ci_timeouts.py` enforces on every job. That is
+      # the point at which this wants sharding across the job matrix rather
+      # than another entry in the array.
       - name: clippy and test each feature combination
         run: |
           set -eux
