@@ -132,6 +132,20 @@ class TagPushCreatesItsOwnReleaseTest(unittest.TestCase):
         self.assertIn("--notes-file release-notes.md", create["run"])
         self.assertIn("--verify-tag", create["run"])
 
+    def test_revisions_resolve_through_head_rather_than_the_tag(self) -> None:
+        """A tag name is a revision only in a clone that fetched tags.
+
+        The step reached for `$TAG^{commit}` first. That is the same commit
+        HEAD already is — the tag push is what started the run — but in a clone
+        without tags it makes `rev-parse` fail outright, which turns what
+        should be the whole-history fallback into an error. The workflow's own
+        checkout does fetch tags; anything else running this shell need not.
+        """
+        create = _step(self.workflow, "attach", "Create the release the tag push did not")
+        self.assertNotIn("$TAG^", create["run"])
+        self.assertIn("--to HEAD", create["run"])
+        self.assertIn("HEAD^", create["run"])
+
     def test_the_attach_job_checks_out_deeply_enough_to_render_notes(self) -> None:
         checkout = next(
             step

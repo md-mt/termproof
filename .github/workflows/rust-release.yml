@@ -275,16 +275,22 @@ jobs:
             exit 1
           fi
 
-          # `$TAG^` so `describe` looks strictly before this release. `--at` is
-          # what keeps the notes at the version that is being released: the
+          # `HEAD`, not `$TAG`, everywhere a revision is resolved. They are the
+          # same commit — this run was started by pushing that tag — but only
+          # one of them is a name that has to have been fetched, and a clone
+          # without tags turns the whole range into a `rev-parse` failure
+          # rather than into the fallback below. `HEAD^` for the same reason,
+          # and so `describe` looks strictly before this release.
+          #
+          # `--at` is what keeps the notes at the version being released: the
           # deciding mode would derive the bump *after* it.
-          BASE="$(git describe --tags --abbrev=0 --match 'rs-v*.*.*' --match 'rs-baseline-v*.*.*' "$TAG^" 2>/dev/null || true)"
+          BASE="$(git describe --tags --abbrev=0 --match 'rs-v*.*.*' --match 'rs-baseline-v*.*.*' HEAD^ 2>/dev/null || true)"
           if [ -n "$BASE" ]; then
             echo "rendering notes for $BASE..$TAG"
-            .github/scripts/rust/release-decide.py --at "$VERSION" --from "$BASE" --to "$TAG^{commit}" > decision.json
+            .github/scripts/rust/release-decide.py --at "$VERSION" --from "$BASE" --to HEAD > decision.json
           else
             echo "no earlier release tag is reachable — rendering notes for the whole history"
-            .github/scripts/rust/release-decide.py --at "$VERSION" --no-auto-base --to "$TAG^{commit}" > decision.json
+            .github/scripts/rust/release-decide.py --at "$VERSION" --no-auto-base --to HEAD > decision.json
           fi
           jq -r .notes decision.json > release-notes.md
           cat release-notes.md
