@@ -145,6 +145,20 @@ a comment on each one that sits above the oldest workable version.
   `capture_text(label, screen, kind=CaptureKind.CHECKPOINT)`, so the Rust call
   spells out `CaptureKind::Checkpoint` where the Python one may omit it. The
   meaning, the ordering and the resulting manifest are identical.
+- `EvidenceCollector::record_session` — the five steps around a whole-session
+  video: save the live session's cast through the closure you pass, append the
+  captured checkpoints to it as held trailing frames, convert it through the
+  publisher's `with_video_converter`, upload it, and attach a `Recording` that
+  `publish` writes into the manifest. It returns nothing, because no step may
+  fail the run: each failure lands on the `Recording`'s `error` prefixed with
+  the step that produced it — `save cast`, `append checkpoint frames`,
+  `convert` or `upload`. A step runs only when the step before it produced what
+  it works on, so a failed save skips everything after it and **a failed
+  conversion is never uploaded**; a failed append is the one non-fatal case. A
+  step is not believed either: a closure that writes no cast, a converter that
+  returns a path it did not write, and an uploader that returns an empty string
+  are each recorded as that step failing, rather than reaching the manifest as
+  a recording that claims a video nobody can open.
 - `render_svg` / `render_by_extension` — plain screen text to an SVG, in
   default colours.
 - `ScreenshotRenderer` — an attributed grid to a PNG, with the colours the

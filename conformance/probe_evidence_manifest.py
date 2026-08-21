@@ -17,6 +17,21 @@ manifest agreeing about a recording's path is not agreeing about the recording,
 and once ``append_checkpoint_frames`` puts the evidence sequence on the end of
 one, the cast is the artifact a reviewer actually watches.
 
+The scenario also drives ``record_session`` down each of its outcomes, because
+the ``error`` it writes onto a ``Recording`` is a string in the manifest and
+has to be the *same* string on both sides — "which step failed" is only useful
+to a reader if it does not depend on which implementation produced the run.
+
+Two failures are deliberately left out, both because the two implementations
+word them differently and pinning either would make this harness certify a
+divergence. An **append that fails** takes its message from
+``append_checkpoint_frames`` itself (``empty cast file`` against ``<path> is
+empty: a cast has a header line``). An **upload that declines with a reason**
+takes its message from Rust's ``ArtifactUploader::last_error``, which Python's
+``UploaderLike`` has no counterpart for. ``no-url`` and ``blank-url`` therefore
+pin the *shared fallback*, not the shipped behaviour — see
+``conformance/README.md``. Each side covers the rest in its own unit tests.
+
 The scenario is not a corpus file, unlike the step and assertion harnesses.
 There is only one document shape to compare and it is built by calling an API
 rather than by replaying data, so the cases are the code below and the Rust
@@ -121,6 +136,77 @@ class _StubUploader:
         return f"https://example.invalid/{path.name}"
 
 
+class _BlankUploader:
+    """Returns an empty string, which is no URL.
+
+    A distinct scenario from :class:`_RefusingUploader` even though both produce
+    the same message: the two implementations reject the empty string in their
+    own code, so this is what stops one of them keeping it.
+    """
+
+    def upload(self, path: Path) -> str | None:
+        return ""
+
+
+class _RefusingUploader:
+    """Declines without saying why, which is all the Python protocol allows.
+
+    The Rust half's counterpart reports no ``last_error`` either, so both
+    implementations fall back on the same shared message.
+    """
+
+    def upload(self, path: Path) -> str | None:
+        return None
+
+
+class _StubConverter:
+    """Writes a fixed byte instead of shelling out to rsvg-convert and ffmpeg.
+
+    The Rust half is a real ``CastVideoConverter`` whose tool runner is stubbed,
+    which replays the cast and renders every frame before writing the same byte.
+    Neither the frame count nor the encoder reaches the manifest — the video
+    *path* and the file at it are what the two sides have to agree on.
+    """
+
+    def convert(self, cast_path: Path, video_path: Path | None = None) -> Path:
+        output = cast_path.with_suffix(".mp4") if video_path is None else video_path
+        output.write_text("mp4", encoding="utf-8")
+        return output
+
+
+class _BrokenConverter:
+    """Fails with a message neither language contributes to."""
+
+    def convert(self, cast_path: Path, video_path: Path | None = None) -> Path:
+        raise RuntimeError("encoder exploded")
+
+
+class _SilentConverter:
+    """Reports success and writes nothing.
+
+    The Rust half's counterpart is a tool runner whose every invocation exits
+    cleanly and produces no file, which is what a real ``ffmpeg`` misconfigured
+    for its output looks like. Both implementations have to refuse it, and to
+    refuse it with the same words.
+    """
+
+    def convert(self, cast_path: Path, video_path: Path | None = None) -> Path:
+        return cast_path.with_suffix(".mp4") if video_path is None else video_path
+
+
+def _save_base_cast(dest: Path) -> None:
+    dest.write_text(BASE_CAST, encoding="utf-8")
+
+
+def _refuse_to_save(dest: Path) -> None:
+    """Raises where the Rust half returns ``Err`` — the house pattern."""
+    raise RuntimeError("disk on fire")
+
+
+def _save_nothing(dest: Path) -> None:
+    """Reports success and writes no file, which is step 1 lying."""
+
+
 def build(directory: Path) -> tuple[dict[str, object], dict[str, str]]:
     collector = EvidenceCollector()
 
@@ -159,6 +245,60 @@ def build(directory: Path) -> tuple[dict[str, object], dict[str, str]]:
             error="video conversion failed",
         )
     )
+
+    # `record_session`, once per outcome. Every publisher writes into the same
+    # directory and differs only in the seam under test, so the recordings are
+    # numbered consecutively and their artifacts all land in `files`.
+    def publisher(**seams: object) -> EvidencePublisher:
+        return EvidencePublisher(
+            directory=directory,
+            identity=IDENTITY,
+            renderer=_StubRenderer(),
+            **seams,  # type: ignore[arg-type]
+        )
+
+    working = publisher(uploader=_StubUploader(), video_converter=_StubConverter())
+    # All five steps succeed: cast, appended evidence, video, URL.
+    collector.record_session("recorded", working, _save_base_cast)
+    # Step 1 fails, so nothing downstream runs.
+    collector.record_session("unsaveable", working, _refuse_to_save)
+    # Step 1 fails quietly, which is still step 1.
+    collector.record_session("silent-save", working, _save_nothing)
+    # Step 3 has nothing to convert with.
+    collector.record_session(
+        "no-converter", publisher(uploader=_StubUploader()), _save_base_cast
+    )
+    # Step 3 fails, so step 4 is not attempted: no URL, and no upload error.
+    collector.record_session(
+        "bad-encode",
+        publisher(uploader=_StubUploader(), video_converter=_BrokenConverter()),
+        _save_base_cast,
+    )
+    # Step 3 reports success and writes nothing, which is step 3 lying -- the
+    # same guard as `silent-save`, one step further down.
+    collector.record_session(
+        "silent-encode",
+        publisher(uploader=_StubUploader(), video_converter=_SilentConverter()),
+        _save_base_cast,
+    )
+    # Step 4 fails, which costs the URL and not the video.
+    collector.record_session(
+        "no-url",
+        publisher(uploader=_RefusingUploader(), video_converter=_StubConverter()),
+        _save_base_cast,
+    )
+    # Step 4 returning an empty string, which is no URL.
+    collector.record_session(
+        "blank-url",
+        publisher(uploader=_BlankUploader(), video_converter=_StubConverter()),
+        _save_base_cast,
+    )
+    # An empty label, the one input on which the two filename schemes could
+    # part: Rust builds the stem through `sanitize_component`, which substitutes
+    # "default" for a component that sanitises to nothing, and Python's
+    # `_sanitize` does not. `_recording_file_stem` applies the same fallback, and
+    # this is what holds it there.
+    collector.record_session("", working, _save_base_cast)
 
     manifest = collector.publish(
         EvidencePublisher(

@@ -70,6 +70,55 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
   same rule; the difference between the two shapes is that a list weighs
   duplicate names once each and a mapping folds them into one entry.
 
+- **`termproof.collector.EvidenceCollector.record_session`:** the wiring 0.4.0
+  left out. `Recording`, `attach_recording`, the cast-to-video backends and the
+  upload seam all existed; nothing joined them, so every consumer that wanted a
+  video of a whole run wrote the same five-step sequence itself. This is that
+  sequence: save the live session's cast through a caller-supplied callable,
+  append the captured checkpoints to it with `append_checkpoint_frames`,
+  convert it to a video, upload the video, and attach a `Recording` that
+  `publish` then writes into the manifest.
+
+  **The error handling is the part worth having upstream, and it is a stated
+  rule rather than an accident of control flow: a step runs only when the step
+  before it produced the thing it works on.** A cast that could not be saved
+  leaves nothing to append to, convert or upload, so steps 2–4 are skipped; an
+  append that failed leaves the cast on disk and still convertible, so it is the
+  one non-fatal step; **a conversion that failed leaves nothing to upload, so no
+  upload is attempted** — reporting a store error for a video that was never
+  encoded is exactly what two independent consumer implementations got wrong.
+  No failure a step *reports* raises: a recording is evidence about a run, not
+  part of its verdict. Every failure instead lands on the `Recording`'s `error`,
+  prefixed with the name of the step that produced it — `save cast`,
+  `append checkpoint frames`, `convert` or `upload` — and two failures in one
+  call are joined with `"; "` so neither is lost. The promise stops where
+  `Exception` does: a `KeyboardInterrupt` or `SystemExit` from one of the three
+  caller-supplied seams propagates and the recording is lost rather than
+  degraded, which the docstring now says outright.
+
+  **A step is not believed, it is checked.** Each of the three seams is
+  caller-supplied, and the outcome worse than any recorded failure is a
+  `Recording` that reports none — no `error`, a `video` that is not on disk, and
+  a `url` for it. So a `save_cast` that returns having written no file, a
+  converter that returns a path it did not write, and an uploader that returns
+  an empty string are each recorded as *that* step failing
+  (`convert: reported success but wrote no file at <path>`, and so on), rather
+  than left for the next step to trip over and take the blame.
+
+- **`termproof.collector.EvidencePublisher.video_converter`**, beside the
+  existing `renderer` and `uploader`, with `termproof.collector.VideoConverterLike`
+  as its protocol. Optional rather than defaulted, because a converter is two
+  more binaries on the host; a `record_session` against a publisher without one
+  records that as the `convert` step failing, since converting is what it was
+  called to do.
+
+- **`termproof.cast_video.RsvgFfmpegBackend.convert`** and `output_path_for`,
+  which satisfy that protocol: `render` is the `VideoBackend` method and is
+  unchanged, and `convert` supplies the two things it makes a caller invent — an
+  output path and a frame rate. The rate is the configured
+  `evidence.video.fps`, or `DEFAULT_FPS` when the backend was not built from a
+  config, which is the rate Rust's `CastVideoConverter` defaults to.
+
 - **`termproof.cast_video.append_checkpoint_frames`:** appends the captured
   checkpoint screens to a cast as held trailing frames, so a recording ends by
   replaying the evidence sequence instead of stopping on whatever the last
@@ -217,6 +266,20 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
   case is `1.0` here too, and is documented on `RunResult::score` — the field
   the number ends up in — rather than only on the function that computes it.
 
+- **`evidence::collector::EvidenceCollector::record_session`:** the same five
+  steps with the same semantics and the same rule about which of them run after
+  a failure, taking `save_cast: FnOnce(&Path) -> Result<(), String>` where
+  Python takes a callable that raises. It returns nothing rather than a
+  `Result`, for the reason nothing on the Python side raises: no failure a step
+  reports may fail the run. `&mut self`, because it appends a `Recording`;
+  `publish` stays `&self`. The four step names it prefixes an error with are the
+  same four strings both implementations write, which the conformance pair now
+  compares.
+
+- `with_video_converter`, beside the existing `with_renderer` and
+  `with_uploader` and in the same builder style. The field it sets is the
+  breaking part above.
+
 - **`evidence::cast_video::append_checkpoint_frames`:** the same capability with
   the same semantics, taking `hold_seconds: Option<f64>` where Python takes a
   defaulted keyword and returning `Err` where Python raises `ValueError`. The
@@ -253,6 +316,60 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
   status quo rather than changing it. Giving `SvgMetrics` a raster floor to
   match is worth doing and is deliberately not done here — it would change what
   Rust renders, in a release that changes no other Rust rendering behaviour.
+
+### Rust — Changed (breaking)
+
+- **`evidence::collector::EvidencePublisher` gained a fifth public field,
+  `video_converter: Option<CastVideoConverter>`, which stops the struct being
+  constructible by literal.** Every field of `EvidencePublisher` is `pub` and
+  the struct is not `#[non_exhaustive]`, so an external crate writing
+  `EvidencePublisher { dir, identity, renderer, uploader }` no longer compiles;
+  `cargo semver-checks` reports it as `constructible_struct_adds_field`. Nothing
+  else about the type moved — the four existing fields keep their names, types
+  and meanings, and `EvidencePublisher::new` plus the `with_*` builders
+  (`with_renderer`, `with_uploader`, and the new `with_video_converter`) compile
+  unchanged.
+
+  **To fix a literal, build through the constructor**, which is what every
+  in-tree caller and every doc example already does:
+
+  ```rust
+  // was
+  let publisher = EvidencePublisher { dir, identity, renderer, uploader: Some(u) };
+  // now
+  let publisher = EvidencePublisher::new(dir, identity)
+      .with_renderer(renderer)
+      .with_uploader(u);
+  ```
+
+  Filed as breaking rather than as an addition because the pre-1.0 rule in this
+  file's preamble is about what a consumer's source does, not about what the
+  crate meant to offer. The seam had to hang somewhere, and the alternative
+  shape — passing the converter to `record_session` instead of the publisher —
+  would have avoided the break at the cost of putting one of the publisher's
+  three seams somewhere other than the publisher. That trade is worth stating;
+  it is not free either way.
+
+  **The version does not move for it.** The pre-1.0 rule above says a breaking
+  change bumps the minor digit; the decision on [#196](https://github.com/md-mt/termproof/pull/196)
+  is that termproof stays on 0.4.x and this break is waived instead. So
+  `constructible_struct_adds_field` is set to `allow` in
+  `[package.metadata.cargo-semver-checks.lints]` in
+  `rust/crates/termproof/Cargo.toml` — the tool's own scoped mechanism, one
+  lint, rather than a version bump or a disabled CI job. **This entry is not
+  rewritten to match:** a waiver decides what the version does about a break,
+  not whether the break happened, and a consumer whose literal stopped
+  compiling needs the paragraphs above whatever the digit says.
+
+  The waiver is scoped in two directions, because at lint granularity it would
+  otherwise also cover field additions nobody has decided about:
+  `every_public_field_of_the_publisher_is_accounted_for` builds
+  `EvidencePublisher` from an exhaustive literal, so a sixth field fails to
+  compile, and
+  `the_semver_waiver_is_scoped_to_the_release_it_was_granted_for` fails the
+  build if the version leaves 0.4.x while the waiver is still in place. The
+  release checklist in `rust/docs/publishing.md` now says to read the waiver
+  list before reading the green check.
 
 ## [0.4.0] — 2026-08-19
 

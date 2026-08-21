@@ -432,15 +432,69 @@ base of `0.5000005` — which is what a Rust-recorded cast ends on, since
 `CastRecorder` writes `as_secs_f64()` unrounded — separates them at three of the
 eight appended frames.
 
+The same reasoning brought `record_session` in. Its outcome is a string in the
+manifest — the `error` field of a `Recording`, prefixed with the name of the
+step that failed — and "which step failed" is only useful to a reader if it does
+not depend on which implementation produced the run. Each half drives it once
+per outcome, over publishers that differ only in the seam under test:
+
+| recording | what it pins |
+|---|---|
+| `recorded` | all five steps succeed: the cast, the evidence appended to it, the video, the URL |
+| `unsaveable` | step 1 refusing — Python raises, Rust returns `Err`, both write `save cast: disk on fire` |
+| `silent-save` | step 1 reporting success and writing nothing, which is still step 1 |
+| `no-converter` | a publisher with no video converter, which is the `convert` step failing |
+| `bad-encode` | a conversion that fails, and the upload that must not follow it |
+| `silent-encode` | step 3 reporting success and writing nothing — the `silent-save` guard, one step down |
+| `no-url` | an upload that declines, which costs the URL and not the video |
+| `blank-url` | an upload that returns `""`, which both sides have to reject rather than record |
+| *(empty label)* | the one input on which the two filename schemes could part |
+
+The recordings' own casts and videos land in the publish directory, so they are
+compared as files too, not only as paths.
+
+The empty-label case is there because a recording's `cast` and `video` are
+strings in the manifest and the two implementations build them differently at
+exactly one input: Rust goes through `store::sanitize_component`, which
+substitutes `default` for a component that sanitises to nothing, and Python's
+`_sanitize` returns `""`. `_recording_file_stem` applies the same fallback so
+the two agree, and this case is what holds it there. `CapturedStep.file_stem`
+still differs the same way for the same input — pre-existing, not driven by this
+scenario, and listed under "outside" below.
+
+Two failures are deliberately absent:
+
+- **An append that fails.** Its message comes from `append_checkpoint_frames`,
+  which words its complaints differently in the two languages — `empty cast
+  file` against `<path> is empty: a cast has a header line` — so recording it
+  here would freeze a divergence in the corpus rather than check a shared
+  surface. Each implementation covers it in its own unit tests.
+- **An upload that declines *with a reason*.** Rust reads
+  `ArtifactUploader::last_error()`; Python's `UploaderLike` has no such
+  accessor, so a Python uploader says why by raising. `no-url` and `blank-url`
+  therefore pin the *shared fallback* — `upload: uploader returned no URL`,
+  emitted when there is no reason to be had — and not the shipped behaviour:
+  `FallbackUploader`,
+  the only non-test `ArtifactUploader` in the crate, sets `last_error` on every
+  failure, so in practice Rust writes `upload: all uploaders returned no URL`
+  where Python writes `upload: uploader returned no URL`. That disagreement is
+  real and is recorded here rather than in the corpus, because pinning it would
+  make the harness certify a divergence.
+
 ## What is deliberately neutralised
 
-Two things in the scenario are properties of the machine rather than of either
+Three things in the scenario are properties of the machine rather than of either
 implementation, and both halves handle them the same way:
 
 - **The rasteriser.** `ScreenshotRenderer` shells out to `rsvg-convert`, so on a
   host without it every step would record a render error whose text belongs to
   the operating system. Both halves stub the tool and write a fixed byte, so a
   screenshot is recorded on every host.
+- **The video encoder.** Rust's `CastVideoConverter` shells out to
+  `rsvg-convert` and `ffmpeg`; the Rust half stubs the tool runner and the
+  Python half stands in a converter that writes the same fixed byte. Neither the
+  frame count nor the encoder reaches the manifest — the video path and the file
+  at it are what have to agree.
 - **The publish directory**, which is a fresh temporary directory. Both halves
   substitute it for `@DIR` before comparing.
 

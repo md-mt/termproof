@@ -70,12 +70,25 @@
 //! A session's raw output is the whole log so far rather than the delta, so a
 //! copy per checkpoint is quadratic in the length of the run and every copy
 //! but the last is a prefix of a later one.
+//!
+//! # A whole-session recording is five steps, and four of them can fail
+//!
+//! [`record_session`](EvidenceCollector::record_session) is the wiring between
+//! the pieces above: it saves the live session's cast through a caller-supplied
+//! closure, appends the captured checkpoints to it with
+//! [`append_checkpoint_frames`], converts it to a video, uploads the video, and
+//! records the outcome on a [`Recording`]. Every consumer that needed a video
+//! of the whole run wrote that sequence itself, and what they got wrong was
+//! never the happy path — it was which step is allowed to fail, and what the
+//! run is told when one does. See
+//! [`record_session`](EvidenceCollector::record_session) for the rule.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
+use crate::evidence::cast_video::{append_checkpoint_frames, CastVideoConverter};
 use crate::evidence::dedup::Deduper;
 use crate::evidence::screenshot::ScreenshotRenderer;
 use crate::evidence::uploader::ArtifactUploader;
@@ -94,6 +107,25 @@ pub const MANIFEST_FILE: &str = "evidence.json";
 
 /// Longest label fragment allowed in a generated filename.
 const MAX_LABEL_IN_FILENAME: usize = 40;
+
+/// Names of the four fallible steps of
+/// [`record_session`](EvidenceCollector::record_session), as they appear at the
+/// front of a [`Recording::error`].
+///
+/// Spelled once each, and asserted literally in the tests, because "which step
+/// failed" is the whole point of the field: a report that says only that
+/// something went wrong sends a reader back to the machine that produced it.
+/// The Python implementation writes the same four strings.
+const STEP_SAVE_CAST: &str = "save cast";
+const STEP_APPEND_FRAMES: &str = "append checkpoint frames";
+const STEP_CONVERT: &str = "convert";
+const STEP_UPLOAD: &str = "upload";
+
+/// Step 3's failure when the publisher was never given a converter.
+const NO_VIDEO_CONVERTER: &str = "no video converter configured";
+
+/// Step 4's failure when the uploader declined without saying why.
+const NO_URL: &str = "uploader returned no URL";
 
 /// Whether a capture should carry the raw output log with it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -394,6 +426,202 @@ impl EvidenceCollector {
         self.recordings.push(recording);
     }
 
+    /// Save the session's cast, derive a video from it, upload it, and record
+    /// the outcome.
+    ///
+    /// The five steps, in order:
+    ///
+    /// 1. write the live session's cast, by calling `save_cast` with the path
+    ///    to write to — the collector picks the path so the cast lands beside
+    ///    the stills it belongs with;
+    /// 2. append the captured checkpoints to that cast as held trailing frames,
+    ///    through [`append_checkpoint_frames`];
+    /// 3. convert the cast to a video, through the publisher's
+    ///    [`video_converter`](EvidencePublisher::video_converter);
+    /// 4. upload the video, through the publisher's
+    ///    [`uploader`](EvidencePublisher::uploader);
+    /// 5. attach a [`Recording`] describing what came of all that, which
+    ///    [`publish`](Self::publish) then writes into the manifest.
+    ///
+    /// `&mut self` because it appends that recording; [`publish`](Self::publish)
+    /// stays `&self`.
+    ///
+    /// # No failure fails the run
+    ///
+    /// There is no `Result` here on purpose. A recording is evidence *about* a
+    /// run, not part of its verdict, so a missing video degrades the report and
+    /// nothing else. Every failure instead lands on the `Recording`, prefixed
+    /// with the name of the step that produced it — `save cast`,
+    /// `append checkpoint frames`, `convert` or `upload` — and reaches the
+    /// report from there. Two failures in one call are joined with `"; "`, so
+    /// neither is lost to the other.
+    ///
+    /// Step 5 is the only one that cannot fail: it appends to a `Vec`.
+    ///
+    /// # Which later steps run after a failure
+    ///
+    /// **A step runs only when the step before it produced the thing it works
+    /// on.** That is the whole rule, and it decides every case:
+    ///
+    /// | step that failed | what still runs | why |
+    /// |---|---|---|
+    /// | 1, save cast | nothing | there is no cast to append to, convert or upload |
+    /// | 2, append frames | 3 and 4 | the cast is still on disk and still convertible; it just ends on the session instead of on the evidence |
+    /// | 3, convert | nothing after it | there is no video to upload |
+    /// | 4, upload | — | it is last; `video` is still recorded, only `url` is missing |
+    ///
+    /// The case worth naming is the one a hand-written version gets wrong:
+    /// **an upload is never attempted after a failed conversion.** Uploading
+    /// the path a conversion did not produce is how a run ends up reporting a
+    /// store error for a video that was never encoded.
+    ///
+    /// A publisher with no uploader is not a failure — it is a publisher that
+    /// was not asked to upload, exactly as in [`publish`](Self::publish). A
+    /// publisher with no *converter* is a failure, because converting is what
+    /// this method was called to do.
+    ///
+    /// # A step is not believed, it is checked
+    ///
+    /// Every step here is a caller-supplied seam, and the outcome worse than
+    /// any recorded failure is a `Recording` that reports none: no `error`, a
+    /// `video` that is not on disk, and a `url` for it. So each step that
+    /// claims to have produced something is asked for the thing:
+    ///
+    /// - step 1 reporting `Ok(())` with no file at the path is
+    ///   `save cast: reported success but wrote no file at <path>`;
+    /// - step 3 returning a path it did not write is
+    ///   `convert: reported success but wrote no file at <path>`;
+    /// - step 4 returning an empty string is treated as having returned
+    ///   nothing, because a `url` of `""` is a link no reader can follow.
+    ///
+    /// In each case the step that lied is the one named, rather than leaving
+    /// the next step to trip over the absence and take the blame. Step 2
+    /// produces nothing to check — it edits the cast in place — and step 5
+    /// appends to a `Vec`.
+    ///
+    /// # `save_cast`
+    ///
+    /// Returns `Ok(())` having written a cast to the path it was handed, or
+    /// `Err` describing why it could not.
+    ///
+    /// # What *can* still escape
+    ///
+    /// "No failure fails the run" is about failures the seams report. It is not
+    /// a catch-all: a **panic** in `save_cast`, in the converter or in the
+    /// uploader unwinds through this method like any other, and because the
+    /// `Recording` is attached at the end, an unwind loses it rather than
+    /// degrading it. That is deliberate — a panic is not a failed step, it is a
+    /// broken program — but it is the boundary of the promise, and the Python
+    /// implementation draws it in the same place by catching `Exception` and
+    /// not `BaseException`.
+    ///
+    /// ```no_run
+    /// # use termproof::evidence::collector::{EvidenceCollector, EvidencePublisher, RunIdentity};
+    /// # use termproof::evidence::cast_video::CastVideoConverter;
+    /// # let mut evidence = EvidenceCollector::new();
+    /// # let identity = RunIdentity::new("login", "default", "run-1");
+    /// # let live_cast = std::path::PathBuf::from("/tmp/session.cast");
+    /// let mut publisher = EvidencePublisher::new("/tmp/run-1/evidence", identity)
+    ///     .with_video_converter(CastVideoConverter::new());
+    ///
+    /// evidence.record_session("full-session", &mut publisher, |dest| {
+    ///     std::fs::copy(&live_cast, dest).map(|_| ()).map_err(|e| e.to_string())
+    /// });
+    /// let manifest = evidence.publish(&mut publisher).expect("published");
+    /// ```
+    pub fn record_session<F>(
+        &mut self,
+        label: &str,
+        publisher: &mut EvidencePublisher,
+        save_cast: F,
+    ) where
+        F: FnOnce(&Path) -> Result<(), String>,
+    {
+        let stem = recording_file_stem(self.recordings.len(), label);
+        let cast_path = publisher.dir.join(format!("{stem}.cast"));
+        let mut recording = Recording::new(label, path_string(&cast_path));
+        let mut errors: Vec<String> = Vec::new();
+
+        // 1. Write the cast. The directory is created here rather than left to
+        //    the closure: the collector chose the path, so the collector owes
+        //    it somewhere to be written.
+        let saved = std::fs::create_dir_all(&publisher.dir)
+            .map_err(|e| e.to_string())
+            .and_then(|()| save_cast(&cast_path))
+            .and_then(|()| {
+                if cast_path.is_file() {
+                    Ok(())
+                } else {
+                    Err(format!(
+                        "reported success but wrote no file at {}",
+                        path_string(&cast_path)
+                    ))
+                }
+            });
+        if let Err(message) = saved {
+            recording.error = Some(format!("{STEP_SAVE_CAST}: {message}"));
+            self.recordings.push(recording);
+            return;
+        }
+
+        // 2. Put the evidence sequence on the end of it. Non-fatal: the cast is
+        //    on disk either way, and a recording that stops on the session is
+        //    worth more than no recording at all.
+        let cast_string = path_string(&cast_path);
+        if let Err(message) = append_checkpoint_frames(&cast_string, &self.steps, None) {
+            errors.push(format!("{STEP_APPEND_FRAMES}: {message}"));
+        }
+
+        // 3. Encode it, and check it. A converter that returns a path it did
+        //    not write is step 3 lying in exactly the way a `save_cast` that
+        //    writes nothing is step 1 lying; taken on trust it produces the one
+        //    outcome worse than a recorded failure, a `Recording` with no error,
+        //    a video that is not there and a URL for it.
+        let video_path = path_string(&publisher.dir.join(format!("{stem}.mp4")));
+        let converted = match &publisher.video_converter {
+            Some(converter) => {
+                converter
+                    .convert(&cast_string, Some(&video_path))
+                    .and_then(|video| {
+                        if Path::new(&video).is_file() {
+                            Ok(video)
+                        } else {
+                            Err(format!("reported success but wrote no file at {video}"))
+                        }
+                    })
+            }
+            None => Err(NO_VIDEO_CONVERTER.to_string()),
+        };
+        match converted {
+            Ok(video) => {
+                recording.video = Some(video.clone());
+                // 4. Share it. Only reachable with a video in hand.
+                if let Some(uploader) = publisher.uploader.as_mut() {
+                    // An empty URL is no URL, the same scepticism `last_error`
+                    // already gets below: `url: ""` on a recording with no
+                    // error claims a link a reader cannot follow.
+                    match uploader.upload(&video).filter(|url| !url.is_empty()) {
+                        Some(url) => recording.url = Some(url),
+                        None => {
+                            let detail = uploader
+                                .last_error()
+                                .filter(|e| !e.is_empty())
+                                .unwrap_or(NO_URL);
+                            errors.push(format!("{STEP_UPLOAD}: {detail}"));
+                        }
+                    }
+                }
+            }
+            Err(message) => errors.push(format!("{STEP_CONVERT}: {message}")),
+        }
+
+        // 5. Record what happened, including which step it happened in.
+        if !errors.is_empty() {
+            recording.error = Some(errors.join("; "));
+        }
+        self.recordings.push(recording);
+    }
+
     /// The attached recordings, in the order they were attached.
     pub fn recordings(&self) -> &[Recording] {
         &self.recordings
@@ -513,6 +741,16 @@ impl EvidenceCollector {
     }
 }
 
+/// Filename stem shared by a recording's cast and video.
+///
+/// Numbered like [`CapturedStep::file_stem`] and for the same reason: labels are
+/// caller-supplied and may repeat, and two recordings called `full-session`
+/// must not overwrite each other's cast.
+fn recording_file_stem(index: usize, label: &str) -> String {
+    let label: String = label.chars().take(MAX_LABEL_IN_FILENAME).collect();
+    format!("recording-{:02}-{}", index, sanitize_component(&label))
+}
+
 /// Which run a manifest belongs to.
 ///
 /// Evidence sits beside [`RunResult`] rather than inside it, so nothing about
@@ -582,6 +820,17 @@ pub struct EvidencePublisher {
     /// Optional upload seam. Uploads are best-effort: a failure leaves the
     /// step's `url` empty rather than failing the publish.
     pub uploader: Option<Box<dyn ArtifactUploader>>,
+    /// Optional cast-to-video seam, used by
+    /// [`EvidenceCollector::record_session`] and by nothing else —
+    /// [`publish`](EvidenceCollector::publish) renders stills and does not
+    /// encode.
+    ///
+    /// Optional rather than defaulted because a converter is two more binaries
+    /// on the host (`rsvg-convert` and `ffmpeg`), and a publisher that is only
+    /// ever going to write stills should not imply them. A `record_session`
+    /// against a publisher without one records that as the `convert` step
+    /// failing.
+    pub video_converter: Option<CastVideoConverter>,
 }
 
 impl std::fmt::Debug for EvidencePublisher {
@@ -590,6 +839,7 @@ impl std::fmt::Debug for EvidencePublisher {
             .field("dir", &self.dir)
             .field("identity", &self.identity)
             .field("uploader", &self.uploader.is_some())
+            .field("video_converter", &self.video_converter.is_some())
             .finish()
     }
 }
@@ -603,6 +853,7 @@ impl EvidencePublisher {
             identity,
             renderer: ScreenshotRenderer::new(),
             uploader: None,
+            video_converter: None,
         }
     }
 
@@ -615,6 +866,15 @@ impl EvidencePublisher {
     /// Upload every rendered screenshot through `uploader`.
     pub fn with_uploader(mut self, uploader: Box<dyn ArtifactUploader>) -> Self {
         self.uploader = Some(uploader);
+        self
+    }
+
+    /// Encode session recordings through `converter`.
+    ///
+    /// Needed by [`EvidenceCollector::record_session`]; nothing else consults
+    /// it.
+    pub fn with_video_converter(mut self, converter: CastVideoConverter) -> Self {
+        self.video_converter = Some(converter);
         self
     }
 
@@ -1053,6 +1313,463 @@ mod tests {
             format!("{recording:?}"),
             r#"Recording { label: "full-session", cast: "/tmp/s.cast", video: Some("/tmp/s.mp4"), url: Some("https://x/v"), error: None }"#
         );
+    }
+
+    // -- record_session ------------------------------------------------------
+
+    /// A cast with one event, the shape `save_cast` is expected to produce.
+    const A_CAST: &str = "{\"version\":2,\"width\":10,\"height\":3}\n[0.5,\"o\",\"live\"]\n";
+
+    /// Writes `A_CAST` and reports success, the way a real `save_cast` would.
+    fn save_a_cast(dest: &Path) -> Result<(), String> {
+        std::fs::write(dest, A_CAST).map_err(|e| e.to_string())
+    }
+
+    /// A converter whose tools write a fixed byte instead of running.
+    ///
+    /// `convert` still replays the cast and renders every frame, so this
+    /// exercises the real code up to the two `Command` invocations — which is
+    /// as far as a test can go without `rsvg-convert` and `ffmpeg` installed.
+    fn stub_converter() -> CastVideoConverter {
+        CastVideoConverter::with_runner(Box::new(|exe, args, _| {
+            let (path, bytes): (&String, &[u8]) = if exe.ends_with("ffmpeg") {
+                (args.last().ok_or("stub: no output")?, b"mp4")
+            } else {
+                let at = args
+                    .iter()
+                    .position(|a| a == "--output")
+                    .ok_or("stub: no --output")?;
+                (args.get(at + 1).ok_or("stub: no output")?, b"png")
+            };
+            std::fs::write(path, bytes).map_err(|e| e.to_string())
+        }))
+    }
+
+    /// A converter that cannot encode anything.
+    fn broken_converter() -> CastVideoConverter {
+        CastVideoConverter::with_runner(Box::new(|_, _, _| Err("encoder exploded".to_string())))
+    }
+
+    /// A converter whose tools all report success and write nothing.
+    ///
+    /// The plausible shape of a lying converter, not a contrived one: an
+    /// `ffmpeg` that exits 0 without producing its output leaves `convert`
+    /// returning `Ok(path)` for a path that does not exist, and
+    /// `CastVideoConverter::with_runner` is public precisely so a caller can
+    /// substitute its own tools.
+    fn silent_converter() -> CastVideoConverter {
+        CastVideoConverter::with_runner(Box::new(|_, _, _| Ok(())))
+    }
+
+    /// An uploader that counts what it was asked to upload.
+    struct CountingUploader(Arc<Mutex<Vec<String>>>);
+
+    impl ArtifactUploader for CountingUploader {
+        fn upload(&mut self, path: &str) -> Option<String> {
+            self.0.lock().expect("poisoned").push(path.to_string());
+            Some("https://example/video".to_string())
+        }
+        fn last_error(&self) -> Option<&str> {
+            None
+        }
+    }
+
+    fn one_capture() -> EvidenceCollector {
+        let mut collector = EvidenceCollector::new();
+        collector.capture("only", &mut session("screen text"));
+        collector
+    }
+
+    #[test]
+    fn every_public_field_of_the_publisher_is_accounted_for() {
+        // Half of what the waived `constructible_struct_adds_field` lint bought.
+        //
+        // `EvidencePublisher` is exhaustively constructible — every field `pub`,
+        // no `#[non_exhaustive]` — and adding `video_converter` broke external
+        // literals. `Cargo.toml` waives the lint that says so, on the captain's
+        // decision that 0.4.x stands; waiving it crate-wide is the only
+        // granularity cargo-semver-checks offers, so this recovers the cover for
+        // the struct the waiver was granted for.
+        //
+        // The assertions are incidental. **The exhaustive literal is the test**:
+        // a sixth field stops this compiling, so the struct cannot grow one
+        // without someone deciding to, which is exactly what the lint was for.
+        let publisher = EvidencePublisher {
+            dir: PathBuf::from("/tmp/evidence"),
+            identity: identity(),
+            renderer: ScreenshotRenderer::new(),
+            uploader: None,
+            video_converter: None,
+        };
+        assert_eq!(publisher.dir, PathBuf::from("/tmp/evidence"));
+        assert!(publisher.uploader.is_none());
+        assert!(publisher.video_converter.is_none());
+    }
+
+    #[test]
+    fn the_semver_waiver_is_scoped_to_the_release_it_was_granted_for() {
+        // The other half: the waiver is a decision about *this* release line,
+        // not a permanent exemption. It was granted on the reasoning that
+        // termproof stays on 0.4.x; the moment the version leaves 0.4.x that
+        // reasoning has expired and the waiver has to be re-decided rather than
+        // carried along, so this fails the build instead of letting it ride.
+        //
+        // Matched on the lint name alone: `cargo package` normalises the
+        // manifest, so the spacing around the value is not ours to rely on.
+        let manifest = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/Cargo.toml"));
+        let waived = manifest.contains("constructible_struct_adds_field");
+        let version = env!("CARGO_PKG_VERSION");
+        assert!(
+            !waived || version.starts_with("0.4."),
+            "the constructible_struct_adds_field waiver in Cargo.toml was granted \
+             for 0.4.x and this crate is {version}. Re-decide it: either the break \
+             is now carried by the version bump and the waiver, its comment and \
+             `every_public_field_of_the_publisher_is_accounted_for` all go, or it \
+             is re-granted for the new line and this test moves with it."
+        );
+    }
+
+    #[test]
+    fn record_session_runs_the_five_steps_in_order() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let uploaded = Arc::new(Mutex::new(Vec::new()));
+        let mut publisher = publisher(dir.path())
+            .with_video_converter(stub_converter())
+            .with_uploader(Box::new(CountingUploader(uploaded.clone())));
+
+        let mut collector = one_capture();
+        collector.record_session("full-session", &mut publisher, save_a_cast);
+
+        let recording = &collector.recordings()[0];
+        assert_eq!(recording.label, "full-session");
+        assert_eq!(recording.error, None);
+
+        // 1. The cast is where the collector said it would be.
+        let cast = Path::new(&recording.cast);
+        assert!(cast.exists(), "{:?}", recording.cast);
+        assert_eq!(
+            cast.file_name().map(|n| n.to_string_lossy().to_string()),
+            Some("recording-00-full-session.cast".to_string())
+        );
+
+        // 2. With the captured screen appended to it, which is the whole reason
+        //    step 2 exists — the session's own last frame is not the evidence.
+        let contents = std::fs::read_to_string(cast).expect("cast readable");
+        assert!(contents.starts_with(A_CAST), "the session's cast is intact");
+        assert!(contents.contains("screen text"), "{contents}");
+
+        // 3 and 4.
+        let video = recording.video.as_deref().expect("video");
+        assert!(video.ends_with("recording-00-full-session.mp4"), "{video}");
+        assert_eq!(std::fs::read_to_string(video).expect("video"), "mp4");
+        assert_eq!(recording.url.as_deref(), Some("https://example/video"));
+        assert_eq!(*uploaded.lock().expect("poisoned"), vec![video.to_string()]);
+
+        // 5. And all of it reaches the manifest, which is what a report reads.
+        let manifest = collector.publish(&mut publisher).expect("published");
+        assert_eq!(manifest.recordings, collector.recordings());
+    }
+
+    #[test]
+    fn a_cast_that_cannot_be_saved_stops_the_sequence() {
+        // Nothing downstream has anything to work on, so nothing downstream
+        // runs — and the recording says which step it was.
+        let dir = tempfile::tempdir().expect("tempdir");
+        let uploaded = Arc::new(Mutex::new(Vec::new()));
+        let mut publisher = publisher(dir.path())
+            .with_video_converter(stub_converter())
+            .with_uploader(Box::new(CountingUploader(uploaded.clone())));
+
+        let mut collector = one_capture();
+        collector.record_session("full-session", &mut publisher, |_| {
+            Err("disk on fire".to_string())
+        });
+
+        let recording = &collector.recordings()[0];
+        assert_eq!(
+            recording.error.as_deref(),
+            Some("save cast: disk on fire"),
+            "the failure has to name the step"
+        );
+        assert_eq!(recording.video, None);
+        assert_eq!(recording.url, None);
+        assert!(
+            uploaded.lock().expect("poisoned").is_empty(),
+            "nothing to upload, so nothing was uploaded"
+        );
+        assert!(!Path::new(&recording.cast).exists());
+    }
+
+    #[test]
+    fn a_save_that_writes_nothing_is_the_save_step_failing() {
+        // A closure that reports success and writes no file is step 1 going
+        // wrong, not step 2 finding a missing file: blaming the append would
+        // send a reader to the wrong code.
+        let dir = tempfile::tempdir().expect("tempdir");
+        let mut publisher = publisher(dir.path()).with_video_converter(stub_converter());
+
+        let mut collector = one_capture();
+        collector.record_session("full-session", &mut publisher, |_| Ok(()));
+
+        let error = collector.recordings()[0].error.clone().expect("error");
+        assert!(error.starts_with("save cast: "), "{error}");
+        assert!(error.contains("wrote no file"), "{error}");
+        assert_eq!(collector.recordings()[0].video, None);
+    }
+
+    #[test]
+    fn an_append_failure_does_not_stop_the_conversion() {
+        // Step 2 is the one non-fatal step: the cast is on disk either way, and
+        // a recording that ends on the session is worth more than none.
+        //
+        // The only append failure reachable through `record_session` is a cast
+        // that cannot be read or is empty — the hold is not caller-supplied
+        // here — and `CastVideoConverter` cannot read one of those either. So
+        // what this pins is that step 3 was *attempted* after step 2 failed and
+        // both failures survived; were the sequence to stop at step 2, only the
+        // first of these two would be recorded.
+        let dir = tempfile::tempdir().expect("tempdir");
+        let mut publisher = publisher(dir.path()).with_video_converter(stub_converter());
+
+        let mut collector = one_capture();
+        collector.record_session("empty", &mut publisher, |dest| {
+            std::fs::write(dest, "").map_err(|e| e.to_string())
+        });
+
+        let error = collector.recordings()[0].error.clone().expect("error");
+        assert_eq!(
+            error,
+            "append checkpoint frames: empty cast file; convert: empty cast file"
+        );
+    }
+
+    #[test]
+    fn a_publisher_with_no_video_converter_says_so() {
+        // Not silence: `record_session` was called to produce a video, so a
+        // publisher that cannot is a failure of the convert step.
+        let dir = tempfile::tempdir().expect("tempdir");
+        let mut publisher = publisher(dir.path());
+
+        let mut collector = one_capture();
+        collector.record_session("full-session", &mut publisher, save_a_cast);
+
+        let recording = &collector.recordings()[0];
+        assert_eq!(
+            recording.error.as_deref(),
+            Some("convert: no video converter configured")
+        );
+        // Steps 1 and 2 still happened, so the cast is still evidence.
+        assert!(Path::new(&recording.cast).exists());
+        assert!(std::fs::read_to_string(&recording.cast)
+            .expect("cast")
+            .contains("screen text"));
+        assert_eq!(recording.video, None);
+    }
+
+    #[test]
+    fn a_failed_conversion_is_never_uploaded() {
+        // The error path a hand-written version gets wrong: uploading the path
+        // a conversion did not produce, and reporting a store failure for a
+        // video that was never encoded.
+        let dir = tempfile::tempdir().expect("tempdir");
+        let uploaded = Arc::new(Mutex::new(Vec::new()));
+        let mut publisher = publisher(dir.path())
+            .with_video_converter(broken_converter())
+            .with_uploader(Box::new(CountingUploader(uploaded.clone())));
+
+        let mut collector = one_capture();
+        collector.record_session("full-session", &mut publisher, save_a_cast);
+
+        let recording = &collector.recordings()[0];
+        assert_eq!(
+            recording.error.as_deref(),
+            Some("convert: encoder exploded")
+        );
+        assert_eq!(recording.video, None);
+        assert_eq!(recording.url, None);
+        assert!(
+            uploaded.lock().expect("poisoned").is_empty(),
+            "an upload was attempted for a video that does not exist"
+        );
+    }
+
+    #[test]
+    fn a_converter_that_writes_nothing_is_the_convert_step_failing() {
+        // The counterpart of `a_save_that_writes_nothing_is_the_save_step_failing`,
+        // and the worse of the two if it is missed: taken on trust, a converter
+        // that returns a path it did not write produces a `Recording` with no
+        // error, a video that is not there and a URL for it — a run reporting
+        // success for evidence that does not exist.
+        let dir = tempfile::tempdir().expect("tempdir");
+        let uploaded = Arc::new(Mutex::new(Vec::new()));
+        let mut publisher = publisher(dir.path())
+            .with_video_converter(silent_converter())
+            .with_uploader(Box::new(CountingUploader(uploaded.clone())));
+
+        let mut collector = one_capture();
+        collector.record_session("full-session", &mut publisher, save_a_cast);
+
+        let recording = &collector.recordings()[0];
+        let error = recording.error.clone().expect("error");
+        assert!(error.starts_with("convert: "), "{error}");
+        assert!(error.contains("wrote no file"), "{error}");
+        assert_eq!(recording.video, None, "a video that is not on disk");
+        assert_eq!(recording.url, None);
+        assert!(
+            uploaded.lock().expect("poisoned").is_empty(),
+            "a video that was never written must not be uploaded"
+        );
+    }
+
+    #[test]
+    fn an_empty_url_is_no_url() {
+        // `url: ""` on a recording with no error claims a link a reader cannot
+        // follow, which is the same false success as a video that is not there.
+        struct Blank;
+        impl ArtifactUploader for Blank {
+            fn upload(&mut self, _: &str) -> Option<String> {
+                Some(String::new())
+            }
+            fn last_error(&self) -> Option<&str> {
+                None
+            }
+        }
+        let dir = tempfile::tempdir().expect("tempdir");
+        let mut publisher = publisher(dir.path())
+            .with_video_converter(stub_converter())
+            .with_uploader(Box::new(Blank));
+
+        let mut collector = one_capture();
+        collector.record_session("full-session", &mut publisher, save_a_cast);
+
+        let recording = &collector.recordings()[0];
+        assert_eq!(
+            recording.error.as_deref(),
+            Some("upload: uploader returned no URL")
+        );
+        assert_eq!(recording.url, None);
+        assert!(recording.video.is_some());
+    }
+
+    #[test]
+    fn a_failed_upload_keeps_the_video() {
+        // Step 4 is last, so its failure costs the URL and nothing else. The
+        // video is still on disk and still worth naming.
+        struct Refuses;
+        impl ArtifactUploader for Refuses {
+            fn upload(&mut self, _: &str) -> Option<String> {
+                None
+            }
+            fn last_error(&self) -> Option<&str> {
+                Some("store down")
+            }
+        }
+        let dir = tempfile::tempdir().expect("tempdir");
+        let mut publisher = publisher(dir.path())
+            .with_video_converter(stub_converter())
+            .with_uploader(Box::new(Refuses));
+
+        let mut collector = one_capture();
+        collector.record_session("full-session", &mut publisher, save_a_cast);
+
+        let recording = &collector.recordings()[0];
+        assert_eq!(recording.error.as_deref(), Some("upload: store down"));
+        assert!(recording.video.is_some());
+        assert_eq!(recording.url, None);
+    }
+
+    #[test]
+    fn an_uploader_that_declines_without_a_reason_still_names_the_step() {
+        struct Silent;
+        impl ArtifactUploader for Silent {
+            fn upload(&mut self, _: &str) -> Option<String> {
+                None
+            }
+            fn last_error(&self) -> Option<&str> {
+                None
+            }
+        }
+        let dir = tempfile::tempdir().expect("tempdir");
+        let mut publisher = publisher(dir.path())
+            .with_video_converter(stub_converter())
+            .with_uploader(Box::new(Silent));
+
+        let mut collector = one_capture();
+        collector.record_session("full-session", &mut publisher, save_a_cast);
+
+        assert_eq!(
+            collector.recordings()[0].error.as_deref(),
+            Some("upload: uploader returned no URL")
+        );
+    }
+
+    #[test]
+    fn a_publisher_with_no_uploader_is_not_a_failure() {
+        // Absent is not broken: a publisher without an uploader was not asked
+        // to upload, exactly as in `publish`.
+        let dir = tempfile::tempdir().expect("tempdir");
+        let mut publisher = publisher(dir.path()).with_video_converter(stub_converter());
+
+        let mut collector = one_capture();
+        collector.record_session("full-session", &mut publisher, save_a_cast);
+
+        let recording = &collector.recordings()[0];
+        assert_eq!(recording.error, None);
+        assert!(recording.video.is_some());
+        assert_eq!(recording.url, None);
+    }
+
+    #[test]
+    fn two_recordings_with_one_label_do_not_share_a_cast() {
+        // Labels are caller-supplied and may repeat; the second recording must
+        // not overwrite the first one's evidence.
+        let dir = tempfile::tempdir().expect("tempdir");
+        let mut publisher = publisher(dir.path()).with_video_converter(stub_converter());
+
+        let mut collector = one_capture();
+        collector.record_session("full-session", &mut publisher, save_a_cast);
+        collector.record_session("full-session", &mut publisher, save_a_cast);
+
+        let recordings = collector.recordings();
+        assert_ne!(recordings[0].cast, recordings[1].cast);
+        assert_ne!(recordings[0].video, recordings[1].video);
+        assert!(recordings[1]
+            .cast
+            .ends_with("recording-01-full-session.cast"));
+        assert!(recordings.iter().all(|r| r.error.is_none()));
+    }
+
+    #[test]
+    fn an_empty_label_names_a_recording_the_way_python_names_it() {
+        // The one input where the two implementations' filename schemes could
+        // part: `sanitize_component` substitutes "default" for a component that
+        // sanitises to nothing and Python's `_sanitize` does not, so Python
+        // applies the same fallback when building this stem. Pinned literally,
+        // and in the conformance corpus, because a recording's `cast` and
+        // `video` are strings in the manifest.
+        assert_eq!(recording_file_stem(0, ""), "recording-00-default");
+        // A label that sanitises to something is not touched by the fallback.
+        assert_eq!(recording_file_stem(1, "!!"), "recording-01---");
+    }
+
+    #[test]
+    fn a_recorded_session_sits_beside_a_hand_attached_one() {
+        // `record_session` and `attach_recording` write to the same list, in
+        // call order, so a caller that encodes its own video is not shut out.
+        let dir = tempfile::tempdir().expect("tempdir");
+        let mut publisher = publisher(dir.path()).with_video_converter(stub_converter());
+
+        let mut collector = one_capture();
+        collector.attach_recording(Recording::new("hand-made", "/tmp/other.cast"));
+        collector.record_session("full-session", &mut publisher, save_a_cast);
+
+        let manifest = collector.publish(&mut publisher).expect("published");
+        let labels: Vec<&str> = manifest
+            .recordings
+            .iter()
+            .map(|r| r.label.as_str())
+            .collect();
+        assert_eq!(labels, ["hand-made", "full-session"]);
     }
 
     #[test]

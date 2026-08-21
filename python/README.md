@@ -113,6 +113,52 @@ Here `kind` defaults to `CaptureKind.CHECKPOINT`; Rust takes it positionally,
 as `capture_text(label, screen, CaptureKind::Checkpoint)`. The meaning, the
 ordering and the resulting manifest are identical.
 
+### Recording the whole session
+
+`record_session` is the five-step sequence around a video: save the live
+session's cast through the callable you pass, append the captured checkpoints
+to it as held trailing frames, convert it, upload it, and attach a `Recording`
+that `publish` writes into the manifest.
+
+```python
+import shutil
+
+from termproof.cast_video import RsvgFfmpegBackend
+from termproof.collector import EvidencePublisher
+
+publisher = EvidencePublisher(
+    directory=run_dir / "evidence",
+    identity=identity,
+    video_converter=RsvgFfmpegBackend(),
+    uploader=my_uploader,
+)
+# `session` here is a `TerminalSession`, which records to `session.cast_path`;
+# the callable's job is to put a copy of that cast at the path it is handed.
+collector.record_session(
+    "full-session", publisher, lambda dest: shutil.copyfile(session.cast_path, dest)
+)
+manifest = collector.publish(publisher)
+```
+
+**No failure a step reports fails the run**: a recording is evidence about a
+run, not part of its verdict. Each failure lands on the `Recording`'s `error`
+instead, prefixed with the step that produced it — `save cast`,
+`append checkpoint frames`, `convert` or `upload` — and two of them in one call
+are joined with `"; "`. (The boundary is where `Exception` stops: a
+`KeyboardInterrupt` from one of the seams propagates and the recording is lost
+rather than degraded.)
+
+A step runs only when the step before it produced what it works on, so a failed
+save skips everything after it and **a failed conversion is never uploaded**; a
+failed append is the one non-fatal case, because the cast is on disk and still
+convertible either way.
+
+**And a step is not believed, it is checked.** A `save_cast` that returns having
+written no file, a converter that returns a path it did not write, and an
+uploader that returns an empty string are all recorded as that step failing.
+The alternative is the one outcome worse than a recorded failure: a `Recording`
+with no `error`, a `video` that is not on disk, and a `url` for it.
+
 ## Recipe example
 
 ```json

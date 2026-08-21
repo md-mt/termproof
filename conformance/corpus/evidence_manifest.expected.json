@@ -1,5 +1,16 @@
 {
   "files": {
+    "recording-02-recorded.cast": "{\"version\":2,\"width\":80,\"height\":24}\n[0.5,\"o\",\"\\u001b[3;20rMENU\"]\n[1.25,\"o\",\"\\r\\nitem one\"]\n[4.25,\"o\",\"\\u001b[m\\u001b[r\\u001b[H\\u001b[2JMENU\\r\\nitem one\"]\n[7.25,\"o\",\"\\u001b[m\\u001b[r\\u001b[H\\u001b[2JMENU\\r\\nitem one\"]\n[10.25,\"o\",\"\\u001b[m\\u001b[r\\u001b[H\\u001b[2JRECOVERED\"]\n[13.25,\"o\",\"\\u001b[m\\u001b[r\\u001b[H\\u001b[2JLAST SCREEN\"]\n[16.25,\"o\",\"\\u001b[m\\u001b[r\\u001b[H\\u001b[2JERROR\"]\n[19.25,\"o\",\"\\u001b[m\\u001b[r\\u001b[H\\u001b[2J\\u001b[31mALERT\\u001b[0m\"]\n[22.25,\"o\",\"\\u001b[m\\u001b[r\\u001b[H\\u001b[2JALERT\"]\n[25.25,\"o\",\"\\u001b[m\"]\n",
+    "recording-02-recorded.mp4": "mp4",
+    "recording-05-no-converter.cast": "{\"version\":2,\"width\":80,\"height\":24}\n[0.5,\"o\",\"\\u001b[3;20rMENU\"]\n[1.25,\"o\",\"\\r\\nitem one\"]\n[4.25,\"o\",\"\\u001b[m\\u001b[r\\u001b[H\\u001b[2JMENU\\r\\nitem one\"]\n[7.25,\"o\",\"\\u001b[m\\u001b[r\\u001b[H\\u001b[2JMENU\\r\\nitem one\"]\n[10.25,\"o\",\"\\u001b[m\\u001b[r\\u001b[H\\u001b[2JRECOVERED\"]\n[13.25,\"o\",\"\\u001b[m\\u001b[r\\u001b[H\\u001b[2JLAST SCREEN\"]\n[16.25,\"o\",\"\\u001b[m\\u001b[r\\u001b[H\\u001b[2JERROR\"]\n[19.25,\"o\",\"\\u001b[m\\u001b[r\\u001b[H\\u001b[2J\\u001b[31mALERT\\u001b[0m\"]\n[22.25,\"o\",\"\\u001b[m\\u001b[r\\u001b[H\\u001b[2JALERT\"]\n[25.25,\"o\",\"\\u001b[m\"]\n",
+    "recording-06-bad-encode.cast": "{\"version\":2,\"width\":80,\"height\":24}\n[0.5,\"o\",\"\\u001b[3;20rMENU\"]\n[1.25,\"o\",\"\\r\\nitem one\"]\n[4.25,\"o\",\"\\u001b[m\\u001b[r\\u001b[H\\u001b[2JMENU\\r\\nitem one\"]\n[7.25,\"o\",\"\\u001b[m\\u001b[r\\u001b[H\\u001b[2JMENU\\r\\nitem one\"]\n[10.25,\"o\",\"\\u001b[m\\u001b[r\\u001b[H\\u001b[2JRECOVERED\"]\n[13.25,\"o\",\"\\u001b[m\\u001b[r\\u001b[H\\u001b[2JLAST SCREEN\"]\n[16.25,\"o\",\"\\u001b[m\\u001b[r\\u001b[H\\u001b[2JERROR\"]\n[19.25,\"o\",\"\\u001b[m\\u001b[r\\u001b[H\\u001b[2J\\u001b[31mALERT\\u001b[0m\"]\n[22.25,\"o\",\"\\u001b[m\\u001b[r\\u001b[H\\u001b[2JALERT\"]\n[25.25,\"o\",\"\\u001b[m\"]\n",
+    "recording-07-silent-encode.cast": "{\"version\":2,\"width\":80,\"height\":24}\n[0.5,\"o\",\"\\u001b[3;20rMENU\"]\n[1.25,\"o\",\"\\r\\nitem one\"]\n[4.25,\"o\",\"\\u001b[m\\u001b[r\\u001b[H\\u001b[2JMENU\\r\\nitem one\"]\n[7.25,\"o\",\"\\u001b[m\\u001b[r\\u001b[H\\u001b[2JMENU\\r\\nitem one\"]\n[10.25,\"o\",\"\\u001b[m\\u001b[r\\u001b[H\\u001b[2JRECOVERED\"]\n[13.25,\"o\",\"\\u001b[m\\u001b[r\\u001b[H\\u001b[2JLAST SCREEN\"]\n[16.25,\"o\",\"\\u001b[m\\u001b[r\\u001b[H\\u001b[2JERROR\"]\n[19.25,\"o\",\"\\u001b[m\\u001b[r\\u001b[H\\u001b[2J\\u001b[31mALERT\\u001b[0m\"]\n[22.25,\"o\",\"\\u001b[m\\u001b[r\\u001b[H\\u001b[2JALERT\"]\n[25.25,\"o\",\"\\u001b[m\"]\n",
+    "recording-08-no-url.cast": "{\"version\":2,\"width\":80,\"height\":24}\n[0.5,\"o\",\"\\u001b[3;20rMENU\"]\n[1.25,\"o\",\"\\r\\nitem one\"]\n[4.25,\"o\",\"\\u001b[m\\u001b[r\\u001b[H\\u001b[2JMENU\\r\\nitem one\"]\n[7.25,\"o\",\"\\u001b[m\\u001b[r\\u001b[H\\u001b[2JMENU\\r\\nitem one\"]\n[10.25,\"o\",\"\\u001b[m\\u001b[r\\u001b[H\\u001b[2JRECOVERED\"]\n[13.25,\"o\",\"\\u001b[m\\u001b[r\\u001b[H\\u001b[2JLAST SCREEN\"]\n[16.25,\"o\",\"\\u001b[m\\u001b[r\\u001b[H\\u001b[2JERROR\"]\n[19.25,\"o\",\"\\u001b[m\\u001b[r\\u001b[H\\u001b[2J\\u001b[31mALERT\\u001b[0m\"]\n[22.25,\"o\",\"\\u001b[m\\u001b[r\\u001b[H\\u001b[2JALERT\"]\n[25.25,\"o\",\"\\u001b[m\"]\n",
+    "recording-08-no-url.mp4": "mp4",
+    "recording-09-blank-url.cast": "{\"version\":2,\"width\":80,\"height\":24}\n[0.5,\"o\",\"\\u001b[3;20rMENU\"]\n[1.25,\"o\",\"\\r\\nitem one\"]\n[4.25,\"o\",\"\\u001b[m\\u001b[r\\u001b[H\\u001b[2JMENU\\r\\nitem one\"]\n[7.25,\"o\",\"\\u001b[m\\u001b[r\\u001b[H\\u001b[2JMENU\\r\\nitem one\"]\n[10.25,\"o\",\"\\u001b[m\\u001b[r\\u001b[H\\u001b[2JRECOVERED\"]\n[13.25,\"o\",\"\\u001b[m\\u001b[r\\u001b[H\\u001b[2JLAST SCREEN\"]\n[16.25,\"o\",\"\\u001b[m\\u001b[r\\u001b[H\\u001b[2JERROR\"]\n[19.25,\"o\",\"\\u001b[m\\u001b[r\\u001b[H\\u001b[2J\\u001b[31mALERT\\u001b[0m\"]\n[22.25,\"o\",\"\\u001b[m\\u001b[r\\u001b[H\\u001b[2JALERT\"]\n[25.25,\"o\",\"\\u001b[m\"]\n",
+    "recording-09-blank-url.mp4": "mp4",
+    "recording-10-default.cast": "{\"version\":2,\"width\":80,\"height\":24}\n[0.5,\"o\",\"\\u001b[3;20rMENU\"]\n[1.25,\"o\",\"\\r\\nitem one\"]\n[4.25,\"o\",\"\\u001b[m\\u001b[r\\u001b[H\\u001b[2JMENU\\r\\nitem one\"]\n[7.25,\"o\",\"\\u001b[m\\u001b[r\\u001b[H\\u001b[2JMENU\\r\\nitem one\"]\n[10.25,\"o\",\"\\u001b[m\\u001b[r\\u001b[H\\u001b[2JRECOVERED\"]\n[13.25,\"o\",\"\\u001b[m\\u001b[r\\u001b[H\\u001b[2JLAST SCREEN\"]\n[16.25,\"o\",\"\\u001b[m\\u001b[r\\u001b[H\\u001b[2JERROR\"]\n[19.25,\"o\",\"\\u001b[m\\u001b[r\\u001b[H\\u001b[2J\\u001b[31mALERT\\u001b[0m\"]\n[22.25,\"o\",\"\\u001b[m\\u001b[r\\u001b[H\\u001b[2JALERT\"]\n[25.25,\"o\",\"\\u001b[m\"]\n",
+    "recording-10-default.mp4": "mp4",
     "session-with-checkpoints.cast": "{\"version\":2,\"width\":80,\"height\":24}\n[0.5,\"o\",\"\\u001b[3;20rMENU\"]\n[1.25,\"o\",\"\\r\\nitem one\"]\n[4.25,\"o\",\"\\u001b[m\\u001b[r\\u001b[H\\u001b[2JMENU\\r\\nitem one\"]\n[7.25,\"o\",\"\\u001b[m\\u001b[r\\u001b[H\\u001b[2JMENU\\r\\nitem one\"]\n[10.25,\"o\",\"\\u001b[m\\u001b[r\\u001b[H\\u001b[2JRECOVERED\"]\n[13.25,\"o\",\"\\u001b[m\\u001b[r\\u001b[H\\u001b[2JLAST SCREEN\"]\n[16.25,\"o\",\"\\u001b[m\\u001b[r\\u001b[H\\u001b[2JERROR\"]\n[19.25,\"o\",\"\\u001b[m\\u001b[r\\u001b[H\\u001b[2J\\u001b[31mALERT\\u001b[0m\"]\n[22.25,\"o\",\"\\u001b[m\\u001b[r\\u001b[H\\u001b[2JALERT\"]\n[25.25,\"o\",\"\\u001b[m\"]\n",
     "session-with-fractional-hold.cast": "{\"version\":2,\"width\":80,\"height\":24}\n[0.5000005,\"o\",\"MENU\"]\n[0.700001,\"o\",\"\\u001b[m\\u001b[r\\u001b[H\\u001b[2JMENU\\r\\nitem one\"]\n[0.900001,\"o\",\"\\u001b[m\\u001b[r\\u001b[H\\u001b[2JMENU\\r\\nitem one\"]\n[1.100001,\"o\",\"\\u001b[m\\u001b[r\\u001b[H\\u001b[2JRECOVERED\"]\n[1.300001,\"o\",\"\\u001b[m\\u001b[r\\u001b[H\\u001b[2JLAST SCREEN\"]\n[1.500001,\"o\",\"\\u001b[m\\u001b[r\\u001b[H\\u001b[2JERROR\"]\n[1.700001,\"o\",\"\\u001b[m\\u001b[r\\u001b[H\\u001b[2J\\u001b[31mALERT\\u001b[0m\"]\n[1.900001,\"o\",\"\\u001b[m\\u001b[r\\u001b[H\\u001b[2JALERT\"]\n[2.100001,\"o\",\"\\u001b[m\"]\n",
     "step-00-menu-open.png": "png",
@@ -33,6 +44,69 @@
         "label": "failed-encode",
         "url": null,
         "video": null
+      },
+      {
+        "cast": "@DIR/recording-02-recorded.cast",
+        "error": null,
+        "label": "recorded",
+        "url": "https://example.invalid/recording-02-recorded.mp4",
+        "video": "@DIR/recording-02-recorded.mp4"
+      },
+      {
+        "cast": "@DIR/recording-03-unsaveable.cast",
+        "error": "save cast: disk on fire",
+        "label": "unsaveable",
+        "url": null,
+        "video": null
+      },
+      {
+        "cast": "@DIR/recording-04-silent-save.cast",
+        "error": "save cast: reported success but wrote no file at @DIR/recording-04-silent-save.cast",
+        "label": "silent-save",
+        "url": null,
+        "video": null
+      },
+      {
+        "cast": "@DIR/recording-05-no-converter.cast",
+        "error": "convert: no video converter configured",
+        "label": "no-converter",
+        "url": null,
+        "video": null
+      },
+      {
+        "cast": "@DIR/recording-06-bad-encode.cast",
+        "error": "convert: encoder exploded",
+        "label": "bad-encode",
+        "url": null,
+        "video": null
+      },
+      {
+        "cast": "@DIR/recording-07-silent-encode.cast",
+        "error": "convert: reported success but wrote no file at @DIR/recording-07-silent-encode.mp4",
+        "label": "silent-encode",
+        "url": null,
+        "video": null
+      },
+      {
+        "cast": "@DIR/recording-08-no-url.cast",
+        "error": "upload: uploader returned no URL",
+        "label": "no-url",
+        "url": null,
+        "video": "@DIR/recording-08-no-url.mp4"
+      },
+      {
+        "cast": "@DIR/recording-09-blank-url.cast",
+        "error": "upload: uploader returned no URL",
+        "label": "blank-url",
+        "url": null,
+        "video": "@DIR/recording-09-blank-url.mp4"
+      },
+      {
+        "cast": "@DIR/recording-10-default.cast",
+        "error": null,
+        "label": "",
+        "url": "https://example.invalid/recording-10-default.mp4",
+        "video": "@DIR/recording-10-default.mp4"
       }
     ],
     "run": {
