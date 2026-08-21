@@ -356,6 +356,20 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
   reading it as unset would add a fourth state to `pick()`'s three and put every
   consumer back to remembering which flags have it.
 
+  **One field does not obey that precedence, and it is deliberate.**
+  `Requirements.uploaded_media` is a `bool`, so it has no unset state for
+  `pick()` to rank and the three layers are ORed instead: any of them asking for
+  it is asking for it. It can therefore be raised but never lowered —
+  `require: {uploaded_media: false}` in a config file is inert against a
+  built-in `true`, and there is no `--no-require-uploaded-media`. For a
+  requirement that is the safe direction to fail in, since a config file quietly
+  switching off a "the evidence must be shareable" gate is the outcome worth
+  preventing, but it is an exception to the rule rather than an instance of it:
+  a caller that needs the gate off has to leave it off in the built-in. The
+  repeatable flags behave differently again — for those, empty is unset, and the
+  first non-empty of flag / config / built-in wins as a whole rather than
+  merging, so a passed `--env` replaces a configured `env` outright.
+
   **Reconciled against `termproof.cli`.** Where the two name the same thing they
   use the same flag: `--priority`, `--recipe-name` (repeatable in both) and
   `--renderer`. The rest is new, and no name is reused for a second meaning:
@@ -365,6 +379,7 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
   | `--run-config PATH` | `--config PATH` is the *plugin registry* (`VerifierConfig`) | Two different config files. Reusing `--config` would be the one collision worth avoiding, and a consumer that has both still needs to name each. |
   | `--artifact-dir DIR` | `--out DIR` | Not the same thing. `--out` is one directory that the report path is also derived from; `RunConfig` separates `artifact_dir`, `report_path` and `result_json_path`, so no flag here has `--out`'s meaning. |
   | `--all`, `--changed-files` | — | `Selection` has four arms; Python's CLI exposes two of them. All four get a flag, in one `ArgGroup`, so "all *and* a priority" is a usage error rather than something this layer has to rank. |
+  | `--priority` **with** `--recipe-name` is a usage error | the two compose | The one divergence that is not about a name. `termproof.registry.select_recipes` applies priority and then names as successive filters, so `--priority P0 --recipe-name smoke` is a legal narrowing there — "smoke, if it is P0". `Selection` holds one arm, so the same pair is an `ArgumentConflict` here. Same names, same individual meanings, different composition, which is exactly the case a ported command line trips over; a caller wanting the intersection filters a `Selection::Priority` run itself. |
   | `--root`, `--repo-marker`, `--exclude`, `--transport`, `--model`, `--effort`, `--binary-installed`, `--binary-build`, `--env`, `--timeout-scale`, `--publisher`, `--publisher-setting`, `--require-uploaded-media`, `--require-media-publisher` | — | Fields `RunConfig` has and Python has no counterpart for. |
 
   The feature is off by default, so a consumer that does not name it does not

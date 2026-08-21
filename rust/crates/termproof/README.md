@@ -40,7 +40,7 @@ it has always been published. `clap` is the exception and is opt-in.
 | `junit` | on | the `junit` module, and `generate_junit` in `evidence` | `quick-junit` |
 | `json-schema` | on | `validation`, `pyschema`, and the `json_schema` built-in assertion. Implies `schema` | `jsonschema` |
 | `schema` | on | the `schema` module, and `JsonSchema` on `Recipe`, `VerifierConfig` and the types they contain | `schemars` |
-| `clap` | off | `run_config::cli` — a `clap::Command` of the standard `RunConfig` flags, and the parse back into one | `clap` |
+| `clap` | off | `run_config::cli` — a `clap::Command` of the standard `RunConfig` flags, and the parse back into one | `clap`, builder-only (no `clap_derive`) |
 
 The default-on four and the default-off one are default-on and default-off for
 the same reason. Each of the four *subtracts* from a shape that was already

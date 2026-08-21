@@ -197,10 +197,12 @@ cargo test  --manifest-path rust/Cargo.toml --workspace
 ```
 
 Run all three before pushing. CI also runs the suite across the whole feature
-powerset (four features — `evidence`, `junit`, `json-schema`, `schema`, so
-sixteen combinations) and at the declared dependency floors, so a change that
-only breaks a non-default combination is caught there even if your local
-default build is green. `.github/workflows/rust-security.yml` adds
+powerset (five features — `evidence`, `junit`, `json-schema`, `schema` and the
+default-off `clap`, so thirty-two combinations) and at the declared dependency
+floors, so a change that only breaks a non-default combination is caught there
+even if your local default build is green. Note that `clap` being default-off
+means `cargo test --workspace` above does not compile `run_config::cli` at all;
+add `--features clap` if you are touching it. `.github/workflows/rust-security.yml` adds
 `cargo deny`, `cargo semver-checks` against the latest published `termproof`,
 and a `cargo package` contents check.
 

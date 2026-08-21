@@ -17,9 +17,14 @@
 //! schema below would be dead. The CLI layer is responsible for telling them
 //! apart.
 //!
-//! That layer ships here, behind the `clap` feature: [`cli`] emits the standard
-//! flags for every field below and parses them back, with [`pick`] applied once
-//! rather than per flag. See [`clap_command`] and [`resolve`].
+//! That layer ships here, behind the off-by-default `clap` feature: the `cli`
+//! submodule emits the standard flags for every field below and parses them
+//! back, with [`pick`] applied once rather than per flag — see
+//! `cli::clap_command` and `cli::resolve`.
+//!
+//! Those three are named in plain code spans rather than as intra-doc links on
+//! purpose: they exist only when the feature is on, and a link from this
+//! ungated paragraph is an unresolved-link warning in every default `cargo doc`.
 //!
 //! # Format
 //!

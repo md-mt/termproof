@@ -75,6 +75,48 @@
 //! key by key: per-key merging is a fourth precedence rule, and this layer
 //! exists to stop those being invented one consumer at a time.
 //!
+//! # `uploaded_media` is the one field that does not obey the precedence
+//!
+//! [`Requirements::uploaded_media`](super::Requirements::uploaded_media) is a
+//! `bool`, so it has no unset state for [`pick`] to rank and [`merge`] ORs the
+//! three layers instead. Any of the three asking for it is asking for it.
+//!
+//! The consequence is that it can be raised but never lowered: `require:
+//! {uploaded_media: false}` in a `--run-config` file is inert against a
+//! built-in `true`, and there is no `--no-require-uploaded-media`. For a
+//! *requirement* that is the safe direction to fail in — a config file quietly
+//! switching off a "the evidence must be shareable" gate is the outcome worth
+//! preventing — but it is a real exception to the rule above rather than an
+//! instance of it, so a caller that needs the gate off has to leave it off in
+//! the built-in.
+//!
+//! # Names this layer claims
+//!
+//! [`augment_args`] adds 22 long options, and several are generic enough that a
+//! consumer may already own one: `--root`, `--model`, `--exclude`, `--env`,
+//! `--publisher`, `--transport`, `--effort`. A duplicate long name is a
+//! `clap` **panic**, not an error, and `clap`'s `debug_assert` machinery only
+//! runs in debug builds, so a consumer that only builds release gets the
+//! collision resolved by `clap`'s internal ordering with no diagnostic at all.
+//! The full list, in the order they are added:
+//!
+//! `--run-config`, `--root`, `--repo-marker`, `--all`, `--priority`,
+//! `--recipe-name`, `--changed-files`, `--exclude`, `--transport`,
+//! `--renderer`, `--model`, `--effort`, `--binary-installed`,
+//! `--binary-build`, `--env`, `--timeout-scale`, `--artifact-dir`,
+//! `--report-path`, `--result-json-path`, `--publisher`,
+//! `--publisher-setting`, `--require-uploaded-media`,
+//! `--require-media-publisher`.
+//!
+//! The argument ids are the same strings without the leading `--`, and the two
+//! [`ArgGroup`] names are `select` and `binary`.
+//!
+//! For the same reason, [`from_matches`] and [`resolve`] must be handed an
+//! `ArgMatches` from a command this module augmented. `clap` panics on a lookup
+//! of an id the command never declared, so despite the `Result` these two
+//! cannot turn a foreign `ArgMatches` into an `Err` — the realistic way in is
+//! augmenting a *subcommand* and then passing the top-level matches.
+//!
 //! # Divergence from `termproof.cli`
 //!
 //! Python's `termproof.cli` is an `argparse` program for the `termproof`
@@ -84,6 +126,17 @@
 //! module picks a different name rather than reusing one of Python's for a
 //! different meaning. The full reconciliation is in the CHANGELOG entry for
 //! #197.
+//!
+//! One divergence is not about a *name* and is the easiest to trip over.
+//! `--priority` and `--recipe-name` **compose in Python and conflict here.**
+//! `termproof.registry.select_recipes` applies priority and then names as
+//! successive filters, so `--priority P0 --recipe-name smoke` is a legal
+//! narrowing — "smoke, if it is P0". Here they are two arms of [`Selection`],
+//! which holds one, so they sit in one [`ArgGroup`] and passing both is a usage
+//! error. Same two flag names, same two meanings, different composition; a
+//! command line ported from Python that pairs them stops working. Expressing
+//! the intersection needs the caller to filter the result of a
+//! `Selection::Priority` run themselves.
 
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -663,6 +716,20 @@ mod tests {
     }
 
     #[test]
+    fn priority_and_recipe_name_do_not_compose_here_though_they_do_in_python() {
+        // Pinned because it is the one divergence from `termproof.cli` that is
+        // not visible in a flag *name*. `select_recipes` there applies priority
+        // and then names as successive filters, so this pair is a legal
+        // narrowing; `Selection` holds one arm, so here it is a usage error.
+        // If `Selection` ever grows a way to say both, this test failing is the
+        // prompt to update the divergence table rather than a regression.
+        let e = clap_command()
+            .try_get_matches_from(["termproof", "--priority", "P0", "--recipe-name", "smoke"])
+            .unwrap_err();
+        assert_eq!(e.kind(), clap::error::ErrorKind::ArgumentConflict);
+    }
+
+    #[test]
     fn a_binary_cannot_be_both_installed_and_built() {
         let e = clap_command()
             .try_get_matches_from(["termproof", "--binary-installed", "--binary-build", "D123"])
@@ -798,6 +865,39 @@ mod tests {
                 .uploaded_media
         );
         assert!(!merge(&parse(&[]), &off, &off).output.require.uploaded_media);
+    }
+
+    #[test]
+    fn a_required_upload_can_be_raised_but_never_lowered() {
+        // The documented exception to the precedence, pinned so it stays a
+        // decision rather than becoming a surprise. A `bool` has no unset
+        // state, so a configured `false` is indistinguishable from an absent
+        // key and cannot outrank a built-in `true` — and there is no flag for
+        // it either, which is the half that makes this one-way.
+        let builtin = RunConfig {
+            output: Output {
+                require: Requirements {
+                    uploaded_media: true,
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let says_false =
+            RunConfig::parse("output:\n  require:\n    uploaded_media: false\n").unwrap();
+        assert!(
+            merge(&parse(&[]), &says_false, &builtin)
+                .output
+                .require
+                .uploaded_media
+        );
+        assert!(
+            !clap_command()
+                .get_arguments()
+                .any(|a| a.get_long() == Some("no-require-uploaded-media")),
+            "a flag to lower it would make this test's premise false"
+        );
     }
 
     #[test]
