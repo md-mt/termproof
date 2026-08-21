@@ -247,11 +247,14 @@ The workflow enforces the mechanical items; these are the ones it cannot.
       carries the decision that granted it and the release line it was granted
       for, and `CHANGELOG.md` describes the break itself under a
       `— Changed (breaking)` heading regardless. A waiver is a decision about
-      the version, not a claim of compatibility. Today there is one:
+      the version, not a claim of compatibility. Today there are two, both
+      scoped to 0.4.x and both expiring the moment the version leaves it:
       `constructible_struct_adds_field`, for the `EvidencePublisher` field
-      addition in #196, scoped to 0.4.x — bumping past 0.4.x fails
-      `the_semver_waiver_is_scoped_to_the_release_it_was_granted_for` until it
-      is re-decided.
+      addition in #196, and `struct_pub_field_missing`, for `Recipe`'s
+      descriptive fields moving into `RecipeMeta` in #199. Bumping past 0.4.x
+      fails `the_semver_waiver_is_scoped_to_the_release_it_was_granted_for` and
+      `the_recipe_semver_waiver_is_scoped_to_the_release_it_was_granted_for`
+      until each is re-decided.
 - [ ] The maturity warning in the crate's README still describes the port
       accurately. It is what the crates.io front page carries; a stale one is
       a claim of parity that has not been earned.

@@ -356,12 +356,19 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
   the change touched three assertions and one trait impl.
 
   **The version did not move.** This break ships on 0.4.x by maintainer
-  decision, waived rather than versioned: the eight findings are named
-  one by one in the new `rust/semver-waivers.toml`, which
-  `.github/scripts/rust/semver-checks.py` holds the job to. Every lint still
-  runs against the published baseline; a break that file does not name fails
-  CI, and so does an entry that stops matching, so the waiver expires with the
-  release that makes it moot rather than quietly becoming a disabled check.
+  decision, waived rather than versioned, through the same mechanism #196
+  established: `struct_pub_field_missing = "allow"` joins
+  `constructible_struct_adds_field` under
+  `[package.metadata.cargo-semver-checks.lints]`, with the decision and the
+  release line it was granted for recorded beside it. The waiver is scoped to
+  a lint rather than to a struct because that is the only granularity
+  cargo-semver-checks offers, so — exactly as in #196 — two tests bound it:
+  `every_public_field_of_the_recipe_is_accounted_for` names every field of
+  `Recipe` in an exhaustive literal, so no field of the struct the waiver was
+  granted for can arrive or leave silently while the lint is off, and
+  `the_recipe_semver_waiver_is_scoped_to_the_release_it_was_granted_for` fails
+  the build the moment the version leaves 0.4.x. `docs/publishing.md`'s
+  release checklist lists both waivers.
   ([#199](https://github.com/md-mt/termproof/issues/199))
 
 - On SVG geometry, nothing. `SvgMetrics` in `terminal::attributed` already took every default

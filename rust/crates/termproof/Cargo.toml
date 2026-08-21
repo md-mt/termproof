@@ -35,7 +35,15 @@ exclude = [
 [package.metadata.docs.rs]
 all-features = true
 
-# One waived semver lint, and the reason it is waived rather than fixed.
+# Two waived semver lints, and the reason each is waived rather than fixed.
+#
+# Both are 0.4.x decisions by the captain, both leave `CHANGELOG.md` describing
+# the break in full, and both are bounded the same way: a test that pins the
+# affected struct's field list, recovering for that struct the cover the lint
+# gave the whole crate, plus a test that expires the waiver when the version
+# leaves the line it was granted for.
+#
+# ## `constructible_struct_adds_field` (#196)
 #
 # `EvidencePublisher` gained a fifth public field, `video_converter`, and every
 # field of it is `pub` with no `#[non_exhaustive]`, so an external crate writing
@@ -61,8 +69,35 @@ all-features = true
 #     justified it expires.
 #
 # Delete both this entry and those two tests together, or neither.
+#
+# ## `struct_pub_field_missing` (#199)
+#
+# `Recipe`'s seven descriptive fields — `name`, `description`, `intent`,
+# `priority`, `execution`, `determinism`, `ci_paths` — moved into a `RecipeMeta`
+# that `Recipe` holds and flattens, so `recipe.name` is `recipe.meta.name`.
+# Nothing moved on the wire: the serialised text and the generated JSON Schema
+# are byte-identical, and `tests/recipe_meta.rs` pins both against the pre-split
+# tree. The break is to Rust source only, and the captain's decision on #199 is
+# the same as on #196 — 0.4.x stands, the break is waived.
+#
+# Scoped to a lint, not to a struct, with the same consequence: while this line
+# is here, a `pub` field disappearing from *any* public struct in the crate
+# passes CI unremarked. Bounded the same way:
+#
+#   - `every_public_field_of_the_recipe_is_accounted_for` in `recipe` names
+#     every field of `Recipe` in an exhaustive literal, so a field of the struct
+#     this waiver was granted for cannot go — or arrive — silently;
+#   - `the_recipe_semver_waiver_is_scoped_to_the_release_it_was_granted_for`
+#     fails the build when the version leaves 0.4.x.
+#
+# Note this entry also covers the `Recipe.meta` finding under
+# `constructible_struct_adds_field` above; the exhaustive literal is what holds
+# both, which is why one test serves both lints for this struct.
+#
+# Delete this entry and those two tests together, or neither.
 [package.metadata.cargo-semver-checks.lints]
 constructible_struct_adds_field = "allow"
+struct_pub_field_missing = "allow"
 
 [lints]
 workspace = true

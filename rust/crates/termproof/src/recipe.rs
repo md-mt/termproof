@@ -379,6 +379,72 @@ mod tests {
     use super::*;
 
     #[test]
+    fn every_public_field_of_the_recipe_is_accounted_for() {
+        // Half of what the waived `struct_pub_field_missing` lint bought.
+        //
+        // Moving seven fields into `RecipeMeta` is what the lint fires on, and
+        // `Cargo.toml` turns it off on the captain's decision that 0.4.x
+        // stands. Off, it is off for every struct in the crate, which is the
+        // only granularity cargo-semver-checks offers — so this recovers the
+        // cover for the struct the waiver was granted for.
+        //
+        // The assertions are incidental. **The exhaustive literal is the
+        // test**: a field leaving `Recipe`, being renamed, or a new one
+        // arriving all stop this compiling. That second case is why this one
+        // test serves both waived lints for this struct — `Recipe.meta` is the
+        // `constructible_struct_adds_field` finding, and it is named here.
+        let recipe = Recipe {
+            recipe_version: RECIPE_VERSION,
+            meta: RecipeMeta::new("x"),
+            checks: Vec::new(),
+            operator: HashMap::new(),
+            renderers: default_renderers(),
+            command: CommandSpec {
+                argv: vec!["true".to_string()],
+                cwd: None,
+                env: HashMap::new(),
+                pty: true,
+                extension: HashMap::new(),
+            },
+            steps: Vec::new(),
+            assertions: Vec::new(),
+            expect_exit_code: Some(0),
+            timeout_seconds: 30.0,
+            cols: 100,
+            rows: 30,
+            source_path: None,
+            extension: HashMap::new(),
+        };
+        assert_eq!(recipe.meta.name, "x");
+        assert_eq!(recipe.command.argv, ["true"]);
+        assert!(recipe.source_path.is_none());
+    }
+
+    #[test]
+    fn the_recipe_semver_waiver_is_scoped_to_the_release_it_was_granted_for() {
+        // The other half, and the same reasoning as its twin in
+        // `evidence::collector`: the waiver is a decision about *this* release
+        // line, not a permanent exemption. It was granted on termproof staying
+        // on 0.4.x; the moment the version leaves 0.4.x that reasoning has
+        // expired and the waiver has to be re-decided rather than carried
+        // along, so this fails the build instead of letting it ride.
+        //
+        // Matched on the lint name alone: `cargo package` normalises the
+        // manifest, so the spacing around the value is not ours to rely on.
+        let manifest = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/Cargo.toml"));
+        let waived = manifest.contains("struct_pub_field_missing");
+        let version = env!("CARGO_PKG_VERSION");
+        assert!(
+            !waived || version.starts_with("0.4."),
+            "the struct_pub_field_missing waiver in Cargo.toml was granted for \
+             0.4.x and this crate is {version}. Re-decide it: either the break \
+             is now carried by the version bump and the waiver, its comment and \
+             `every_public_field_of_the_recipe_is_accounted_for` all go, or it \
+             is re-granted for the new line and this test moves with it."
+        );
+    }
+
+    #[test]
     fn legacy_recipe_defaults_version_to_one() {
         let recipe: Recipe =
             serde_json::from_str(r#"{"name":"x","command":{"argv":["true"]}}"#).expect("parse");
