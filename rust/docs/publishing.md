@@ -95,6 +95,45 @@ that would produce a broken release:
 
 It authenticates with the `CARGO_REGISTRY_TOKEN` repository secret.
 
+### The other path: push the tag and let the release be made for you
+
+`release: published` is the only trigger, so a tag on its own uploads nothing.
+That used to make a hand-pushed tag a half-release: the binaries built,
+`rust-release.yml` waited for a release that no one was going to create, and
+the one red job it produced read as a failed upload rather than as a release
+that never happened. crates.io received nothing, and nothing said so.
+
+`rust-release.yml` closes that itself. Its attach job waits for the release as
+before, and creates one when the wait comes up empty — with notes rendered from
+the commit range by `release-decide.py --at`, the same renderer the weekly path
+uses. On the weekly path the release is already there when the wait runs, so
+nothing is created and there is still exactly one release.
+
+Creating it needs `RELEASE_TOKEN`, and its absence fails the job rather than
+producing a release with the default token: a release created that way does not
+start this workflow, and because a `workflow_dispatch` run here is a dry run,
+no re-run could ever publish it. See the header of `rust-auto-release.yml`.
+
+So the whole of cutting a Rust release by hand is:
+
+```sh
+git tag -a rs-v<version> -m rs-v<version> <commit>
+git push origin rs-v<version>
+```
+
+### Confirming the crates actually shipped
+
+`rust-release.yml` ends with a job that asks crates.io whether every crate
+`publish-plan.py` names is on the index at this version, and fails naming the
+ones that are not
+(`.github/scripts/rust/verify-published.sh`). It runs on both release paths.
+
+It exists because the failure worth defending against is not a red job. It is a
+release page that looks finished — tag, notes, three binaries — beside a
+registry that received nothing, which is what the missing-release bug produced
+and what no amount of reading the run list makes obvious. This is the one check
+that cannot be satisfied by the release path merely having run.
+
 **A `workflow_dispatch` run is always a dry run.** There is no input to flip.
 The only path that uploads is a published release, so the workflow cannot be
 hand-triggered into publishing by mistake. Use dispatch to rehearse.
@@ -303,7 +342,10 @@ file is copied into each crate directory; keep the copies in sync with the root
 - `.github/workflows/rust-publish-crates.yml` — the only thing that uploads to a
   registry.
 - `.github/workflows/rust-release.yml` — builds and attests the `termproof`
-  binary for tagged releases. It does not publish to crates.io. It has run
+  binary for tagged releases, creates the GitHub release when a tag arrives
+  without one, and checks the registry at the end. It does not publish to
+  crates.io — creating the release is what asks `rust-publish-crates.yml` to.
+  It has run
   successfully on every release tag through `0.3.4`: `v0.2.1` to `v0.3.3` in
   the separate Rust repository this workspace came from, and `rs-v0.3.4`, the
   first `rs-v*` tag cut here. Each attaches the three per-platform archives and

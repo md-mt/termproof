@@ -9,6 +9,10 @@ scheduled workflow runs can be run by hand against any range:
     .github/scripts/rust/release-decide.py --from A --to B # any range
     .github/scripts/rust/release-decide.py --to B          # first-release path
 
+`--at` turns the same command into a description of a release that already
+exists rather than a decision about one — see the flag's help. Everything below
+is about the deciding mode.
+
 The two questions it answers are independent, and both must come back yes.
 
 1. Is there a change worth releasing?
@@ -285,6 +289,14 @@ def main():
         action="store_true",
         help="release even when nothing releasable changed; the version rule still applies",
     )
+    parser.add_argument(
+        "--at",
+        metavar="VERSION",
+        help="the version being released is exactly this — describe the range "
+        "instead of deciding on it. For a tag that already exists, where the "
+        "version is a fact rather than something a bump derives; the notes and "
+        "the reported tag name that version.",
+    )
     args = parser.parse_args()
 
     head = git("rev-parse", args.head).strip()
@@ -309,7 +321,18 @@ def main():
 
     first_release = base is None
 
-    if not commits and not args.force:
+    if args.at:
+        # Describing, not deciding. The caller already has a tag, so asking
+        # whether to release is moot and deriving a bump would name the version
+        # *after* the one that went out. A quiet range is fine here — a release
+        # cut by hand is allowed to be a release nothing would have proposed.
+        release, reason, level, nxt = (
+            True,
+            f"describing the release already tagged at {args.at}; no bump was derived",
+            "none",
+            args.at,
+        )
+    elif not commits and not args.force:
         release, reason, level, nxt = (
             False,
             "no commits since the last release other than the automation's own version bump",

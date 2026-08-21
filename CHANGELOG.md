@@ -41,7 +41,35 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
 
 ## [Unreleased]
 
-Nothing yet.
+### CI
+
+- **An `rs-v*` tag pushed by hand is now a whole release.** It was not. The
+  0.4.1 tag was pushed by hand; `rust-release.yml` built the binaries and then
+  waited for a GitHub release that nothing on that path was going to create,
+  and failed after 150 seconds. The failure read as a problem attaching
+  binaries. It was not one — `rust-publish-crates.yml` triggers on a
+  *published release* and nothing else, so crates.io received nothing at all,
+  and one red job among several green ones was the entire signal that a
+  release had silently not happened. 0.4.1 was recovered by creating the
+  release by hand.
+
+  The attach job now creates the release itself when the wait finds none, with
+  notes rendered from the commit range by the same renderer the weekly
+  automation uses (`release-decide.py`, via a new `--at` flag that pins the
+  version to the tag instead of deriving the next one). The wait is what keeps
+  this a no-op on the weekly path, so that path still produces exactly one
+  release. Creating it requires `RELEASE_TOKEN`; its absence fails the job,
+  because a release created with the default token cannot start the crates
+  publish and nothing could be re-run to fix that afterwards.
+
+  Nothing about what triggers the crates publish changed. A published release
+  is still the one gate, and still the only thing that uploads to a registry.
+- **The release path ends by asking crates.io whether the crates shipped.** A
+  new job runs `.github/scripts/rust/verify-published.sh`, which checks that
+  every crate `publish-plan.py` names is on the index at this version and
+  fails naming the ones that are not. Every job being green was never evidence
+  that anything was published, which is the lesson 0.4.1 taught; the crate set
+  is derived from the manifests, so nothing here names a crate.
 
 ## [0.4.1] — 2026-08-20
 
