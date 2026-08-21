@@ -61,6 +61,15 @@
 # the fact. A missing token therefore fails this job rather than creating a
 # release that can never publish.
 #
+# One consequence is worth stating plainly, because publish-crates.yml's header
+# says that workflow cannot be hand-triggered into publishing and a reader will
+# generalise it. Dispatching *this* workflow against an `rs-v*` tag takes the
+# same path a tag push does, so it can create a release, and a release is what
+# publishes. That is the intended way to recover a tag whose release is
+# missing, and it is bounded by the same guards: a tag ref, a manifest at
+# exactly that version, no release already there, and the token. A dispatch on
+# a branch reaches none of it — the attach job is gated on the ref being a tag.
+#
 # ## The check at the end
 #
 # Everything above still only proves that the release *path* ran. The failure
@@ -341,21 +350,47 @@ jobs:
   # It runs on both paths and on a re-run, because it is a question about the
   # registry rather than about this run: once the crates are there the answer
   # comes back in seconds.
+  #
+  # `!cancelled()` rather than the default, and that is the whole point of the
+  # job. `needs: attach` alone carries an implicit `success()`, which would
+  # skip this in exactly the states it exists to describe: a release created
+  # and then a failed upload leaves a red job named *Attach to release* beside
+  # a registry nobody looked at, which is the shape of the incident this
+  # workflow is being fixed for. A cancelled run is the one case with nothing
+  # to say — the release path did not finish and nobody claimed it did.
   verify-crates:
     name: Verify the crates published
     needs: attach
-    if: startsWith(github.ref, 'refs/tags/rs-v')
+    if: ${{ !cancelled() && startsWith(github.ref, 'refs/tags/rs-v') }}
     runs-on: ubuntu-latest
     timeout-minutes: 50
     permissions:
       contents: read
-      # `gh run list`, for the failure report below. Read-only.
+      # `gh release view` below, and `gh run list` for the failure report.
       actions: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master (2026-08-05)
         with:
           toolchain: "1.96.0"
+
+      # Ask the cheap question first. Polling the registry for forty minutes
+      # is only worth it when something is coming; with no release nothing is,
+      # because the publish triggers on nothing else. This is also what keeps
+      # the job fast when it runs after a failed build: seconds, and a message
+      # that names the consequence — a tag went out and shipped nothing —
+      # rather than leaving that to be inferred from a red job further up.
+      - name: A release exists for this tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            echo "::error::tag '$TAG' has no GitHub release, so no crate was published and none will be — the crates publish triggers on a published release and nothing else. Whatever failed above stopped the release from being created; fix it and re-run this workflow from the tag."
+            exit 1
+          fi
+          echo "release $TAG exists"
 
       # The set comes from the plan, never from a list written here — the same
       # property publish-crates.yml has, and for the same reason: a name

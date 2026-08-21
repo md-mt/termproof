@@ -181,6 +181,36 @@ class CratesPublishStaysTheOneGateTest(unittest.TestCase):
         self.assertNotIn("cargo publish", text)
         self.assertNotIn("CARGO_REGISTRY_TOKEN", text)
 
+    def test_the_release_workflow_is_reachable_only_by_tag_or_by_hand(self) -> None:
+        """It mints releases now, so what can start it is part of the contract.
+
+        Neither of the two ways to widen this is dangerous on its own — a pull
+        request's `github.ref` is `refs/pull/N/merge`, which the attach job's
+        guard rejects, and the tag-versus-manifest check inside the create step
+        would exit before `gh` for any ref that is not `rs-v<version>`. That is
+        defence in depth working. It is worth making deliberate rather than
+        incidental, because both layers were added for the tag path and neither
+        was written with a wider trigger in mind.
+        """
+        release = _workflow(RELEASE)
+        self.assertEqual({"push", "workflow_dispatch"}, set(release[True]))
+        self.assertEqual(["rs-v*.*.*"], release[True]["push"]["tags"])
+
+    def test_the_jobs_that_touch_a_release_are_gated_on_a_tag_ref(self) -> None:
+        """A `workflow_dispatch` on a branch must reach neither of them.
+
+        Dispatching against a *tag* deliberately does reach them — that is the
+        recovery path for a tag whose release went missing — so this pins the
+        ref guard rather than the event.
+        """
+        release = _workflow(RELEASE)
+        self.assertEqual(
+            "startsWith(github.ref, 'refs/tags/rs-v')", release["jobs"]["attach"]["if"]
+        )
+        self.assertIn(
+            "startsWith(github.ref, 'refs/tags/rs-v')", release["jobs"]["verify-crates"]["if"]
+        )
+
 
 class TheReleasePathEndsByAskingTheRegistryTest(unittest.TestCase):
     def setUp(self) -> None:
@@ -189,7 +219,33 @@ class TheReleasePathEndsByAskingTheRegistryTest(unittest.TestCase):
 
     def test_it_runs_last_on_the_tag_path(self) -> None:
         self.assertEqual("attach", self.job["needs"])
-        self.assertEqual("startsWith(github.ref, 'refs/tags/rs-v')", self.job["if"])
+
+    def test_it_still_runs_when_something_above_it_failed(self) -> None:
+        """`needs:` alone carries an implicit `success()`, which is backwards.
+
+        A release created and then a failed upload leaves a red job named
+        *Attach to release* beside a registry nobody looked at — the exact
+        shape of the incident this workflow is being fixed for. The states
+        worth describing are the ones where something above did not succeed,
+        so the guard has to say so explicitly. A cancelled run is the one case
+        with nothing to report.
+        """
+        self.assertEqual(
+            "${{ !cancelled() && startsWith(github.ref, 'refs/tags/rs-v') }}", self.job["if"]
+        )
+
+    def test_no_release_fails_fast_instead_of_polling_for_forty_minutes(self) -> None:
+        """With no release nothing is coming, because nothing else publishes."""
+        names = [step.get("name") for step in _steps(self.workflow, "verify-crates")]
+        self.assertLess(
+            names.index("A release exists for this tag"),
+            names.index("Every crate the plan names is on crates.io"),
+            "the cheap question comes first",
+        )
+        step = _step(self.workflow, "verify-crates", "A release exists for this tag")
+        self.assertIn('gh release view "$TAG"', step["run"])
+        self.assertIn("::error::tag '$TAG' has no GitHub release", step["run"])
+        self.assertIn("exit 1", step["run"])
 
     def test_the_crate_set_is_derived_and_never_written_down(self) -> None:
         step = _step(self.workflow, "verify-crates", "Every crate the plan names is on crates.io")

@@ -95,6 +95,24 @@ that would produce a broken release:
 
 It authenticates with the `CARGO_REGISTRY_TOKEN` repository secret.
 
+**A `workflow_dispatch` run of *that* workflow is always a dry run.** There is
+no input to flip. The only path that uploads is a published release, so
+`rust-publish-crates.yml` cannot be hand-triggered into publishing by mistake.
+Use dispatch to rehearse.
+
+Read that as a statement about one workflow, not about the system. Since
+`rust-release.yml` learned to create a release, **dispatching *Release (Rust)*
+against an `rs-v*` tag is the one hand-trigger that can lead to a publish** —
+it takes the same path a tag push does, so if that tag has no release it gets
+one, and the release is what publishes. That is deliberate: it is the recovery
+action for a tag whose release is missing. It is also bounded — it needs write
+access, an existing `rs-v*` tag, a manifest at exactly that version, and no
+release already there. Dispatching it on a branch reaches none of this; the
+attach job is gated on the ref being a tag.
+
+The publish workflow also runs on every pull request, as a dry run, so it is
+exercised before a release depends on it.
+
 ### The other path: push the tag and let the release be made for you
 
 `release: published` is the only trigger, so a tag on its own uploads nothing.
@@ -134,12 +152,11 @@ registry that received nothing, which is what the missing-release bug produced
 and what no amount of reading the run list makes obvious. This is the one check
 that cannot be satisfied by the release path merely having run.
 
-**A `workflow_dispatch` run is always a dry run.** There is no input to flip.
-The only path that uploads is a published release, so the workflow cannot be
-hand-triggered into publishing by mistake. Use dispatch to rehearse.
-
-The workflow also runs on every pull request, as a dry run, so it is exercised
-before a release depends on it.
+It runs on `!cancelled()` rather than on the jobs above it succeeding, because
+the states worth describing are the ones where something above it did not. A
+tag with no release at all fails it in seconds, naming that as the reason
+nothing shipped, rather than spending forty minutes waiting for a publish that
+was never triggered.
 
 ### The `crates-io` environment
 

@@ -71,6 +71,13 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
   that anything was published, which is the lesson 0.4.1 taught; the crate set
   is derived from the manifests, so nothing here names a crate.
 
+  It runs on `!cancelled()` rather than on the jobs above it succeeding. A
+  `needs:` alone carries an implicit `success()`, which would have skipped the
+  check in exactly the states it exists to describe — a release created and
+  then a failed upload is the same shape as the incident itself. A tag with no
+  release fails it in seconds, naming that as the reason nothing shipped,
+  rather than waiting out a publish that was never triggered.
+
 ## [0.4.1] — 2026-08-20
 
 **This is a patch release that carries breaking changes, on purpose.** The rule
