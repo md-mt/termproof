@@ -23,11 +23,12 @@ categories = [
 ]
 # The differential tests replay `conformance/corpus/`, which lives at the repository
 # root and is deliberately not shipped (~150 KB of recorded oracle output that no
-# consumer of the library needs). Without the corpus these two tests cannot run,
+# consumer of the library needs). Without the corpus these tests cannot run,
 # so they stay out of the tarball too. Every other test here is self-contained.
 exclude = [
     "tests/differential_steps.rs",
     "tests/differential_assertions.rs",
+    "tests/differential_before_after.rs",
 ]
 
 # Features gate public modules, so `docs.rs` must build with all of them on or

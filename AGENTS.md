@@ -12,9 +12,15 @@ languages force a difference, the house pattern is `Option<T>` for a Python
 keyword default and `Err` for a Python `ValueError`.
 
 Parity is asserted, not assumed: `conformance/README.md` is the authority on the
-three differential harnesses and on how to regenerate a corpus. Read it before
+differential harnesses and on how to regenerate a corpus. Read it before
 changing anything a harness compares — regenerating an expected file to make a
 test pass is how a real divergence gets recorded as correct.
+
+Which side is the reference is per-layer, not global. Python is the oracle for
+steps, assertions and the evidence manifest; Rust is for `before_after`, which
+Python was changed to match in #204. A module pair with no harness over it has
+no answer to that question at all, which is how `before_after` drifted on three
+axes at once without a test failing anywhere.
 
 ## Rust has two `Recipe` types and they are not interchangeable
 

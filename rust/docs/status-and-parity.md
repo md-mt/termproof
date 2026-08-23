@@ -27,21 +27,32 @@ moving as it approaches parity.
 
 ## The differential harness
 
-The step and assertion layers are measured against corpora recorded from the
-Python implementation. Each layer has its own harness, each the same two-half
-shape: a Python probe drives the oracle over a checked-in corpus, and a Rust
-test replays the same cases through the port and reports agreement.
+Three layers are measured against corpora recorded from the Python
+implementation. Each layer has its own harness, each the same two-half shape: a
+Python probe drives its side over a checked-in corpus, and a Rust test replays
+the same cases and compares. (A fourth harness, for the evidence manifest,
+builds its scenario in code rather than from a corpus — see
+[`conformance/README.md`](../../conformance/README.md).)
 
 | Layer | Oracle | Port | Corpus |
 |---|---|---|---|
 | Steps | `conformance/probe_steps.py` | `crates/termproof/tests/differential_steps.rs` | `conformance/corpus/cases.json` |
 | Assertions | `conformance/probe_assertions.py` | `crates/termproof/tests/differential_assertions.rs` | `conformance/corpus/assertion_cases.json` |
+| Before/after | `conformance/probe_before_after.py` | `crates/termproof/tests/differential_before_after.rs` | `conformance/corpus/before_after_cases.json` |
 
-The harnesses assert a **floor rather than equality**: agreement can rise but
-must never fall, and panics and cases that never return are asserted at zero
-rather than ratcheted. Full agreement is deliberately **not** required — the
-remaining gaps are open decisions that are not the port's to make (see
-[Known defects and divergences](#known-defects-and-divergences) below).
+The step and assertion harnesses assert a **floor rather than equality**:
+agreement can rise but must never fall, and panics and cases that never return
+are asserted at zero rather than ratcheted. Full agreement is deliberately
+**not** required — the remaining gaps are open decisions that are not the port's
+to make (see [Known defects and divergences](#known-defects-and-divergences)
+below).
+
+The before/after harness has no ratchet and demands equality: it compares a
+report format rather than scoring a corpus, and a partial score for a report
+format is not a useful number. Its direction is also the other way round —
+Rust is the reference and Python was changed to match it (#204), because the
+Rust module is the newer of the two and carries the documented ordering
+rationale.
 
 ## Step layer
 

@@ -325,10 +325,11 @@ The published tarballs are deliberately smaller than the repository:
   oracle expectations (~150 KB). It lives at the repository root, outside every
   crate directory, so it is never packaged. It is a measurement artefact for
   contributors, not something a consumer of the library needs.
-- **`crates/termproof/tests/differential_steps.rs` and
-  `differential_assertions.rs`** — excluded explicitly. They replay
-  `conformance/corpus/`, so without it they cannot run; shipping tests that cannot
-  run is worse than not shipping them. Run them from a repository checkout.
+- **`crates/termproof/tests/differential_steps.rs`,
+  `differential_assertions.rs` and `differential_before_after.rs`** — excluded
+  explicitly. They replay `conformance/corpus/`, so without it they cannot run;
+  shipping tests that cannot run is worse than not shipping them. Run them from
+  a repository checkout.
 - **`specs/`, `docs/`, `.github/`** — repository root, never packaged.
 
 Everything else the crate needs at build time is inside its own directory, and
