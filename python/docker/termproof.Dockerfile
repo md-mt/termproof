@@ -1,6 +1,6 @@
 # The Rust toolchain here builds `agg`, the asciinema cast renderer. It is not
 # a TermProof engine — the image ships the Python implementation only.
-FROM rust:1.85-slim AS agg-builder
+FROM rust:1.97-slim AS agg-builder
 
 ARG AGG_TAG=v1.9.0
 
@@ -10,7 +10,7 @@ RUN apt-get update \
 
 RUN cargo install --locked --git https://github.com/asciinema/agg --tag "${AGG_TAG}" --root /opt/agg
 
-FROM python:3.12-slim
+FROM python:3.14-slim
 
 ENV TERM=xterm-256color
 WORKDIR /workspace
