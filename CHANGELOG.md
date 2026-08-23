@@ -41,6 +41,83 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
 
 ## [Unreleased]
 
+### Python — Changed (breaking)
+
+- **`before_after` now produces the same report as the Rust module, which
+  changes published report text.** The two were never two bindings of one
+  thing — they were separate implementations that disagreed on the delta field
+  names, on both markdown forms and on the order the deltas came out in
+  ([#204](https://github.com/md-mt/termproof/issues/204)). Python moved to
+  match Rust; nothing changed on the Rust side.
+
+  This is visible wherever a Python report is published — the CI PR comment
+  (`ci_evidence.compose_pr_comment`), `report.ReportGenerator` and
+  `builtin_reporters` all embed `BeforeAfterResult.to_markdown()` verbatim.
+
+  The **empty case**, which is the outcome of most runs:
+
+  ```markdown
+  ## Behavioral Deltas
+
+  None.
+  ```
+
+  is now, on one line:
+
+  ```markdown
+  **Behavioral deltas:** none — before/after outcomes match.
+  ```
+
+  A **populated** section:
+
+  ```markdown
+  ## Behavioral Deltas
+
+  - `login` [default]: PASS -> FAIL
+  ```
+
+  is now:
+
+  ```markdown
+  **Behavioral deltas:**
+
+  - login [default]: PASS -> FAIL
+  ```
+
+  **The deltas are also in a different order**, and that is the substantive
+  half. `compute_deltas` sorted the union of the `(recipe, renderer)` keys, so
+  a report read alphabetically. It now follows `before` order and appends
+  recipes that appear only in `after` — so a report reads in the order the
+  recipes ran rather than a hash order, and two reports either side of a change
+  line up when diffed. For a suite running `smoke`, `login`, `search`, deltas
+  that used to arrive as `login`, `search`, `smoke` now arrive as `smoke`,
+  `login`, `search`.
+
+  `BehaviorDelta`'s four fields were renamed to the Rust spelling, so code
+  reading them has to change: `recipe_name` → `recipe`, `before` →
+  `before_outcome`, `after` → `after_outcome` (`renderer` is unchanged). It
+  also gained `explanation()`, which renders the one-line form the markdown is
+  built from, and the module now exports the `PASS`, `FAIL` and `SKIP`
+  constants Rust exports. No behaviour changed in *which* outcomes are reported
+  as deltas.
+
+  This is a break under `0.x` and it is recorded here rather than bumped; the
+  version is the maintainer's decision.
+
+### Testing
+
+- **A fourth differential harness, for the before/after report.**
+  `conformance/probe_before_after.py` drives the Python module over
+  `conformance/corpus/before_after_cases.json` and records the deltas and the
+  rendered markdown; `crates/termproof/tests/differential_before_after.rs`
+  replays the same cases through the Rust module and compares the whole
+  recording. It exists because the divergence above went unnoticed for two
+  minor releases: each side asserted its own wording in its own unit tests, and
+  no test had ever run both. Ten cases, weighted towards the empty markdown and
+  the three ways an ordering rule can be silently undone. No ratchet — this is
+  a report format, and a partial score for a report format is not a useful
+  number. `conformance/README.md` has the shape and the regeneration command.
+
 ### CI
 
 - **An `rs-v*` tag pushed by hand is now a whole release.** It was not. The

@@ -1,0 +1,76 @@
+[
+  {
+    "name": "identical",
+    "before": [{"recipe": "login", "renderer": "default", "passed": true}],
+    "after": [{"recipe": "login", "renderer": "default", "passed": true}]
+  },
+  {
+    "name": "both-sides-empty",
+    "before": [],
+    "after": []
+  },
+  {
+    "name": "regression",
+    "before": [{"recipe": "login", "renderer": "default", "passed": true}],
+    "after": [{"recipe": "login", "renderer": "default", "passed": false}]
+  },
+  {
+    "name": "fix",
+    "before": [{"recipe": "login", "renderer": "default", "passed": false}],
+    "after": [{"recipe": "login", "renderer": "default", "passed": true}]
+  },
+  {
+    "name": "stopped-running",
+    "before": [{"recipe": "login", "renderer": "default", "passed": true}],
+    "after": []
+  },
+  {
+    "name": "newly-added",
+    "before": [],
+    "after": [{"recipe": "login", "renderer": "default", "passed": true}]
+  },
+  {
+    "name": "two-renderers-one-flipped",
+    "before": [
+      {"recipe": "login", "renderer": "alpha", "passed": true},
+      {"recipe": "login", "renderer": "beta", "passed": true}
+    ],
+    "after": [
+      {"recipe": "login", "renderer": "alpha", "passed": true},
+      {"recipe": "login", "renderer": "beta", "passed": false}
+    ]
+  },
+  {
+    "name": "before-order-then-new-arrivals",
+    "before": [
+      {"recipe": "b", "renderer": "d", "passed": true},
+      {"recipe": "a", "renderer": "d", "passed": true}
+    ],
+    "after": [
+      {"recipe": "a", "renderer": "d", "passed": false},
+      {"recipe": "b", "renderer": "d", "passed": false},
+      {"recipe": "c", "renderer": "d", "passed": true}
+    ]
+  },
+  {
+    "name": "before-order-is-not-alphabetical",
+    "before": [
+      {"recipe": "zulu", "renderer": "d", "passed": true},
+      {"recipe": "yankee", "renderer": "d", "passed": true},
+      {"recipe": "xray", "renderer": "d", "passed": true}
+    ],
+    "after": [
+      {"recipe": "xray", "renderer": "d", "passed": false},
+      {"recipe": "yankee", "renderer": "d", "passed": false},
+      {"recipe": "zulu", "renderer": "d", "passed": false}
+    ]
+  },
+  {
+    "name": "new-arrivals-are-not-sorted-either",
+    "before": [],
+    "after": [
+      {"recipe": "zulu", "renderer": "d", "passed": true},
+      {"recipe": "alpha", "renderer": "d", "passed": true}
+    ]
+  }
+]

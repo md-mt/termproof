@@ -1,13 +1,14 @@
 # Differential harness
 
-Cross-runtime differential harnesses for the layers the port has to match. One
-per layer, each the same two-half shape:
+Cross-runtime differential harnesses for the layers the two implementations
+have to match. One per layer, each the same two-half shape:
 
 | Layer | Oracle | Port | Corpus |
 |---|---|---|---|
 | Steps | `probe_steps.py` | `tests/differential_steps.rs` | `corpus/cases.json` |
 | Assertions | `probe_assertions.py` | `tests/differential_assertions.rs` | `corpus/assertion_cases.json` |
 | Evidence manifest | `probe_evidence_manifest.py` | `tests/differential_evidence_manifest.rs` | `corpus/evidence_manifest.expected.json` |
+| Before/after | `probe_before_after.py` | `tests/differential_before_after.rs` | `corpus/before_after_cases.json` |
 
 They exist because the port claimed corpus parity several times over with green
 local gates, and a differential run against the Python implementation still
@@ -524,3 +525,90 @@ Pass or fail, with the two documents printed on failure. There is no agreement
 ratchet here as there is for steps and assertions: the two implementations
 either write the same document or they do not, and a partial score for a file
 format is not a useful number.
+
+# Before/after
+
+A fourth harness, for the report `before_after` produces from two runs of the
+same suite.
+
+## Shape
+
+| Half | Where | What it does |
+|---|---|---|
+| Oracle | `probe_before_after.py` | Drives the Python `before_after` over `corpus/before_after_cases.json` and records each case's deltas — every field, under the name it carries — and its rendered markdown into `corpus/before_after.expected.json`. |
+| Port | `crates/termproof/tests/differential_before_after.rs` | Replays the same cases through the Rust module and compares the whole recording. |
+
+## Why it exists
+
+These two modules were not two bindings of one thing. They were separate
+implementations, and until #204 they disagreed on three axes at once:
+
+| | Rust | Python (before #204) |
+|---|---|---|
+| delta fields | `recipe`, `renderer`, `before_outcome`, `after_outcome` | `recipe_name`, `renderer`, `before`, `after` |
+| empty markdown | `**Behavioral deltas:** none — before/after outcomes match.` | `## Behavioral Deltas` / blank / `None.` |
+| delta line | `- recipe [renderer]: PASS -> FAIL` | ``- `recipe_name` [renderer]: PASS -> FAIL`` |
+| ordering | `before` order, new arrivals appended | `sorted()` over the key union |
+
+Nothing failed, because each side asserted its own wording in its own unit
+tests and no test had ever run both. It surfaced when a consumer with a
+validator in each language adopted 0.4.1 in both on the same day: the Rust side
+deleted its local copy and the output did not change by a byte, and the Python
+side could not, because adopting would have changed the report a human reviewer
+reads and reordered the deltas in it. Python was changed to match Rust, and
+this harness is what holds the two together from here.
+
+Both halves of the recording matter and for different reasons. The **deltas**
+are the API a consumer's own reporter reads, so the field names decide whether
+upstream can be swapped in for a local copy. The **markdown** is the report a
+human reviewer reads, so a divergence there is visible in published output
+rather than only in a type signature.
+
+## What the corpus measures
+
+Ten cases, chosen for the three axes above rather than for coverage of a wide
+input space — there is not much input space here.
+
+- **The empty case, twice** (`identical`, `both-sides-empty`). "No deltas" is
+  the most common outcome of a before/after run, so it is the string most
+  consumers see most often, and it is the one the two implementations worded
+  most differently.
+- **Each outcome transition** — a regression, a fix, a recipe that stopped
+  running (`PASS -> SKIP`) and one that appeared (`SKIP -> PASS`) — plus the
+  same recipe under two renderers, which is two entries and not one.
+- **Ordering, three ways.** `before-order-then-new-arrivals` pins the rule
+  itself; `before-order-is-not-alphabetical` puts every name in `before` out of
+  alphabetical order, so a `sorted()` anywhere in the pipeline reverses the list
+  rather than leaving it be; `new-arrivals-are-not-sorted-either` does the same
+  for the appended tail. Ordering is the axis a later cosmetic refactor is most
+  likely to undo, and the one a reviewer notices first: they want the deltas in
+  the order the recipes ran.
+
+Each case's `before` and `after` carry only `recipe`, `renderer` and `passed`.
+Those are the three fields this layer reads; both halves fill the rest of a
+`RunResult` with fixed values, so anything else varying would be measuring a
+different module.
+
+## Regenerating the expectations
+
+```sh
+cd /path/to/termproof/python
+TERMPROOF_PYTHON_REPO=$PWD uv run python \
+    ../conformance/probe_before_after.py \
+    > ../conformance/corpus/before_after.expected.json
+```
+
+Only regenerate deliberately: the file is the oracle's testimony, and quietly
+re-recording it turns a failing comparison into a passing one without changing
+any behaviour. If the Rust half is the one that changed, fix the Rust half —
+Rust is the reference for this layer, by the decision recorded in #204.
+
+## Reading the result
+
+```sh
+cargo test -p termproof --test differential_before_after
+```
+
+Pass or fail, with the two recordings printed on failure. As with the evidence
+manifest there is no ratchet: the two implementations either produce the same
+report or they do not.

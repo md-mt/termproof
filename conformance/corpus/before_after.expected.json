@@ -1,0 +1,151 @@
+[
+  {
+    "name": "identical",
+    "deltas": [],
+    "markdown": "**Behavioral deltas:** none \u2014 before/after outcomes match.\n"
+  },
+  {
+    "name": "both-sides-empty",
+    "deltas": [],
+    "markdown": "**Behavioral deltas:** none \u2014 before/after outcomes match.\n"
+  },
+  {
+    "name": "regression",
+    "deltas": [
+      {
+        "recipe": "login",
+        "renderer": "default",
+        "before_outcome": "PASS",
+        "after_outcome": "FAIL",
+        "explanation": "login [default]: PASS -> FAIL"
+      }
+    ],
+    "markdown": "**Behavioral deltas:**\n\n- login [default]: PASS -> FAIL\n"
+  },
+  {
+    "name": "fix",
+    "deltas": [
+      {
+        "recipe": "login",
+        "renderer": "default",
+        "before_outcome": "FAIL",
+        "after_outcome": "PASS",
+        "explanation": "login [default]: FAIL -> PASS"
+      }
+    ],
+    "markdown": "**Behavioral deltas:**\n\n- login [default]: FAIL -> PASS\n"
+  },
+  {
+    "name": "stopped-running",
+    "deltas": [
+      {
+        "recipe": "login",
+        "renderer": "default",
+        "before_outcome": "PASS",
+        "after_outcome": "SKIP",
+        "explanation": "login [default]: PASS -> SKIP"
+      }
+    ],
+    "markdown": "**Behavioral deltas:**\n\n- login [default]: PASS -> SKIP\n"
+  },
+  {
+    "name": "newly-added",
+    "deltas": [
+      {
+        "recipe": "login",
+        "renderer": "default",
+        "before_outcome": "SKIP",
+        "after_outcome": "PASS",
+        "explanation": "login [default]: SKIP -> PASS"
+      }
+    ],
+    "markdown": "**Behavioral deltas:**\n\n- login [default]: SKIP -> PASS\n"
+  },
+  {
+    "name": "two-renderers-one-flipped",
+    "deltas": [
+      {
+        "recipe": "login",
+        "renderer": "beta",
+        "before_outcome": "PASS",
+        "after_outcome": "FAIL",
+        "explanation": "login [beta]: PASS -> FAIL"
+      }
+    ],
+    "markdown": "**Behavioral deltas:**\n\n- login [beta]: PASS -> FAIL\n"
+  },
+  {
+    "name": "before-order-then-new-arrivals",
+    "deltas": [
+      {
+        "recipe": "b",
+        "renderer": "d",
+        "before_outcome": "PASS",
+        "after_outcome": "FAIL",
+        "explanation": "b [d]: PASS -> FAIL"
+      },
+      {
+        "recipe": "a",
+        "renderer": "d",
+        "before_outcome": "PASS",
+        "after_outcome": "FAIL",
+        "explanation": "a [d]: PASS -> FAIL"
+      },
+      {
+        "recipe": "c",
+        "renderer": "d",
+        "before_outcome": "SKIP",
+        "after_outcome": "PASS",
+        "explanation": "c [d]: SKIP -> PASS"
+      }
+    ],
+    "markdown": "**Behavioral deltas:**\n\n- b [d]: PASS -> FAIL\n- a [d]: PASS -> FAIL\n- c [d]: SKIP -> PASS\n"
+  },
+  {
+    "name": "before-order-is-not-alphabetical",
+    "deltas": [
+      {
+        "recipe": "zulu",
+        "renderer": "d",
+        "before_outcome": "PASS",
+        "after_outcome": "FAIL",
+        "explanation": "zulu [d]: PASS -> FAIL"
+      },
+      {
+        "recipe": "yankee",
+        "renderer": "d",
+        "before_outcome": "PASS",
+        "after_outcome": "FAIL",
+        "explanation": "yankee [d]: PASS -> FAIL"
+      },
+      {
+        "recipe": "xray",
+        "renderer": "d",
+        "before_outcome": "PASS",
+        "after_outcome": "FAIL",
+        "explanation": "xray [d]: PASS -> FAIL"
+      }
+    ],
+    "markdown": "**Behavioral deltas:**\n\n- zulu [d]: PASS -> FAIL\n- yankee [d]: PASS -> FAIL\n- xray [d]: PASS -> FAIL\n"
+  },
+  {
+    "name": "new-arrivals-are-not-sorted-either",
+    "deltas": [
+      {
+        "recipe": "zulu",
+        "renderer": "d",
+        "before_outcome": "SKIP",
+        "after_outcome": "PASS",
+        "explanation": "zulu [d]: SKIP -> PASS"
+      },
+      {
+        "recipe": "alpha",
+        "renderer": "d",
+        "before_outcome": "SKIP",
+        "after_outcome": "PASS",
+        "explanation": "alpha [d]: SKIP -> PASS"
+      }
+    ],
+    "markdown": "**Behavioral deltas:**\n\n- zulu [d]: SKIP -> PASS\n- alpha [d]: SKIP -> PASS\n"
+  }
+]

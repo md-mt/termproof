@@ -272,9 +272,10 @@ example against the driver, and the reversal conditions.
 
 ## Package contents
 
-The two differential tests (`tests/differential_steps.rs`,
-`tests/differential_assertions.rs`) are excluded from the published package —
-they replay a corpus that lives at the repository root and is not shipped.
+The corpus-replaying differential tests (`tests/differential_steps.rs`,
+`tests/differential_assertions.rs`, `tests/differential_before_after.rs`) are
+excluded from the published package — they replay a corpus that lives at the
+repository root and is not shipped.
 
 Everything else in `tests/` ships, including the schema snapshot
 (`tests/snapshots/recipe_schema_v1.json`) and its guard
