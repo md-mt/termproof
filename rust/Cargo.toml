@@ -17,7 +17,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.4.1"
+version = "0.4.2"
 edition = "2021"
 rust-version = "1.96"
 license = "MIT"
@@ -65,7 +65,7 @@ all = "warn"
 # is a floor written too high, mirrored, and wants the same kind of comment
 # naming what it buys (#177).
 [workspace.dependencies]
-termproof = { path = "crates/termproof", version = "0.4.1" }
+termproof = { path = "crates/termproof", version = "0.4.2" }
 regex = { version = "1.13.1", default-features = false, features = ["std", "unicode"] }
 # 0.16 at both ends, tested at 0.16.0. `jsonschema` 0.32.1 and 0.33.0 both ask
 # for `^0.16` themselves, and across the whole `>=0.32, <0.34` declared below
@@ -254,4 +254,4 @@ globset = "0.4"
 # shipping one whose `--help` is blank to save seven crates is the wrong trade,
 # and the consumer cannot undo it from their side.
 clap = { version = "4.5" }
-termproof-plugin-protocol = { path = "crates/termproof-plugin-protocol", version = "0.4.1" }
+termproof-plugin-protocol = { path = "crates/termproof-plugin-protocol", version = "0.4.2" }

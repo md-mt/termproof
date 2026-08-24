@@ -41,6 +41,10 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.4.2] — 2026-08-24
+
 ### Python — Changed (breaking)
 
 - **`before_after` now produces the same report as the Rust module, which
