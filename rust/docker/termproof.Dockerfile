@@ -55,7 +55,7 @@
 # font is not an error — it is a silently blank panel. fonts-liberation2
 # supplies Liberation Mono, matching the second entry exactly, for about 1 MB.
 
-FROM rust:1.96.0-slim-bookworm@sha256:4732ca96fd086cb9be682050c3f0176288eebaac2b80aa2bcefccfaf198e1950 AS builder
+FROM rust:1.98.0-slim-bookworm@sha256:1469a27c125cb5a3aebfa4f4e4665d935b02fb72cc093b2c974b3d740e43f157 AS builder
 
 WORKDIR /src
 
@@ -73,7 +73,7 @@ COPY crates ./crates
 RUN RUSTFLAGS="-C strip=symbols" cargo build --locked --release -p termproof-cli
 
 
-FROM debian:bookworm-slim@sha256:abd67ffcfa541b485a3dff59865ab629aa048a6c613e639d36e7456b0b229241
+FROM debian:bookworm-slim@sha256:88200866dfff7ea7f5cbcb6ec7c8a701889efe6fe859fe64d6990e4b07ea4171
 
 LABEL org.opencontainers.image.title="termproof" \
       org.opencontainers.image.description="Evidence-first verification for TUI and terminal applications (Rust implementation)" \
