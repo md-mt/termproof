@@ -110,7 +110,7 @@ jobs:
           echo "tag '$TAG' matches workspace version '$VERSION'"
 
   gate:
-    name: Gate
+    name: Publish gate
     if: github.event_name != 'release' || startsWith(github.event.release.tag_name, 'rs-v')
     runs-on: ubuntu-latest
     timeout-minutes: 45

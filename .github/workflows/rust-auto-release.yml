@@ -224,7 +224,7 @@ jobs:
   # exists — but by then the tag is already pushed and release-rust.yml is
   # already building. Better to find a broken main before anything is tagged.
   gate:
-    name: Gate
+    name: Publish gate
     needs: decide
     if: needs.decide.outputs.release == 'true' && !inputs.dry_run
     runs-on: ubuntu-latest

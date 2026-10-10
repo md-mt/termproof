@@ -103,7 +103,7 @@ list, not two.
 | `Public API compatibility (cargo semver-checks)` | `Security (Rust)` | `semver` |
 | `Package contents (cargo package)` | `Security (Rust)` | `package` |
 | `Plan` | `Publish crates (Rust)` | `plan` |
-| `Gate` | `Publish crates (Rust)` | `gate` |
+| `Publish gate` | `Publish crates (Rust)` | `gate` |
 | `Dry run` | `Publish crates (Rust)` | `dry-run` |
 | `Stdlib-only modules` | `CI (Python)` | `stdlib` |
 | `Lint, type-check and version drift` | `CI (Python)` | `lint` |
