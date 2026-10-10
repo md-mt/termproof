@@ -305,7 +305,14 @@ impl CastVideoConverter {
         Ok(output_path)
     }
 
-    fn frames_from_cast(&self, cast_path: &str) -> Result<Vec<AttributedScreen>, String> {
+    /// Replay `cast_path` and sample the grid at [`fps`](Self::fps), clamping
+    /// idle gaps to [`idle_time_limit`](Self::idle_time_limit). The final
+    /// screen is always the last frame.
+    ///
+    /// Public so `tests/differential_cast_replay.rs` can compare the replayed
+    /// grid with the Python oracle's, which has always exported its
+    /// `frames_from_cast`; see `conformance/README.md`.
+    pub fn frames_from_cast(&self, cast_path: &str) -> Result<Vec<AttributedScreen>, String> {
         let contents = fs::read_to_string(cast_path).map_err(|e| e.to_string())?;
         let mut lines = contents.lines();
         let header_line = lines.next().ok_or("empty cast file")?;

@@ -9,6 +9,7 @@ have to match. One per layer, each the same two-half shape:
 | Assertions | `probe_assertions.py` | `tests/differential_assertions.rs` | `corpus/assertion_cases.json` |
 | Evidence manifest | `probe_evidence_manifest.py` | `tests/differential_evidence_manifest.rs` | `corpus/evidence_manifest.expected.json` |
 | Before/after | `probe_before_after.py` | `tests/differential_before_after.rs` | `corpus/before_after_cases.json` |
+| Cast replay | `probe_cast_replay.py` | `tests/differential_cast_replay.rs` | `corpus/cast_replay_cases.json` |
 
 They exist because the port claimed corpus parity several times over with green
 local gates, and a differential run against the Python implementation still
@@ -628,3 +629,108 @@ for the same screen. #222 stays open as the future work of a portable non-ASCII
 fingerprint. #223 is a separate, open difference in the attributed cells the
 digest is taken over, and #224 (Python's plain-text constructor's width rule) is
 resolved by #237; nothing here changes for them.
+
+# Cast replay
+
+A fifth harness, for the grid a cast replays to — the one layer here where the
+two halves run different terminal emulators, `pyte` in the oracle and `avt` in
+the port.
+
+## Shape
+
+| Half | Where | What it does |
+|---|---|---|
+| Oracle | `probe_cast_replay.py` | Replays each case in `corpus/cast_replay_cases.json` through `frames_from_cast` and records the final frame — each row's cells as `text` and `width`, plus the cursor — into `corpus/cast_replay.expected.json`. |
+| Port | `crates/termproof/tests/differential_cast_replay.rs` | Replays the same cases through `CastVideoConverter::frames_from_cast` and compares the same recording. |
+
+A case is `columns`, `rows` and one `output` string. Each half writes it out as
+a one-event asciinema v2 cast and replays that, so the comparison goes through
+the function the video is built from rather than through an emulator
+constructed for the test.
+
+## Why it exists
+
+No other harness reaches an emulator's grid. The step corpus drives a real child
+but compares a verdict and a detail string, and the evidence-manifest scenario
+has the port replay a cast and then discards the frames. So when #220 took `avt`
+from 0.16 to 0.18, a review by hand was what noticed that a wide glyph
+overwritten on its second column replays as three different screens under
+`pyte`, `avt` 0.16 and `avt` 0.18. Every gate was green for all three.
+
+## What the corpus does and does not measure
+
+**Does**: where the emulator behind cast playback puts each glyph, how wide it
+says the glyph is, and where it leaves the cursor.
+
+**Does not**:
+
+- **Colour or SGR attributes.** They are not recorded. `pyte` has no dim, so
+  recording them would make every case about that.
+- **Frame timing.** Only the last frame is compared; the Python
+  `frames_from_cast` also holds it for `last_frame_duration`, which the Rust one
+  does not, and neither fact reaches the recording.
+- **The live session.** The port's pty session emulates with `vt100`, not `avt`,
+  and nothing here feeds it. A screen read from a running child is still
+  compared by no harness.
+- **Which emulator is right.** The recording is `pyte`'s because the oracle half
+  is the Python one, not because a decision was made that `pyte` is the
+  reference for this layer. None has been.
+
+Three cases. `ascii` and `wide-glyph` are controls: they agree, which is what
+makes the third's disagreement a statement about the emulators rather than
+about a transcription error in one of the halves.
+
+## Regenerating the expectations
+
+```sh
+cd /path/to/termproof/python
+TERMPROOF_PYTHON_REPO=$PWD uv run python \
+    ../conformance/probe_cast_replay.py \
+    > ../conformance/corpus/cast_replay.expected.json
+```
+
+Only regenerate deliberately: the file is the oracle's testimony, and quietly
+re-recording it turns a failing comparison into a passing one without changing
+any behaviour. The header records the CPython and `pyte` versions because the
+screen is `pyte`'s and each cell's width is CPython's `unicodedata`.
+
+## Reading the result
+
+```sh
+cargo test -p termproof --test differential_cast_replay -- --nocapture
+```
+
+The test prints every divergence with both frames, and the counts:
+
+| Count | Meaning | Now |
+|---|---|---|
+| Full agreement | rows and cursor all match | 2 / 3 |
+| Known residual | named in the test's `KNOWN_RESIDUAL` | 1 / 3 |
+
+The residual is a list of names asserted exactly, not a floor. A case that
+starts diverging fails the test, and so does a listed case that starts agreeing,
+so the list cannot outlive the divergence it records.
+
+## Known residual
+
+### A wide glyph overwritten on its second column — 1 case
+
+`wide-glyph-overwritten-on-its-second-column`: a 4 x 2 terminal fed
+`Aハz\x1b[1;3H界`. Counting from zero, `ハ` occupies columns 1-2 and `z` column 3; the
+cursor then moves back to column 2 — the second half of `ハ` — and writes
+another wide glyph there.
+
+| | row 0 | row 1 | cursor (row, column) |
+|---|---|---|---|
+| `pyte` 0.8.2 (oracle) | `A` `ハ`(2) `界`(2) filler | blank | 0, 4 |
+| `avt` 0.18 (port) | `A` blank `界`(2) filler | blank | 0, 4 |
+| `avt` 0.16, as observed reviewing #220 | `A` `ハ`(2) filler blank | `界`(2) filler blank blank | 1, 2 |
+
+The two current emulators agree on the cursor and on where `界` lands, and
+differ in one cell: `avt` blanks the first half of the glyph whose second half
+was overwritten, and `pyte` leaves it, so the oracle's row carries two width-2
+cells and a width-1 cell in four columns.
+
+This is a difference between the two emulators and not the plain-text
+constructor's width rule in #224, which involves no emulator at all. It is
+recorded here rather than fixed — tracked in #209.

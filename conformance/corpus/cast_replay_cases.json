@@ -1,0 +1,20 @@
+[
+  {
+    "name": "ascii",
+    "columns": 4,
+    "rows": 2,
+    "output": "Az"
+  },
+  {
+    "name": "wide-glyph",
+    "columns": 4,
+    "rows": 2,
+    "output": "Aハ"
+  },
+  {
+    "name": "wide-glyph-overwritten-on-its-second-column",
+    "columns": 4,
+    "rows": 2,
+    "output": "Aハz\u001b[1;3H界"
+  }
+]
