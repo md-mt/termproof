@@ -288,10 +288,11 @@ jobs:
             exit 1
           fi
 
-      # Moves `rust/Cargo.toml`, `Cargo.lock`, `python/pyproject.toml` and the
-      # root `CHANGELOG.md` together. Bumping the Rust manifest alone would
-      # push a `main` that fails the repository's own version-train check,
-      # after the release had already gone out.
+      # Moves `rust/Cargo.toml`, `Cargo.lock`, `python/pyproject.toml`,
+      # `python/uv.lock` and the root `CHANGELOG.md` together. Bumping the Rust
+      # manifest alone would push a `main` that fails the repository's own
+      # version-train check, after the release had already gone out. All five
+      # are tracked, which is what lets `git commit -a` below pick them up.
       - name: Bump the version train
         if: needs.decide.outputs.first_release != 'true'
         run: .github/scripts/rust/version-bump.py "${{ needs.decide.outputs.version }}"

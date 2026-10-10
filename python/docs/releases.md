@@ -41,9 +41,11 @@ uv run termproof run examples/generic examples/colorstress \
 
 ## GitHub Release Flow
 
-1. Update `pyproject.toml` **and** `rust/Cargo.toml` to the new version, add a
-   `## [<version>]` heading to the root `CHANGELOG.md`, and confirm with
-   `uv run python scripts/check_version.py`.
+1. Update `pyproject.toml` **and** `rust/Cargo.toml` to the new version, run
+   `uv lock` so `uv.lock` records it too, add a `## [<version>]` heading to the
+   root `CHANGELOG.md`, and confirm with
+   `uv run --frozen python scripts/check_version.py` — a plain `uv run` rewrites
+   a stale lock before the check can see it.
 2. Push a `py-v<version>` tag, e.g. `py-v0.3.4`.
 3. GitHub Actions runs unit tests, builds the wheel and sdist, executes the
    receipt-backed portable TUI end-to-end suite, writes the verifier report to
