@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+import tomllib
 import unittest
 from pathlib import Path
 
@@ -10,13 +12,16 @@ REPO_ROOT = ROOT.parent
 DOCKERFILE = ROOT / "docker" / "termproof.Dockerfile"
 WORKFLOW = REPO_ROOT / ".github" / "workflows" / "python-docker-image.yml"
 DOCS = ROOT / "docs" / "ci" / "docker.md"
+RUST_DOCKERFILE = REPO_ROOT / "rust" / "docker" / "termproof.Dockerfile"
+RUST_TOOLCHAIN = REPO_ROOT / "rust" / "rust-toolchain.toml"
+RUST_FROM = re.compile(r"^FROM rust:(\S+?)-slim(?:-\w+)?(@sha256:[0-9a-f]{64})? AS (\S+)$", re.MULTILINE)
 
 
 class DockerImageTest(unittest.TestCase):
     def test_dockerfile_installs_termproof_and_video_tools(self) -> None:
         text = DOCKERFILE.read_text(encoding="utf-8")
 
-        self.assertIn("FROM rust:1.85-slim AS agg-builder", text)
+        self.assertRegex(text, r"(?m)^FROM rust:\S+ AS agg-builder$")
         self.assertIn("cargo install --locked --git https://github.com/asciinema/agg", text)
         self.assertIn("FROM python:3.12-slim", text)
         self.assertIn("ffmpeg", text)
@@ -32,6 +37,21 @@ class DockerImageTest(unittest.TestCase):
         self.assertNotIn("termproof-rust", text)
         self.assertNotIn("rust-builder", text)
         self.assertEqual(1, text.count("FROM rust:"))
+
+    def test_rust_base_images_match_toolchain_pin(self) -> None:
+        # Both Dockerfiles that compile Rust must use the exact channel pinned
+        # in rust/rust-toolchain.toml, and the same digest-pinned image, so the
+        # two published images never drift apart again (#187).
+        channel = tomllib.loads(RUST_TOOLCHAIN.read_text(encoding="utf-8"))["toolchain"]["channel"]
+        images = set()
+        for dockerfile in (DOCKERFILE, RUST_DOCKERFILE):
+            matches = RUST_FROM.findall(dockerfile.read_text(encoding="utf-8"))
+            self.assertEqual(1, len(matches), dockerfile)
+            version, digest, _stage = matches[0]
+            self.assertEqual(channel, version, dockerfile)
+            self.assertTrue(digest, f"{dockerfile} rust base image is not digest-pinned")
+            images.add((version, digest))
+        self.assertEqual(1, len(images), "Rust base images differ between Dockerfiles")
 
     def test_workflow_builds_and_publishes_ghcr_image(self) -> None:
         workflow = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
