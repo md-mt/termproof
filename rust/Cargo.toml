@@ -199,7 +199,12 @@ vt100 = "0.16"
 # where both are fixed; the API surface this crate uses — `Report`,
 # `TestSuite`, `TestCase`, `TestCaseStatus`, `NonSuccessKind` and the
 # `set_*` builders — is unchanged across the bump (verified by the suite).
-quick-junit = "0.7"
+#
+# 0.8 is Dependabot's bump (#212), not a floor any API here put there: nothing
+# this crate calls changed (0.8 makes `Report::name` an `Option`, on the
+# deserializing side, which is never read), quick-xml stays 0.41, and
+# `generate_junit` writes byte-identical XML at 0.7.0 and 0.8.0.
+quick-junit = "0.8"
 image = { version = "0.25", default-features = false, features = ["png"] }
 sha2 = "0.11"
 unicode-normalization = "0.1"
