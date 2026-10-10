@@ -235,7 +235,7 @@ unicode-normalization = "0.1"
 unicode-width = "0.2"
 tempfile = "3.10"
 thiserror = "2.0"
-avt = "0.16"
+avt = "0.18"
 chrono = "0.4"
 globset = "0.4"
 # Builder API only, so no `derive`. Neither crate that uses clap has a
