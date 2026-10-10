@@ -68,7 +68,7 @@
 //!   from a shape that was already published, so default-on is what keeps
 //!   turning one off from being a break; this adds a shape that never was, so
 //!   default-off is what keeps it from being a change (#197).
-//! - **`test-harness`** (off) — not part of the published API. It exists for
+//! - **`_test-harness`** (off) — not part of the published API. It exists for
 //!   this repository's own conformance tests, adds no module and no
 //!   dependency, and carries no stability guarantee; do not enable it.
 //!

@@ -309,9 +309,9 @@ impl CastVideoConverter {
     /// `tests/differential_cast_replay.rs` and nothing else: the harness has to
     /// compare the replayed grid with the Python oracle's `frames_from_cast`,
     /// and an integration test can only reach what is `pub`. Not part of the
-    /// published API — it exists only under the `test-harness` feature and
+    /// published API — it exists only under the `_test-harness` feature and
     /// carries no stability guarantee; see `conformance/README.md`.
-    #[cfg(feature = "test-harness")]
+    #[cfg(feature = "_test-harness")]
     #[doc(hidden)]
     pub fn frames_from_cast(&self, cast_path: &str) -> Result<Vec<AttributedScreen>, String> {
         self.replay_frames(cast_path)

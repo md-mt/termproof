@@ -180,11 +180,18 @@ clap = ["dep:clap"]
 # `pub` (and `#[doc(hidden)]`) so `tests/differential_cast_replay.rs` can reach
 # the grid a cast replays to (#209). Nothing else should name it.
 #
+# The leading underscore is the part tooling reads. cargo-semver-checks leaves
+# a feature out of its default set when it is named `unstable`, `nightly`,
+# `bench` or `no_std`, or prefixed `_`, `unstable-` or `unstable_`, so the
+# `semver` job neither compares the method behind this one nor reports the
+# feature itself going. `_` over `unstable-` because the latter reads as an
+# API a consumer may try at their own risk, and this is not one to try.
+#
 # Off by default and kept off the CI powerset on purpose. The self
 # dev-dependency below turns it on for every test build of this crate, so no
 # combination can compile the harness out (docs/engineering-baseline.md §7) and
 # a sixth powerset entry would only re-run the other thirty-two.
-test-harness = []
+_test-harness = []
 
 # The union of what termproof-core, termproof-terminal and termproof-evidence
 # each declared, minus `ab_glyph`, which no code ever referenced (#27).
@@ -212,11 +219,11 @@ unicode-normalization.workspace = true
 unicode-width.workspace = true
 vt100.workspace = true
 
-# This crate, again, so that building its tests turns `test-harness` on without
+# This crate, again, so that building its tests turns `_test-harness` on without
 # anyone having to pass `--features`: `cargo test` is then the same command with
 # or without the cast-replay harness in it. `default-features = false` keeps it
 # from adding anything else to a `--no-default-features` build. It has a `path`
 # and no `version`, which is what makes `cargo package` drop it from the
 # published manifest rather than publish a crate that depends on itself.
 [dev-dependencies]
-termproof = { path = ".", default-features = false, features = ["test-harness"] }
+termproof = { path = ".", default-features = false, features = ["_test-harness"] }

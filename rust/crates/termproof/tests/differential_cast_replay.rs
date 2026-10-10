@@ -30,7 +30,7 @@
 // without it. The oracle has no equivalent switch — Python builds one package —
 // so this is a feature gate on the port half only.
 //
-// `frames_from_cast` is `pub` only under `test-harness`, which is deliberately
+// `frames_from_cast` is `pub` only under `_test-harness`, which is deliberately
 // *not* named here. The crate's self dev-dependency turns it on for every test
 // build, so losing that is a compile error in this file rather than a harness
 // that quietly compiles to nothing and reports green.
@@ -40,12 +40,51 @@ use std::path::{Path, PathBuf};
 
 use termproof::evidence::cast_video::CastVideoConverter;
 
-/// Cases the two emulators are known to disagree on, by name. Exact rather
-/// than a floor: a listed case that starts agreeing fails the test just as an
-/// unlisted one that stops does, so the list cannot outlive the divergence it
-/// records. Each entry is explained under "Known residual" in
-/// `conformance/README.md`.
-const KNOWN_RESIDUAL: &[&str] = &["wide-glyph-overwritten-on-its-second-column"];
+/// A case the two emulators are known to disagree on, and the one frame the
+/// port is accepted to produce for it.
+struct Residual {
+    name: &'static str,
+    /// Each row's cells as `(text, width)`.
+    rows: &'static [&'static [(&'static str, u64)]],
+    /// `(row, column, hidden)`.
+    cursor: (u64, u64, bool),
+}
+
+impl Residual {
+    /// The pinned frame in the shape `replay` produces.
+    fn frame(&self) -> serde_json::Value {
+        let (row, column, hidden) = self.cursor;
+        serde_json::json!({
+            "name": self.name,
+            "rows": self.rows.iter().map(|row| {
+                row.iter()
+                    .map(|(text, width)| serde_json::json!({"text": text, "width": width}))
+                    .collect::<Vec<_>>()
+            }).collect::<Vec<_>>(),
+            "cursor": {"row": row, "column": column, "hidden": hidden},
+        })
+    }
+}
+
+/// Cases the two emulators are known to disagree on. Exact rather than a
+/// floor, twice over. By name: a listed case that starts agreeing fails the
+/// test just as an unlisted one that stops does, so the list cannot outlive the
+/// divergence it records. And by frame: a listed case has to replay to exactly
+/// the screen pinned here, because "differs from the oracle" is true of every
+/// wrong screen at once — `avt` 0.16's answer to this case differs from
+/// `pyte`'s too, and a name alone would have accepted it.
+///
+/// The frames live here and not in `conformance/corpus/`: an `*.expected.json`
+/// there is the oracle's testimony, and this is the port's. Each entry is
+/// explained under "Known residual" in `conformance/README.md`.
+const KNOWN_RESIDUAL: &[Residual] = &[Residual {
+    name: "wide-glyph-overwritten-on-its-second-column",
+    rows: &[
+        &[("A", 1), (" ", 1), ("界", 2), ("", 0)],
+        &[(" ", 1), (" ", 1), (" ", 1), (" ", 1)],
+    ],
+    cursor: (0, 4, false),
+}];
 
 fn corpus_dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../conformance/corpus")
@@ -123,6 +162,7 @@ fn differential_cast_replay_against_python() {
 
     let tmp = tempfile::tempdir().expect("tempdir");
     let mut diverged: Vec<&str> = Vec::new();
+    let mut unpinned: Vec<&str> = Vec::new();
     println!("\n=== differential harness: cast replay ===");
     println!("oracle environment: {}", document["environment"]);
     for (case, want) in cases.iter().zip(expected) {
@@ -135,6 +175,11 @@ fn differential_cast_replay_against_python() {
                 describe(want),
                 describe(&got)
             );
+            let pinned = KNOWN_RESIDUAL.iter().find(|residual| residual.name == name);
+            if let Some(pinned) = pinned.map(Residual::frame).filter(|pinned| *pinned != got) {
+                unpinned.push(name);
+                println!("    pinned: {}", describe(&pinned));
+            }
         }
     }
     let total = cases.len();
@@ -147,10 +192,21 @@ fn differential_cast_replay_against_python() {
         KNOWN_RESIDUAL.len()
     );
 
+    let known: Vec<&str> = KNOWN_RESIDUAL
+        .iter()
+        .map(|residual| residual.name)
+        .collect();
     assert_eq!(
-        diverged, KNOWN_RESIDUAL,
+        diverged, known,
         "the cases the two emulators disagree on are not the recorded ones; a \
          new name is a new divergence, and a missing one has been closed and \
          comes off the list — see conformance/README.md"
+    );
+    assert!(
+        unpinned.is_empty(),
+        "{unpinned:?} still disagree with the oracle, but not with the screen \
+         pinned in KNOWN_RESIDUAL; the port's output for a known residual has \
+         changed, which is a new divergence and not the recorded one — see \
+         conformance/README.md"
     );
 }

@@ -701,10 +701,11 @@ cargo test -p termproof --test differential_cast_replay -- --nocapture
 ```
 
 No `--features` is needed, and CI's `cargo test --workspace` runs it as it
-stands. The port reaches `frames_from_cast` through the crate's `test-harness`
+stands. The port reaches `frames_from_cast` through the crate's `_test-harness`
 feature, which makes that one method `pub` for this test and is otherwise off:
 it is test-only, hidden from the documentation, and not part of the published
-API. The crate lists itself as a dev-dependency with the feature on, so every
+API. The leading underscore is what `cargo semver-checks` reads as private, so
+the method is outside the surface the `semver` job compares. The crate lists itself as a dev-dependency with the feature on, so every
 test build has it and no feature combination compiles the harness out.
 
 The test prints every divergence with both frames, and the counts:
@@ -712,11 +713,23 @@ The test prints every divergence with both frames, and the counts:
 | Count | Meaning | Now |
 |---|---|---|
 | Full agreement | rows and cursor all match | 2 / 3 |
-| Known residual | named in the test's `KNOWN_RESIDUAL` | 1 / 3 |
+| Known residual | named and pinned in the test's `KNOWN_RESIDUAL` | 1 / 3 |
 
-The residual is a list of names asserted exactly, not a floor. A case that
-starts diverging fails the test, and so does a listed case that starts agreeing,
-so the list cannot outlive the divergence it records.
+The residual is asserted exactly, not as a floor, and on two things. The
+**names**: a case that starts diverging fails the test, and so does a listed
+case that starts agreeing, so the list cannot outlive the divergence it records.
+And the **frame**: each entry carries the one screen the port is accepted to
+produce for that case — every row's cells as `text` and `width`, plus the
+cursor — and a listed case that replays to anything else fails, printing the
+oracle's frame, the port's and the pinned one. A name alone says only "differs
+from the oracle", which every wrong screen does.
+
+The pinned frame is a constant in the test and not a file in `corpus/`. An
+`*.expected.json` there is the oracle's testimony; the port's accepted answer
+is the port's claim about itself, the same kind of thing as the floors the step
+and assertion tests carry, and it belongs with them. Changing it is a decision
+to accept a different divergence, so it is made by editing the test and the
+table below together.
 
 ## Known residual
 
@@ -737,6 +750,10 @@ The two current emulators agree on the cursor and on where `界` lands, and
 differ in one cell: `avt` blanks the first half of the glyph whose second half
 was overwritten, and `pyte` leaves it, so the oracle's row carries two width-2
 cells and a width-1 cell in four columns.
+
+The `avt` 0.18 row is the frame pinned in `KNOWN_RESIDUAL`. The `avt` 0.16 row
+is why it is pinned: it disagrees with the oracle as well, in more cells and in
+the cursor, and a residual recorded by name would have passed it unchanged.
 
 This is a difference between the two emulators and not the plain-text
 constructor's width rule in #224, which involves no emulator at all. It is
