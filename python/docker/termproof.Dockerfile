@@ -1,6 +1,6 @@
 # The Rust toolchain here builds `agg`, the asciinema cast renderer. It is not
 # a TermProof engine — the image ships the Python implementation only.
-FROM rust:1.96.0-slim-bookworm@sha256:4732ca96fd086cb9be682050c3f0176288eebaac2b80aa2bcefccfaf198e1950 AS agg-builder
+FROM rust:1.99.0-slim-bookworm@sha256:2c3a22f0a5533ea2dd5a16627bc841228151faa2d4de2644ac9987e4a2f1f2fa AS agg-builder
 
 ARG AGG_TAG=v1.9.0
 
