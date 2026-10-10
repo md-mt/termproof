@@ -199,9 +199,14 @@ vt100 = "0.16"
 # where both are fixed; the API surface this crate uses — `Report`,
 # `TestSuite`, `TestCase`, `TestCaseStatus`, `NonSuccessKind` and the
 # `set_*` builders — is unchanged across the bump (verified by the suite).
-quick-junit = "0.7"
+#
+# 0.8 is Dependabot's bump (#212), not a floor any API here put there: nothing
+# this crate calls changed (0.8 makes `Report::name` an `Option`, on the
+# deserializing side, which is never read), quick-xml stays 0.41, and
+# `generate_junit` writes byte-identical XML at 0.7.0 and 0.8.0.
+quick-junit = "0.8"
 image = { version = "0.25", default-features = false, features = ["png"] }
-sha2 = "0.10"
+sha2 = "0.11"
 unicode-normalization = "0.1"
 # Must track the major that `vt100` depends on. Our own width decisions and
 # vt100's cell layout have to come from one Unicode table, or the same byte
@@ -230,7 +235,7 @@ unicode-normalization = "0.1"
 unicode-width = "0.2"
 tempfile = "3.10"
 thiserror = "2.0"
-avt = "0.16"
+avt = "0.18"
 chrono = "0.4"
 globset = "0.4"
 # Builder API only, so no `derive`. Neither crate that uses clap has a

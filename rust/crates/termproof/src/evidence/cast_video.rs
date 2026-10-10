@@ -496,7 +496,6 @@ fn round_micros(at: f64) -> f64 {
 fn attributed_screen_from_avt(vt: &Vt) -> AttributedScreen {
     let rows = vt
         .view()
-        .iter()
         .map(|line| line.cells().iter().map(cell_from_avt).collect())
         .collect();
     let cursor = vt.cursor();
@@ -532,7 +531,7 @@ fn attributed_screen_from_avt(vt: &Vt) -> AttributedScreen {
 /// revisited rather than quietly outliving the constraint.
 fn cell_from_avt(cell: &avt::Cell) -> AttributedCell {
     let pen = cell.pen();
-    let width = cell.width().min(2) as u8;
+    let width = cell.width().min(2);
     AttributedCell {
         // A width-0 cell is the filler behind a wide glyph; it carries no text
         // of its own, matching what the SGR parser produces.
