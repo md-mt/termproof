@@ -73,7 +73,7 @@ COPY crates ./crates
 RUN RUSTFLAGS="-C strip=symbols" cargo build --locked --release -p termproof-cli
 
 
-FROM debian:bookworm-slim@sha256:abd67ffcfa541b485a3dff59865ab629aa048a6c613e639d36e7456b0b229241
+FROM debian:bookworm-slim@sha256:7c7b2c966bc9ee8cedfeef67e0e279108992c77681fa595db4a9d65c06ccc587
 
 LABEL org.opencontainers.image.title="termproof" \
       org.opencontainers.image.description="Evidence-first verification for TUI and terminal applications (Rust implementation)" \
