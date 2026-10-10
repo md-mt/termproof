@@ -1,19 +1,16 @@
 name: CI (Rust)
 
+# No `paths:` filter here, deliberately (#226). A workflow that is filtered out
+# reports no check at all, and a required check that never reports is
+# indistinguishable from one still running — so a rollup of this workflow could
+# not be made required without blocking every PR that leaves Rust alone. The
+# workflow therefore starts on every PR and every push to `main`, the `changes`
+# job below decides whether there is anything to test, and `CI (Rust) result`
+# reports either way.
 on:
   pull_request:
-    paths:
-      - "rust/**"
-      - "spec/**"
-      - "conformance/**"
-      - ".github/workflows/rust-ci.yml"
   push:
     branches: [main]
-    paths:
-      - "rust/**"
-      - "spec/**"
-      - "conformance/**"
-      - ".github/workflows/rust-ci.yml"
   workflow_dispatch:
 
 permissions:
@@ -26,8 +23,66 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # What the workflow-level `paths:` used to decide, moved into a job so the
+  # workflow itself always runs. Plain `git diff` with the path set as
+  # pathspecs rather than a third-party filter action: git does the matching,
+  # so there is no pattern dialect to get subtly wrong and nothing new to pin.
+  changes:
+    name: Detect Rust-relevant changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    outputs:
+      rust: ${{ steps.diff.outputs.rust }}
+    steps:
+      # Full history: the base of the comparison is a commit named by the
+      # event, and a shallow clone holds only the head.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      # A pull request is compared against its base and a push against the
+      # commit `main` pointed at before it. Every case with no usable base
+      # answers `true`: a manual dispatch has none, a push that creates a ref
+      # carries all zeros, and a force-push can name a commit that is no longer
+      # fetchable. So does a `git diff` that errors rather than answers. Running
+      # the suite when it was not needed costs minutes; skipping it when it was
+      # needed is the false all-clear this job exists to prevent.
+      #
+      # On a pull request HEAD is the merge commit, so a base SHA that has gone
+      # stale since the event fired widens the diff to include what landed on
+      # `main` in between. That errs in the same direction.
+      - name: Diff against the base
+        id: diff
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          set -u
+          rust=true
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            echo "manual dispatch: running everything"
+          elif [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ]; then
+            echo "no base commit in the event: running everything"
+          elif ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+            echo "base $BASE is not in this clone: running everything"
+          else
+            status=0
+            git diff --quiet "$BASE" HEAD -- \
+              rust spec conformance .github/workflows/rust-ci.yml || status=$?
+            case "$status" in
+              0) rust=false; echo "no Rust-relevant path changed since $BASE" ;;
+              1) echo "Rust-relevant paths changed since $BASE:"
+                 git diff --name-only "$BASE" HEAD -- \
+                   rust spec conformance .github/workflows/rust-ci.yml ;;
+              *) echo "git diff exited $status: running everything" ;;
+            esac
+          fi
+          echo "rust=$rust" >> "$GITHUB_OUTPUT"
+
   rust:
     name: Lint, type-check and test (${{ matrix.os }})
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -110,3 +165,53 @@ jobs:
           perl -pi -e 's{^fancy-regex = .*}{fancy-regex = "=0.16.0"}' rust/Cargo.toml
           perl -pi -e 's{^jsonschema = .*}{jsonschema = "=0.32.0"}' rust/Cargo.toml
           cargo test --manifest-path rust/Cargo.toml --workspace
+
+
+  # The one check that means "all of CI (Rust) passed" (#226). Nothing rolled
+  # the matrix up before, so the only single green tick on a Rust PR was the
+  # publish workflow's gate, which never waited for this workflow and could not
+  # have: `needs:` does not cross workflows.
+  #
+  # `if: always()` is what makes it report at all. Without it a failed or
+  # cancelled `rust` leg would skip this job, and a skipped check satisfies a
+  # required-check rule — the failure would read as a pass.
+  #
+  # For the same reason `skipped` is not taken at face value. It is a pass only
+  # when `changes` succeeded and said, in so many words, that there was nothing
+  # to test; an empty or missing output is a failure, not a `false`.
+  result:
+    name: CI (Rust) result
+    needs: [changes, rust]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions: {}
+    steps:
+      - name: Roll up the needed jobs
+        env:
+          CHANGES_RESULT: ${{ needs.changes.result }}
+          RUST_CHANGED: ${{ needs.changes.outputs.rust }}
+          RUST_RESULT: ${{ needs.rust.result }}
+        run: |
+          set -u
+          echo "changes: $CHANGES_RESULT (rust=$RUST_CHANGED)"
+          echo "rust:    $RUST_RESULT"
+          if [ "$CHANGES_RESULT" != "success" ]; then
+            echo "::error::the changes job ended '$CHANGES_RESULT', so nothing decided whether Rust CI had to run."
+            exit 1
+          fi
+          case "$RUST_RESULT" in
+            success)
+              ;;
+            skipped)
+              if [ "$RUST_CHANGED" != "false" ]; then
+                echo "::error::the rust job was skipped although changes reported rust='$RUST_CHANGED' — only an explicit 'false' makes a skip a pass."
+                exit 1
+              fi
+              echo "no Rust-relevant path changed; nothing to test"
+              ;;
+            *)
+              echo "::error::the rust job ended '$RUST_RESULT'."
+              exit 1
+              ;;
+          esac

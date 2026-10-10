@@ -24,7 +24,7 @@ Measured on 404 successful job runs sampled from CI history (minutes):
     Docker Image (Python)  Build and publish              1.0    4.5     4.6
     Docker Image (Rust)    Build, smoke-test, publish     3.0    3.6     3.8
     Docs site              Build VitePress docs           0.3    0.4     0.4
-    Publish crates (Rust)  Gate                           3.2    3.5     3.5
+    Publish crates (Rust)  Publish gate                   3.2    3.5     3.5
     Security (Rust)        Public API compatibility       1.1    1.1     1.2
 
 The two outliers are exactly the two jobs that ran `apt-get`: their tails are
