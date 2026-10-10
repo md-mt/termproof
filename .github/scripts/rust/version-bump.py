@@ -11,7 +11,7 @@ release cannot leave the Python manifest or the changelog behind — which is
 exactly what it used to do, bumping `rust/Cargo.toml` alone and pushing a
 `main` that failed its own drift check.
 
-Four places carry the version and must move together:
+Five places carry the version and must move together:
 
   - `rust/Cargo.toml`, `[workspace.package] version`, which every member
     inherits;
@@ -21,6 +21,10 @@ Four places carry the version and must move together:
     `version` here compiles fine locally and fails at publish time, which is
     the worst moment to find it;
   - `python/pyproject.toml`, `[project] version`;
+  - `python/uv.lock`, the `version` of the project's own `[[package]]` entry.
+    uv records the project there as well as its dependencies, so a manifest
+    that moves without it leaves a lock that every plain `uv run` rewrites on
+    checkout — a dirty tree for whoever pulls the release commit (#229);
   - `CHANGELOG.md` at the repository root, where the pending `[Unreleased]`
     section is promoted to a heading for this version and a fresh empty
     `[Unreleased]` takes its place. Keep a Changelog's release step, and what
@@ -34,9 +38,9 @@ adding one, needs no edit here.
 Editing is a line-level substitution rather than a TOML round-trip, so
 comments, ordering and formatting survive byte-for-byte. The safety net is not
 the parser, it is the verification at the end: `cargo metadata` must report
-every workspace member at the new version, the Python manifest must read back
-at it, and the changelog must carry a heading for it — or this exits non-zero
-having said which one did not move.
+every workspace member at the new version, the Python manifest and its lock
+must read back at it, and the changelog must carry a heading for it — or this
+exits non-zero having said which one did not move.
 
 Re-running it is safe: a tree already at the target version is reported and
 left alone rather than promoted twice.
@@ -63,6 +67,15 @@ BARE_VERSION = re.compile(r'(?P<lead>^\s*version\s*=\s*")(?P<ver>[^"]+)(?P<tail>
 # `version = "0.2.1"` inside an inline table, e.g.
 # `foo = { path = "crates/foo", version = "0.2.1" }`.
 INLINE_VERSION = re.compile(r'(?P<lead>\bversion\s*=\s*")(?P<ver>[^"]+)(?P<tail>")')
+
+# `[[package]]`, the array-of-tables header that opens each entry in uv.lock.
+# SECTION does not match it, which is what lets the lock scan tell the start of
+# an entry from a sub-table such as `[package.optional-dependencies]` inside it.
+LOCK_PACKAGE = re.compile(r"^\s*\[\[package\]\]\s*$")
+LOCK_NAME = re.compile(r'^\s*name\s*=\s*"(?P<name>[^"]+)"')
+
+#: The project's own entry in uv.lock, as uv normalises `[project] name`.
+LOCK_PROJECT = "termproof"
 
 
 def cargo_metadata():
@@ -189,6 +202,61 @@ def read_pyproject_version(path):
     return None
 
 
+def _lock_version_line(lines):
+    """Index of the `version` line in the project's own `[[package]]`, or None.
+
+    Only the keys directly under the `[[package]]` header are considered, so a
+    `version` in a sub-table of the entry, or the lock format's own top-level
+    `version = 1`, is never mistaken for it. `name` is not assumed to come
+    before `version`: the entry is judged once both have been seen.
+    """
+    in_package = False
+    name = None
+    version_at = None
+    for index, line in enumerate(lines):
+        if LOCK_PACKAGE.match(line):
+            in_package, name, version_at = True, None, None
+            continue
+        if SECTION.match(line):
+            in_package = False
+            continue
+        if not in_package:
+            continue
+        named = LOCK_NAME.match(line)
+        if named:
+            name = named.group("name")
+        elif version_at is None and BARE_VERSION.match(line):
+            version_at = index
+        if name == LOCK_PROJECT and version_at is not None:
+            return version_at
+    return None
+
+
+def rewrite_uv_lock(text, old, new):
+    """Return (new_text, [edits]) for the project's own entry in uv.lock.
+
+    Entry-aware for the same reason the other rewrites are section-aware, and
+    more so: every locked dependency carries a `version = "..."` line, and one
+    of them may well sit at the number being bumped from. Nothing else in the
+    file moves — not the `revision` uv stamps at the top, which belongs to
+    whichever uv last wrote the lock, not to this release.
+    """
+    lines = text.splitlines(keepends=True)
+    edits = []
+    at = _lock_version_line(lines)
+    if at is not None and BARE_VERSION.match(lines[at]).group("ver") == old:
+        lines[at] = BARE_VERSION.sub(rf"\g<lead>{new}\g<tail>", lines[at], count=1)
+        edits.append(f"line {at + 1}: uv.lock [[package]] {LOCK_PROJECT} version -> {new}")
+    return "".join(lines), edits
+
+
+def read_uv_lock_version(path):
+    lines = path.read_text(encoding="utf-8").splitlines()
+    at = _lock_version_line(lines)
+    if at is None:
+        return None
+    return BARE_VERSION.match(lines[at]).group("ver")
+
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
@@ -213,6 +281,7 @@ def main():
     # behaves the same whether it is run from the root or from `rust/`.
     repo = root.parent
     pyproject = repo / PYTHON_ROOT / "pyproject.toml"
+    lock = repo / PYTHON_ROOT / "uv.lock"
     changelog = repo / "CHANGELOG.md"
 
     old = sorted({pkg["version"] for pkg in meta["packages"]})
@@ -231,6 +300,19 @@ def main():
         sys.exit(
             f"error: the version train is already split — {manifest} is at {old} "
             f"and {pyproject} is at {py_old}. Reconcile them before bumping."
+        )
+
+    lock_old = read_uv_lock_version(lock)
+    if lock_old is None:
+        sys.exit(f"error: no [[package]] entry for {LOCK_PROJECT} with a version in {lock}")
+    # The same refusal, one file further along. A lock that already disagrees
+    # with its own manifest was not written by this script, and moving it onto
+    # the new number would bury that rather than fix it.
+    if lock_old != py_old and lock_old != new:
+        sys.exit(
+            f"error: the version train is already split — {pyproject} is at {py_old} "
+            f"and {lock} records {LOCK_PROJECT} at {lock_old}. Reconcile them "
+            f"(`uv lock` in {pyproject.parent}) before bumping."
         )
 
     edits = []
@@ -255,6 +337,15 @@ def main():
             sys.exit(f"error: found nothing to bump from {py_old} to {new} in {pyproject}")
         edits += py_edits
         writes.append((pyproject, updated))
+
+    if lock_old == new:
+        print(f"python lockfile already at {new}")
+    else:
+        updated, lock_edits = rewrite_uv_lock(lock.read_text(encoding="utf-8"), lock_old, new)
+        if not lock_edits:
+            sys.exit(f"error: found nothing to bump from {lock_old} to {new} in {lock}")
+        edits += lock_edits
+        writes.append((lock, updated))
 
     try:
         updated, log_edits = promote_changelog(
@@ -301,13 +392,17 @@ def main():
     if py_after != new:
         sys.exit(f"error: after the bump {pyproject} reads {py_after}, not {new}")
 
+    lock_after = read_uv_lock_version(lock)
+    if lock_after != new:
+        sys.exit(f"error: after the bump {lock} reads {lock_after}, not {new}")
+
     if not re.search(rf"^##\s*\[{re.escape(new)}\]", changelog.read_text(encoding="utf-8"), re.MULTILINE):
         sys.exit(f"error: after the bump {changelog} has no heading for {new}")
 
     print(
         f"version train is at {new}: "
         f"{', '.join(sorted(p['name'] for p in after['packages']))}, "
-        f"{pyproject.name}, {changelog.name}"
+        f"{pyproject.name}, {lock.name}, {changelog.name}"
     )
 
 

@@ -1,10 +1,15 @@
 from __future__ import annotations
 
+import contextlib
+import importlib.util
+import io
 import json
 import re
 import shlex
+import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import yaml
 
@@ -157,6 +162,41 @@ class SharedVersionTrainTest(unittest.TestCase):
         source = (ROOT / "scripts" / "check_version.py").read_text(encoding="utf-8")
         self.assertIn('"rust" / "Cargo.toml"', source)
         self.assertIn("[workspace.package]", source)
+
+    def _check_version(self):
+        spec = importlib.util.spec_from_file_location(
+            "check_version", ROOT / "scripts" / "check_version.py"
+        )
+        module = importlib.util.module_from_spec(spec)
+        assert spec.loader is not None
+        spec.loader.exec_module(module)
+        return module
+
+    def test_the_lock_agrees_with_the_manifest(self) -> None:
+        """uv records the project's own version in `uv.lock` (#229)."""
+        check_version = self._check_version()
+        self.assertEqual(self._pyproject_version(), check_version.parse_uv_lock_version())
+        self.assertEqual(0, check_version.main())
+
+    def test_a_lock_left_behind_by_a_bump_fails_the_check(self) -> None:
+        """The state the `rs-v0.4.2` release commit pushed: manifest moved, lock not."""
+        check_version = self._check_version()
+        version = self._pyproject_version()
+        real = (ROOT / "uv.lock").read_text(encoding="utf-8")
+        entry = f'name = "termproof"\nversion = "{version}"\n'
+        self.assertEqual(1, real.count(entry))
+        with tempfile.TemporaryDirectory() as tmp:
+            stale = Path(tmp) / "uv.lock"
+            stale.write_text(
+                real.replace(entry, 'name = "termproof"\nversion = "0.0.1"\n'),
+                encoding="utf-8",
+            )
+            stderr = io.StringIO()
+            with mock.patch.object(check_version, "UV_LOCK", stale), \
+                    contextlib.redirect_stderr(stderr):
+                self.assertFalse(check_version.check_uv_lock(version))
+                self.assertEqual(1, check_version.main())
+        self.assertIn(f"pyproject.toml is {version}, uv.lock is 0.0.1", stderr.getvalue())
 
 
 class ReleaseDocsTest(unittest.TestCase):
