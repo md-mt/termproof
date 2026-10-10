@@ -75,29 +75,31 @@ skip = [
     # syn 2.0.119 — the derive stack still on syn 2: schemars_derive 0.8.22,
     # serde_derive_internals, synstructure (yoke/zerofrom/zerovec ICU
     # derives), thiserror-impl 1.0.69 (via filedescriptor -> portable-pty),
-    # wasm-bindgen-macro-support and windows-implement/interface. The modern
-    # derive stack (clap 4.6, serde 1.0.229, thiserror 2.0.19, displaydoc,
-    # ref-cast) is on syn 3.0.3. Two syn majors cannot be collapsed without
-    # upstream majors bumping their proc-macro deps.
-    { name = "syn", version = "=2.0.119", reason = "schemars 0.8 derive, ICU zerovec/yoke derives, thiserror-impl 1.x (portable-pty path) and wasm/windows tooling are still on syn 2; clap/serde/thiserror 2/displaydoc/ref-cast are on syn 3. Two upstream majors, not ours to collapse." },
+    # zerocopy-derive (ahash, under jsonschema), wasm-bindgen-macro-support
+    # and windows-implement/interface. The modern derive stack (serde
+    # 1.0.229, thiserror 2.0.20, displaydoc, ref-cast) is on syn 3.0.3. Two
+    # syn majors cannot be collapsed without upstream majors bumping their
+    # proc-macro deps.
+    { name = "syn", version = "=2.0.119", reason = "schemars 0.8 derive, ICU zerovec/yoke derives, thiserror-impl 1.x (portable-pty path), zerocopy-derive and wasm/windows tooling are still on syn 2; serde/thiserror 2/displaydoc/ref-cast are on syn 3. Two upstream majors, not ours to collapse." },
     # thiserror 1.0.69 — via `filedescriptor 0.8.3` from `portable-pty 0.9.0`.
     # portable-pty's PTY layer still uses thiserror 1.x; the workspace floor
-    # and quick-junit are on 2.0.19. Immovable while portable-pty 0.9 is in
+    # and quick-junit are on 2.0.20. Immovable while portable-pty 0.9 is in
     # the graph.
-    { name = "thiserror", version = "=1.0.69", reason = "portable-pty 0.9.0 -> filedescriptor 0.8.3 pins thiserror 1.x; workspace floor and quick-junit are on 2.0.19. Collapsing requires a portable-pty major bump." },
+    { name = "thiserror", version = "=1.0.69", reason = "portable-pty 0.9.0 -> filedescriptor 0.8.3 pins thiserror 1.x; workspace floor and quick-junit are on 2.0.20. Collapsing requires a portable-pty major bump." },
     # thiserror-impl 1.0.69 — the proc-macro companion of thiserror 1.0.69
     # (same portable-pty/filedescriptor path). Skipped with its parent.
     { name = "thiserror-impl", version = "=1.0.69", reason = "proc-macro companion of thiserror 1.0.69, pulled by the same portable-pty -> filedescriptor path." },
-    # unicode-width 0.1.14 — via `avt 0.16.0` (evidence feature). Permanent
+    # unicode-width 0.1.14 — via `avt 0.18.0` (evidence feature). Permanent
     # exception: the workspace floor is 0.2.2, tied to vt100 0.16.2 which
     # requires ^0.2.1 (see Cargo.toml and terminal::attributed.rs); avt
     # carries its own 0.1.x copy and cannot be deduplicated by pinning.
-    { name = "unicode-width", version = "=0.1.14", reason = "avt 0.16.0 brings its own unicode-width 0.1.x; workspace floor is 0.2.2 tied to vt100's ^0.2.1 (correctness tests in terminal::attributed). Permanent, not a thing to fix." },
-    # vte 0.14.1 — via `strip-ansi-escapes 0.2.1` from `quick-junit 0.7.0`
+    { name = "unicode-width", version = "=0.1.14", reason = "avt 0.18.0 brings its own unicode-width 0.1.x; workspace floor is 0.2.2 tied to vt100's ^0.2.1 (correctness tests in terminal::attributed). Permanent, not a thing to fix." },
+    # vte 0.14.1 — via `strip-ansi-escapes 0.2.1` from `quick-junit 0.8.0`
     # (junit feature). vt100 0.16.2 uses vte 0.15.0. Incidental: both sides
-    # are transitive, neither pins the other; a future bump of quick-junit or
-    # its strip-ansi-escapes may collapse it.
-    { name = "vte", version = "=0.14.1", reason = "quick-junit 0.7.0 -> strip-ansi-escapes 0.2.1 pins vte 0.14.1; vt100 0.16.2 uses 0.15.0. Incidental transitive split; a future upstream bump may collapse it." },
+    # are transitive, neither pins the other; the quick-junit 0.7 -> 0.8 bump
+    # did not move it, but a later one, or one of its strip-ansi-escapes, may
+    # collapse it.
+    { name = "vte", version = "=0.14.1", reason = "quick-junit 0.8.0 -> strip-ansi-escapes 0.2.1 pins vte 0.14.1; vt100 0.16.2 uses 0.15.0. Incidental transitive split; a future upstream bump may collapse it." },
 ]
 
 skip-tree = []
