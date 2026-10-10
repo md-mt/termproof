@@ -700,6 +700,13 @@ screen is `pyte`'s and each cell's width is CPython's `unicodedata`.
 cargo test -p termproof --test differential_cast_replay -- --nocapture
 ```
 
+No `--features` is needed, and CI's `cargo test --workspace` runs it as it
+stands. The port reaches `frames_from_cast` through the crate's `test-harness`
+feature, which makes that one method `pub` for this test and is otherwise off:
+it is test-only, hidden from the documentation, and not part of the published
+API. The crate lists itself as a dev-dependency with the feature on, so every
+test build has it and no feature combination compiles the harness out.
+
 The test prints every divergence with both frames, and the counts:
 
 | Count | Meaning | Now |

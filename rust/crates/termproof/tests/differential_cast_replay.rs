@@ -29,6 +29,11 @@
 // Cast playback is the `evidence` module, so there is nothing to replay
 // without it. The oracle has no equivalent switch — Python builds one package —
 // so this is a feature gate on the port half only.
+//
+// `frames_from_cast` is `pub` only under `test-harness`, which is deliberately
+// *not* named here. The crate's self dev-dependency turns it on for every test
+// build, so losing that is a compile error in this file rather than a harness
+// that quietly compiles to nothing and reports green.
 #![cfg(feature = "evidence")]
 
 use std::path::{Path, PathBuf};

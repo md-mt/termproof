@@ -63,10 +63,14 @@
 //!   carrying the standard flags for a [`run_config::RunConfig`], and the parse
 //!   back into one with [`run_config::pick`] applied once rather than per flag.
 //!   Off, the crate does not compile `clap`. It is the only default-off feature
-//!   here, and for the mirror image of the other four's reason: they subtract
+//!   of the published API, and for the mirror image of the other four's
+//!   reason: they subtract
 //!   from a shape that was already published, so default-on is what keeps
 //!   turning one off from being a break; this adds a shape that never was, so
 //!   default-off is what keeps it from being a change (#197).
+//! - **`test-harness`** (off) — not part of the published API. It exists for
+//!   this repository's own conformance tests, adds no module and no
+//!   dependency, and carries no stability guarantee; do not enable it.
 //!
 //! [`terminal`] has no feature of its own: the crate root is built on it, and
 //! every build drives a terminal, so there is nothing to save.

@@ -1598,6 +1598,7 @@ dependencies = [
  "serde_yaml",
  "sha2",
  "tempfile",
+ "termproof",
  "thiserror 2.0.21",
  "unicode-normalization",
  "unicode-width 0.2.2",
