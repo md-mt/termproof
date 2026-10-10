@@ -100,7 +100,7 @@ fn collect_files(dir: &Path) -> std::io::Result<Vec<PathBuf>> {
 }
 
 // Minimal hex encoding without extra crate (avoid adding `hex` dep).
-mod hex {
+pub(crate) mod hex {
     pub fn encode(bytes: impl AsRef<[u8]>) -> String {
         bytes.as_ref().iter().map(|b| format!("{b:02x}")).collect()
     }

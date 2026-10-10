@@ -370,7 +370,8 @@ impl AttributedScreen {
             })
             .collect();
         let encoded = serde_json::to_string(&payload).unwrap_or_default();
-        format!("{:x}", Sha256::digest(encoded.as_bytes()))
+        // sha2 0.11's digest output no longer implements `LowerHex`.
+        crate::cache::hex::encode(Sha256::digest(encoded.as_bytes()))
     }
 }
 
@@ -932,6 +933,16 @@ mod tests {
         let s = screen("hi\n");
         assert_eq!(s.to_text(true), "hi");
         assert_eq!(s.rows[0][0], AttributedCell::plain("h"));
+    }
+
+    #[test]
+    fn render_fingerprint_is_lowercase_sha256_hex() {
+        // Pinned to the value `{:x}` on the sha2 0.10 digest produced: the
+        // fingerprint is compared across runs, so its spelling is behaviour.
+        assert_eq!(
+            screen("\x1b[31mred\x1b[0m!").render_fingerprint(),
+            "b0d80c0bb4026fbb80191f8f78afcd13ce90733d4f6b62be5764728c1c4c793a"
+        );
     }
 
     #[test]

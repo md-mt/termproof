@@ -201,7 +201,7 @@ vt100 = "0.16"
 # `set_*` builders — is unchanged across the bump (verified by the suite).
 quick-junit = "0.7"
 image = { version = "0.25", default-features = false, features = ["png"] }
-sha2 = "0.10"
+sha2 = "0.11"
 unicode-normalization = "0.1"
 # Must track the major that `vt100` depends on. Our own width decisions and
 # vt100's cell layout have to come from one Unicode table, or the same byte
