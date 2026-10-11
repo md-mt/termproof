@@ -1,6 +1,6 @@
 """The oracle-freshness comparison in ``conformance/verify_oracle.py``.
 
-Only the pure comparison is tested here: running the eight probes end to end
+Only the pure comparison is tested here: running the nine probes end to end
 belongs to ``conformance/README.md``'s freshness check, not to the unit
 suite, which must stay fast and must pass on interpreters whose recorded
 expectations legitimately differ (see the checker's environment policy).

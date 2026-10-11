@@ -86,6 +86,9 @@ jobs:
           TERMPROOF_PYTHON_REPO=$PWD uv run python \
             ../conformance/probe_report.py \
             > ../conformance/corpus/report.expected.json
+          TERMPROOF_PYTHON_REPO=$PWD uv run python \
+            ../conformance/probe_selection.py \
+            > ../conformance/corpus/selection.expected.json
 
       - name: Summarise what re-recording changed
         run: |

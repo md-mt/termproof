@@ -47,6 +47,7 @@ PROBES = (
     ("probe_run_result.py", "run_result.expected.json"),
     ("probe_build_info.py", "build_info.expected.json"),
     ("probe_report.py", "report.expected.json"),
+    ("probe_selection.py", "selection.expected.json"),
 )
 
 #: Marks "key absent on this side", so an explicit JSON null never equals a missing key.
