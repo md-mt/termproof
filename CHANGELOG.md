@@ -43,6 +43,17 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
 
 ### Python — Fixed
 
+- **Published screenshot evidence no longer dropped `steps-manifest.json`.**
+  `prepare_screenshot_evidence` copied only image files into the PR evidence
+  payload, so with `evidence.dedup_step_screenshots` on a published run showed
+  the surviving step images with nothing recording that a deduped step had
+  happened or which image represented it. The publisher gained an explicit
+  non-image payload notion and copied the step manifest alongside the images
+  at its source-relative path (`…/steps/steps-manifest.json` under `base/` or
+  `head/`); `screenshot-manifest.json` stayed one entry per image, and the
+  dedup default did not change
+  ([#160](https://github.com/md-mt/termproof/issues/160)).
+
 - **An unassigned code point no longer takes two cells on Python 3.11.**
   `unicodedata` there (UCD 14.0) reports every unassigned code point as
   East Asian Fullwidth, so the attributed grid gave 764,537 of them a width-2

@@ -255,6 +255,50 @@ class CiEvidenceReceiptTest(unittest.TestCase):
             self.assertFalse((published / "base" / "run" / "session.mp4").exists())
             self.assertEqual(3, len(manifest))
 
+    def test_prepare_screenshot_evidence_copies_steps_manifest_alongside_images(self) -> None:
+        # With dedup on, step 02 has no image of its own: only the manifest
+        # records that it happened and is represented by 01's image (#160).
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            steps_manifest = (
+                json.dumps(
+                    [
+                        {"step": "01-first", "screenshot": "01-first.svg", "unchanged_from_previous": False},
+                        {"step": "02-second", "screenshot": "01-first.svg", "unchanged_from_previous": True},
+                        {"step": "03-third", "screenshot": "03-third.svg", "unchanged_from_previous": False},
+                    ],
+                    indent=2,
+                )
+                + "\n"
+            )
+            for scope_root in (root / "base", root / "head"):
+                steps = scope_root / "run" / "steps"
+                steps.mkdir(parents=True)
+                (steps / "01-first.svg").write_text("<svg />\n", encoding="utf-8")
+                (steps / "03-third.svg").write_text("<svg />\n", encoding="utf-8")
+                (steps / "steps-manifest.json").write_text(steps_manifest, encoding="utf-8")
+                # An unrelated JSON file is not screenshot payload.
+                (scope_root / "run" / "result.json").write_text("{}\n", encoding="utf-8")
+
+            manifest = prepare_screenshot_evidence(root / "base", root / "head", root / "publish", "68", "123")
+
+            published = root / "publish" / "pr" / "68" / "123"
+            for scope in ("base", "head"):
+                copied = published / scope / "run" / "steps" / "steps-manifest.json"
+                self.assertTrue(copied.is_file(), copied)
+                self.assertEqual(steps_manifest, copied.read_text(encoding="utf-8"))
+                self.assertTrue((published / scope / "run" / "steps" / "01-first.svg").is_file())
+                self.assertTrue((published / scope / "run" / "steps" / "03-third.svg").is_file())
+                self.assertFalse((published / scope / "run" / "result.json").exists())
+            # The manifest rides alongside as a sibling file; it is not folded
+            # into the screenshot manifest, which stays one entry per image.
+            self.assertEqual(4, len(manifest))
+            self.assertTrue(all(not entry["path"].endswith("steps-manifest.json") for entry in manifest))
+            self.assertEqual(
+                manifest,
+                json.loads((published / "screenshot-manifest.json").read_text(encoding="utf-8")),
+            )
+
     def test_rewrite_screenshot_links_leaves_video_links_unchanged(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

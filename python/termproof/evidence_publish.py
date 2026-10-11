@@ -20,6 +20,14 @@ if TYPE_CHECKING:
 
 IMAGE_SUFFIXES = {".gif", ".jpeg", ".jpg", ".png", ".svg"}
 VIDEO_SUFFIXES = {".mp4", ".webm", ".mov"}
+# Non-image files that belong to the screenshot payload, copied at their
+# source-relative path like the images but never listed in
+# ``screenshot-manifest.json``. The only one today is the step manifest
+# ``evidence`` writes under ``steps/`` when step-screenshot dedup is on:
+# without it a published run cannot say which image represents a deduped
+# step (#160). The name repeats ``evidence.STEPS_MANIFEST_NAME`` so this
+# CI helper does not import the replay/render stack that module owns.
+NON_IMAGE_PAYLOAD_NAMES = {"steps-manifest.json"}
 
 DEFAULT_VIDEO_PREFIX = "termproof/videos"
 
@@ -36,6 +44,8 @@ def prepare_screenshot_evidence(
         *_copy_images(base_dir, root / "base", "base"),
         *_copy_images(head_dir, root / "head", "head"),
     ]
+    _copy_payload(base_dir, root / "base")
+    _copy_payload(head_dir, root / "head")
     root.mkdir(parents=True, exist_ok=True)
     (root / "screenshot-manifest.json").write_text(
         json.dumps(manifest, indent=2) + "\n",
@@ -500,6 +510,15 @@ def _copy_images(source: Path, target: Path, scope: str) -> list[dict[str, str]]
     return entries
 
 
+def _copy_payload(source: Path, target: Path) -> None:
+    if not source.exists():
+        return
+    for payload in _payload_files(source):
+        dest = target / payload.relative_to(source)
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(payload, dest)
+
+
 def _copy_videos(source: Path, target: Path, scope: str) -> list[dict[str, str]]:
     if not source.exists():
         return []
@@ -515,6 +534,10 @@ def _copy_videos(source: Path, target: Path, scope: str) -> list[dict[str, str]]
 
 def _image_files(root: Path) -> list[Path]:
     return sorted(path for path in root.rglob("*") if path.is_file() and path.suffix.lower() in IMAGE_SUFFIXES)
+
+
+def _payload_files(root: Path) -> list[Path]:
+    return sorted(path for path in root.rglob("*") if path.is_file() and path.name in NON_IMAGE_PAYLOAD_NAMES)
 
 
 def _video_files(root: Path) -> list[Path]:
