@@ -84,6 +84,32 @@ class CompareDocumentsTest(unittest.TestCase):
         changed = verify.compare_documents(stored, {"manifest": {"steps": []}, "files": {"a.txt": "y"}})
         self.assertFalse(changed.ok)
 
+    def test_explicit_null_differs_from_absent_key(self) -> None:
+        self.assertFalse(verify.compare_documents({"a": None, "b": 1}, {"b": 1}).ok)
+        self.assertFalse(verify.compare_documents({"b": 1}, {"a": None, "b": 1}).ok)
+        stored, fresh = _document("same", "3.13.2"), _document("same", "3.13.2")
+        stored["extra"] = None
+        self.assertFalse(verify.compare_documents(stored, fresh).ok)
+
+    def test_explicit_null_inside_a_case_differs_from_absent(self) -> None:
+        stored, fresh = _document("same", "3.13.2"), _document("same", "3.13.2")
+        stored["cases"][0]["expected"]["note"] = None
+        result = verify.compare_documents(stored, fresh)
+        self.assertFalse(result.ok)
+        self.assertTrue(result.payload_diffs)
+
+    def test_json_types_are_not_conflated(self) -> None:
+        self.assertFalse(verify.compare_documents({"passed": True}, {"passed": 1}).ok)
+        self.assertFalse(verify.compare_documents({"score": 1}, {"score": 1.0}).ok)
+        stored, fresh = _document("same", "3.13.2"), _document("same", "3.13.2")
+        fresh["cases"][0]["expected"]["passed"] = 0
+        self.assertFalse(verify.compare_documents(stored, fresh).ok)
+
+    def test_probes_cover_every_corpus_expectation(self) -> None:
+        probed = {expected_name for _, expected_name in verify.PROBES}
+        on_disk = {path.name for path in verify.CORPUS.glob("*.expected.json")}
+        self.assertEqual(probed, on_disk)
+
 
 if __name__ == "__main__":
     unittest.main()

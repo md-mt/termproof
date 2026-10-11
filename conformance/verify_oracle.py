@@ -18,7 +18,8 @@ The case payload and the ``environment`` block are compared separately:
 a payload difference always fails (exit 1), an environment difference is
 reported field by field and only fails under ``--strict-environment``,
 because the recorded blocks already disagree with each other (Python
-3.12.13, 3.13.2 and 3.13.5, all on Darwin) and no single interpreter
+3.12.13, 3.13.2 and 3.13.5; two record Darwin as the platform, the
+cast-replay block records none) and no single interpreter
 reproduces all three. Neither the interpreter patch version nor the
 operating system is pinned anywhere in this repository. The full policy,
 including why CI does not run this yet, is in ``conformance/README.md``
@@ -46,6 +47,9 @@ PROBES = (
     ("probe_before_after.py", "before_after.expected.json"),
     ("probe_cast_replay.py", "cast_replay.expected.json"),
 )
+
+#: Marks "key absent on this side", so an explicit JSON null never equals a missing key.
+_ABSENT: Any = object()
 
 #: How many differing cases to spell out per file before summarising the rest.
 MAX_SHOWN = 5
@@ -75,7 +79,20 @@ def split_document(document: Any) -> tuple[Any, dict[str, Any] | None]:
     return document, None
 
 
+def _canonical(value: Any) -> str:
+    """Serialise for the verdict: distinguishes true/1/1.0 and null/absent, unlike ``==``."""
+    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+
+
+def _values_differ(stored: Any, fresh: Any) -> bool:
+    if stored is _ABSENT or fresh is _ABSENT:
+        return stored is not fresh
+    return _canonical(stored) != _canonical(fresh)
+
+
 def _render(value: Any) -> str:
+    if value is _ABSENT:
+        return "<absent>"
     text = json.dumps(value, ensure_ascii=False, sort_keys=True)
     return text if len(text) <= RENDER_LIMIT else text[:RENDER_LIMIT] + "…"
 
@@ -95,7 +112,7 @@ def _list_diffs(stored: list[Any], fresh: list[Any]) -> list[str]:
     diffs = []
     if len(stored) != len(fresh):
         diffs.append(f"length differs: recorded {len(stored)}, fresh {len(fresh)}")
-    differing = [i for i, (a, b) in enumerate(zip(stored, fresh, strict=False)) if a != b]
+    differing = [i for i, (a, b) in enumerate(zip(stored, fresh, strict=False)) if _values_differ(a, b)]
     for i in differing[:MAX_SHOWN]:
         diffs.append(
             f"{_label(fresh[i], i)} differs:\n"
@@ -112,19 +129,19 @@ def _payload_diffs(stored: Any, fresh: Any) -> list[str]:
         diffs = [
             f"key {key!r} differs outside the cases"
             for key in sorted(set(stored) | set(fresh))
-            if key != "cases" and stored.get(key) != fresh.get(key)
+            if key != "cases" and _values_differ(stored.get(key, _ABSENT), fresh.get(key, _ABSENT))
         ]
         return diffs + _list_diffs(stored.get("cases", []), fresh.get("cases", []))
     if isinstance(stored, list) and isinstance(fresh, list):
         return _list_diffs(stored, fresh)
-    if stored == fresh:
+    if not _values_differ(stored, fresh):
         return []
     if isinstance(stored, dict) and isinstance(fresh, dict):
         return [
-            f"key {key!r} differs:\n    recorded: {_render(stored.get(key))}\n"
-            f"    fresh:    {_render(fresh.get(key))}"
+            f"key {key!r} differs:\n    recorded: {_render(stored.get(key, _ABSENT))}\n"
+            f"    fresh:    {_render(fresh.get(key, _ABSENT))}"
             for key in sorted(set(stored) | set(fresh))
-            if stored.get(key) != fresh.get(key)
+            if _values_differ(stored.get(key, _ABSENT), fresh.get(key, _ABSENT))
         ][:MAX_SHOWN]
     return [f"document differs:\n    recorded: {_render(stored)}\n    fresh:    {_render(fresh)}"]
 
@@ -137,9 +154,9 @@ def _environment_diffs(
     if stored is None or fresh is None:
         return [f"environment block present on one side only: recorded {stored}, fresh {fresh}"]
     return [
-        f"environment.{key}: recorded {stored.get(key)!r}, fresh {fresh.get(key)!r}"
+        f"environment.{key}: recorded {_render(stored.get(key, _ABSENT))}, fresh {_render(fresh.get(key, _ABSENT))}"
         for key in sorted(set(stored) | set(fresh))
-        if stored.get(key) != fresh.get(key)
+        if _values_differ(stored.get(key, _ABSENT), fresh.get(key, _ABSENT))
     ]
 
 
@@ -148,6 +165,8 @@ def compare_documents(stored: Any, fresh: Any, *, strict_environment: bool = Fal
     stored_payload, stored_env = split_document(stored)
     fresh_payload, fresh_env = split_document(fresh)
     payload_diffs = _payload_diffs(stored_payload, fresh_payload)
+    if _values_differ(stored_payload, fresh_payload) and not payload_diffs:
+        payload_diffs = ["payload differs (in JSON type or key presence; no finer diff available)"]
     environment_diffs = _environment_diffs(stored_env, fresh_env)
     ok = not payload_diffs and (not strict_environment or not environment_diffs)
     return Comparison(ok=ok, payload_diffs=payload_diffs, environment_diffs=environment_diffs)
@@ -163,6 +182,7 @@ def run_probe(python_dir: Path, probe: Path) -> Any:
             env=env,
             capture_output=True,
             text=True,
+            encoding="utf-8",
             timeout=600,
             check=False,
         )
@@ -193,9 +213,24 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: TERMPROOF_PYTHON_REPO is not a directory: {python_dir}", file=sys.stderr)
         return 2
 
+    on_disk = {path.name for path in CORPUS.glob("*.expected.json")}
+    probed = {expected_name for _, expected_name in PROBES}
+    if on_disk != probed:
+        print(
+            f"error: PROBES does not cover the corpus expectations: "
+            f"unprobed {sorted(on_disk - probed)}, missing {sorted(probed - on_disk)}",
+            file=sys.stderr,
+        )
+        return 2
+
     failures = 0
     for probe_name, expected_name in PROBES:
-        stored = json.loads((CORPUS / expected_name).read_text(encoding="utf-8"))
+        try:
+            stored = json.loads((CORPUS / expected_name).read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+            failures += 1
+            print(f"FAIL {expected_name}: could not read recorded expectations: {exc}")
+            continue
         try:
             fresh = run_probe(python_dir, CONFORMANCE / probe_name)
         except RuntimeError as exc:

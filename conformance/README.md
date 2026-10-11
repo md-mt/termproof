@@ -35,8 +35,9 @@ The `environment` block three of the files carry is compared separately and
 reported field by field, not dropped: a payload difference always fails,
 while an environment difference only warns unless `--strict-environment` is
 given. That asymmetry is forced by the recordings themselves — they were
-made under Python 3.12.13, 3.13.2 and 3.13.5, all on Darwin, so no single
-interpreter reproduces all three blocks. At the commit that added the check,
+made under Python 3.12.13, 3.13.2 and 3.13.5 (two of the three blocks record
+Darwin as the platform; the cast-replay block records no platform at all), so
+no single interpreter reproduces all three blocks. At the commit that added the check,
 a fresh run under 3.13.2 on Darwin matched four files and differed in one
 assertions case (`json_schema/invalid-json-trailing-comma`), whose recorded
 detail is CPython 3.12's wording for a JSON parse failure where 3.13 words
@@ -45,7 +46,7 @@ it, and under which interpreter, is the recording-environment decision
 below, not something to settle by regenerating until the check goes quiet.
 
 CI deliberately does not run this yet. `python-ci.yml` runs on Ubuntu while
-every recording was made on Darwin, and neither the interpreter patch
+every recording that names a platform names Darwin, and neither the interpreter patch
 version nor the operating system is pinned anywhere in the repository —
 `uv.lock` pins dependencies only. A blocking Ubuntu job added today would
 fail on environment-owned wording (or pass by accident on one interpreter
