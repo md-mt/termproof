@@ -1,0 +1,374 @@
+[
+  {
+    "name": "list/simple-match",
+    "candidates": [
+      {"name": "smoke", "ci_paths": []},
+      {"name": "editor", "ci_paths": ["src/editor/**", "src/keys.py"]},
+      {"name": "viewer", "ci_paths": ["src/viewer/**"]}
+    ],
+    "changed_files": ["src/editor/buffer.py"]
+  },
+  {
+    "name": "list/multiple-matches-keep-candidate-order",
+    "candidates": [
+      {"name": "smoke", "ci_paths": []},
+      {"name": "editor", "ci_paths": ["src/editor/**", "src/keys.py"]},
+      {"name": "viewer", "ci_paths": ["src/viewer/**"]}
+    ],
+    "changed_files": ["src/viewer/b.py", "src/editor/a.py"]
+  },
+  {
+    "name": "list/no-match",
+    "candidates": [
+      {"name": "editor", "ci_paths": ["src/editor/**"]},
+      {"name": "viewer", "ci_paths": ["src/viewer/**"]}
+    ],
+    "changed_files": ["docs/readme.md"]
+  },
+  {
+    "name": "list/always-runs",
+    "candidates": [
+      {"name": "smoke", "ci_paths": []},
+      {"name": "editor", "ci_paths": ["src/editor/**"]}
+    ],
+    "changed_files": ["docs/readme.md"],
+    "always": ["smoke"]
+  },
+  {
+    "name": "list/always-unknown-name-ignored",
+    "candidates": [
+      {"name": "editor", "ci_paths": ["src/editor/**"]}
+    ],
+    "changed_files": ["docs/readme.md"],
+    "always": ["nonexistent"]
+  },
+  {
+    "name": "list/empty-changeset",
+    "candidates": [
+      {"name": "smoke", "ci_paths": []},
+      {"name": "editor", "ci_paths": ["src/editor/**"]}
+    ],
+    "changed_files": [],
+    "always": ["smoke"]
+  },
+  {
+    "name": "list/no-candidates",
+    "candidates": [],
+    "changed_files": ["src/editor/a.py"],
+    "always": ["smoke"]
+  },
+  {
+    "name": "list/empty-ci-paths",
+    "candidates": [
+      {"name": "orphan", "ci_paths": []}
+    ],
+    "changed_files": ["anything.py"]
+  },
+  {
+    "name": "list/duplicate-candidate-names",
+    "candidates": [
+      {"name": "r", "ci_paths": ["src/**"]},
+      {"name": "r", "ci_paths": ["docs/**"]}
+    ],
+    "changed_files": ["docs/x.md"]
+  },
+  {
+    "name": "list/broken-pattern-beside-a-working-one",
+    "candidates": [
+      {"name": "r", "ci_paths": ["[", "src/**"]}
+    ],
+    "changed_files": ["src/a.py"]
+  },
+  {
+    "name": "normalize/dot-slash-prefixes",
+    "candidates": [
+      {"name": "r", "ci_paths": ["./src/*.py"]}
+    ],
+    "changed_files": ["././src/a.py"]
+  },
+  {
+    "name": "normalize/backslashes",
+    "candidates": [
+      {"name": "r", "ci_paths": ["src\\*.py"]}
+    ],
+    "changed_files": ["src\\a.py"]
+  },
+  {
+    "name": "normalize/trailing-slashes",
+    "candidates": [
+      {"name": "r", "ci_paths": ["src/*.py/"]}
+    ],
+    "changed_files": ["src/a.py/"]
+  },
+  {
+    "name": "normalize/empty-pattern-matches-empty-path",
+    "candidates": [
+      {"name": "r", "ci_paths": [""]}
+    ],
+    "changed_files": [""]
+  },
+  {
+    "name": "normalize/case-sensitive",
+    "candidates": [
+      {"name": "r", "ci_paths": ["SRC/*.py"]}
+    ],
+    "changed_files": ["src/a.py"]
+  },
+  {
+    "name": "glob/star-crosses-separators",
+    "candidates": [
+      {"name": "r", "ci_paths": ["src/*"]}
+    ],
+    "changed_files": ["src/a/b.py"]
+  },
+  {
+    "name": "glob/question-marks-cross-separators",
+    "candidates": [
+      {"name": "r", "ci_paths": ["src/??.py"]}
+    ],
+    "changed_files": ["src/a/.py"]
+  },
+  {
+    "name": "glob/negated-class-bang",
+    "candidates": [
+      {"name": "r", "ci_paths": ["src/[!a]*.py"]}
+    ],
+    "changed_files": ["src/bx.py"]
+  },
+  {
+    "name": "glob/negated-class-bang-excludes",
+    "candidates": [
+      {"name": "r", "ci_paths": ["src/[!a]*.py"]}
+    ],
+    "changed_files": ["src/ax.py"]
+  },
+  {
+    "name": "glob/class-range",
+    "candidates": [
+      {"name": "r", "ci_paths": ["src/[a-z].py"]}
+    ],
+    "changed_files": ["src/m.py"]
+  },
+  {
+    "name": "glob/invalid-range-never-matches",
+    "candidates": [
+      {"name": "r", "ci_paths": ["src/[z-a].py"]}
+    ],
+    "changed_files": ["src/m.py"]
+  },
+  {
+    "name": "glob/backslash-escape-is-a-separator",
+    "candidates": [
+      {"name": "r", "ci_paths": ["src/\\*.py"]}
+    ],
+    "changed_files": ["src/*.py"]
+  },
+  {
+    "name": "glob/literal-bracket-through-a-class",
+    "candidates": [
+      {"name": "r", "ci_paths": ["[[]"]}
+    ],
+    "changed_files": ["["]
+  },
+  {
+    "name": "glob/double-star-inside-a-component",
+    "candidates": [
+      {"name": "r", "ci_paths": ["src/**.py"]}
+    ],
+    "changed_files": ["src/x/a.py"]
+  },
+  {
+    "name": "glob/double-star-one-directory",
+    "candidates": [
+      {"name": "r", "ci_paths": ["src/**/a.py"]}
+    ],
+    "changed_files": ["src/x/a.py"]
+  },
+  {
+    "name": "glob/double-star-empty-middle",
+    "candidates": [
+      {"name": "r", "ci_paths": ["src/**/a.py"]}
+    ],
+    "changed_files": ["src//a.py"]
+  },
+  {
+    "name": "glob/trailing-double-star-needs-a-file",
+    "candidates": [
+      {"name": "r", "ci_paths": ["src/**"]}
+    ],
+    "changed_files": ["src"]
+  },
+  {
+    "name": "glob/star-matches-a-dotfile",
+    "candidates": [
+      {"name": "r", "ci_paths": ["src/*"]}
+    ],
+    "changed_files": ["src/.hidden"]
+  },
+  {
+    "name": "marker/relative-pattern-absolute-path",
+    "candidates": [
+      {"name": "r", "ci_paths": ["src/**"]}
+    ],
+    "changed_files": ["/home/ci/repo/src/a.py"],
+    "root_marker": "repo"
+  },
+  {
+    "name": "marker/marker-prefixed-pattern",
+    "candidates": [
+      {"name": "r", "ci_paths": ["repo/src/**"]}
+    ],
+    "changed_files": ["/home/ci/repo/src/a.py"],
+    "root_marker": "repo"
+  },
+  {
+    "name": "marker/absolute-pattern-and-path",
+    "candidates": [
+      {"name": "r", "ci_paths": ["/x/repo/src/**"]}
+    ],
+    "changed_files": ["/home/ci/repo/src/a.py"],
+    "root_marker": "repo"
+  },
+  {
+    "name": "marker/relative-path",
+    "candidates": [
+      {"name": "r", "ci_paths": ["src/**"]}
+    ],
+    "changed_files": ["src/a.py"],
+    "root_marker": "repo"
+  },
+  {
+    "name": "marker/absent",
+    "candidates": [
+      {"name": "r", "ci_paths": ["src/**"]}
+    ],
+    "changed_files": ["/home/ci/repo/src/a.py"]
+  },
+  {
+    "name": "harness/prefix-glob-fires",
+    "candidates": [
+      {"name": "smoke", "ci_paths": []},
+      {"name": "r", "ci_paths": ["src/**"]}
+    ],
+    "changed_files": ["verify/runner.py", "src/a.py"],
+    "always": ["smoke"],
+    "harness_paths": ["verify/**"]
+  },
+  {
+    "name": "harness/not-touched",
+    "candidates": [
+      {"name": "smoke", "ci_paths": []},
+      {"name": "r", "ci_paths": ["src/**"]}
+    ],
+    "changed_files": ["src/a.py"],
+    "always": ["smoke"],
+    "harness_paths": ["verify/**"]
+  },
+  {
+    "name": "harness/harness-directory-itself",
+    "candidates": [
+      {"name": "smoke", "ci_paths": []},
+      {"name": "r", "ci_paths": ["src/**"]}
+    ],
+    "changed_files": ["verify", "src/a.py"],
+    "always": ["smoke"],
+    "harness_paths": ["verify/**"]
+  },
+  {
+    "name": "harness/nested-glob",
+    "candidates": [
+      {"name": "smoke", "ci_paths": []},
+      {"name": "r", "ci_paths": ["src/**"]}
+    ],
+    "changed_files": ["x/verify/runner.py", "src/a.py"],
+    "always": ["smoke"],
+    "harness_paths": ["**/verify/**"]
+  },
+  {
+    "name": "harness/multiple-globs-second-fires",
+    "candidates": [
+      {"name": "smoke", "ci_paths": []},
+      {"name": "r", "ci_paths": ["src/**"]}
+    ],
+    "changed_files": ["tools/x.py", "src/a.py"],
+    "always": ["smoke"],
+    "harness_paths": ["verify/**", "tools/**"]
+  },
+  {
+    "name": "dialect/unterminated-class",
+    "candidates": [
+      {"name": "r", "ci_paths": ["src/["]}
+    ],
+    "changed_files": ["src/["]
+  },
+  {
+    "name": "dialect/unterminated-class-with-range",
+    "candidates": [
+      {"name": "r", "ci_paths": ["src/[a-z"]}
+    ],
+    "changed_files": ["src/[a-z"]
+  },
+  {
+    "name": "dialect/unclosed-alternate",
+    "candidates": [
+      {"name": "r", "ci_paths": ["src/{a,b"]}
+    ],
+    "changed_files": ["src/{a,b"]
+  },
+  {
+    "name": "dialect/unopened-alternate",
+    "candidates": [
+      {"name": "r", "ci_paths": ["src/a,b}"]}
+    ],
+    "changed_files": ["src/a,b}"]
+  },
+  {
+    "name": "dialect/brace-alternates-expand",
+    "candidates": [
+      {"name": "r", "ci_paths": ["src/{a,b}.py"]}
+    ],
+    "changed_files": ["src/a.py"]
+  },
+  {
+    "name": "dialect/brace-alternates-literal-path",
+    "candidates": [
+      {"name": "r", "ci_paths": ["src/{a,b}.py"]}
+    ],
+    "changed_files": ["src/{a,b}.py"]
+  },
+  {
+    "name": "dialect/empty-alternate-group",
+    "candidates": [
+      {"name": "r", "ci_paths": ["src/{}"]}
+    ],
+    "changed_files": ["src/{}"]
+  },
+  {
+    "name": "dialect/caret-negation-member",
+    "candidates": [
+      {"name": "r", "ci_paths": ["src/[^a]*.py"]}
+    ],
+    "changed_files": ["src/ax.py"]
+  },
+  {
+    "name": "dialect/caret-negation-other",
+    "candidates": [
+      {"name": "r", "ci_paths": ["src/[^a]*.py"]}
+    ],
+    "changed_files": ["src/bx.py"]
+  },
+  {
+    "name": "dialect/double-star-zero-directories",
+    "candidates": [
+      {"name": "r", "ci_paths": ["src/**/a.py"]}
+    ],
+    "changed_files": ["src/a.py"]
+  },
+  {
+    "name": "dialect/leading-double-star-zero-directories",
+    "candidates": [
+      {"name": "r", "ci_paths": ["**/a.py"]}
+    ],
+    "changed_files": ["a.py"]
+  }
+]

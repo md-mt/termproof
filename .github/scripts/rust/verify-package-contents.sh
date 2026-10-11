@@ -49,6 +49,7 @@ for forbidden in \
   tests/differential_build_info.rs \
   tests/differential_report.rs \
   tests/differential_config.rs \
+  tests/differential_selection.rs \
   conformance/
 do
   if grep -q "^${forbidden}" <<<"$LIST"; then

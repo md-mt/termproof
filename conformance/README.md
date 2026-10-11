@@ -14,6 +14,7 @@ have to match. One per layer, each the same two-half shape:
 | Build info | `probe_build_info.py` | `tests/differential_build_info.rs` | `corpus/build_info.expected.json` |
 | Report | `probe_report.py` | `tests/differential_report.rs` | `corpus/report.expected.json` |
 | Config / run cache | `probe_config.py` | `tests/differential_config.rs` | `corpus/config.expected.json` |
+| Selection | `probe_selection.py` | `tests/differential_selection.rs` | `corpus/selection_cases.json` |
 
 They exist because the port claimed corpus parity several times over with green
 local gates, and a differential run against the Python implementation still
@@ -25,7 +26,7 @@ reproduce is not a measurement.
 The Rust halves compare against the checked-in `corpus/*.expected.json`
 files, so a Python-side behaviour change that nobody re-recorded leaves every
 gate green against stale testimony (#216, #172). `verify_oracle.py` closes
-that: it re-runs all nine probes the way the regeneration commands
+that: it re-runs all ten probes the way the regeneration commands
 below do (`uv run` from `python/`, so dependencies come from
 `python/uv.lock`), compares the fresh case payloads with the checked-in
 files in memory and exits non-zero with a per-file diff summary on any
@@ -84,7 +85,7 @@ chosen environment makes it a reviewed diff instead.
 
 Re-record **only** in the canonical environment, through the manual
 `.github/workflows/oracle-regen.yml` workflow (`workflow_dispatch`). It
-pins the identical environment, regenerates all nine
+pins the identical environment, regenerates all ten
 `corpus/*.expected.json` files with the per-harness commands documented
 below, prints a `git diff --stat` summary, checks that the regenerated
 corpus reproduces (`--strict-environment`) in the same run, and uploads it
@@ -1254,3 +1255,169 @@ cargo test -p termproof --test differential_config -- --nocapture
 needed and CI's `cargo test --workspace` runs both tests as they stand.
 A failure names the case, or the allowance whose pinned divergence
 moved.
+
+# Selection
+
+A tenth harness, same two-half shape, for which recipes a changeset
+selects: `select_names` in Python, `selection::select_names` in Rust,
+both over `(name, ci_paths)` pairs — the shape both APIs share, which
+the Rust `Selectable` impl for `(String, Vec<String>)` exists to spell.
+
+## Shape
+
+| Half | Where | What it does |
+|---|---|---|
+| Oracle | `probe_selection.py` | Drives the real Python `select_names` over `corpus/selection_cases.json` and records each case's ordered selected names into `corpus/selection.expected.json`. |
+| Port | `crates/termproof/tests/differential_selection.rs` | Replays the same cases through the Rust `select_names` and compares the ordered lists exactly. |
+
+A case is every input `select_names` takes: `candidates` (`name` and
+`ci_paths` globs), `changed_files`, and optionally `always`,
+`harness_paths` and `root_marker`. 49 cases in six groups — list-level
+semantics (candidate order, the always set, unknown always names,
+duplicate candidates, empty everything), path normalisation, the glob
+dialect the two engines *share*, the root marker, the harness fallback,
+and the dialect they do not share. Most pattern cases carry one
+candidate with one glob and one changed file, so "selected" reads
+directly as "this glob matched this path" and a divergence names its
+pattern.
+
+## Why it exists
+
+The two implementations glob with different engines: Python with
+`fnmatch`, which has no compile step, Rust with `globset`, skipping any
+pattern that fails to compile. #209 item 6 recorded the consequence —
+a `ci_paths` entry valid for one engine selects in Python and is
+dropped in Rust — as its lowest-confidence divergence, because the
+separating pattern had never been constructed. This harness constructs
+it (`dialect/unterminated-class` and its three siblings) and then
+measures the candidate separators around it, several of which turn out
+not to separate the engines at all.
+
+## The patterns that separate the engines
+
+Each divergence below is a named allowance in the Rust test
+(`KNOWN_DIVERGENCES`) carrying the exact list Rust selects, asserted
+so it fails when the divergence stops existing or changes shape; any
+other case differing fails the whole comparison. Nothing in either
+implementation changed to add this harness. Nobody has decided which
+side is the reference for this layer (#209).
+
+| Pattern | Path | Python (`fnmatch`) | Rust (`globset`) |
+|---|---|---|---|
+| `src/[`, `src/[a-z` | spelled like the pattern | literal text — selects | unclosed character class, pattern skipped — never selects |
+| `src/{a,b`, `src/a,b}` | spelled like the pattern | literal text — selects | unclosed / unopened alternate group, pattern skipped — never selects |
+| `src/{a,b}.py` | `src/a.py` | literal braces — no | alternates `a\|b` — selects |
+| `src/{a,b}.py` | `src/{a,b}.py` | literal — selects | alternates — no |
+| `src/{}` | `src/{}` | literal — selects | empty alternate, matches only `src/` (which normalisation never leaves) — no |
+| `src/[^a]*.py` | `src/ax.py` | class is {`^`, `a`} — selects | `^` negates, like `!` — no |
+| `src/[^a]*.py` | `src/bx.py` | no | negated class — selects |
+| `src/**/a.py` | `src/a.py` | `/**/` still needs both slashes — no | `**` as a component matches zero directories — selects |
+| `**/a.py` | `a.py` | no | selects |
+
+Two more separations are in the configuration, not the glob dialect.
+The **root marker**: Python *keeps* it in the normalised path
+(`/home/ci/repo/src/a.py` becomes `repo/src/a.py`), Rust *strips* it
+(`src/a.py`), so with the marker set a repo-relative pattern
+(`src/**`) matches an absolute changed path only in Rust, and a
+marker-prefixed pattern (`repo/src/**`) only in Python. The **harness
+rule**: Python's `harness_paths` is a list of globs, Rust's
+`harness_root` a single literal prefix, so a second harness glob has
+no Rust spelling, and `**/verify/**` has no single-prefix spelling
+*as a glob* — it means a `verify` directory at any depth, and the
+derived literal prefix is the useless `**/verify/` — so changes they
+suppress to the always set in Python select normally in Rust. The
+nested case does not show that no prefix could cover its one sampled
+path: a caller could spell `x/verify/` by hand for
+`x/verify/runner.py`, but that answers that path, not the glob (it
+misses `y/verify/...`). The Rust test derives the prefix
+from the first glob (dropping a trailing `/**` or `/*`) and the
+slashed marker from the bare name; both transcriptions are stated in
+its module doc, including the two spellings of absence — Rust `""` as
+a marker strips zero bytes (a no-op, pinned by `marker/absent`), while
+`""` as a harness root would put *every* path under the harness, so an
+empty Python list is transcribed as a prefix no path can start with.
+
+## Tried, and does not separate them
+
+These candidates were run against both engines before the corpus was
+written. Each is pinned by an agreeing corpus case, so "does not
+separate" stays a measurement rather than an impression:
+
+- **Invalid ranges** (`src/[z-a].py`): two mechanisms, one outcome.
+  `globset` rejects the range at compile and the pattern is skipped;
+  `fnmatch` translates it to a pattern that matches nothing.
+- **Backslash escapes** (`src/\*.py` against `src/*.py`): neither
+  engine sees a backslash — both normalisers rewrite `\` to `/`
+  before globbing, so the pattern is `src//*.py` on both sides and
+  matches nothing. There is no way to spell a literal `*` in either.
+- **`[!...]` negation, character ranges, a literal `[` spelled
+  `[[]`** — the same on both sides.
+- **`*` and `?` crossing `/`** — the same, because the Rust side sets
+  `literal_separator(false)` for exactly this. A `**` that is not a
+  whole path component (`src/**.py`) is likewise just two stars on
+  both sides.
+- **`src/**` against `src`, case sensitivity, `./` prefixes,
+  trailing slashes, the empty pattern against the empty path,
+  dotfiles** — the same. Case is recorded on POSIX: `fnmatch.fnmatch`
+  folds case only where `os.path.normcase` does (in practice
+  Windows), which this corpus does not measure.
+
+## Why allowances, not floors
+
+34 of the 49 cases agree exactly; the other 15 are enumerable dialect
+facts, each with one exact Rust answer. That is the cast-replay shape —
+a named residual pinned byte for byte — rather than the steps shape.
+A floor (agree on at least *N*) buys tolerance for diffuse wording
+gaps, which selection does not have: its output is a list of names.
+Under an allowance table a *new* divergence fails by name and a divergence
+that gets fixed fails too, until its row is removed deliberately.
+
+## What it does and does not measure
+
+**Does**: the selected list whole — glob dialect, normalisation,
+candidate order (including duplicate candidate names selected twice),
+the always set and unknown names in it, empty candidates / `ci_paths`
+/ changesets, the harness fallback, and the root marker over relative
+and absolute spellings of pattern and path.
+
+**Does not**:
+
+- **The recipe-object wrappers.** Python's `select_recipes` and the
+  Rust `select` over `Recipe` / `RecipeMeta` are compared only at the
+  `(name, ci_paths)` shape both reduce to; that the wrappers reduce
+  to it is each side's unit tests' claim, not this harness's.
+- **Reading changed files.** `read_changed_files` /
+  `changed_files_from_file` (line splitting and blank-dropping over a
+  file) is file IO around the comparison, unit-tested per side.
+- **The marker and the harness rule together.** Each axis is pinned
+  alone; combined cases conflate the two transcription choices above.
+- **A second marker occurrence in one path.** Both normalisers act on
+  the first occurrence by construction, but their outputs still
+  differ (kept against stripped) and no case pins that path shape.
+- **Non-POSIX case folding.** See above — the recorded `platform` in
+  the expectation's environment block is part of the claim.
+
+## Regenerating the expectations
+
+```sh
+cd /path/to/termproof/python
+TERMPROOF_PYTHON_REPO=$PWD uv run python \
+    ../conformance/probe_selection.py \
+    > ../conformance/corpus/selection.expected.json
+```
+
+Only regenerate deliberately: the file is the oracle's testimony, and
+quietly re-recording it turns a failing comparison into a passing one
+without changing any behaviour.
+
+## Reading the result
+
+```sh
+cargo test -p termproof --test differential_selection -- --nocapture
+```
+
+No `--features` is needed — selection is not feature-gated — and CI's
+`cargo test --workspace` runs it as it stands. The test prints every
+divergence with both lists and the counts: 34 / 49 agree exactly, 15 /
+49 pinned in `KNOWN_DIVERGENCES`, and it fails on any case outside
+those two sets or any pinned case whose Rust list moved.
