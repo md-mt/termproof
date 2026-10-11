@@ -67,27 +67,32 @@ been filed against them.
 | 1 | v0.2 — Public Launch | Complete (0 open issues) — closure pending GitHub admin |
 | 2 | v0.3 — Ecosystem Foundation | Complete (0 open issues) — closure pending GitHub admin |
 | 3 | v0.4 — CI Everywhere | Complete (0 open issues) — closure pending GitHub admin |
-| 4 | v1.0 — Stable API | Open, re-cut: defined by the #216 parity gate passing (below); not complete (target 2026-11-13, as in §10) |
+| 4 | v1.0 — Stable API | Open, re-cut: defined by the #216 Done-when parity gate passing (below); not complete (target 2026-11-13, as in §10) |
 | 5 | Rust M0 — Contract and skeleton | Complete (0 open issues) — closure pending GitHub admin |
 | 6 | Rust M1 — Core execution alpha | Complete (0 open issues) — closure pending GitHub admin |
 | 7 | Rust M2 — CLI and evidence parity | Complete (0 open issues) — closure pending GitHub admin |
 | 8 | Rust M3 — Extensibility parity | Complete (0 open issues) — closure pending GitHub admin |
 | 9 | Rust M4 — Distribution candidate | Open: stays open, gated on #118 (target 2026-10-16, as in §7) |
-| 10 | Rust M5 — v1 default cutover | Open, re-cut: defined by the #216 parity gate passing (below); not complete (target 2026-11-13, as in §7) |
+| 10 | Rust M5 — v1 default cutover | Open, re-cut: defined by the #216 Done-when parity gate passing (below); not complete (target 2026-11-13, as in §7) |
 
 ### What v1.0 and Rust M5 now mean
 
 **v1.0 (milestone 4) and Rust M5 (milestone 10) are done when, and only
-when, the parity gate tracked in
-[#216](https://github.com/md-mt/termproof/issues/216) passes.** There is no
-parity gate today — [`status-and-parity.md`](status-and-parity.md) and
-[`CONTRIBUTING.md`](../../CONTRIBUTING.md) both say so — so #216 tracks
-building one, and neither milestone is done. The #216 gate defines the
-parity component of done for these milestones: the remaining §11 cutover
-gates and RUST-027–030 in §8 (the canary release, the rollback cutover, the
-first PyPI release, and the launch and adoption work) stay required and
-are not dropped or satisfied by the gate alone. "Passes" follows #216's
-own "Done when" criteria:
+when, the [#216](https://github.com/md-mt/termproof/issues/216) Done-when
+parity gate passes.** That gate is not in place
+yet. What is in place today — as
+[`status-and-parity.md`](status-and-parity.md) and
+[`CONTRIBUTING.md`](../../CONTRIBUTING.md) both now say — is a required
+drift gate for the measured layers: `Oracle freshness result` is required
+and the differential harnesses run via the required `CI (Rust) result`.
+It is not yet the #216 Done-when gate, full parity is not claimed, and
+#216 remains open for cache/config+selection coverage, so neither
+milestone is done. The #216 Done-when gate defines the parity component
+of done for these milestones: the remaining §11 cutover gates and
+RUST-027–030 in §8 (the canary release, the rollback cutover, the first
+PyPI release, and the launch and adoption work) stay required and are not
+dropped or satisfied by that gate alone — and the current drift gate does
+not satisfy it. "Passes" follows #216's own "Done when" criteria:
 
 1. the check **runs on every pull request and is required on `main`**;
 2. the known drifts are **either fixed or explicitly recorded as allowed
@@ -95,8 +100,9 @@ own "Done when" criteria:
    [`conformance/README.md`](../../conformance/README.md) and
    [`status-and-parity.md`](status-and-parity.md) are the existing form of
    such a record, and a divergence recorded nowhere counts as unfixed; and
-3. [`status-and-parity.md`](status-and-parity.md) **can point at the gate**
-   instead of saying there isn't one.
+3. [`status-and-parity.md`](status-and-parity.md) **can point at the #216
+   Done-when gate** — not only, as it does today, at the narrower required
+   drift gate for the measured layers.
 
 #216 lists reproducibility of the recorded oracle expectations as its
 sub-issue [#172](https://github.com/md-mt/termproof/issues/172): the

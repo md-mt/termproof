@@ -14,15 +14,20 @@ name: Regenerate oracle corpus (manual)
 # they are diagnostics only, because a laptop is not the canonical
 # environment and its output must not be committed.
 #
-# Bootstrap: `workflow_dispatch` only exists once this file is on the
-# default branch, so the first canonical re-record cannot happen until
-# the change that adds this workflow (and the `oracle-ci.yml` gate) has
-# merged. Until that first re-record is reviewed and landed the gate
-# reports RED — the checked-in corpus still carries its pre-canonical
-# `environment` blocks (Darwin, mixed CPython patches). Do not make
-# `Oracle freshness result` a required check before the bootstrap
-# re-record is green, or the gate deadlocks the very PR that would
-# regenerate it. See "Re-recording" in `conformance/README.md`.
+# Bootstrap history (completed): `workflow_dispatch` only existed once
+# this file was on the default branch, so the first canonical re-record
+# could not happen until the change that added this workflow (and the
+# `oracle-ci.yml` gate, landed red in #260) had merged. Until that first
+# re-record was reviewed and landed in #261 the gate reported RED — the
+# checked-in corpus still carried its pre-canonical `environment`
+# blocks (Darwin, mixed CPython patches). `Oracle freshness result`
+# was not made a required check while that bootstrap was red, because a
+# required red gate would have deadlocked the PRs that had to land the
+# re-record; it was added as required on the strength of the PR-head
+# oracle success on #261, and the `CI (Oracle)` run on `main` for the
+# merged re-record (run 38158366345) also succeeded. It is now required
+# (`rust/docs/governance.md` §5 and §6.1). See "Re-recording" in
+# `conformance/README.md`.
 #
 # This workflow cannot write to the repository (`contents: read`). It
 # uploads the regenerated corpus as the single `oracle-corpus` artifact;

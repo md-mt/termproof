@@ -30,7 +30,11 @@ ladder shows the path.
 
 The Python implementation is the **shipped product and the behavioural
 oracle**. The Rust implementation is an **in-progress port**: it is not at
-parity, and there is no parity gate. Three rules follow, and they bind every
+parity. A required drift gate now gates the measured layers
+(`Oracle freshness result` is required and the differential harnesses run
+via the required `CI (Rust) result`), but it is not yet the #216 Done-when
+parity gate, full parity is not claimed, and #216 remains open for
+cache/config+selection coverage. Three rules follow, and they bind every
 contribution:
 
 1. **A divergence is a parity gap, not a preference.** If your change makes

@@ -12,17 +12,70 @@ here — this page summarises it, it does not replace it.
 The Rust workspace under `rust/` is a reimplementation of
 [TermProof](https://github.com/md-mt/termproof). The Python implementation at
 `md-mt/termproof` is the **shipped product and the behavioural oracle**. This
-port is **in progress** and is **not a drop-in replacement**: there is **no
-parity gate**, and nothing here should be read as a claim that the port
-behaves the same way as the Python implementation.
+port is **in progress** and is **not yet a drop-in replacement**, and nothing
+here should be read as a claim of full parity with the Python implementation.
 
-Until a parity gate passes, treat the Python implementation as the only
-authority on TermProof's behaviour. Building such a gate is tracked in
-#216, and the milestone re-cut in
+Treat the Python implementation as the authority on TermProof's behaviour.
+A **required drift gate** now gates the measured layers (see
+[What is gated now](#what-is-gated-now) below): `Oracle freshness result`
+is required and the differential harnesses run via the required
+`CI (Rust) result`. That current gate is **not yet the #216 Done-when
+parity gate** and is narrower than full parity — full parity is not
+claimed. It holds the measured layers to their recorded floors,
+equalities and named allowed differences, and it does not cover every
+surface. #216 remains open, in particular for cache/config+selection
+coverage, and the milestone re-cut in
 [`rust-reimplementation-spec.md`](rust-reimplementation-spec.md#milestone-re-cut-215)
-defines v1.0 and Rust M5 by that gate passing as a required CI check. That
-gate does not exist yet: #216 is future work, not a description of anything
-that runs today.
+defines v1.0 and Rust M5 by the #216 Done-when gate passing, not by this
+drift gate. The required checks described below are live today, so do not
+read a green drift gate as v1.0 or M5 having been reached.
+
+## What is gated now
+
+Two status checks are required on `main` by the repository ruleset
+`main: require CI (Rust) result + Oracle freshness result` (id `24859051`,
+enforcement active — see [`governance.md`](governance.md) sections 5 and 6.1):
+
+- **`Oracle freshness result`** — the rollup of the always-on
+  `CI (Oracle)` workflow (`.github/workflows/oracle-ci.yml`; the workflow
+  always starts and the rollup always reports, while its `changes` job
+  decides whether an oracle-relevant path moved). When one has, its
+  `oracle` job re-runs the conformance probes in the canonical environment
+  (`ubuntu-24.04`, CPython 3.13.5, uv 0.11.8, dependencies from
+  `python/uv.lock`) and runs
+  `python3 conformance/verify_oracle.py --strict-environment`, so the
+  checked-in corpus must still reproduce, payload and recorded
+  `environment` blocks alike, in that one pinned environment. The corpus
+  was re-recorded in that environment in #261, after the gate itself landed
+  in #260, and the `CI (Oracle)` run on `main` for that re-record
+  (run `38158366345`) succeeded.
+- **`CI (Rust) result`** — the rollup of `CI (Rust)`, whose test jobs run
+  `cargo test --workspace` when a Rust-relevant path moved (the rollup
+  reports either way). That includes the eight differential harnesses
+  below, so their floors, equalities and exact residuals are required on
+  `main` through this check rather than merely advisory.
+
+What that drift gate does **not** establish:
+
+- **Full parity is not claimed.** The step and assertion harnesses assert a
+  floor, not equality (see below), and a floor passing means agreement has
+  not fallen — not that the two implementations agree everywhere.
+- **Allowed differences are recorded, not fixed.** The run-result,
+  build-info and report harnesses each name their allowed differences in
+  [`conformance/README.md`](../../conformance/README.md) and in named
+  constants in the Rust test, asserted so the test fails when a divergence
+  stops existing. The remaining gaps — foreign (CPython/libc) error text and
+  the other items under
+  [Known defects and divergences](#known-defects-and-divergences) — remain
+  open decisions, not settled parity.
+- **Uncovered surfaces stay uncovered until their harnesses land.** In
+  particular the cache (`run_cache`/`cache`), `config` and `selection`
+  module pairs from #209 have no differential harness yet; work on them is
+  in flight, not landed, so drift there is not gated by the checks above.
+- **Python CI is not ruleset-required.** Plainly: no `CI (Python)` check is
+  in the live ruleset today (see [`governance.md`](governance.md) section
+  5). The Python implementation remains the shipped product and the
+  behavioural oracle this port is measured against.
 
 Pre-1.0 `0.x` releases may change public APIs without notice. A breaking
 change is a minor bump (`0.2.x` → `0.3.0`) under the workspace's
@@ -32,23 +85,27 @@ moving as it approaches parity.
 
 ## The differential harness
 
-Five layers are measured, as listed in
+Eight layers are measured, as listed in
 [`conformance/README.md`](../../conformance/README.md), which is the
 authority for this table. Each layer has its own harness, each the same
 two-half shape: a Python probe drives its side, and a Rust test replays the
-same cases or scenario and compares. Four layers replay a checked-in corpus
-of cases; the evidence-manifest harness builds its scenario in code in each
-half rather than from a corpus of cases, and compares the recorded document
-and the files it wrote — see
+same cases or scenario and compares. Some layers replay a checked-in corpus
+of cases; others — the evidence-manifest, run-result, build-info and report
+harnesses — build their scenario in code in each half rather than from a
+corpus of cases, and compare the recorded document (and, for the evidence
+manifest, the files it wrote) — see
 [`conformance/README.md`](../../conformance/README.md).
 
-| Layer | Oracle | Port | Corpus |
-|---|---|---|---|
-| Steps | `conformance/probe_steps.py` | `crates/termproof/tests/differential_steps.rs` | `conformance/corpus/cases.json` |
-| Assertions | `conformance/probe_assertions.py` | `crates/termproof/tests/differential_assertions.rs` | `conformance/corpus/assertion_cases.json` |
-| Evidence manifest | `conformance/probe_evidence_manifest.py` | `crates/termproof/tests/differential_evidence_manifest.rs` | `conformance/corpus/evidence_manifest.expected.json` |
-| Before/after | `conformance/probe_before_after.py` | `crates/termproof/tests/differential_before_after.rs` | `conformance/corpus/before_after_cases.json` |
-| Cast replay | `conformance/probe_cast_replay.py` | `crates/termproof/tests/differential_cast_replay.rs` | `conformance/corpus/cast_replay_cases.json` |
+| Layer | Oracle | Port | Corpus | Shape |
+|---|---|---|---|---|
+| Steps | `conformance/probe_steps.py` | `crates/termproof/tests/differential_steps.rs` | `conformance/corpus/cases.json` | floor |
+| Assertions | `conformance/probe_assertions.py` | `crates/termproof/tests/differential_assertions.rs` | `conformance/corpus/assertion_cases.json` | floor |
+| Evidence manifest | `conformance/probe_evidence_manifest.py` | `crates/termproof/tests/differential_evidence_manifest.rs` | `conformance/corpus/evidence_manifest.expected.json` | equality |
+| Before/after | `conformance/probe_before_after.py` | `crates/termproof/tests/differential_before_after.rs` | `conformance/corpus/before_after_cases.json` | equality |
+| Cast replay | `conformance/probe_cast_replay.py` | `crates/termproof/tests/differential_cast_replay.rs` | `conformance/corpus/cast_replay_cases.json` | exact residual |
+| Run result | `conformance/probe_run_result.py` | `crates/termproof/tests/differential_run_result.rs` | `conformance/corpus/run_result.expected.json` | equality apart from named allowed differences |
+| Build info | `conformance/probe_build_info.py` | `crates/termproof/tests/differential_build_info.rs` | `conformance/corpus/build_info.expected.json` | equality apart from named allowed differences |
+| Report | `conformance/probe_report.py` | `crates/termproof/tests/differential_report.rs` | `conformance/corpus/report.expected.json` | equality apart from named allowed differences |
 
 The step and assertion harnesses assert a **floor rather than equality**:
 agreement can rise but must never fall, and panics and cases that never return
@@ -64,15 +121,24 @@ before/after direction is also the other way round — Rust is the reference
 and Python was changed to match it (#204), because the Rust module is the
 newer of the two and carries the documented ordering rationale.
 
+The run-result, build-info and report harnesses likewise demand equality of
+the whole document, apart from the allowed differences each one names in
+`conformance/README.md` and in named constants in its Rust test. Each
+allowance is asserted in both directions, so the test fails when the pinned
+divergence stops existing and the allowance has to be removed deliberately;
+any other difference fails the comparison. Nobody has yet decided which
+side is the reference for the build-info and report layers (#209), so those
+allowances record the drift rather than settling it.
+
 Cast replay asserts its known residual exactly — by case name and pinned
 frame — rather than as a floor, so a listed case that starts agreeing fails
 the test, as does one that replays to a different screen. The step and
-assertion counts are summarised below; the other three harnesses are
+assertion counts are summarised below; the other six harnesses are
 described in `conformance/README.md` rather than duplicated here — cast
 replay there with its counts and the residual tracked in #209, and the
-evidence-manifest and before/after harnesses there in pass/fail form (the
-two documents or recordings printed on failure), so they have no counts
-to summarise here.
+evidence-manifest, before/after, run-result, build-info and report
+harnesses there in pass/fail form (the two documents or recordings printed
+on failure), so they have no counts to summarise here.
 
 ## Step layer
 
@@ -123,6 +189,10 @@ These are layer-level numbers, not a product number:
 - **Non-POSIX path semantics are not handled.** `crates/termproof/src/pypath.rs`
   models `PurePosixPath`; Windows drive letters and UNC paths are not in the
   corpus and are not supported.
+- **Surfaces with no harness yet are outside them entirely.** The cache
+  (`run_cache`/`cache`), `config` and `selection` pairs from #209 have no
+  differential harness yet (work in flight, not landed), so no number or
+  gate here says anything about whether they agree.
 
 Reading 82/115 or 124/147 as a parity figure for the port would be wrong.
 

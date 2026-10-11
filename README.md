@@ -124,10 +124,21 @@ measured rather than asserted.
 - **[`spec/`](spec)** — the recipe format, the seven built-in step actions and
   the eight built-in assertions, specified independently of either codebase.
   Open questions are numbered and tracked in the specs themselves.
-- **[`conformance/`](conformance)** — a differential harness. A probe drives
-  the Python implementation over a checked-in corpus and records what it says;
-  a Rust test replays the same corpus and reports how often the two agree. The
-  test fails if agreement drops below a recorded floor.
+- **[`conformance/`](conformance)** — eight differential harnesses. A probe
+  drives the Python implementation and records what it says; a Rust test
+  replays the same cases or scenario and reports how often the two agree.
+  Four harnesses — evidence-manifest, run-result, build-info and report —
+  construct their scenario in code in each half rather than replaying a
+  corpus of cases. Two harnesses fail if agreement drops below a recorded
+  floor; the others demand equality, an exact known residual, or equality
+  apart from named allowed differences. A required drift gate now gates
+  these measured layers on `main`: the Rust tests run via the required
+  `CI (Rust) result` check, and the required `Oracle freshness result`
+  check holds the corpus to the canonical recording environment. That
+  drift gate is not yet the #216 Done-when parity gate and is not a claim
+  of full parity; #216 remains open for cache/config+selection coverage —
+  [`rust/docs/status-and-parity.md`](rust/docs/status-and-parity.md) says what
+  it does and does not establish.
 
 The current measurement, from
 [`conformance/README.md`](conformance/README.md):
@@ -146,12 +157,16 @@ nothing upstream of the assertion is measured; and whole-recipe execution is
 measured by eleven cases that stop at the verdict.
 
 The corpus is also **not a stable baseline**. The recorded expectations are the
-Python implementation's testimony as observed on one machine, and a good number
-of the remaining divergences are error strings owned by CPython, libc or
-`jsonschema` rather than by TermProof — so the numbers can move without either
-implementation changing. Regenerating the expectations turns a failing
+Python implementation's testimony as observed in one pinned canonical
+environment (`ubuntu-24.04`, CPython 3.13.5), and a good number of the
+remaining divergences are error strings owned by CPython, libc or
+`jsonschema` rather than by TermProof — so the numbers can move when that
+environment or those libraries change, without either implementation
+changing. The required `Oracle freshness result` check holds the corpus to
+that environment on `main`. Regenerating the expectations turns a failing
 comparison into a passing one without changing any behaviour, which is why
-`conformance/README.md` says to do it only deliberately.
+`conformance/README.md` says to re-record only deliberately, in that
+canonical environment, through a reviewed change.
 
 ## Install
 

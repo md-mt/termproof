@@ -67,9 +67,9 @@ above and runs `python3 conformance/verify_oracle.py
 `paths:` filter; a `changes` job decides whether an oracle-relevant
 path (`python/**`, `spec/**`, `conformance/**`, or the two oracle
 workflows) moved, and the `Oracle freshness result` rollup reports on
-every pull request either way — so the rollup is a check a ruleset can
-require, which a job inside the path-filtered Python workflow never
-could be. Payload *and* environment must reproduce there. The pre-canonical recordings show why the pin has to
+every pull request either way — so the rollup is a check the ruleset now
+requires (see `rust/docs/governance.md` §6.1), which a job inside the
+path-filtered Python workflow never could be. Payload *and* environment must reproduce there. The pre-canonical recordings show why the pin has to
 be this explicit: they were made under Python 3.12.13, 3.13.2 and 3.13.5 —
 three of the four blocks naming Darwin, the cast-replay block naming no
 platform — so no single interpreter reproduced all four, and one
@@ -95,20 +95,23 @@ testimony and accepting it stay two separate acts. Changing the canonical
 environment itself means changing the pinned runner/interpreter in both
 workflows together and re-recording this way in the same reviewed change.
 
-**Bootstrap.** A `workflow_dispatch` workflow can only be dispatched
-once it exists on the default branch, so the first canonical re-record
-cannot happen until the change that adds `oracle-ci.yml` and
-`oracle-regen.yml` has merged. The gate therefore lands **red**: the
-checked-in corpus still carries its pre-canonical `environment` blocks
-(Darwin, mixed CPython patches), and `Oracle freshness result` fails
-until the first re-record produced this way is reviewed and landed. Do
-**not** make `Oracle freshness result` a required check before that
-bootstrap re-record is green — a required red gate would block the
-gate-carrying pull request itself and every oracle-touching pull request
-until the re-record lands (the re-record pull request itself is not the
-blocked one: its head carries the regenerated corpus, so the gate runs
-green against its own corpus). It is recorded as
-planned-required after bootstrap in `rust/docs/governance.md` §5.
+**Bootstrap (completed).** A `workflow_dispatch` workflow could only be
+dispatched once it existed on the default branch, so the first canonical
+re-record could not happen until the change that added `oracle-ci.yml`
+and `oracle-regen.yml` had merged. The gate therefore landed **red** in
+#260: the checked-in corpus still carried its pre-canonical
+`environment` blocks (Darwin, mixed CPython patches), and
+`Oracle freshness result` failed until the first re-record produced this
+way was reviewed and landed in #261. `Oracle freshness result` was not
+made a required check while that bootstrap was red — a required red gate
+would have blocked the gate-carrying pull request itself and every
+oracle-touching pull request until the re-record landed (the re-record
+pull request itself was not the blocked one: its head carried the
+regenerated corpus, so the gate ran green against its own corpus, and
+that PR-head oracle success on #261 was the basis for adding the required
+context; the `CI (Oracle)` run on `main` for the merged re-record, run
+`38158366345`, also succeeded). It is now required, as recorded in
+`rust/docs/governance.md` §5 and §6.1.
 
 ### Local runs are diagnostics
 
