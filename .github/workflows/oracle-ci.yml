@@ -1,0 +1,194 @@
+name: CI (Oracle)
+
+# No `paths:` filter here, deliberately — the same reasoning as `CI (Rust)`
+# (#226, #172). A workflow that is filtered out reports no check at all, and
+# a required check that never reports is indistinguishable from one still
+# running, so a gate living in the path-filtered `CI (Python)` could not be
+# made required without blocking every PR that leaves the oracle inputs
+# alone. This workflow therefore starts on every PR and every push to
+# `main`, the `changes` job below decides whether there is anything to
+# verify, and `Oracle freshness result` reports either way.
+#
+# Bootstrap state (#172): this gate lands RED. The checked-in corpus was
+# recorded before the canonical environment existed (its `environment`
+# blocks name Darwin and mixed CPython patches), so the strict check fails
+# until the first canonical re-record via `oracle-regen.yml` is reviewed
+# and landed — see "Re-recording" in `conformance/README.md`. Do not make
+# `Oracle freshness result` a required check before that re-record is
+# green: the gate would deadlock its own regeneration PR.
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Matches CI (Python) and CI (Rust): supersede a pull request's earlier
+# runs, never a run on `main`.
+concurrency:
+  group: oracle-ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  # What a workflow-level `paths:` would decide, moved into a job so the
+  # workflow itself always runs. Plain `git diff` with the path set as
+  # pathspecs rather than a third-party filter action: git does the
+  # matching, so there is no pattern dialect to get subtly wrong and
+  # nothing new to pin.
+  changes:
+    name: Detect oracle-relevant changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    outputs:
+      oracle: ${{ steps.diff.outputs.oracle }}
+    steps:
+      # Full history: the base of the comparison is a commit named by the
+      # event, and a shallow clone holds only the head.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      # A pull request is compared against its base and a push against the
+      # commit `main` pointed at before it. Every case with no usable base
+      # answers `true`: a manual dispatch has none, a push that creates a
+      # ref carries all zeros, and a force-push can name a commit that is
+      # no longer fetchable. So does a `git diff` that errors rather than
+      # answers. Running the check when it was not needed costs minutes;
+      # skipping it when it was needed is the false all-clear this job
+      # exists to prevent.
+      #
+      # On a pull request HEAD is the merge commit, so a base SHA that has
+      # gone stale since the event fired widens the diff to include what
+      # landed on `main` in between. That errs in the same direction.
+      - name: Diff against the base
+        id: diff
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          set -u
+          oracle=true
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            echo "manual dispatch: running everything"
+          elif [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ]; then
+            echo "no base commit in the event: running everything"
+          elif ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+            echo "base $BASE is not in this clone: running everything"
+          else
+            status=0
+            git diff --quiet "$BASE" HEAD -- \
+              python spec conformance \
+              .github/workflows/oracle-ci.yml \
+              .github/workflows/oracle-regen.yml || status=$?
+            case "$status" in
+              0) oracle=false; echo "no oracle-relevant path changed since $BASE" ;;
+              1) echo "oracle-relevant paths changed since $BASE:"
+                 git diff --name-only "$BASE" HEAD -- \
+                   python spec conformance \
+                   .github/workflows/oracle-ci.yml \
+                   .github/workflows/oracle-regen.yml ;;
+              *) echo "git diff exited $status: running everything" ;;
+            esac
+          fi
+          echo "oracle=$oracle" >> "$GITHUB_OUTPUT"
+
+  oracle:
+    # The canonical oracle-freshness gate (#172, #216). The checked-in
+    # `conformance/corpus/*.expected.json` files are testimony recorded in
+    # one pinned environment — this job's `ubuntu-24.04` runner, CPython
+    # 3.13.5 via setup-python (the exact patch: `3.13` floats to whatever
+    # patch is current, and the recorded `environment` blocks name the
+    # patch, so a floating pin would drift the testimony without a diff),
+    # the pinned uv below, and dependencies from `python/uv.lock` — and
+    # `--strict-environment` holds both the case payloads and the recorded
+    # `environment` blocks to it. `runs-on` is deliberately the pinned
+    # `ubuntu-24.04`, not the `ubuntu-latest` other jobs float on: the
+    # runner image is part of the recorded fact. The manual
+    # `oracle-regen.yml` workflow pins the identical environment and is
+    # the only way expectations are re-recorded, so move every pin
+    # together and re-record in the same change — bumping the CPython
+    # patch included. There is deliberately no `continue-on-error`, and
+    # the only `if:` is the `changes` guard: a failure here means the
+    # recorded expectations do not reproduce canonically, and the fix is
+    # a reviewed re-record (see "Checking oracle freshness" in
+    # `conformance/README.md`), not a weaker gate.
+    name: Oracle freshness (canonical environment)
+    needs: changes
+    if: needs.changes.outputs.oracle == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.13.5"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          version: "0.11.8"
+
+      - name: Install dependencies
+        timeout-minutes: 10
+        working-directory: python
+        run: uv sync
+
+      # `verify_oracle.py` re-runs the probes itself via `uv run` from
+      # `python/`; the checker is invoked from the repository root.
+      - name: Verify oracle expectations in the canonical environment
+        run: python3 conformance/verify_oracle.py --strict-environment
+
+  # The one check that means "oracle freshness passed" (#172), mirroring
+  # `CI (Rust) result` (#226). This is the name a ruleset can require once
+  # the bootstrap re-record is green (governance.md §5): it reports on
+  # every PR, including one that leaves the oracle inputs alone.
+  #
+  # `if: always()` is what makes it report at all. Without it a failed or
+  # cancelled `oracle` job would skip this job, and a skipped check
+  # satisfies a required-check rule — the failure would read as a pass.
+  #
+  # For the same reason `skipped` is not taken at face value. It is a pass
+  # only when `changes` succeeded and said, in so many words, that there
+  # was nothing to verify; an empty or missing output is a failure, not a
+  # `false`.
+  result:
+    name: Oracle freshness result
+    needs: [changes, oracle]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions: {}
+    steps:
+      - name: Roll up the needed jobs
+        env:
+          CHANGES_RESULT: ${{ needs.changes.result }}
+          ORACLE_CHANGED: ${{ needs.changes.outputs.oracle }}
+          ORACLE_RESULT: ${{ needs.oracle.result }}
+        run: |
+          set -u
+          echo "changes: $CHANGES_RESULT (oracle=$ORACLE_CHANGED)"
+          echo "oracle:  $ORACLE_RESULT"
+          if [ "$CHANGES_RESULT" != "success" ]; then
+            echo "::error::the changes job ended '$CHANGES_RESULT', so nothing decided whether the oracle check had to run."
+            exit 1
+          fi
+          case "$ORACLE_RESULT" in
+            success)
+              ;;
+            skipped)
+              if [ "$ORACLE_CHANGED" != "false" ]; then
+                echo "::error::the oracle job was skipped although changes reported oracle='$ORACLE_CHANGED' — only an explicit 'false' makes a skip a pass."
+                exit 1
+              fi
+              echo "no oracle-relevant path changed; nothing to verify"
+              ;;
+            *)
+              echo "::error::the oracle job ended '$ORACLE_RESULT'."
+              exit 1
+              ;;
+          esac

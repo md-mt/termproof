@@ -5,13 +5,24 @@ name: Regenerate oracle corpus (manual)
 # a deliberate act, never something a schedule or a push does on its own.
 #
 # The environment below is the canonical recording environment and is
-# pinned identically in the `oracle` job of `python-ci.yml`: the
-# `ubuntu-24.04` runner, CPython 3.13 via `actions/setup-python`, and
-# dependencies from `python/uv.lock`. The per-probe commands are exactly
+# pinned identically in the `oracle` job of `oracle-ci.yml`: the
+# `ubuntu-24.04` runner, CPython 3.13.5 via `actions/setup-python` (the
+# exact patch — bumping it requires re-recording in the same change),
+# the pinned uv version below, and dependencies from `python/uv.lock`. The per-probe commands are exactly
 # the ones each harness section of `conformance/README.md` documents
 # (`uv run` from `python/` with `TERMPROOF_PYTHON_REPO` set); run locally
 # they are diagnostics only, because a laptop is not the canonical
 # environment and its output must not be committed.
+#
+# Bootstrap: `workflow_dispatch` only exists once this file is on the
+# default branch, so the first canonical re-record cannot happen until
+# the change that adds this workflow (and the `oracle-ci.yml` gate) has
+# merged. Until that first re-record is reviewed and landed the gate
+# reports RED — the checked-in corpus still carries its pre-canonical
+# `environment` blocks (Darwin, mixed CPython patches). Do not make
+# `Oracle freshness result` a required check before the bootstrap
+# re-record is green, or the gate deadlocks the very PR that would
+# regenerate it. See "Re-recording" in `conformance/README.md`.
 #
 # This workflow cannot write to the repository (`contents: read`). It
 # uploads the regenerated corpus as the single `oracle-corpus` artifact;
@@ -36,10 +47,12 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v7
         with:
-          python-version: "3.13"
+          python-version: "3.13.5"
 
       - name: Set up uv
         uses: astral-sh/setup-uv@v7
+        with:
+          version: "0.11.8"
 
       - name: Install dependencies
         timeout-minutes: 10

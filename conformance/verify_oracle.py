@@ -18,7 +18,7 @@ The case payload and the ``environment`` block are compared separately:
 a payload difference always fails (exit 1), an environment difference is
 reported field by field and only fails under ``--strict-environment``.
 CI runs it that way in the one canonical recording environment (GitHub
-Actions ``ubuntu-24.04``, CPython 3.13, ``python/uv.lock``); a local run
+Actions ``ubuntu-24.04``, CPython 3.13.5, ``python/uv.lock``); a local run
 without the flag treats environment drift on a non-canonical machine as
 diagnostic. The full policy is in ``conformance/README.md`` under
 "Checking oracle freshness".

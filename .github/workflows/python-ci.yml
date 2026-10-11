@@ -148,49 +148,6 @@ jobs:
       - name: Canonical recipe schema drift across all copies
         run: uv run python scripts/check_schema_copies.py
 
-  oracle:
-    # The canonical oracle-freshness gate (#172, #216). The checked-in
-    # `conformance/corpus/*.expected.json` files are testimony recorded in
-    # one pinned environment — this job's `ubuntu-24.04` runner, CPython
-    # 3.13 via setup-python, and dependencies from `python/uv.lock` — and
-    # `--strict-environment` holds both the case payloads and the recorded
-    # `environment` blocks to it. `runs-on` is deliberately the pinned
-    # `ubuntu-24.04`, not the `ubuntu-latest` every other job here floats
-    # on: the runner image is part of the recorded fact. The manual
-    # `oracle-regen.yml` workflow pins the identical pair and is the only
-    # way expectations are re-recorded, so move the two together and
-    # re-record in the same change. There is deliberately no
-    # `continue-on-error`: a failure here means the recorded expectations
-    # do not reproduce canonically, and the fix is a reviewed re-record
-    # (see "Checking oracle freshness" in `conformance/README.md`), not a
-    # weaker gate. The workflow path filter already covers this job's
-    # inputs (`python/**`, `conformance/**`, `.github/workflows/**`).
-    name: Oracle freshness (canonical environment)
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v7
-
-      - name: Set up Python
-        uses: actions/setup-python@v7
-        with:
-          python-version: "3.13"
-
-      - name: Set up uv
-        uses: astral-sh/setup-uv@v7
-
-      - name: Install dependencies
-        timeout-minutes: 10
-        run: uv sync
-
-      # `verify_oracle.py` re-runs the probes itself via `uv run` from
-      # `python/`; the checker is invoked from the repository root, so it
-      # overrides this workflow's default `python/` working directory.
-      - name: Verify oracle expectations in the canonical environment
-        working-directory: ${{ github.workspace }}
-        run: python3 conformance/verify_oracle.py --strict-environment
-
   test:
     name: Unit tests and coverage (py${{ matrix.python-version }})
     runs-on: ubuntu-latest

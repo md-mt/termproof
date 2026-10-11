@@ -139,6 +139,31 @@ ruleset section 6.2 intends, and its bypass is a role rather than the explicit
 the contract for that ruleset and are not enforced by this one. Section 6.1
 has the full live configuration.
 
+**Planned-required after bootstrap: `Oracle freshness result`.** One further
+check is intended for the live ruleset once its gate has bootstrapped, and is
+deliberately not one of the thirteen above and not live today:
+
+| Check name (exact) | Workflow | Job |
+|---|---|---|
+| `Oracle freshness result` | `CI (Oracle)` | `result` |
+
+Current state: **not required**. The oracle freshness gate (#172) originally
+sat inside the path-filtered `CI (Python)`, where it could never be required
+for the reason the Docker image jobs below give: a workflow filtered out by
+`paths:` reports no check at all. It now lives in its own always-on workflow
+whose `changes` job decides whether an oracle-relevant path moved and whose
+`Oracle freshness result` rollup reports on every PR either way — the same
+shape as `CI (Rust) result` — so that rationale no longer applies. It is
+still not required because the gate lands red: the checked-in corpus carries
+pre-canonical `environment` blocks (Darwin, mixed CPython patches), and the
+first canonical re-record can only be dispatched once `oracle-regen.yml` is
+on the default branch. Requiring it before that re-record is green would
+deadlock the very PR carrying the regenerated corpus. **After** the bootstrap
+re-record lands and `Oracle freshness result` is green on `main`, the
+coordinator adds the exact context `Oracle freshness result` to ruleset
+`24859051` (`main: require CI (Rust) result`), and this paragraph and
+section 6.1 are updated to record it as live.
+
 Not required, and why:
 
 - `Lint, type-check and test (...)` (`CI (Rust)`) — the two matrix legs are no

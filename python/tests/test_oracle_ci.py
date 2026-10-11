@@ -2,19 +2,29 @@
 
 Issue #172: the recorded expectations in `conformance/corpus/` encode
 behaviour owned partly by the machine that observed it, so the recording
-environment is pinned — the `ubuntu-24.04` runner, CPython 3.13, and
+environment is pinned — the `ubuntu-24.04` runner, CPython 3.13.5 (the
+exact patch the recorded `environment` blocks name), a pinned uv, and
 `python/uv.lock` — and stated in `conformance/README.md`. Two workflow
-surfaces carry that pin: the `oracle` job in `python-ci.yml`, which fails
-a pull request when the corpus does not reproduce under
-`--strict-environment`, and the manual `oracle-regen.yml`, which is the
-only way expectations are re-recorded.
+surfaces carry that pin: the `oracle` job in the always-on
+`oracle-ci.yml`, whose `Oracle freshness result` rollup fails the check
+when the corpus does not reproduce under `--strict-environment` (it
+becomes a required check only after the bootstrap re-record is green;
+`rust/docs/governance.md` §5), and the manual `oracle-regen.yml`, which
+is the only way expectations are re-recorded.
 
-The pin is only worth having if the two cannot drift apart or quietly
-soften — a gate that gained `continue-on-error`, or a regen workflow that
-floated to `ubuntu-latest`, would keep every other check green while the
-corpus stopped meaning what it claims. That is what this asserts. The
-probe-to-expectation list is read from `verify_oracle.PROBES` rather than
-repeated, so a new probe that the regen workflow forgets fails here.
+The gate lives in its own workflow rather than the path-filtered
+`python-ci.yml` for the `CI (Rust)` reason (#226): a filtered-out
+workflow reports no check at all, so nothing it contains can ever be
+required. Here a `changes` job decides whether an oracle-relevant path
+moved and the rollup reports either way.
+
+The pin is only worth having if the two surfaces cannot drift apart or
+quietly soften — a gate that gained `continue-on-error`, or a regen
+workflow that floated to `ubuntu-latest`, would keep every other check
+green while the corpus stopped meaning what it claims. That is what
+this asserts. The probe-to-expectation list is read from
+`verify_oracle.PROBES` rather than repeated, so a new probe that the
+regen workflow forgets fails here.
 """
 
 from __future__ import annotations
@@ -32,7 +42,18 @@ WORKFLOWS = REPO_ROOT / ".github" / "workflows"
 CHECKER = REPO_ROOT / "conformance" / "verify_oracle.py"
 
 CANONICAL_RUNNER = "ubuntu-24.04"
-CANONICAL_PYTHON = "3.13"
+CANONICAL_PYTHON = "3.13.5"
+CANONICAL_UV_VERSION = "0.11.8"
+
+# The paths whose movement can change what the probes record, as git
+# pathspecs in the `changes` job's diff.
+ORACLE_PATHSPECS = (
+    "python",
+    "spec",
+    "conformance",
+    ".github/workflows/oracle-ci.yml",
+    ".github/workflows/oracle-regen.yml",
+)
 
 
 def _load_checker() -> ModuleType:
@@ -61,34 +82,108 @@ def _canonical_pair(job: dict) -> tuple[str, str]:
     return job["runs-on"], str(python)
 
 
-class OracleGateJobTest(unittest.TestCase):
+def _uv_pin(job: dict) -> tuple[str, str]:
+    """The (setup-uv ref, uv version) a job pins."""
+    step = next(
+        step
+        for step in job["steps"]
+        if str(step.get("uses", "")).startswith("astral-sh/setup-uv@")
+    )
+    return str(step["uses"]), str(step["with"]["version"])
+
+
+class OracleGateWorkflowTest(unittest.TestCase):
     def setUp(self) -> None:
-        self.workflow = _workflow("python-ci.yml")
+        self.workflow = _workflow("oracle-ci.yml")
         self.job = self.workflow["jobs"]["oracle"]
 
-    def test_the_gate_pins_the_canonical_environment(self) -> None:
-        self.assertEqual((CANONICAL_RUNNER, CANONICAL_PYTHON), _canonical_pair(self.job))
+    def test_the_gate_no_longer_lives_in_the_path_filtered_workflow(self) -> None:
+        self.assertNotIn("oracle", _workflow("python-ci.yml")["jobs"])
 
-    def test_the_gate_runs_the_strict_check_from_the_repository_root(self) -> None:
+    def test_the_workflow_is_always_on_with_no_path_filter(self) -> None:
+        # PyYAML reads the `on:` key as the boolean True (YAML 1.1).
+        triggers = self.workflow[True]
+        self.assertEqual(
+            {
+                "pull_request": None,
+                "push": {"branches": ["main"]},
+                "workflow_dispatch": None,
+            },
+            triggers,
+        )
+        self.assertEqual("read", self.workflow["permissions"]["contents"])
+
+    def test_changes_diffs_exactly_the_oracle_inputs(self) -> None:
+        changes = self.workflow["jobs"]["changes"]
+        self.assertEqual(
+            "${{ steps.diff.outputs.oracle }}", changes["outputs"]["oracle"]
+        )
+        step = next(
+            step
+            for step in changes["steps"]
+            if "git diff --quiet" in str(step.get("run", ""))
+        )
+        for pathspec in ORACLE_PATHSPECS:
+            with self.subTest(pathspec=pathspec):
+                self.assertIn(pathspec, step["run"])
+
+    def test_the_gate_pins_the_canonical_environment(self) -> None:
+        self.assertEqual(
+            (CANONICAL_RUNNER, CANONICAL_PYTHON), _canonical_pair(self.job)
+        )
+        self.assertEqual(
+            ("astral-sh/setup-uv@v7", CANONICAL_UV_VERSION), _uv_pin(self.job)
+        )
+
+    def test_the_gate_runs_the_strict_check_only_when_relevant(self) -> None:
+        self.assertEqual("changes", self.job["needs"])
+        self.assertEqual(
+            "needs.changes.outputs.oracle == 'true'", self.job["if"]
+        )
         step = next(
             step
             for step in self.job["steps"]
             if "verify_oracle.py" in str(step.get("run", ""))
         )
         self.assertIn(
-            "python3 conformance/verify_oracle.py --strict-environment", step["run"]
+            "python3 conformance/verify_oracle.py --strict-environment",
+            step["run"],
         )
-        # `python-ci.yml` defaults every `run` step to `python/`; the
-        # checker is documented from the root, so the override is part of
-        # running the documented command at all.
-        self.assertEqual("${{ github.workspace }}", step["working-directory"])
 
     def test_the_gate_cannot_pass_by_being_ignored(self) -> None:
+        # The job's only `if:` is the `changes` guard asserted above; no
+        # step may add one of its own, and nothing may continue on error.
         self.assertNotIn("continue-on-error", self.job)
         for step in self.job["steps"]:
             self.assertNotIn("continue-on-error", step)
-        self.assertIn(self.job.get("permissions"), (None, {"contents": "read"}))
-        self.assertEqual("read", self.workflow["permissions"]["contents"])
+            self.assertNotIn("if", step)
+        self.assertIn(
+            self.job.get("permissions"), (None, {"contents": "read"})
+        )
+
+    def test_the_rollup_always_reports_and_fails_iff_the_gate_fails(
+        self,
+    ) -> None:
+        result = self.workflow["jobs"]["result"]
+        self.assertEqual("Oracle freshness result", result["name"])
+        self.assertEqual(["changes", "oracle"], result["needs"])
+        self.assertEqual("always()", result["if"])
+        step = result["steps"][0]
+        self.assertEqual(
+            "${{ needs.changes.result }}", step["env"]["CHANGES_RESULT"]
+        )
+        self.assertEqual(
+            "${{ needs.changes.outputs.oracle }}",
+            step["env"]["ORACLE_CHANGED"],
+        )
+        self.assertEqual(
+            "${{ needs.oracle.result }}", step["env"]["ORACLE_RESULT"]
+        )
+        # Mirrors `CI (Rust) result`: a skip passes only on an explicit
+        # `oracle=false`, and every other non-success is a failure.
+        self.assertIn('case "$ORACLE_RESULT" in', step["run"])
+        self.assertIn('"$ORACLE_CHANGED" != "false"', step["run"])
+        self.assertIn("exit 1", step["run"])
 
 
 class OracleRegenWorkflowTest(unittest.TestCase):
@@ -102,31 +197,56 @@ class OracleRegenWorkflowTest(unittest.TestCase):
         self.assertEqual({"contents": "read"}, self.workflow["permissions"])
 
     def test_regeneration_uses_the_gate_environment(self) -> None:
-        gate_job = _workflow("python-ci.yml")["jobs"]["oracle"]
+        gate_job = _workflow("oracle-ci.yml")["jobs"]["oracle"]
         self.assertEqual(_canonical_pair(gate_job), _canonical_pair(self.job))
+        self.assertEqual(_uv_pin(gate_job), _uv_pin(self.job))
 
     def test_regeneration_rerecords_every_probe_expectation(self) -> None:
         step = next(
-            step for step in self.job["steps"] if "probe_steps.py" in str(step.get("run", ""))
+            step
+            for step in self.job["steps"]
+            if "probe_steps.py" in str(step.get("run", ""))
         )
         self.assertEqual("python", step["working-directory"])
         for probe, expected in verify.PROBES:
             with self.subTest(probe=probe):
-                self.assertIn("TERMPROOF_PYTHON_REPO=$PWD uv run python", step["run"])
+                self.assertIn(
+                    "TERMPROOF_PYTHON_REPO=$PWD uv run python", step["run"]
+                )
                 self.assertIn(f"../conformance/{probe}", step["run"])
-                self.assertIn(f"> ../conformance/corpus/{expected}", step["run"])
+                self.assertIn(
+                    f"> ../conformance/corpus/{expected}", step["run"]
+                )
 
-    def test_the_regenerated_corpus_is_one_artifact_and_never_pushed(self) -> None:
+    def test_the_regenerated_corpus_is_verified_in_the_same_run(
+        self,
+    ) -> None:
+        runs = [str(step.get("run", "")) for step in self.job["steps"]]
+        self.assertTrue(
+            any(
+                "python3 conformance/verify_oracle.py --strict-environment"
+                in run
+                for run in runs
+            ),
+            "regen must self-verify the corpus it just recorded",
+        )
+
+    def test_the_regenerated_corpus_is_one_artifact_and_never_pushed(
+        self,
+    ) -> None:
         uploads = [
             step
             for step in self.job["steps"]
-            if str(step.get("uses", "")).startswith("actions/upload-artifact@")
+            if str(step.get("uses", "")).startswith(
+                "actions/upload-artifact@"
+            )
         ]
         self.assertEqual(1, len(uploads))
         self.assertEqual("oracle-corpus", uploads[0]["with"]["name"])
         self.assertEqual(
             "conformance/corpus/*.expected.json", uploads[0]["with"]["path"]
         )
+        self.assertEqual("error", uploads[0]["with"]["if-no-files-found"])
         runs = "\n".join(str(step.get("run", "")) for step in self.job["steps"])
         self.assertNotIn("git push", runs)
         self.assertNotIn("gh pr ", runs)

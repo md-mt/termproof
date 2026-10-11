@@ -48,14 +48,27 @@ environment is:
 
 - the GitHub Actions **`ubuntu-24.04`** runner (pinned, not
   `ubuntu-latest`),
-- **CPython 3.13**, via `actions/setup-python` with `python-version: "3.13"`,
+- **CPython 3.13.5**, via `actions/setup-python` with
+  `python-version: "3.13.5"` — the exact patch, not a floating `3.13`,
+  because the recorded `environment` blocks name the patch. 3.13.5 is
+  the newest patch any pre-canonical block recorded (cast replay), so
+  the pin starts from testimony that already exists. Bumping the patch
+  is a canonical-environment change: it requires re-recording (below)
+  in the same reviewed change,
+- **uv 0.11.8**, via `astral-sh/setup-uv` with `version: "0.11.8"`,
 - dependencies from **`python/uv.lock`** (`uv run` from `python/`).
 
 CI holds the corpus to exactly that environment: the `oracle` job in
-`.github/workflows/python-ci.yml` pins the runner and interpreter above and
-runs `python3 conformance/verify_oracle.py --strict-environment` from the
-repository root, with no `continue-on-error`. Payload *and* environment
-must reproduce there. The pre-canonical recordings show why the pin has to
+`.github/workflows/oracle-ci.yml` pins the runner, interpreter and uv
+above and runs `python3 conformance/verify_oracle.py
+--strict-environment` from the repository root, with no
+`continue-on-error`. That workflow is deliberately always-on — no
+`paths:` filter; a `changes` job decides whether an oracle-relevant
+path (`python/**`, `spec/**`, `conformance/**`, or the two oracle
+workflows) moved, and the `Oracle freshness result` rollup reports on
+every pull request either way — so the rollup is a check a ruleset can
+require, which a job inside the path-filtered Python workflow never
+could be. Payload *and* environment must reproduce there. The pre-canonical recordings show why the pin has to
 be this explicit: they were made under Python 3.12.13, 3.13.2 and 3.13.5 —
 two of the three blocks naming Darwin, the cast-replay block naming no
 platform — so no single interpreter reproduced all three, and one
@@ -80,6 +93,18 @@ file by file, and land it through a reviewed pull request; producing the
 testimony and accepting it stay two separate acts. Changing the canonical
 environment itself means changing the pinned runner/interpreter in both
 workflows together and re-recording this way in the same reviewed change.
+
+**Bootstrap.** A `workflow_dispatch` workflow can only be dispatched
+once it exists on the default branch, so the first canonical re-record
+cannot happen until the change that adds `oracle-ci.yml` and
+`oracle-regen.yml` has merged. The gate therefore lands **red**: the
+checked-in corpus still carries its pre-canonical `environment` blocks
+(Darwin, mixed CPython patches), and `Oracle freshness result` fails
+until the first re-record produced this way is reviewed and landed. Do
+**not** make `Oracle freshness result` a required check before that
+bootstrap re-record is green — a required red gate would deadlock the
+very pull request carrying the regenerated corpus. It is recorded as
+planned-required after bootstrap in `rust/docs/governance.md` §5.
 
 ### Local runs are diagnostics
 
