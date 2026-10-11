@@ -197,6 +197,25 @@ Not required, and why:
   `Build and publish the image` (`Docker Image (Python)`) — path-filtered to
   one tree each, so requiring either would block every PR that does not touch
   it.
+
+  **Decision (#257): a failed Rust image push does not gate releases.** The
+  `rust-release`, `rust-auto-release` and `rust-publish-crates` workflows
+  have zero docker coupling, and that stays deliberate: the accepted signal
+  for a failed push is the red `Docker Image (Rust)` run plus GitHub's
+  default failure notification, not a blocked release. Three reasons.
+  (a) Since #256 the job ends by reading every pushed tag back from GHCR
+  and failing unless it resolves to the pushed digest, so a failure is
+  immediate and specific — the run summary names the tag and digest —
+  rather than the silent green of #178, where `rs-v0.3.4` shipped with no
+  image behind it. (b) The crates.io and release-binary channels do not
+  depend on the image; it is an additional distribution of the same build,
+  not an input to either. (c) A registry outage must not block crate
+  releases. The remedy for a failed push is to re-run the
+  `Docker Image (Rust)` workflow for the tag; until that re-run lands, a
+  release may be without its image. [`SECURITY.md`](../../SECURITY.md)'s
+  published-artifacts table describes that steady state (including the
+  `rs-v0.3.4` exception), not a per-release guarantee that the image gates
+  publication.
 - `Docs site`, `Pages preview` — same reason, and neither gates behaviour.
 - `Validate .github/dependabot.yml` (`Dependabot config`) — path-filtered to
   `.github/dependabot.yml` and its own workflow file, so the same reason. It
