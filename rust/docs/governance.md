@@ -10,11 +10,13 @@ predecessor repository, before the two implementations were consolidated.** It
 has not been re-verified against this repository, so read it as the settings
 this document argued for rather than as the settings that are live. The
 settings-change task re-runs the audit commands in section 8 here and records
-the before/after.
+the before/after. The one exception is the ruleset: the *Rulesets* row of
+section 1, the "Live today" paragraph of section 5 and section 6.1 were read
+from this repository's API on 2026-10-10.
 
 This document records the repository's GitHub governance: metadata,
 vulnerability settings, merge policy, the required CI checks by their stable
-names, the intended `main` ruleset, the emergency bypass, and the audit
+names, the `main` ruleset (live and intended), the emergency bypass, and the audit
 procedure. It is the review trail for the settings change that follows it —
 the external GitHub settings are deliberately **not** changed by this
 document's PR. When the settings are applied, the exact before/after state is
@@ -24,32 +26,38 @@ This document governs the GitHub repository surface. Code policy — formatting,
 lints, errors, tracing, dependencies, features, unsafe code — is
 [`docs/engineering-baseline.md`](engineering-baseline.md).
 
-## 1. Baseline — current live state (verified 2026-08-16)
+## 1. Baseline — current live state (verified 2026-10-10)
 
-Verified against the live repository with the GitHub API/GraphQL, not assumed:
+Verified against the live repository with the GitHub API/GraphQL, not assumed.
+Every row was re-verified on 2026-10-10; the original baseline was taken on
+2026-08-16:
 
 | Setting | Live value |
 |---|---|
 | Visibility / default branch | public, `main` |
-| Description | "Rust implementation of TermProof — evidence-first verification for terminal and TUI apps. Ported from the Python reference implementation in md-mt/termproof." |
-| Homepage | unset |
-| Topics | none |
+| Description | "Evidence-first verification for TUI and terminal applications" |
+| Homepage | `https://md-mt.github.io/termproof/` |
+| Topics | `asciinema`, `bubbletea`, `ci`, `cypress`, `evidence`, `ink`, `playwright`, `ratatui`, `terminal`, `testing`, `textual`, `tui`, `verification` |
 | Issues / Wiki / Projects / Discussions | enabled / enabled / enabled / disabled |
-| Merge methods | all three allowed (squash, merge commit, rebase); delete branch on merge **off** |
-| Rulesets | none configured |
-| Branch protection | none (legacy endpoint absent) |
-| Security policy file | `SECURITY.md` present and detected by GitHub |
-| Private vulnerability reporting | enabled — the *Security → Report a vulnerability* button is live, and reporters are directed there by `SECURITY.md` |
-| Vulnerability alerts | not enabled (alerts endpoints are admin-gated; the Dependabot alerts API reports "Dependabot alerts are disabled for this repository") |
-| Automated security fixes | not enabled |
+| Merge methods | squash and rebase allowed, merge commits **disabled**; delete branch on merge **on**; auto-merge off; "always suggest updating pull request branches" off; squash commit title `COMMIT_OR_PR_TITLE`, message `COMMIT_MESSAGES` |
+| Rulesets | one — `main: require CI (Rust) result` (id `24859051`), enforcement active, targeting the default branch, requiring the single status check `CI (Rust) result`; admin-role bypass. Re-verified against `md-mt/termproof` on 2026-10-10 — section 6.1 |
+| Branch protection | none (legacy endpoint returns 404) |
+| Security policy file | `SECURITY.md` present in the repository root (the community profile API does not report a security file) |
+| Private vulnerability reporting | **disabled** (`/private-vulnerability-reporting` returns `{"enabled":false}`) — the *Security → Report a vulnerability* button is not live, yet `SECURITY.md` directs reporters there |
+| Vulnerability alerts | not enabled (`/vulnerability-alerts` returns 404; the Dependabot alerts API reports "Dependabot alerts are disabled for this repository") |
+| Automated security fixes | not enabled (`{"enabled":false}`) |
+| Secret scanning | enabled, with push protection enabled |
 | Dependabot version updates | enabled — `.github/dependabot.yml`, weekly, grouped |
-| Code owners | `* @md-mt` (`CODEOWNERS`) |
+| Code owners | `* @md-mt` (`.github/CODEOWNERS`) |
 | Community health files | present — `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md`, `SUPPORT.md`, `CHANGELOG.md`, issue forms, PR template |
-| CI on `main` | green at baseline: 10/10 check runs on `e6efcb5` |
+| CI on `main` | green on the current head: 5/5 check runs succeeded on `73375d7` |
 
-Because no ruleset exists, `main` currently accepts direct pushes and merges
-without review or checks. The gate is social, not structural: every change so
-far has gone through a reviewed PR, but nothing in GitHub enforces that today.
+That ruleset is the only one in the repository, and it enforces one thing: a
+commit reaches `main` only with a passing `CI (Rust) result`, unless the actor
+holds the admin role, which bypasses it. It carries no pull-request, review,
+force-push or deletion rule. Everything else section 6.2 intends is still
+social, not structural: every change so far has gone through a reviewed PR,
+but nothing in GitHub enforces that today.
 
 ## 2. Intended repository metadata
 
@@ -87,9 +95,12 @@ squash-merged; the merge commit message will be the PR title"):
 
 ## 5. Required checks (stable names)
 
-The ruleset requires status checks by exact name, so the names below are the
+A ruleset requires status checks by exact name, so the names below are the
 stable job names from the merged workflows. Renaming a job silently un-gates
 the ruleset, and this list is the contract.
+
+The table is the contract for the ruleset section 6.2 intends: thirteen names.
+The live ruleset (section 6.1) enforces exactly one of them, the first row.
 
 One repository, two language paths, so the gate covers both. The Rust checks
 and the Python checks are listed together because a ruleset on `main` is one
@@ -117,14 +128,16 @@ safe to require on every PR. That workflow triggers on `pull_request`,
 `workflow_dispatch` and `release`, never on a push to `main`, so those three
 are verified on PR heads rather than on `main`.
 
-**Live today: `CI (Rust) result`.** It is a required status check on `main`,
-enforced by a repository ruleset named **`main: require CI (Rust) result`** —
-enforcement **active**, targeting the default branch. The ruleset carries an
-admin bypass: the repository admin role, which is what release automation
-pushes to `main` go through. This is narrower than the ruleset section 6
-intends, and its bypass is a role rather than the explicit `@md-mt` actor that
-section asks for; the other rows of the table are the contract for that ruleset
-and are not enforced by this one.
+**Live today: `CI (Rust) result`, and only that.** It is the one required
+status check on `main`, enforced by the repository ruleset
+**`main: require CI (Rust) result`** (id `24859051`) — enforcement **active**,
+targeting the default branch, with the strict up-to-date policy off. The
+ruleset carries an admin bypass: the repository admin role, which is what
+release automation pushes to `main` go through. This is narrower than the
+ruleset section 6.2 intends, and its bypass is a role rather than the explicit
+`@md-mt` actor that section asks for; the other twelve rows of the table are
+the contract for that ruleset and are not enforced by this one. Section 6.1
+has the full live configuration.
 
 Not required, and why:
 
@@ -151,7 +164,64 @@ Not required, and why:
 Any change to a workflow that renames a job must update this table in the same
 PR, or the ruleset will silently stop enforcing that check.
 
-## 6. Intended `main` ruleset behavior
+## 6. The `main` ruleset: live and intended
+
+### 6.1 Live (verified 2026-10-10)
+
+Read from `gh api repos/md-mt/termproof/rulesets/24859051`. It is the only
+ruleset in the repository.
+
+| Field | Live value |
+|---|---|
+| Name | `main: require CI (Rust) result` |
+| Id | `24859051` |
+| Source | repository `md-mt/termproof` |
+| Target | branch; include `~DEFAULT_BRANCH`, no excludes |
+| Enforcement | `active` |
+| Rules | one — `required_status_checks` |
+| Required contexts | one — `CI (Rust) result` |
+| Strict up-to-date policy | off (`strict_required_status_checks_policy: false`) |
+| Enforce on branch creation | yes (`do_not_enforce_on_create: false`) |
+| Bypass | one actor — `RepositoryRole` id `5` (the admin role), mode `always` |
+| Created | 2026-10-10 |
+
+What that does and does not do:
+
+- **One check gates `main`.** `CI (Rust) result` is the rollup that waits for
+  every Rust test job and reports on a PR that leaves Rust alone (section 5),
+  which is what makes it safe to require on every PR.
+- **Nothing else is a rule.** No `pull_request` rule, so no required PR,
+  review count, stale-approval dismissal or conversation resolution; no
+  `non_fast_forward` or `deletion` rule, so the ruleset does not block force
+  pushes or branch deletion; and a PR head does not have to contain the
+  latest `main`.
+- **The bypass is a role, not an account.** Anyone holding the admin role
+  bypasses the ruleset, always. Release automation relies on it: the
+  auto-release workflow pushes its version-bump commit straight to `main`
+  with `RELEASE_TOKEN` (`git push origin HEAD:main`), without a PR. This is
+  the blanket path section 6.2 argues against, and it is the standing one
+  today.
+
+### 6.2 Intended — not live
+
+**None of this section is configured.** It is the design this document argued
+for at the 2026-08-16 baseline, kept because the rationale still stands. The
+settings-change task applies it — by extending ruleset `24859051` or by
+replacing it — and records the resulting id, name and before/after JSON in
+section 6.1.
+
+Two things have to be settled before it can be applied as written:
+
+- **Release automation needs a path.** Requiring pull requests and narrowing
+  the bypass to `@md-mt` would reject the auto-release push to `main` unless
+  `RELEASE_TOKEN`'s identity is itself a bypass actor or the bump moves to a
+  PR.
+- **Path-filtered workflows do not report on every PR.** `Security (Rust)`,
+  `Publish crates (Rust)` and `CI (Python)` all trigger on `paths:`, so their
+  checks never arrive on a PR outside those paths, and a required check that
+  never arrives blocks the merge — the reason section 5 gives for not
+  requiring the Docker image jobs. Those twelve rows — every row but
+  `CI (Rust) result` — need a rollup like it before they can be required.
 
 One ruleset, name **`main`**, enforcement **active**, targeting branch `main`:
 
@@ -201,6 +271,11 @@ records which reviewer was added and re-runs the audit when it promotes.
 The ruleset exists to keep normal work on the reviewed PR path; it must not be
 able to lock the maintainer out of the repository.
 
+This section is written for the intended ruleset (section 6.2) and its explicit
+`@md-mt` bypass. The live bypass is the admin role (section 6.1), and release
+automation uses it routinely; the rules below are the policy for people, and
+they hold today for any human use of that role.
+
 - **When it is used:** incident recovery only — e.g. a ruleset misconfiguration
   that blocks an urgent security fix, a botched CI workflow that gates every
   PR, or GitHub-side drift that makes the required checks un-runnable.
@@ -234,8 +309,10 @@ Commands (all read-only):
 # Metadata
 gh repo view md-mt/termproof --json homepageUrl,repositoryTopics,hasIssuesEnabled,hasWikiEnabled,hasProjectsEnabled,hasDiscussionsEnabled,mergeCommitAllowed,rebaseMergeAllowed,squashMergeAllowed,deleteBranchOnMerge
 
-# Ruleset and branch protection
-gh api repos/md-mt/termproof/rulesets
+# Rulesets and branch protection. The list must be exactly one ruleset,
+# 24859051; the list endpoint omits rules and bypass actors, so the detail
+# is read by id further down.
+gh api repos/md-mt/termproof/rulesets --jq '.[] | "\(.id)\t\(.enforcement)\t\(.name)"'
 gh api repos/md-mt/termproof/branches/main/protection
 
 # Vulnerability settings (admin token; record 2xx vs 4xx per endpoint)
@@ -243,30 +320,50 @@ gh api -i repos/md-mt/termproof/vulnerability-alerts
 gh api -i repos/md-mt/termproof/automated-security-fixes
 gh api repos/md-mt/termproof/dependabot/alerts
 
-# Baseline CI health on the current head of main — the four Rust/Security
-# gate checks (plus Dependabot config checks). The Publish jobs never run on
-# main, so this command alone cannot verify the full required-check contract.
+# Baseline CI health on the current head of main. `CI (Rust) result` always
+# reports; the Security (Rust) and CI (Python) checks report only when the
+# push touched their paths, and the Publish jobs never run on main, so this
+# command alone cannot verify the full section 5 contract.
 gh api repos/md-mt/termproof/commits/main/check-runs --jq '.check_runs[].name'
 
-# Required PR gate checks — audit from a PR head, where all thirteen run.
-# Pick any open or recent PR (44 in the baseline, or the newest merged one):
-gh pr checks 44 --repo md-mt/termproof --json name,state,workflow
+# The section 5 contract — audit from a PR head. All thirteen report only on
+# a PR that touches both the Rust and the Python paths; pick one that does:
+gh pr checks <pr-number> --repo md-mt/termproof --json name,state,workflow
 # or directly against a PR head commit:
 gh api repos/md-mt/termproof/commits/<pr-head-sha>/check-runs --jq '.check_runs[].name'
 
-# After the ruleset exists, verify the thirteen configured contexts from the
-# ruleset JSON itself (the settings-change task records the ruleset id):
-gh api repos/md-mt/termproof/rulesets --jq '.[] | select(.name == "main") | .rules[] | select(.type == "required_status_checks") | .parameters.required_status_checks[].context'
+# The live ruleset, by id (section 6.1). Expected output, exactly:
+#   {"name":"main: require CI (Rust) result","enforcement":"active","include":["~DEFAULT_BRANCH"],"exclude":[],"rules":["required_status_checks"],"strict":false,"bypass":["RepositoryRole:5:always"]}
+gh api repos/md-mt/termproof/rulesets/24859051 --jq '{name, enforcement, include: .conditions.ref_name.include, exclude: .conditions.ref_name.exclude, rules: [.rules[].type], strict: (.rules[] | select(.type == "required_status_checks") | .parameters.strict_required_status_checks_policy), bypass: [.bypass_actors[] | "\(.actor_type):\(.actor_id):\(.bypass_mode)"]}'
+
+# The contexts the live ruleset requires. Today that is one line,
+# `CI (Rust) result` — not the thirteen of section 5:
+gh api repos/md-mt/termproof/rulesets/24859051 --jq '.rules[] | select(.type == "required_status_checks") | .parameters.required_status_checks[].context'
+
+# The same as a check: exits non-zero unless the live contexts are exactly
+# the expected set. Edit the expected list when section 6.1 changes.
+test "$(gh api repos/md-mt/termproof/rulesets/24859051 --jq '[.rules[] | select(.type == "required_status_checks") | .parameters.required_status_checks[].context] | sort | join(",")')" = "CI (Rust) result"
+
+# Every rule that applies to main, across all rulesets — catches a second
+# ruleset or an added rule that the by-id read above would not show.
+# Expected: one line, `24859051<TAB>required_status_checks`.
+gh api repos/md-mt/termproof/rules/branches/main --jq '.[] | "\(.ruleset_id)\t\(.type)"'
 
 # Community health
 gh api repos/md-mt/termproof/community/profile --jq .health_percentage
 ```
 
-Expected after the settings change: homepage `https://docs.rs/termproof`;
-topics present; vulnerability/Dependabot alerts enabled; private reporting
-enabled; squash-only + delete-branch-on-merge; one active `main` ruleset with
-the thirteen required checks and a required-review count of zero (until a second
-eligible reviewer exists — see promotion criteria in section 6); `main`
-refusing direct pushes, force pushes and deletion; and an explicit `@md-mt`
-bypass. Any deviation from section 1–6 is a finding to fix or a deliberate
-change to record here first.
+Expected today, for the ruleset: exactly one, id `24859051`, as section 6.1
+records it — active on the default branch, one `required_status_checks` rule
+whose only context is `CI (Rust) result`, strict policy off, and the admin-role
+bypass. A second ruleset, another context, or a different bypass actor is a
+finding.
+
+Expected after the settings change (not live): homepage
+`https://docs.rs/termproof`; topics present; vulnerability/Dependabot alerts
+enabled; private reporting enabled; squash-only + delete-branch-on-merge; one
+active `main` ruleset with the thirteen required checks and a required-review
+count of zero (until a second eligible reviewer exists — see promotion criteria
+in section 6.2); `main` refusing direct pushes, force pushes and deletion; and
+an explicit `@md-mt` bypass. Any deviation from section 1–6 is a finding to fix
+or a deliberate change to record here first.
