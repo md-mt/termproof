@@ -1,0 +1,79 @@
+[
+  {
+    "binary_path": "@BIN",
+    "build_target": null,
+    "command": [
+      "@BIN",
+      "--serve"
+    ],
+    "git_commit": "abc123",
+    "mode": "installed",
+    "provenance_verified": true,
+    "source_ref": null,
+    "timestamp": "2026-01-02T03:04:05",
+    "version": "tool 1.2.3"
+  },
+  {
+    "binary_path": "@BIN",
+    "build_target": "//app:cli",
+    "command": [
+      "@BIN"
+    ],
+    "git_commit": "abc123",
+    "mode": "source",
+    "provenance_verified": true,
+    "source_ref": "PR-42",
+    "timestamp": "2026-01-02T03:04:05",
+    "version": "tool 1.2.3"
+  },
+  {
+    "binary_path": "@BIN",
+    "build_target": "//app:cli",
+    "command": [
+      "@BIN"
+    ],
+    "git_commit": "",
+    "mode": "source",
+    "provenance_verified": false,
+    "source_ref": "",
+    "timestamp": "2026-01-02T03:04:05",
+    "version": "tool 1.2.3"
+  },
+  {
+    "binary_path": "@BIN",
+    "build_target": "",
+    "command": [
+      "@BIN"
+    ],
+    "git_commit": null,
+    "mode": "source",
+    "provenance_verified": false,
+    "source_ref": "PR-42",
+    "timestamp": "2026-01-02T03:04:05",
+    "version": "tool 1.2.3"
+  },
+  {
+    "binary_path": "@BIN",
+    "build_target": null,
+    "command": [
+      "@BIN"
+    ],
+    "git_commit": null,
+    "mode": "package",
+    "provenance_verified": false,
+    "source_ref": null,
+    "timestamp": "2026-01-02T03:04:05",
+    "version": "tool 1.2.3"
+  },
+  {
+    "binary_path": null,
+    "build_target": null,
+    "command": [],
+    "git_commit": null,
+    "mode": "installed",
+    "provenance_verified": false,
+    "source_ref": null,
+    "timestamp": "2026-01-02T03:04:05",
+    "version": "unknown"
+  }
+]
