@@ -7,10 +7,13 @@ exact patch the recorded `environment` blocks name), a pinned uv, and
 `python/uv.lock` — and stated in `conformance/README.md`. Two workflow
 surfaces carry that pin: the `oracle` job in the always-on
 `oracle-ci.yml`, whose `Oracle freshness result` rollup fails the check
-when the corpus does not reproduce under `--strict-environment` (it
-becomes a required check only after the bootstrap re-record is green;
-`rust/docs/governance.md` §5), and the manual `oracle-regen.yml`, which
-is the only way expectations are re-recorded.
+when the corpus does not reproduce under `--strict-environment` (it is
+now a required check: the bootstrap landed red in #260, the corpus was
+re-recorded in #261, required status followed the PR-head oracle
+success on #261, and the `CI (Oracle)` run on `main` for the merged
+re-record, run 38158366345, also succeeded;
+`rust/docs/governance.md` §5 and §6.1), and the manual
+`oracle-regen.yml`, which is the only way expectations are re-recorded.
 
 The gate lives in its own workflow rather than the path-filtered
 `python-ci.yml` for the `CI (Rust)` reason (#226): a filtered-out

@@ -125,14 +125,18 @@ measured rather than asserted.
   the eight built-in assertions, specified independently of either codebase.
   Open questions are numbered and tracked in the specs themselves.
 - **[`conformance/`](conformance)** — eight differential harnesses. A probe
-  drives the Python implementation over a checked-in corpus and records what
-  it says; a Rust test replays the same corpus and reports how often the two
-  agree. Two harnesses fail if agreement drops below a recorded floor; the
-  others demand equality, an exact known residual, or equality apart from
-  named allowed differences. Both halves are gated on `main`: the Rust tests
-  run under the required `CI (Rust) result` check, and the required
-  `Oracle freshness result` check holds the corpus to the canonical
-  recording environment. That gate is not a claim of full parity —
+  drives the Python implementation and records what it says; a Rust test
+  replays the same cases or scenario and reports how often the two agree.
+  Four harnesses — evidence-manifest, run-result, build-info and report —
+  construct their scenario in code in each half rather than replaying a
+  corpus of cases. Two harnesses fail if agreement drops below a recorded
+  floor; the others demand equality, an exact known residual, or equality
+  apart from named allowed differences. A required drift gate now gates
+  these measured layers on `main`: the Rust tests run via the required
+  `CI (Rust) result` check, and the required `Oracle freshness result`
+  check holds the corpus to the canonical recording environment. That
+  drift gate is not yet the #216 Done-when parity gate and is not a claim
+  of full parity; #216 remains open for cache/config+selection coverage —
   [`rust/docs/status-and-parity.md`](rust/docs/status-and-parity.md) says what
   it does and does not establish.
 

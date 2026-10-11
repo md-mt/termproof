@@ -16,16 +16,19 @@ port is **in progress** and is **not yet a drop-in replacement**, and nothing
 here should be read as a claim of full parity with the Python implementation.
 
 Treat the Python implementation as the authority on TermProof's behaviour.
-A parity gate now runs in CI and is required on `main` (see
-[What is gated now](#what-is-gated-now) below), but it is narrower than full
-parity: it holds the measured layers to their recorded floors, equalities and
-named allowed differences, and it does not cover every surface. Building and
-widening that gate is tracked in #216, and the milestone re-cut in
+A **required drift gate** now gates the measured layers (see
+[What is gated now](#what-is-gated-now) below): `Oracle freshness result`
+is required and the differential harnesses run via the required
+`CI (Rust) result`. That current gate is **not yet the #216 Done-when
+parity gate** and is narrower than full parity — full parity is not
+claimed. It holds the measured layers to their recorded floors,
+equalities and named allowed differences, and it does not cover every
+surface. #216 remains open, in particular for cache/config+selection
+coverage, and the milestone re-cut in
 [`rust-reimplementation-spec.md`](rust-reimplementation-spec.md#milestone-re-cut-215)
-defines v1.0 and Rust M5 by that gate passing as a required CI check. The
-required checks described below are live today; #216 itself remains open
-until its remaining criteria — including the uncovered surfaces below — are
-met, so do not read a green gate as v1.0 or M5 having been reached.
+defines v1.0 and Rust M5 by the #216 Done-when gate passing, not by this
+drift gate. The required checks described below are live today, so do not
+read a green drift gate as v1.0 or M5 having been reached.
 
 ## What is gated now
 
@@ -52,7 +55,7 @@ enforcement active — see [`governance.md`](governance.md) sections 5 and 6.1):
   below, so their floors, equalities and exact residuals are required on
   `main` through this check rather than merely advisory.
 
-What that gate does **not** establish:
+What that drift gate does **not** establish:
 
 - **Full parity is not claimed.** The step and assertion harnesses assert a
   floor, not equality (see below), and a floor passing means agreement has

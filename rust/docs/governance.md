@@ -100,9 +100,11 @@ A ruleset requires status checks by exact name, so the names below are the
 stable job names from the merged workflows. Renaming a job silently un-gates
 the ruleset, and this list is the contract.
 
-The table is the contract for the ruleset section 6.2 intends: thirteen names.
-The live ruleset (section 6.1) enforces exactly one of them, the first row,
-plus `Oracle freshness result` from the second table below — two required
+The table is thirteen names. The ruleset section 6.2 intends is those
+thirteen **plus** `Oracle freshness result` from the second table below,
+retained additionally — fourteen intended required checks in total.
+The live ruleset (section 6.1) enforces exactly one of the thirteen, the
+first row, plus that same `Oracle freshness result` — two required
 checks in total. No `CI (Python)` check is ruleset-required today.
 
 One repository, two language paths, so the gate covers both. The Rust checks
@@ -139,15 +141,18 @@ the strict up-to-date policy off. The ruleset carries an admin bypass: the
 repository admin role, which is what release automation pushes to `main` go
 through. This is narrower than the ruleset section 6.2 intends, and its
 bypass is a role rather than the explicit `@md-mt` actor that section asks
-for; the other twelve rows of the table are the contract for that ruleset
-and are not enforced by this one. In particular, **no `CI (Python)` check
+for; the other twelve rows of that thirteen-name table are part of the
+contract for that intended ruleset (which retains
+`Oracle freshness result` additionally, for fourteen in total) and are
+not enforced by this one. In particular, **no `CI (Python)` check
 is ruleset-required today** — the Python rows above remain the contract for
 the intended ruleset, not a description of the live one. Section 6.1 has
 the full live configuration.
 
 **Now required: `Oracle freshness result`.** This check is deliberately not
-one of the thirteen above, and it is live today as the second required
-context on the same ruleset:
+one of the thirteen above — the intended ruleset in section 6.2 retains
+it additionally, for fourteen intended required checks in total — and it
+is live today as the second required context on the same ruleset:
 
 | Check name (exact) | Workflow | Job |
 |---|---|---|
@@ -163,15 +168,20 @@ decides whether an oracle-relevant path moved and whose
 shape as `CI (Rust) result` — so that rationale no longer applies. Its
 `oracle` job holds the checked-in corpus to the canonical environment
 (`ubuntu-24.04`, CPython 3.13.5) with `--strict-environment`. The bootstrap
-this paragraph used to wait on is complete: the gate landed in #260, the
-corpus was re-recorded in the canonical environment in #261, the
-`CI (Oracle)` run on `main` for that re-record (run `38158366345`)
-succeeded, and the exact context `Oracle freshness result` was then added
-to ruleset `24859051`, which was renamed to
-`main: require CI (Rust) result + Oracle freshness result` to say so. The
-historical caution still explains the sequencing: requiring the check
-before that re-record was green would have blocked the gate-carrying PR
-itself and every oracle-touching PR until the re-record landed.
+this paragraph used to wait on is complete: the gate landed red in #260,
+the corpus was re-recorded in the canonical environment in #261, and the
+exact context `Oracle freshness result` was added to ruleset `24859051`,
+which was renamed to
+`main: require CI (Rust) result + Oracle freshness result` to say so, on
+the strength of the PR-head oracle success on #261 (its head carried the
+regenerated corpus, so the gate ran green against its own corpus).
+Do not read that as the required-context addition having waited for a
+green run on `main`: the ruleset was updated at 17:08:35Z and the
+`CI (Oracle)` run on `main` for the merged re-record (run `38158366345`)
+completed at 17:08:48Z, also successful. The historical caution still
+explains the sequencing: requiring the check before that re-record was
+green would have blocked the gate-carrying PR itself and every
+oracle-touching PR until the re-record landed.
 
 Not required, and why:
 
@@ -273,7 +283,9 @@ One ruleset, name **`main`**, enforcement **active**, targeting branch `main`:
   has no push access). A count of one would make every routine
   `@md-mt`-authored PR unmergeable without the emergency bypass, which
   section 7 reserves for incidents. The count is therefore **zero**: the
-  ruleset still requires a PR, all thirteen checks, and up-to-date branches, and
+  ruleset still requires a PR, all fourteen intended checks (the thirteen
+  names in section 5 plus `Oracle freshness result` retained
+  additionally), and up-to-date branches, and
   blocks force pushes; review stays social (the PR template asks for review)
   until a second eligible reviewer is established. Raising this count is
   gated on the promotion criteria below.
@@ -282,10 +294,13 @@ One ruleset, name **`main`**, enforcement **active**, targeting branch `main`:
   PRs, requiring code-owner review would reproduce the same lockout.
 - **Dismiss stale approvals** when new commits are pushed.
 - **Require conversation resolution** — a resolved thread must stay resolved.
-- **Require status checks**: the thirteen names in section 5.
+- **Require status checks**: the thirteen names in section 5 **plus**
+  `Oracle freshness result`, retained additionally — fourteen checks in
+  total.
 - **Require branches to be up to date before merging** — the PR head must
   include the latest `main` before the merge button works. CI latency for the
-  thirteen checks is acceptable (minutes), so the strict option stays on.
+  fourteen intended checks is acceptable (minutes), so the strict option
+  stays on.
 - **Block force pushes** and **block branch deletion** on `main`.
 - **Bypass: explicit, not blanket.** The sole bypass actor is the maintainer
   account `@md-mt` (the code owner). Do **not** enable the "bypass all
@@ -365,8 +380,11 @@ gh api repos/md-mt/termproof/dependabot/alerts
 # command alone cannot verify the full section 5 contract.
 gh api repos/md-mt/termproof/commits/main/check-runs --jq '.check_runs[].name'
 
-# The section 5 contract — audit from a PR head. All thirteen report only on
-# a PR that touches both the Rust and the Python paths; pick one that does:
+# The section 5 contract — audit from a PR head. The thirteen names in the
+# first table report only on a PR that touches both the Rust and the
+# Python paths; pick one that does. (`Oracle freshness result`, the
+# fourteenth intended check, retained additionally, reports via its
+# always-on rollup either way.)
 gh pr checks <pr-number> --repo md-mt/termproof --json name,state,workflow
 # or directly against a PR head commit:
 gh api repos/md-mt/termproof/commits/<pr-head-sha>/check-runs --jq '.check_runs[].name'
@@ -376,8 +394,9 @@ gh api repos/md-mt/termproof/commits/<pr-head-sha>/check-runs --jq '.check_runs[
 gh api repos/md-mt/termproof/rulesets/24859051 --jq '{name, enforcement, include: .conditions.ref_name.include, exclude: .conditions.ref_name.exclude, rules: [.rules[].type], strict: (.rules[] | select(.type == "required_status_checks") | .parameters.strict_required_status_checks_policy), bypass: [.bypass_actors[] | "\(.actor_type):\(.actor_id):\(.bypass_mode)"]}'
 
 # The contexts the live ruleset requires. Today that is two lines,
-# `CI (Rust) result` and `Oracle freshness result` — not the thirteen of
-# section 5:
+# `CI (Rust) result` and `Oracle freshness result` — not the fourteen
+# intended in section 6.2 (the thirteen names in section 5 plus
+# `Oracle freshness result` retained additionally):
 gh api repos/md-mt/termproof/rulesets/24859051 --jq '.rules[] | select(.type == "required_status_checks") | .parameters.required_status_checks[].context'
 
 # The same as a check: exits non-zero unless the live contexts are exactly
@@ -402,7 +421,9 @@ a different bypass actor is a finding.
 Expected after the settings change (not live): homepage
 `https://docs.rs/termproof`; topics present; vulnerability/Dependabot alerts
 enabled; private reporting enabled; squash-only + delete-branch-on-merge; one
-active `main` ruleset with the thirteen required checks and a required-review
+active `main` ruleset with the fourteen intended required checks (the
+thirteen names in section 5 plus `Oracle freshness result` retained
+additionally) and a required-review
 count of zero (until a second eligible reviewer exists — see promotion criteria
 in section 6.2); `main` refusing direct pushes, force pushes and deletion; and
 an explicit `@md-mt` bypass. Any deviation from section 1–6 is a finding to fix
