@@ -107,6 +107,23 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
   `\r`, `\x08` or another C0 control; fingerprints are runtime-local, so
   only dedup state stored by an earlier run was affected.
 
+### Rust — Fixed
+
+- **A `\r`-redrawn line no longer kept the `\r` as a cell.** The plain-text
+  and ANSI-text constructors laid `50%\r60%` out as the six-cell row
+  `50%\r60%` where a terminal showed `60%`
+  ([#249](https://github.com/md-mt/termproof/issues/249)). `push_char`
+  gained a cursor with the same rules as Python's `_push_char`: `\r` sent
+  it to column 0 and `\x08` one cell left, never past 0, and a character
+  written at a cursor sent backwards overwrote the cell already there with
+  the attributes in force at the overwrite, leaving cells past the
+  overwritten prefix alone (`500%\r60%` read `60%%`). A tab padded only
+  past the row's end, so crossing live cells after `\r` did not erase them.
+  The remaining C0 controls and DEL already took a width-1 cell of their
+  own and did not change. Grids and fingerprints changed for screens
+  containing `\r` or `\x08`; fingerprints are runtime-local, so only dedup
+  state stored by an earlier run was affected.
+
 ### CI
 
 - **`.github/dependabot.yml` is schema-checked on the pull request that edits
