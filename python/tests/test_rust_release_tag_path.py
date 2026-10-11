@@ -115,7 +115,7 @@ class TagPushCreatesItsOwnReleaseTest(unittest.TestCase):
         self.assertIn("::error::the RELEASE_TOKEN secret is not set", create["run"])
 
     def test_the_tag_is_checked_against_the_manifest_before_a_release_exists(self) -> None:
-        """A release publish-crates.yml would refuse is worse than no release."""
+        """A release rust-publish-crates.yml would refuse is worse than no release."""
         create = _step(self.workflow, "attach", "Create the release the tag push did not")
         self.assertIn("publish-plan.py | jq -r .version", create["run"])
         self.assertIn('if [ "$TAG" != "rs-v$VERSION" ]; then', create["run"])

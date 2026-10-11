@@ -1,6 +1,6 @@
 # TermProof — Python implementation
 
-[![Python CI](https://github.com/md-mt/termproof/actions/workflows/python-ci.yml/badge.svg)](https://github.com/md-mt/termproof/actions/workflows/python-ci.yml)
+[![CI (Python)](https://github.com/md-mt/termproof/actions/workflows/python-ci.yml/badge.svg)](https://github.com/md-mt/termproof/actions/workflows/python-ci.yml)
 [![Release (Python)](https://github.com/md-mt/termproof/actions/workflows/python-release.yml/badge.svg)](https://github.com/md-mt/termproof/actions/workflows/python-release.yml)
 [![Verified by TermProof](https://img.shields.io/badge/verified%20by-TermProof-0a7a2e?style=flat-square)](https://github.com/md-mt/termproof)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)

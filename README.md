@@ -1,7 +1,7 @@
 # TermProof
 
-[![Python CI](https://github.com/md-mt/termproof/actions/workflows/python-ci.yml/badge.svg)](https://github.com/md-mt/termproof/actions/workflows/python-ci.yml)
-[![Rust CI](https://github.com/md-mt/termproof/actions/workflows/rust-ci.yml/badge.svg)](https://github.com/md-mt/termproof/actions/workflows/rust-ci.yml)
+[![CI (Python)](https://github.com/md-mt/termproof/actions/workflows/python-ci.yml/badge.svg)](https://github.com/md-mt/termproof/actions/workflows/python-ci.yml)
+[![CI (Rust)](https://github.com/md-mt/termproof/actions/workflows/rust-ci.yml/badge.svg)](https://github.com/md-mt/termproof/actions/workflows/rust-ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![PyPI](https://img.shields.io/pypi/v/termproof)](https://pypi.org/project/termproof/)
 [![crates.io](https://img.shields.io/crates/v/termproof)](https://crates.io/crates/termproof)

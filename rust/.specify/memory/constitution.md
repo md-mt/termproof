@@ -62,7 +62,7 @@ Corollaries:
 ### III. The Python implementation is the oracle until a spec supersedes it
 
 Where no spec covers a behaviour, the Python implementation defines it, including behaviour
-that looks accidental. Where a spec in `specs/` covers it, **the spec wins** and the Python
+that looks accidental. Where a spec in `spec/` covers it, **the spec wins** and the Python
 side is the thing that may need to change.
 
 This is how the port stops chasing source code. A divergence from Python is a defect only
@@ -159,7 +159,7 @@ These apply to any claim made in a PR body, a commit message, an issue comment, 
 
 ## Specification Discipline
 
-- Specs live in `specs/NNN-short-name/spec.md` and follow the Spec Kit template.
+- Specs live in `spec/NNN-short-name/spec.md` and follow the Spec Kit template.
 - Every functional requirement carries `[BEHAVIOURAL]` or `[BYTE-EXACT]` and an **Authority**
   naming the rung of the ladder in Principle IV that it came from.
 - Acceptance scenarios are written so a differential harness can execute them: concrete
@@ -169,12 +169,12 @@ These apply to any claim made in a PR body, a commit message, an issue comment, 
   set reporting no open questions against a codebase like this one has not looked.
 - Observations that did not become requirements — literals deliberately left out, behaviours
   judged to be accidents, version-dependent output — are recorded in
-  `specs/OBSERVATION-LOG.md` so the omissions are auditable as choices rather than gaps.
+  `spec/OBSERVATION-LOG.md` so the omissions are auditable as choices rather than gaps.
 
 ## Governance
 
 This constitution supersedes convenience, precedent, and PR urgency. It does not supersede a
-spec in `specs/`; where the two disagree about a specific behaviour, the spec governs that
+spec in `spec/`; where the two disagree about a specific behaviour, the spec governs that
 behaviour and the conflict is itself a defect to be fixed here.
 
 - Amendments require a PR stating the failure or evidence motivating the change. A principle

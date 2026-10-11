@@ -59,12 +59,12 @@
 # GitHub suppresses those events to stop workflows triggering themselves. Both
 # halves of this release depend on exactly that happening:
 #
-#   tag push          -> release-rust.yml   builds and attaches the binaries
-#   release published -> publish-crates.yml uploads to crates.io
+#   tag push          -> rust-release.yml   builds and attaches the binaries
+#   release published -> rust-publish-crates.yml uploads to crates.io
 #
 # On `GITHUB_TOKEN` neither would fire, and the result is the worst kind of
 # quiet failure: a green run, a real tag, a real release, no binaries and no
-# crates. Worse, publish-crates.yml uploads on `release: published` and nothing
+# crates. Worse, rust-publish-crates.yml uploads on `release: published` and nothing
 # else — its `workflow_dispatch` path is a dry run by design — so a release
 # created this way can never be published by re-running anything. Only deleting
 # and recreating the release by hand recovers it.
@@ -174,7 +174,7 @@ jobs:
           RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
         run: |
           if [ -z "$RELEASE_TOKEN" ]; then
-            echo "::error::the RELEASE_TOKEN secret is not set. A tag or release created with the default GITHUB_TOKEN does not start release-rust.yml or publish-crates.yml, so this run would produce a release with no binaries and no published crates, and no re-run could fix it. Add a fine-grained PAT or GitHub App installation token with Contents: read and write as the RELEASE_TOKEN secret."
+            echo "::error::the RELEASE_TOKEN secret is not set. A tag or release created with the default GITHUB_TOKEN does not start rust-release.yml or rust-publish-crates.yml, so this run would produce a release with no binaries and no published crates, and no re-run could fix it. Add a fine-grained PAT or GitHub App installation token with Contents: read and write as the RELEASE_TOKEN secret."
             exit 1
           fi
           echo "RELEASE_TOKEN is present"
@@ -220,8 +220,8 @@ jobs:
             decision.json
             release-notes.md
 
-  # The same gate publish-crates.yml runs. It runs there too, after the release
-  # exists — but by then the tag is already pushed and release-rust.yml is
+  # The same gate rust-publish-crates.yml runs. It runs there too, after the release
+  # exists — but by then the tag is already pushed and rust-release.yml is
   # already building. Better to find a broken main before anything is tagged.
   gate:
     name: Publish gate
@@ -254,14 +254,14 @@ jobs:
       # Kept at write even though the pushes below authenticate as
       # RELEASE_TOKEN: actions/checkout still needs to read the repository, and
       # a reader would silently be enough right up until someone removed the
-      # token. Nothing here uploads to a registry — publish-crates.yml does
+      # token. Nothing here uploads to a registry — rust-publish-crates.yml does
       # that, triggered by the release this job publishes.
       contents: write
     steps:
       # RELEASE_TOKEN, not github.token: the pushes below have to be seen by
       # GitHub as coming from an identity other than this workflow, or the tag
-      # push and the release will not start release-rust.yml and
-      # publish-crates.yml. checkout persists this token, so the later
+      # push and the release will not start rust-release.yml and
+      # rust-publish-crates.yml. checkout persists this token, so the later
       # `git push` calls use it without naming it again.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -318,7 +318,7 @@ jobs:
       - name: Verify the canonical recipe schema copies
         run: python3 python/scripts/check_schema_copies.py
 
-      # Exactly the check publish-crates.yml makes on `release: published`,
+      # Exactly the check rust-publish-crates.yml makes on `release: published`,
       # made here instead — where a mismatch costs a failed run rather than a
       # tag that publishes nothing.
       - name: Confirm the tag will satisfy the publish guard
@@ -327,7 +327,7 @@ jobs:
         run: |
           VERSION="$(.github/scripts/rust/publish-plan.py | jq -r .version)"
           if [ "$TAG" != "rs-v$VERSION" ]; then
-            echo "::error::would tag '$TAG' but the manifest says '$VERSION'; publish-crates.yml would refuse this release"
+            echo "::error::would tag '$TAG' but the manifest says '$VERSION'; rust-publish-crates.yml would refuse this release"
             exit 1
           fi
           echo "'$TAG' matches the manifest version '$VERSION'"
@@ -351,11 +351,11 @@ jobs:
           # bump with no tag — recoverable, and the next run's `chore(release):`
           # filter keeps it from being mistaken for a week's work. The reverse
           # order would leave a tag pointing at a commit that is not on main,
-          # which release-rust.yml would happily build from.
+          # which rust-release.yml would happily build from.
           git push origin HEAD:main
           git push origin "$TAG"
 
-      # Publishing the release is what triggers publish-crates.yml, which is
+      # Publishing the release is what triggers rust-publish-crates.yml, which is
       # what uploads to crates.io. It is the last thing this workflow does and
       # the only irreversible one: crates.io never gives a version number back.
       - name: Create the GitHub release

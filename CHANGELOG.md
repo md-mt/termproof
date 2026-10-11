@@ -136,6 +136,18 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
   `write_package` push had earlier cost one release its image with nothing on
   the release path noticing ([#178](https://github.com/md-mt/termproof/issues/178)).
 
+- **Release workflow messages named the workflows that exist.** The
+  ``::error::`` guidance in `rust-release.yml` and `rust-auto-release.yml`
+  sent readers to pre-consolidation workflow file names; the same stale
+  names were corrected in the surrounding comments and docs, together with
+  the other claims the #188 sweep verified against the tree (the Rust
+  workspace's crate count, the per-ecosystem Dependabot caps, the checks
+  `check_version.py` does and does not perform, and `spec/` path
+  references). Two claims-sweep tests now checked referenced workflow
+  files and concrete `spec/` paths against the tracked tree, so that class
+  of drift fails a test rather than a review
+  ([#188](https://github.com/md-mt/termproof/issues/188)).
+
 ## [0.4.2] — 2026-08-24
 
 ### Python — Changed (breaking)
