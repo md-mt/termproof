@@ -4,7 +4,12 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
-from .attributed import AttributedScreen, attributed_screen_from_ansi_text, screen_svg
+from .attributed import (
+    AttributedScreen,
+    attributed_screen_from_ansi_text,
+    attributed_screen_from_text,
+    screen_svg,
+)
 from .config import (
     RASTER_MIN_HEIGHT,
     RASTER_MIN_WIDTH,
@@ -100,9 +105,14 @@ class PngRenderer:
         image = Image.new("RGB", (int(width), int(height)), config.bg)
         draw = ImageDraw.Draw(image)
 
-        for index, line in enumerate(text.splitlines()[:rows] or [""]):
+        # Drawn from the grid's own cells rather than from `text`, so the image
+        # cannot show what the grid does not hold: rows break on "\n" alone, a
+        # control character is dropped instead of taking a column, a tab runs to
+        # its stop, and a row ends at `cols` cells, not `cols` characters.
+        grid = attributed_screen_from_text(text, columns=cols, rows=rows)
+        for index, line in enumerate(grid.text_lines()):
             y = padding + line_height * index
-            draw.text((padding, y), line[:cols], font=font, fill=config.fg)
+            draw.text((padding, y), line, font=font, fill=config.fg)
 
         output_path.parent.mkdir(parents=True, exist_ok=True)
         image.save(output_path, format="PNG")

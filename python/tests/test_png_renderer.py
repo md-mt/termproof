@@ -6,6 +6,7 @@ from pathlib import Path
 
 from PIL import Image
 
+from termproof.attributed import attributed_screen_from_text
 from termproof.builtin_renderers import PngRenderer
 from termproof.config import VerifierConfig
 from termproof.evidence import render_artifacts
@@ -22,6 +23,91 @@ class PngRendererTest(unittest.TestCase):
                 self.assertEqual("PNG", image.format)
                 self.assertGreaterEqual(image.width, 320)
                 self.assertGreaterEqual(image.height, 160)
+
+    def test_only_a_newline_starts_a_new_row(self) -> None:
+        # `str.splitlines` breaks at every one of these, which drew each of them
+        # as the same image as "a\nb" (#243).
+        separators = ("\r", "\x0b", "\x0c", "\x1c", "\x1d", "\x1e", "\x85", "\u2028", "\u2029")
+        with tempfile.TemporaryDirectory() as tmp:
+            reference = self._png(Path(tmp), "a\nb")
+            for separator in separators:
+                with self.subTest(separator=separator):
+                    self.assertNotEqual(reference, self._png(Path(tmp), f"a{separator}b"))
+
+    def test_a_crlf_screen_draws_the_same_image_as_an_lf_one(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            reference = self._png(Path(tmp), "a\nb\n")
+            self.assertEqual(reference, self._png(Path(tmp), "a\r\nb\r\n"))
+
+    def test_rows_past_the_screen_height_are_not_drawn(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertEqual(
+                self._png(Path(tmp), "a\nb", rows=2),
+                self._png(Path(tmp), "a\nb\nc", rows=2),
+            )
+            self.assertNotEqual(
+                self._png(Path(tmp), "a\nb", rows=3),
+                self._png(Path(tmp), "a\nb\nc", rows=3),
+            )
+
+    def test_a_control_character_is_dropped_as_the_grid_drops_it(self) -> None:
+        # Drawn straight from the text, each of these took a column the grid
+        # never gave it: at 2 columns "a\x0bb" lost its "b" while the grid held
+        # "ab", and at 80 it drew apart from "ab" over an identical grid (#243).
+        with tempfile.TemporaryDirectory() as tmp:
+            for cols in (2, 80):
+                reference = self._png(Path(tmp), "ab", cols=cols)
+                for control in ("\r", "\x07", "\x0b", "\x0c", "\x1c", "\x1d", "\x1e", "\x1b", "\x7f"):
+                    with self.subTest(control=control, cols=cols):
+                        self.assertEqual(
+                            reference, self._png(Path(tmp), f"a{control}b", cols=cols)
+                        )
+
+    def test_the_image_is_the_image_of_the_grid_text(self) -> None:
+        # The first seven never reach a cell; "\x85", "\u2028" and "\u2029" are
+        # not C0 controls, so the grid keeps each as a cell and the image has to
+        # give it that column too.
+        separators = (
+            "\r", "\x07", "\x0b", "\x0c", "\x1c", "\x1d", "\x1e", "\x85", "\u2028", "\u2029",
+        )  # fmt: skip
+        held = {2: ["ab"] * 7 + ["a\x85", "a\u2028", "a\u2029"], 80: None}
+        with tempfile.TemporaryDirectory() as tmp:
+            for cols in (2, 80):
+                for position, separator in enumerate(separators):
+                    text = f"a{separator}b"
+                    with self.subTest(separator=separator, cols=cols):
+                        grid = attributed_screen_from_text(text, columns=cols, rows=24)
+                        expected = held[cols]
+                        if expected is not None:
+                            self.assertEqual([expected[position]], grid.text_lines())
+                        self.assertEqual(
+                            self._png(Path(tmp), "\n".join(grid.text_lines()), cols=cols),
+                            self._png(Path(tmp), text, cols=cols),
+                        )
+
+    def test_a_tab_is_drawn_as_the_blanks_up_to_its_stop(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertEqual(
+                self._png(Path(tmp), "a" + " " * 7 + "b"),
+                self._png(Path(tmp), "a\tb"),
+            )
+
+    def test_a_row_ends_at_the_column_count_in_cells(self) -> None:
+        # Three double-width glyphs are six cells: four columns hold two of them.
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertEqual(
+                self._png(Path(tmp), "\u65e5\u672c", cols=4),
+                self._png(Path(tmp), "\u65e5\u672c\u8a9e", cols=4),
+            )
+            self.assertNotEqual(
+                self._png(Path(tmp), "\u65e5\u672c", cols=6),
+                self._png(Path(tmp), "\u65e5\u672c\u8a9e", cols=6),
+            )
+
+    def _png(self, directory: Path, text: str, rows: int = 24, cols: int = 80) -> bytes:
+        path = directory / "screen.png"
+        PngRenderer().render(text, path, cols=cols, rows=rows)
+        return path.read_bytes()
 
     def test_png_renderer_registered_in_builtin_config(self) -> None:
         config = VerifierConfig.builtin()
