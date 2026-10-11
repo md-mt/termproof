@@ -10,7 +10,8 @@ import yaml
 
 from termproof import ci_evidence
 from termproof.ci_evidence import compose_pr_comment, load_receipt, run_target
-from termproof.evidence_publish import prepare_screenshot_evidence, rewrite_screenshot_links
+from termproof.evidence import STEPS_MANIFEST_NAME
+from termproof.evidence_publish import NON_IMAGE_PAYLOAD_NAMES, prepare_screenshot_evidence, rewrite_screenshot_links
 
 ROOT = Path(__file__).resolve().parents[1]
 REPO_ROOT = ROOT.parent
@@ -255,30 +256,41 @@ class CiEvidenceReceiptTest(unittest.TestCase):
             self.assertFalse((published / "base" / "run" / "session.mp4").exists())
             self.assertEqual(3, len(manifest))
 
+    def test_non_image_payload_names_pin_steps_manifest_name(self) -> None:
+        # evidence_publish repeats the literal instead of importing evidence
+        # (which would drag the replay/render stack into the CI helper); pin
+        # the duplication here, where importing the producer constant is free.
+        self.assertEqual({STEPS_MANIFEST_NAME}, NON_IMAGE_PAYLOAD_NAMES)
+
     def test_prepare_screenshot_evidence_copies_steps_manifest_alongside_images(self) -> None:
         # With dedup on, step 02 has no image of its own: only the manifest
         # records that it happened and is represented by 01's image (#160).
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            steps_manifest = (
-                json.dumps(
-                    [
-                        {"step": "01-first", "screenshot": "01-first.svg", "unchanged_from_previous": False},
-                        {"step": "02-second", "screenshot": "01-first.svg", "unchanged_from_previous": True},
-                        {"step": "03-third", "screenshot": "03-third.svg", "unchanged_from_previous": False},
-                    ],
-                    indent=2,
+            # Distinct bytes per scope: identical content would let a
+            # base/head cross-copy swap pass undetected.
+            steps_manifests: dict[str, str] = {}
+            for scope in ("base", "head"):
+                steps_manifest = (
+                    json.dumps(
+                        [
+                            {"step": f"01-{scope}-first", "screenshot": "01-first.svg", "unchanged_from_previous": False},
+                            {"step": f"02-{scope}-second", "screenshot": "01-first.svg", "unchanged_from_previous": True},
+                            {"step": f"03-{scope}-third", "screenshot": "03-third.svg", "unchanged_from_previous": False},
+                        ],
+                        indent=2,
+                    )
+                    + "\n"
                 )
-                + "\n"
-            )
-            for scope_root in (root / "base", root / "head"):
-                steps = scope_root / "run" / "steps"
+                steps_manifests[scope] = steps_manifest
+                steps = root / scope / "run" / "steps"
                 steps.mkdir(parents=True)
                 (steps / "01-first.svg").write_text("<svg />\n", encoding="utf-8")
                 (steps / "03-third.svg").write_text("<svg />\n", encoding="utf-8")
                 (steps / "steps-manifest.json").write_text(steps_manifest, encoding="utf-8")
                 # An unrelated JSON file is not screenshot payload.
-                (scope_root / "run" / "result.json").write_text("{}\n", encoding="utf-8")
+                (root / scope / "run" / "result.json").write_text("{}\n", encoding="utf-8")
+            self.assertNotEqual(steps_manifests["base"], steps_manifests["head"])
 
             manifest = prepare_screenshot_evidence(root / "base", root / "head", root / "publish", "68", "123")
 
@@ -286,7 +298,7 @@ class CiEvidenceReceiptTest(unittest.TestCase):
             for scope in ("base", "head"):
                 copied = published / scope / "run" / "steps" / "steps-manifest.json"
                 self.assertTrue(copied.is_file(), copied)
-                self.assertEqual(steps_manifest, copied.read_text(encoding="utf-8"))
+                self.assertEqual(steps_manifests[scope], copied.read_text(encoding="utf-8"))
                 self.assertTrue((published / scope / "run" / "steps" / "01-first.svg").is_file())
                 self.assertTrue((published / scope / "run" / "steps" / "03-third.svg").is_file())
                 self.assertFalse((published / scope / "run" / "result.json").exists())
