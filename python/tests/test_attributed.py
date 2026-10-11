@@ -170,10 +170,16 @@ class PlainTextTest(unittest.TestCase):
         screen = attributed_screen_from_text("ab\tc")
         self.assertEqual("ab      c", screen.to_text())
 
-    def test_control_characters_take_no_cell(self) -> None:
-        self.assertEqual("ab", attributed_screen_from_text("a\x07\x00\x7fb").to_text())
-        # Not interpreted as an escape either: only the ESC itself goes.
-        self.assertEqual("[31ma", attributed_screen_from_text("\x1b[31ma").to_text())
+    def test_control_characters_take_a_cell(self) -> None:
+        # The same rule as Rust's `push_char` (#249): a C0 control the cursor
+        # rules do not claim is one width-1 cell, so a screen holding one is
+        # not the screen without it.
+        screen = attributed_screen_from_text("a\x07\x00\x7fb")
+        self.assertEqual("a\x07\x00\x7fb", screen.to_text())
+        self.assertEqual([1, 1, 1, 1, 1], [cell.width for cell in screen.rows[0]])
+        # Not interpreted as an escape either: the ESC takes a cell and the
+        # rest of the sequence occupies cells after it.
+        self.assertEqual("\x1b[31ma", attributed_screen_from_text("\x1b[31ma").to_text())
 
     def test_rows_split_on_newline_only(self) -> None:
         self.assertEqual(["a", "b"], attributed_screen_from_text("a\r\nb\n").text_lines())
@@ -388,9 +394,100 @@ class AnsiParsingTest(unittest.TestCase):
         screen = attributed_screen_from_ansi_text("\x1b[2Jclear")
         self.assertEqual("clear", screen.to_text())
 
-    def test_control_bytes_never_reach_a_cell(self) -> None:
-        self.assertEqual("ab", attributed_screen_from_ansi_text("a\x07\x00b").to_text())
-        self.assertEqual("ab", attributed_screen_from_text("a\x7fb").to_text())
+    def test_control_bytes_take_a_cell_but_never_reach_the_svg(self) -> None:
+        # The grid holds them (#249), as Rust's does; the document boundary
+        # is where they stop, because one raw control byte in the markup
+        # makes the SVG invalid XML.
+        self.assertEqual("a\x07\x00b", attributed_screen_from_ansi_text("a\x07\x00b").to_text())
+        self.assertEqual("a\x7fb", attributed_screen_from_text("a\x7fb").to_text())
+        for build in (attributed_screen_from_text, attributed_screen_from_ansi_text):
+            with self.subTest(build=build.__name__):
+                markup = screen_svg(build("a\x07\x00\x0b\x7fb"))
+                self.assertFalse(any(ch < " " or ch == "\x7f" for ch in markup))
+                ElementTree.fromstring(markup)
+
+
+class CursorMovementTest(unittest.TestCase):
+    """``\\r`` and ``\\x08`` move a cursor; the rest of C0 takes a cell (#249).
+
+    The cast-replay path (pyte) has always read a progress line this way.
+    The two text constructors concatenated it instead, and dropped the
+    remaining controls outright, so ``a\\x0bb`` fingerprinted as ``ab`` and
+    dedup treated the two screens as one.
+    """
+
+    BUILDERS = (attributed_screen_from_text, attributed_screen_from_ansi_text)
+
+    def test_carriage_return_overwrites_from_column_zero(self) -> None:
+        for build in self.BUILDERS:
+            with self.subTest(build=build.__name__):
+                screen = build("50%\r60%", columns=10, rows=1)
+                self.assertEqual(["60%"], screen.text_lines())
+                self.assertEqual(
+                    build("60%", columns=10, rows=1).render_fingerprint(),
+                    screen.render_fingerprint(),
+                )
+
+    def test_cells_past_the_overwritten_prefix_survive(self) -> None:
+        # What pyte shows for the same bytes: only the rewritten cells change.
+        for build in self.BUILDERS:
+            with self.subTest(build=build.__name__):
+                self.assertEqual(["60%%"], build("500%\r60%").text_lines())
+                self.assertEqual(["Zbcd"], build("abcd\rZ").text_lines())
+
+    def test_a_trailing_carriage_return_changes_nothing(self) -> None:
+        for build in self.BUILDERS:
+            with self.subTest(build=build.__name__):
+                self.assertEqual(["ab"], build("ab\r").text_lines())
+                self.assertEqual(["a", "b"], build("a\r\nb").text_lines())
+
+    def test_backspace_overwrites_the_cell_before_the_cursor(self) -> None:
+        for build in self.BUILDERS:
+            with self.subTest(build=build.__name__):
+                self.assertEqual(["abX"], build("abc\x08X").text_lines())
+                self.assertEqual(["aXc"], build("abc\x08\x08X").text_lines())
+
+    def test_backspace_at_column_zero_stays_at_column_zero(self) -> None:
+        for build in self.BUILDERS:
+            with self.subTest(build=build.__name__):
+                self.assertEqual(["a"], build("\x08a").text_lines())
+                self.assertEqual(["Z"], build("a\x08\x08Z").text_lines())
+
+    def test_the_rest_of_c0_takes_a_cell_of_its_own(self) -> None:
+        for build in self.BUILDERS:
+            plain = build("ab", columns=10, rows=1)
+            for control in ("\x00", "\x07", "\x0b", "\x0c", "\x1c", "\x1f", "\x7f"):
+                with self.subTest(build=build.__name__, control=control):
+                    screen = build(f"a{control}b", columns=10, rows=1)
+                    self.assertEqual([f"a{control}b"], screen.text_lines())
+                    self.assertNotEqual(plain.rows, screen.rows)
+                    # The dedup consequence: no longer the same fingerprint.
+                    self.assertNotEqual(
+                        plain.render_fingerprint(), screen.render_fingerprint()
+                    )
+
+    def test_carriage_return_after_a_full_row_still_overwrites(self) -> None:
+        for build in self.BUILDERS:
+            with self.subTest(build=build.__name__):
+                self.assertEqual(["Zbc"], build("abc\rZ", columns=3).text_lines())
+
+    def test_a_tab_after_carriage_return_moves_without_erasing(self) -> None:
+        # pyte for the same bytes: the tab crosses live cells and leaves them.
+        for build in self.BUILDERS:
+            with self.subTest(build=build.__name__):
+                self.assertEqual(["XbcdefghY"], build("abcdefgh\rX\tY").text_lines())
+
+    def test_a_wide_glyph_overwrites_two_cells(self) -> None:
+        for build in self.BUILDERS:
+            with self.subTest(build=build.__name__):
+                screen = build("ab\r\u65e5")
+                self.assertEqual("\u65e5", screen.to_text())
+                self.assertEqual([2, 0], [cell.width for cell in screen.rows[0]])
+
+    def test_overwritten_cells_take_the_current_attributes(self) -> None:
+        screen = attributed_screen_from_ansi_text("\x1b[31mab\r\x1b[32mZ")
+        self.assertEqual("Zb", screen.to_text())
+        self.assertEqual(["green", "red"], [cell.fg for cell in screen.rows[0]])
 
 
 class PyteAdapterTest(unittest.TestCase):
