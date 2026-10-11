@@ -776,7 +776,10 @@ As with the evidence manifest, the scenario is code in each half rather than
 a corpus of cases: one populated result, so the nested step and assertion
 documents are compared too, and one empty result, where `exit_code` is
 `null` and every list is empty. This is a shape comparison over fixed
-values; it does not measure how either runner computes a result.
+values; it does not measure how either runner computes a result. The Rust
+scenario hand-sets `Some(RESULT_SCHEMA_VERSION)`, transcribing the stamp
+`Runner::run` writes rather than calling it, so this harness does not prove
+the runner still stamps its results.
 
 ## The one allowed difference
 

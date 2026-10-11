@@ -1,9 +1,12 @@
 //! Port half of the run-result differential harness.
 //!
 //! Builds the scenario `conformance/probe_run_result.py` builds, serialises
-//! each [`RunResult`] the way `result.json` is written, and compares the
-//! documents against what the oracle recorded in
-//! `conformance/corpus/run_result.expected.json`.
+//! each [`RunResult`] to a JSON document, and compares the documents — key
+//! order normalised, not the bytes of `result.json` — against what the
+//! oracle recorded in `conformance/corpus/run_result.expected.json`. The
+//! scenario hand-sets `Some(RESULT_SCHEMA_VERSION)`, transcribing the stamp
+//! `Runner::run` writes rather than calling it, so this test does not prove
+//! the runner still stamps its results.
 //!
 //! # Why this exists
 //!
