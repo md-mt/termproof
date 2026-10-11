@@ -67,9 +67,12 @@ newer of the two and carries the documented ordering rationale.
 Cast replay asserts its known residual exactly — by case name and pinned
 frame — rather than as a floor, so a listed case that starts agreeing fails
 the test, as does one that replays to a different screen. The step and
-assertion counts are summarised below; the other three harnesses'
-results are recorded in `conformance/README.md` (including the cast-replay
-counts and the residual tracked in #209) rather than duplicated here.
+assertion counts are summarised below; the other three harnesses are
+described in `conformance/README.md` rather than duplicated here — cast
+replay there with its counts and the residual tracked in #209, and the
+evidence-manifest and before/after harnesses there in pass/fail form (the
+two documents or recordings printed on failure), so they have no counts
+to summarise here.
 
 ## Step layer
 
