@@ -10,11 +10,17 @@
 //! crate has **no serialiser for [`BuildInfo`]** — no `Serialize`, no
 //! `to_dict` equivalent — so [`document`] below is a test-side transcription:
 //! one JSON key per struct field, under the field's own name, `None` as
-//! `null`. What is pinned is therefore the struct's field names and types
-//! and `verify_provenance`, not a production JSON writer. The scenario uses
-//! exhaustive struct literals, so a field added to the Rust struct breaks
-//! compilation here, and a key added to the Python document fails the whole
-//! comparison; neither can drift silently. Neither half calls its
+//! `null`. What is pinned is therefore narrower than a serialiser: the
+//! exhaustive struct literals in [`scenario`] (a field added to or removed
+//! from the Rust struct breaks compilation here), `verify_provenance`'s
+//! verdict per entry, and the whole-document comparison of this
+//! transcription against the recorded Python document (a key added to the
+//! Python document fails it). The equality of a struct field's name and its
+//! JSON key is *not* mechanically pinned: [`document`] hand-writes the keys
+//! as strings in a `json!` transcription — there is no `Serialize` derive
+//! to derive them from — so a field rename carried through the literals and
+//! field accesses but not the key string would still pass. Neither half
+//! calls its
 //! constructors (`from_installed`, `from_source_build`, `from_command`, …):
 //! those probe `<binary> --version`, ask git for a commit and read the clock,
 //! so version probing, git discovery and the timestamp *spelling*
@@ -251,9 +257,14 @@ fn the_serialised_build_info_matches_the_python_document() {
                 python.contains_key(python_key),
                 "the Python document no longer carries `{python_key}`"
             );
+            assert!(
+                !rust.contains_key(python_key),
+                "the Rust document already carries `{python_key}`; remove the \
+                 rename allowance in this test"
+            );
             let value = rust
                 .remove(rust_key)
-                .unwrap_or_else(|| panic!("the Rust document carries `{rust_key}`"));
+                .unwrap_or_else(|| panic!("the Rust document no longer carries `{rust_key}`"));
             rust.insert(python_key.to_string(), value);
         }
 

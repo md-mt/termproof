@@ -923,6 +923,17 @@ provenance verdict per record, over fixed values in every mode.
   tree's commit for installed binaries where Rust records none. Pinning any
   of them needs a harness that can freeze a clock, a git checkout and a
   child process, which this one is not.
+- **Shapes no scenario entry takes.** Every entry sets
+  `build_timestamp: Some(...)`, so Rust `None` (`null`) against Python's
+  always-string `timestamp` is unpinned. Three `verify_provenance`
+  branches the two sides agree on by inspection are likewise unexercised:
+  a `source` record with `build_target` or both revision fields `None`,
+  a non-empty `binary_path` naming a missing file, and a mode unknown to
+  both sides. Entry 2 sets both revision fields to `""` together, so it
+  pins only their combined verdict — a change to how just one empty field
+  counts is masked by the other under the
+  `change_id.is_some() || commit_hash.is_some()` /
+  `source_ref or git_commit` disjunction.
 
 ## Regenerating the expectations
 
