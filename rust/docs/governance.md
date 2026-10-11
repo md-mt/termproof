@@ -11,8 +11,8 @@ has not been re-verified against this repository, so read it as the settings
 this document argued for rather than as the settings that are live. The
 settings-change task re-runs the audit commands in section 8 here and records
 the before/after. The one exception is the ruleset: the *Rulesets* row of
-section 1, the "Live today" paragraph of section 5 and section 6.1 were read
-from this repository's API on 2026-10-10.
+section 1, the "Live today" paragraphs of section 5 and section 6.1 were
+read from this repository's API on 2026-10-11.
 
 This document records the repository's GitHub governance: metadata,
 vulnerability settings, merge policy, the required CI checks by their stable
@@ -40,7 +40,7 @@ Every row was re-verified on 2026-10-10; the original baseline was taken on
 | Topics | `asciinema`, `bubbletea`, `ci`, `cypress`, `evidence`, `ink`, `playwright`, `ratatui`, `terminal`, `testing`, `textual`, `tui`, `verification` |
 | Issues / Wiki / Projects / Discussions | enabled / enabled / enabled / disabled |
 | Merge methods | squash and rebase allowed, merge commits **disabled**; delete branch on merge **on**; auto-merge off; "always suggest updating pull request branches" off; squash commit title `COMMIT_OR_PR_TITLE`, message `COMMIT_MESSAGES` |
-| Rulesets | one — `main: require CI (Rust) result` (id `24859051`), enforcement active, targeting the default branch, requiring the single status check `CI (Rust) result`; admin-role bypass. Re-verified against `md-mt/termproof` on 2026-10-10 — section 6.1 |
+| Rulesets | one — `main: require CI (Rust) result + Oracle freshness result` (id `24859051`), enforcement active, targeting the default branch, requiring the two status checks `CI (Rust) result` and `Oracle freshness result`; admin-role bypass. Re-verified against `md-mt/termproof` on 2026-10-11 — section 6.1 |
 | Branch protection | none (legacy endpoint returns 404) |
 | Security policy file | `SECURITY.md` present in the repository root (the community profile API does not report a security file) |
 | Private vulnerability reporting | **disabled** (`/private-vulnerability-reporting` returns `{"enabled":false}`) — the *Security → Report a vulnerability* button is not live, yet `SECURITY.md` directs reporters there |
@@ -52,12 +52,13 @@ Every row was re-verified on 2026-10-10; the original baseline was taken on
 | Community health files | present — `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md`, `SUPPORT.md`, `CHANGELOG.md`, issue forms, PR template |
 | CI on `main` | green on the current head: 5/5 check runs succeeded on `73375d7` |
 
-That ruleset is the only one in the repository, and it enforces one thing: a
-commit reaches `main` only with a passing `CI (Rust) result`, unless the actor
-holds the admin role, which bypasses it. It carries no pull-request, review,
-force-push or deletion rule. Everything else section 6.2 intends is still
-social, not structural: every change so far has gone through a reviewed PR,
-but nothing in GitHub enforces that today.
+That ruleset is the only one in the repository, and it enforces two checks:
+a commit reaches `main` only with a passing `CI (Rust) result` and a passing
+`Oracle freshness result`, unless the actor holds the admin role, which
+bypasses it. It carries no pull-request, review, force-push or deletion
+rule. Everything else section 6.2 intends is still social, not structural:
+every change so far has gone through a reviewed PR, but nothing in GitHub
+enforces that today.
 
 ## 2. Intended repository metadata
 
@@ -100,7 +101,9 @@ stable job names from the merged workflows. Renaming a job silently un-gates
 the ruleset, and this list is the contract.
 
 The table is the contract for the ruleset section 6.2 intends: thirteen names.
-The live ruleset (section 6.1) enforces exactly one of them, the first row.
+The live ruleset (section 6.1) enforces exactly one of them, the first row,
+plus `Oracle freshness result` from the second table below — two required
+checks in total. No `CI (Python)` check is ruleset-required today.
 
 One repository, two language paths, so the gate covers both. The Rust checks
 and the Python checks are listed together because a ruleset on `main` is one
@@ -128,44 +131,47 @@ safe to require on every PR. That workflow triggers on `pull_request`,
 `workflow_dispatch` and `release`, never on a push to `main`, so those three
 are verified on PR heads rather than on `main`.
 
-**Live today: `CI (Rust) result`, and only that.** It is the one required
-status check on `main`, enforced by the repository ruleset
-**`main: require CI (Rust) result`** (id `24859051`) — enforcement **active**,
-targeting the default branch, with the strict up-to-date policy off. The
-ruleset carries an admin bypass: the repository admin role, which is what
-release automation pushes to `main` go through. This is narrower than the
-ruleset section 6.2 intends, and its bypass is a role rather than the explicit
-`@md-mt` actor that section asks for; the other twelve rows of the table are
-the contract for that ruleset and are not enforced by this one. Section 6.1
-has the full live configuration.
+**Live today: `CI (Rust) result` and `Oracle freshness result`.** They are
+the two required status checks on `main`, enforced by the repository
+ruleset **`main: require CI (Rust) result + Oracle freshness result`**
+(id `24859051`) — enforcement **active**, targeting the default branch, with
+the strict up-to-date policy off. The ruleset carries an admin bypass: the
+repository admin role, which is what release automation pushes to `main` go
+through. This is narrower than the ruleset section 6.2 intends, and its
+bypass is a role rather than the explicit `@md-mt` actor that section asks
+for; the other twelve rows of the table are the contract for that ruleset
+and are not enforced by this one. In particular, **no `CI (Python)` check
+is ruleset-required today** — the Python rows above remain the contract for
+the intended ruleset, not a description of the live one. Section 6.1 has
+the full live configuration.
 
-**Planned-required after bootstrap: `Oracle freshness result`.** One further
-check is intended for the live ruleset once its gate has bootstrapped, and is
-deliberately not one of the thirteen above and not live today:
+**Now required: `Oracle freshness result`.** This check is deliberately not
+one of the thirteen above, and it is live today as the second required
+context on the same ruleset:
 
 | Check name (exact) | Workflow | Job |
 |---|---|---|
 | `Oracle freshness result` | `CI (Oracle)` | `result` |
 
-Current state: **not required**. The oracle freshness gate (#172) originally
-sat inside the path-filtered `CI (Python)`, where it could never be required
-for the reason the Docker image jobs below give: a workflow filtered out by
+Current state: **required**. The oracle freshness gate (#172) originally sat
+inside the path-filtered `CI (Python)`, where it could never be required for
+the reason the Docker image jobs below give: a workflow filtered out by
 `paths:` reports no check at all. It now lives in its own always-on workflow
-whose `changes` job decides whether an oracle-relevant path moved and whose
+(`.github/workflows/oracle-ci.yml`, no `paths:` filter) whose `changes` job
+decides whether an oracle-relevant path moved and whose
 `Oracle freshness result` rollup reports on every PR either way — the same
-shape as `CI (Rust) result` — so that rationale no longer applies. It is
-still not required because the gate lands red: the checked-in corpus carries
-pre-canonical `environment` blocks (Darwin, mixed CPython patches), and the
-first canonical re-record can only be dispatched once `oracle-regen.yml` is
-on the default branch. Requiring it before that re-record is green would
-block the gate-carrying PR itself and every oracle-touching PR until the
-re-record lands (the re-record PR itself is not the blocked one: its head
-carries the regenerated corpus, so the gate runs green against its own
-corpus). **After** the bootstrap
-re-record lands and `Oracle freshness result` is green on `main`, the
-coordinator adds the exact context `Oracle freshness result` to ruleset
-`24859051` (`main: require CI (Rust) result`), and this paragraph and
-section 6.1 are updated to record it as live.
+shape as `CI (Rust) result` — so that rationale no longer applies. Its
+`oracle` job holds the checked-in corpus to the canonical environment
+(`ubuntu-24.04`, CPython 3.13.5) with `--strict-environment`. The bootstrap
+this paragraph used to wait on is complete: the gate landed in #260, the
+corpus was re-recorded in the canonical environment in #261, the
+`CI (Oracle)` run on `main` for that re-record (run `38158366345`)
+succeeded, and the exact context `Oracle freshness result` was then added
+to ruleset `24859051`, which was renamed to
+`main: require CI (Rust) result + Oracle freshness result` to say so. The
+historical caution still explains the sequencing: requiring the check
+before that re-record was green would have blocked the gate-carrying PR
+itself and every oracle-touching PR until the re-record landed.
 
 Not required, and why:
 
@@ -194,20 +200,20 @@ PR, or the ruleset will silently stop enforcing that check.
 
 ## 6. The `main` ruleset: live and intended
 
-### 6.1 Live (verified 2026-10-10)
+### 6.1 Live (verified 2026-10-11)
 
 Read from `gh api repos/md-mt/termproof/rulesets/24859051`. It is the only
 ruleset in the repository.
 
 | Field | Live value |
 |---|---|
-| Name | `main: require CI (Rust) result` |
+| Name | `main: require CI (Rust) result + Oracle freshness result` |
 | Id | `24859051` |
 | Source | repository `md-mt/termproof` |
 | Target | branch; include `~DEFAULT_BRANCH`, no excludes |
 | Enforcement | `active` |
 | Rules | one — `required_status_checks` |
-| Required contexts | one — `CI (Rust) result` |
+| Required contexts | two — `CI (Rust) result`, `Oracle freshness result` |
 | Strict up-to-date policy | off (`strict_required_status_checks_policy: false`) |
 | Enforce on branch creation | yes (`do_not_enforce_on_create: false`) |
 | Bypass | one actor — `RepositoryRole` id `5` (the admin role), mode `always` |
@@ -215,9 +221,14 @@ ruleset in the repository.
 
 What that does and does not do:
 
-- **One check gates `main`.** `CI (Rust) result` is the rollup that waits for
+- **Two checks gate `main`.** `CI (Rust) result` is the rollup that waits for
   every Rust test job and reports on a PR that leaves Rust alone (section 5),
-  which is what makes it safe to require on every PR.
+  which is what makes it safe to require on every PR. `Oracle freshness
+  result` is the analogous always-on rollup for the oracle gate: it reports
+  on every PR, and when an oracle-relevant path moved it requires the corpus
+  to reproduce in the canonical environment (`ubuntu-24.04`, CPython
+  3.13.5, `--strict-environment`; section 5). No `CI (Python)` check is
+  required by this ruleset.
 - **Nothing else is a rule.** No `pull_request` rule, so no required PR,
   review count, stale-approval dismissal or conversation resolution; no
   `non_fast_forward` or `deletion` rule, so the ruleset does not block force
@@ -361,16 +372,17 @@ gh pr checks <pr-number> --repo md-mt/termproof --json name,state,workflow
 gh api repos/md-mt/termproof/commits/<pr-head-sha>/check-runs --jq '.check_runs[].name'
 
 # The live ruleset, by id (section 6.1). Expected output, exactly:
-#   {"name":"main: require CI (Rust) result","enforcement":"active","include":["~DEFAULT_BRANCH"],"exclude":[],"rules":["required_status_checks"],"strict":false,"bypass":["RepositoryRole:5:always"]}
+#   {"name":"main: require CI (Rust) result + Oracle freshness result","enforcement":"active","include":["~DEFAULT_BRANCH"],"exclude":[],"rules":["required_status_checks"],"strict":false,"bypass":["RepositoryRole:5:always"]}
 gh api repos/md-mt/termproof/rulesets/24859051 --jq '{name, enforcement, include: .conditions.ref_name.include, exclude: .conditions.ref_name.exclude, rules: [.rules[].type], strict: (.rules[] | select(.type == "required_status_checks") | .parameters.strict_required_status_checks_policy), bypass: [.bypass_actors[] | "\(.actor_type):\(.actor_id):\(.bypass_mode)"]}'
 
-# The contexts the live ruleset requires. Today that is one line,
-# `CI (Rust) result` — not the thirteen of section 5:
+# The contexts the live ruleset requires. Today that is two lines,
+# `CI (Rust) result` and `Oracle freshness result` — not the thirteen of
+# section 5:
 gh api repos/md-mt/termproof/rulesets/24859051 --jq '.rules[] | select(.type == "required_status_checks") | .parameters.required_status_checks[].context'
 
 # The same as a check: exits non-zero unless the live contexts are exactly
 # the expected set. Edit the expected list when section 6.1 changes.
-test "$(gh api repos/md-mt/termproof/rulesets/24859051 --jq '[.rules[] | select(.type == "required_status_checks") | .parameters.required_status_checks[].context] | sort | join(",")')" = "CI (Rust) result"
+test "$(gh api repos/md-mt/termproof/rulesets/24859051 --jq '[.rules[] | select(.type == "required_status_checks") | .parameters.required_status_checks[].context] | sort | join(",")')" = "CI (Rust) result,Oracle freshness result"
 
 # Every rule that applies to main, across all rulesets — catches a second
 # ruleset or an added rule that the by-id read above would not show.
@@ -383,9 +395,9 @@ gh api repos/md-mt/termproof/community/profile --jq .health_percentage
 
 Expected today, for the ruleset: exactly one, id `24859051`, as section 6.1
 records it — active on the default branch, one `required_status_checks` rule
-whose only context is `CI (Rust) result`, strict policy off, and the admin-role
-bypass. A second ruleset, another context, or a different bypass actor is a
-finding.
+whose contexts are `CI (Rust) result` and `Oracle freshness result`, strict
+policy off, and the admin-role bypass. A second ruleset, another context, or
+a different bypass actor is a finding.
 
 Expected after the settings change (not live): homepage
 `https://docs.rs/termproof`; topics present; vulnerability/Dependabot alerts
