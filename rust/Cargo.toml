@@ -67,14 +67,16 @@ all = "warn"
 [workspace.dependencies]
 termproof = { path = "crates/termproof", version = "0.4.2" }
 regex = { version = "1.13.1", default-features = false, features = ["std", "unicode"] }
-# 0.16 at both ends, tested at 0.16.0. `jsonschema` 0.32.1 and 0.33.0 both ask
-# for `^0.16` themselves, and across the whole `>=0.32, <0.34` declared below
-# those are the only versions that ask for a 0.16 at all — 0.32.0 asks `^0.15`.
-# So `^0.16` is the one requirement a default build can satisfy out of
-# `jsonschema`'s copy of the backtracking engine instead of standing up a
-# second one, and it cannot rot while the `jsonschema` range is what it is.
+# 0.19 at both ends, tested at 0.19.0. `jsonschema` 0.56.0 asks for `^0.19`
+# itself, non-optionally, so `^0.19` is the one requirement a default build
+# can satisfy out of `jsonschema`'s copy of the backtracking engine instead
+# of standing up a second one, and it cannot rot while the `jsonschema`
+# range is what it is. Until #221 this read 0.16 for the same reason:
+# `jsonschema` 0.32.1 and 0.33.0 both asked for `^0.16` (0.32.0 asked
+# `^0.15`). The pin follows `jsonschema`'s; it has never been chosen for
+# anything `fancy-regex` itself does.
 #
-# Nothing here needs anything above it. Measured in #177 rather than assumed:
+# Nothing here needs anything in 0.19. Measured in #177 rather than assumed:
 # the workspace builds and the whole suite passes at 0.16.0, 0.16.1, 0.16.2,
 # 0.17.0, 0.18.0 and 0.19.0, and both differential harnesses report the same
 # parity at every one — steps 82/115 full and 113/115 verdict, assertions
@@ -100,7 +102,7 @@ regex = { version = "1.13.1", default-features = false, features = ["std", "unic
 # ends. No `fancy-regex` type is in the public API now, so a consumer on any
 # version compiles either way; the most this requirement can cost anyone is a
 # second copy in the graph, which is exactly what narrowing it removes.
-fancy-regex = "0.16"
+fancy-regex = "0.19"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 serde_yaml = "0.9"
@@ -151,13 +153,30 @@ serde_yaml = "0.9"
 # which answers "every consumer with a modern schemars carries two" without
 # breaking anyone's types.
 schemars = { version = "0.8", features = ["preserve_order"] }
-# Floor 0.32, tested at 0.32.0. 0.31 is the first version that will not build:
-# `ValidationErrorKind::OneOfMultipleValid` has no `context` field there, and
-# `pyschema` reads it to rank sub-errors the way Python's `best_match` does,
-# which FR-017 pins down. Below 0.31 more of the same API is missing —
-# `AnyOf`/`OneOfNotValid` contexts and `PrimitiveTypesBitMap::iter` at 0.29,
-# `Validator::iter_errors` as well at 0.24.
-jsonschema = { version = ">=0.32, <0.34" }
+# Floor 0.56, tested at 0.56.0 — the only 0.56.x release. The port reads a
+# `ValidationError` through its accessors (`instance_path()`, `kind()`,
+# `instance()`) because 0.56 keeps the fields private, and matches
+# `Custom { message, .. }` because that variant gained a field; at 0.33.0
+# this code does not compile (25 errors, measured in #221). The floor is
+# deliberately not bisected below 0.56: 0.56.0 is the version the #221
+# differential measurement was taken at (assertions 125/147 full agreement
+# against 124/147 at 0.33.0, verdict 143/147 at both), v1.0 is gated on
+# that parity, and a floor at an unmeasured version would claim parity
+# nobody has run. The `<0.57` ceiling is the same claim in the other
+# direction: 0.57 is unmeasured. The previous floor was 0.32, put there by
+# `ValidationErrorKind::OneOfMultipleValid`'s `context` field, which
+# `pyschema` reads to rank sub-errors the way Python's `best_match` does
+# (FR-017); that API is old history at 0.56.
+#
+# Deliberately without the `arbitrary-precision` feature, and `pyschema`
+# assumes so: at 0.56 that feature changes
+# `ValidationErrorKind::MultipleOf`'s `multiple_of` field from `f64` to
+# `serde_json::Value`, which the `repr_f64` rendering of that variant in
+# `pyschema.rs` would not compile against. Because features unify across a
+# build graph, a downstream consumer enabling it would break this crate's
+# compilation rather than merely widening a number type; enabling it here
+# means changing that rendering first.
+jsonschema = { version = ">=0.56, <0.57" }
 # 0.9, not 0.8, because `ExitStatus::signal()` is 0.9's, and
 # `PtySession::exit_signal` is the published accessor that reads it.
 #

@@ -21,7 +21,7 @@
 //! cargo test -p termproof --test differential_assertions -- --nocapture
 //! ```
 //!
-//! Fifty-eight of the 165 cases are `json_schema`, and the oracle they were
+//! Seventy-two of the 179 cases are `json_schema`, and the oracle they were
 //! recorded from always has a JSON Schema validator. Without the `json-schema`
 //! feature the port cannot answer those, so they are skipped by type — and only
 //! those. The harness itself always compiles and always runs: the other 107
@@ -45,7 +45,7 @@ use termproof::models::{AssertionResult, CommandSpec, Recipe};
 /// change that does it.
 ///
 /// There is a floor per feature shape because there is a corpus per feature
-/// shape. Without `json-schema` the 58 `json_schema` cases cannot be answered
+/// shape. Without `json-schema` the 72 `json_schema` cases cannot be answered
 /// and are skipped, so measuring the remainder against the full-corpus floor
 /// would fail for a reason that is not a regression.
 #[cfg(feature = "json-schema")]
@@ -65,11 +65,11 @@ const VERDICT_FLOOR: usize = 89;
 /// Cases skipped because this build has no validator for them, asserted exactly
 /// rather than ratcheted. A build that skips a case it could have answered is
 /// measuring less than it claims, and so is one that skips none when it should
-/// skip 58 — both fail here.
+/// skip 72 — both fail here.
 #[cfg(feature = "json-schema")]
 const SKIPPED_EXACT: usize = 0;
 #[cfg(not(feature = "json-schema"))]
-const SKIPPED_EXACT: usize = 58;
+const SKIPPED_EXACT: usize = 72;
 
 /// Cases the oracle cannot answer because they end its run. FR-020 requires the
 /// port to contain every one, so this is asserted exactly rather than ratcheted.

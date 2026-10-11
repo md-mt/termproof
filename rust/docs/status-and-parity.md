@@ -228,20 +228,25 @@ enumerated in `conformance/README.md`.
 
 ## Assertion layer
 
-| Count | Meaning | Now |
+| Count | Meaning | Floor |
 |---|---|---|
-| Full agreement | `name`, `passed` and `detail` all match | **124 / 147** |
-| Verdict agreement | `passed` matches, whatever `detail` says | **143 / 147** |
+| Full agreement | `name`, `passed` and `detail` all match | **at least 124 / 161 comparable** |
+| Verdict agreement | `passed` matches, whatever `detail` says | **at least 143 / 161 comparable** |
 | Contained | the oracle ends its run; the port returns a result instead | 18 / 18 |
 | Escaped containment | the port also lost results | 0 |
 | Panicked | the port took the process down | 0 |
 | Never returned | the port wedged | 0 |
 
-The denominator is 147, not 165: the eighteen contained cases have no oracle
-verdict to agree with. With `termproof`'s `json-schema` feature off, the 58
-`json_schema` cases are skipped by assertion type and the rest is 89 / 89 full
-and verdict agreement — every one of the 23 default-run detail divergences and
-all 4 verdict divergences is a `json_schema` case.
+The denominator is 161, not 179: the eighteen contained cases have no oracle
+verdict to agree with. The 124 and 143 are absolute floors, carried over
+unchanged from the 147-comparable corpus when the fourteen `multipleOf`
+cases enlarged it — minima the harness enforces, not a measurement of the
+enlarged corpus, whose agreement counts the harness's first CI run at
+`jsonschema` 0.56 will report. With `termproof`'s `json-schema` feature off,
+the 72 `json_schema` cases are skipped by assertion type and the floor for
+the rest is 89 / 89 comparable: full agreement is required of every case
+that needs no validator, so the harness can only pass while every remaining
+divergence is a `json_schema` case.
 
 ## What the numbers do not cover
 
@@ -269,7 +274,7 @@ These are layer-level numbers, not a product number:
   digests (runtime-local by decision, below) — is outside every number and
   gate here, so nothing on this page says whether those agree.
 
-Reading 82/115 or 124/147 as a parity figure for the port would be wrong.
+Reading 82/115 or 124/161 as a parity figure for the port would be wrong.
 
 ## Recorded allowed differences
 

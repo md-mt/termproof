@@ -136,6 +136,37 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
   `\r`, `\x08` or another C0 control; fingerprints are runtime-local, so
   only dedup state stored by an earlier run was affected.
 
+### Rust — Changed
+
+- **The `jsonschema` dependency moved from the 0.33 line to 0.56, and
+  `fancy-regex` moved with it from 0.16 to 0.19.** `jsonschema` 0.56
+  required `fancy-regex` `^0.19` non-optionally and Cargo does not unify
+  across 0.x minors, so the two had to move together to keep one
+  backtracking engine in the graph — the coupling that had pinned the
+  pair since #177. The requirement became `>=0.56, <0.57`, with 0.56.0
+  as both the floor and the only 0.56.x release; assertion parity was
+  measured at that version before it was taken (125/147 full agreement
+  against 124/147 at 0.33.0, verdict agreement unchanged at 143/147),
+  and the one known verdict flip between the versions —
+  `9007199254740993` against `multipleOf: 2` — moved Rust into agreement
+  with Python. Two `json_schema` failure details changed with the
+  engine's choice of error to report: one now matched Python's detail
+  and one named a different failing keyword; no verdict in the harness
+  changed. The differential corpus gained the fourteen `multipleOf`
+  probe inputs as cases, four of which document verdict disagreements
+  with Python that exist on both engine versions. No public API
+  changed — neither crate's types appear in `termproof`'s surface — but
+  building the default `json-schema` feature now also compiled
+  `jsonschema`'s HTTP `$ref` stack (reqwest/rustls with aws-lc), which
+  needs a C compiler at build time: `aws-lc-sys` prefers its `cc` builder
+  with pre-generated bindings on common targets and falls back to CMake
+  where those are unavailable, so CMake itself is not a hard requirement.
+  `schemars` deliberately
+  did not move: 1.x redraws the generated recipe schema and turns
+  `preserve_order` into a graph-global `serde_json` switch, which stayed
+  a schema-consumer decision tracked as the remainder of
+  ([#221](https://github.com/md-mt/termproof/issues/221)).
+
 ### Rust — Fixed
 
 - **A `\r`-redrawn line no longer kept the `\r` as a cell.** The plain-text
@@ -152,7 +183,6 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
   own and did not change. Grids and fingerprints changed for screens
   containing `\r` or `\x08`; fingerprints are runtime-local, so only dedup
   state stored by an earlier run was affected.
-
 ### CI
 
 - **`.github/dependabot.yml` is schema-checked on the pull request that edits

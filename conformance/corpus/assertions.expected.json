@@ -1793,6 +1793,230 @@
       }
     },
     {
+      "id": "json_schema/multipleof-above-max-safe-integer",
+      "fr": "003-FR-016",
+      "raw_output": "9007199254740993",
+      "assertion": {
+        "type": "json_schema",
+        "schema": {
+          "multipleOf": 2
+        }
+      },
+      "expected": {
+        "name": "json_schema",
+        "passed": false,
+        "detail": "schema validation failed: 9007199254740993 is not a multiple of 2"
+      }
+    },
+    {
+      "id": "json_schema/multipleof-inexact-tenth",
+      "fr": "003-FR-016",
+      "raw_output": "0.3",
+      "assertion": {
+        "type": "json_schema",
+        "schema": {
+          "multipleOf": 0.1
+        }
+      },
+      "expected": {
+        "name": "json_schema",
+        "passed": false,
+        "detail": "schema validation failed: 0.3 is not a multiple of 0.1"
+      }
+    },
+    {
+      "id": "json_schema/multipleof-inexact-fifth",
+      "fr": "003-FR-016",
+      "raw_output": "0.6",
+      "assertion": {
+        "type": "json_schema",
+        "schema": {
+          "multipleOf": 0.2
+        }
+      },
+      "expected": {
+        "name": "json_schema",
+        "passed": false,
+        "detail": "schema validation failed: 0.6 is not a multiple of 0.2"
+      }
+    },
+    {
+      "id": "json_schema/multipleof-inexact-hundredth",
+      "fr": "003-FR-016",
+      "raw_output": "19.99",
+      "assertion": {
+        "type": "json_schema",
+        "schema": {
+          "multipleOf": 0.01
+        }
+      },
+      "expected": {
+        "name": "json_schema",
+        "passed": false,
+        "detail": "schema validation failed: 19.99 is not a multiple of 0.01"
+      }
+    },
+    {
+      "id": "json_schema/multipleof-overflow-scale",
+      "fr": "003-FR-016",
+      "raw_output": "1e308",
+      "assertion": {
+        "type": "json_schema",
+        "schema": {
+          "multipleOf": 1e-08
+        }
+      },
+      "expected": {
+        "name": "json_schema",
+        "passed": false,
+        "detail": "schema validation failed: 1e+308 is not a multiple of 1e-08"
+      }
+    },
+    {
+      "id": "json_schema/multipleof-integer-remainder",
+      "fr": "003-FR-016",
+      "raw_output": "7",
+      "assertion": {
+        "type": "json_schema",
+        "schema": {
+          "multipleOf": 2
+        }
+      },
+      "expected": {
+        "name": "json_schema",
+        "passed": false,
+        "detail": "schema validation failed: 7 is not a multiple of 2"
+      }
+    },
+    {
+      "id": "json_schema/multipleof-half-remainder",
+      "fr": "003-FR-016",
+      "raw_output": "7.5",
+      "assertion": {
+        "type": "json_schema",
+        "schema": {
+          "multipleOf": 2
+        }
+      },
+      "expected": {
+        "name": "json_schema",
+        "passed": false,
+        "detail": "schema validation failed: 7.5 is not a multiple of 2"
+      }
+    },
+    {
+      "id": "json_schema/multipleof-tenth-valid",
+      "fr": "003-FR-016",
+      "raw_output": "1.1",
+      "assertion": {
+        "type": "json_schema",
+        "schema": {
+          "multipleOf": 0.1
+        }
+      },
+      "expected": {
+        "name": "json_schema",
+        "passed": true,
+        "detail": "matches JSON schema"
+      }
+    },
+    {
+      "id": "json_schema/multipleof-small-decimals-valid",
+      "fr": "003-FR-016",
+      "raw_output": "0.0075",
+      "assertion": {
+        "type": "json_schema",
+        "schema": {
+          "multipleOf": 0.0001
+        }
+      },
+      "expected": {
+        "name": "json_schema",
+        "passed": true,
+        "detail": "matches JSON schema"
+      }
+    },
+    {
+      "id": "json_schema/multipleof-halves-valid",
+      "fr": "003-FR-016",
+      "raw_output": "4.5",
+      "assertion": {
+        "type": "json_schema",
+        "schema": {
+          "multipleOf": 1.5
+        }
+      },
+      "expected": {
+        "name": "json_schema",
+        "passed": true,
+        "detail": "matches JSON schema"
+      }
+    },
+    {
+      "id": "json_schema/multipleof-integer-valid",
+      "fr": "003-FR-016",
+      "raw_output": "8",
+      "assertion": {
+        "type": "json_schema",
+        "schema": {
+          "multipleOf": 2
+        }
+      },
+      "expected": {
+        "name": "json_schema",
+        "passed": true,
+        "detail": "matches JSON schema"
+      }
+    },
+    {
+      "id": "json_schema/multipleof-whole-float-valid",
+      "fr": "003-FR-016",
+      "raw_output": "3.0",
+      "assertion": {
+        "type": "json_schema",
+        "schema": {
+          "multipleOf": 1
+        }
+      },
+      "expected": {
+        "name": "json_schema",
+        "passed": true,
+        "detail": "matches JSON schema"
+      }
+    },
+    {
+      "id": "json_schema/multipleof-huge-valid",
+      "fr": "003-FR-016",
+      "raw_output": "1e308",
+      "assertion": {
+        "type": "json_schema",
+        "schema": {
+          "multipleOf": 0.5
+        }
+      },
+      "expected": {
+        "name": "json_schema",
+        "passed": true,
+        "detail": "matches JSON schema"
+      }
+    },
+    {
+      "id": "json_schema/multipleof-large-hundredths-valid",
+      "fr": "003-FR-016",
+      "raw_output": "12391239123",
+      "assertion": {
+        "type": "json_schema",
+        "schema": {
+          "multipleOf": 0.01
+        }
+      },
+      "expected": {
+        "name": "json_schema",
+        "passed": true,
+        "detail": "matches JSON schema"
+      }
+    },
+    {
       "id": "best_match/required-two",
       "fr": "003-FR-017",
       "raw_output": "{}",
