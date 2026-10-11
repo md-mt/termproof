@@ -625,5 +625,6 @@ does.
 The known divergence is non-ASCII text: Python's `json.dumps` escapes it
 (`ensure_ascii`) and `serde_json` writes it raw, so the two hash different bytes
 for the same screen. #222 stays open as the future work of a portable non-ASCII
-fingerprint. #223 and #224 are separate, open differences in the attributed
-cells the digest is taken over; nothing here changes for them.
+fingerprint. #223 is a separate, open difference in the attributed cells the
+digest is taken over, and #224 (Python's plain-text constructor's width rule) is
+resolved by #237; nothing here changes for them.
