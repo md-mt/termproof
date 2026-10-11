@@ -798,16 +798,38 @@ _WIDE_BUT_ZERO_WIDTH = frozenset(
     "\U00016fe4\U00016ff0\U00016ff1"
 )
 
+#: Where Unicode defaults an *unassigned* code point to East Asian Wide, as
+#: inclusive ``(first, last)`` pairs. Everywhere else an unassigned code point
+#: is one cell here, whatever this interpreter's ``unicodedata`` says: UCD 14.0
+#: (Python 3.11) reports every one of them as ``F``, 15.0 and later as ``N``.
+#: Taken from the header of ``EastAsianWidth.txt``, which lists the same five
+#: ranges in every version from 14.0.0 to 18.0.0:
+#: https://www.unicode.org/Public/16.0.0/ucd/EastAsianWidth.txt
+_UNASSIGNED_DEFAULT_WIDE_RANGES = (
+    (0x3400, 0x4DBF),  # CJK Unified Ideographs Extension A
+    (0x4E00, 0x9FFF),  # CJK Unified Ideographs
+    (0xF900, 0xFAFF),  # CJK Compatibility Ideographs
+    (0x20000, 0x2FFFD),  # Plane 2
+    (0x30000, 0x3FFFD),  # Plane 3
+)
+
 
 def _cell_width(text: str) -> int:
     # Not the whole of Rust's table: ``unicode-width`` follows a newer Unicode
     # than this interpreter's ``unicodedata`` may, so a code point that became
     # wide since (U+4DC0 HEXAGRAM FOR THE CREATIVE HEAVEN, U+1FA89 HARP) is two
     # cells in Rust and one here until Python catches up.
+    # The same goes for a code point this interpreter does not know at all: it
+    # is unassigned here, so it gets the unassigned default below.
     if text == "":
         return 0
     first = text[0]
     if first in _WIDE_BUT_ZERO_WIDTH:
+        return 1
+    if unicodedata.category(first) == "Cn":
+        code_point = ord(first)
+        if any(lo <= code_point <= hi for lo, hi in _UNASSIGNED_DEFAULT_WIDE_RANGES):
+            return 2
         return 1
     if unicodedata.east_asian_width(first) in ("F", "W"):
         return 2
