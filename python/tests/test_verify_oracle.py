@@ -1,11 +1,11 @@
 """The oracle-freshness comparison in ``conformance/verify_oracle.py``.
 
-Only the pure comparison is tested here: running the five probes end to end
+Only the pure comparison is tested here: running the six probes end to end
 belongs to ``conformance/README.md``'s freshness check, not to the unit
 suite, which must stay fast and must pass on interpreters whose recorded
 expectations legitimately differ (see the checker's environment policy).
 What this pins is the policy itself — payload differences fail, environment
-differences are reported rather than dropped, and the two header-less
+differences are reported rather than dropped, and the three header-less
 documents compare whole.
 """
 
