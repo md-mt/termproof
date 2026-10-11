@@ -141,6 +141,10 @@ Not required, and why:
   one tree each, so requiring either would block every PR that does not touch
   it.
 - `Docs site`, `Pages preview` — same reason, and neither gates behaviour.
+- `Validate .github/dependabot.yml` (`Dependabot config`) — path-filtered to
+  `.github/dependabot.yml` and its own workflow file, so the same reason. It
+  is also only a schema check: Dependabot validates further than the schema
+  does, so passing it is not Dependabot accepting the file.
 - `Dependabot` / `.github/dependabot.yml` checks on `main` are not PR gate
   checks.
 
