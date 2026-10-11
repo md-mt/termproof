@@ -217,6 +217,21 @@ class PublishedArtifact:
 
 
 @dataclass(frozen=True)
+class PublishTarget:
+    """Where a publisher should put artifacts, as supplied by CLI or environment.
+
+    These are deployment credentials and addresses rather than project
+    settings, so they are passed at publish time instead of being read from
+    ``.termproof/config.yaml``, which is checked in.
+    """
+
+    bucket: str = ""
+    endpoint_url: str | None = None
+    base_url: str = ""
+    dry_run: bool = False
+
+
+@dataclass(frozen=True)
 class RunResult:
     """One recipe × one renderer, as a canonical result payload.
 

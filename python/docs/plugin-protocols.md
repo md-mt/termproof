@@ -8,7 +8,6 @@ TermProof exposes stable plugin protocols from `termproof.protocols`.
 | --- | --- |
 | `StepAction` | `execute(session, step, index) -> StepResult` |
 | `AssertionType` | `evaluate(recipe, assertion, screen, raw_output, exit_code) -> AssertionResult` |
-| `StepAwareAssertionType` | `evaluate(recipe, assertion, screen, raw_output, exit_code, *, steps=None) -> AssertionResult` |
 | `ExecutionMode` | `execute(runner, recipe, run_dir) -> tuple[list[StepResult], list[AssertionResult], str, int | None, str]` |
 | `Reporter` | `generate(results, build_info=None, before_after=None) -> str` |
 | `ScreenRenderer` | `render(text, output_path, cols, rows) -> None` |
@@ -17,7 +16,7 @@ TermProof exposes stable plugin protocols from `termproof.protocols`.
 | `SessionBackend` | `create_session(argv, cast_path, cwd, env, cols, rows) -> TerminalSession` |
 | `ArtifactPublisher` | `publish(source, key) -> PublishedArtifact` |
 
-`StepAction`, `AssertionType`, `StepAwareAssertionType`, `ExecutionMode`, `Reporter`, `ScreenRenderer`, `VideoBackend`, and `ArtifactPublisher` also require a `name: str` class attribute. `AgentRunner` and `SessionBackend` are selected by config keys and do not require a `name`.
+`StepAction`, `AssertionType`, `ExecutionMode`, `Reporter`, `ScreenRenderer`, `VideoBackend`, and `ArtifactPublisher` also require a `name: str` class attribute. `AgentRunner` and `SessionBackend` are selected by config keys and do not require a `name`.
 
 `ScreenRenderer` plugins can optionally set `extension = "png"` (or another file extension) so evidence artifacts use that screenshot filename suffix.
 
@@ -102,8 +101,25 @@ alongside the protocols themselves.
 
 `AssertionType` sees the final screen only, which makes an assertion about a
 state the run passes through and then leaves inexpressible. `StepAwareAssertionType`
-extends it with `steps`: the `StepResult` list for the steps that ran, in order,
-each carrying the screen captured after that step.
+is a signature variant of `AssertionType` — not a separate protocol, and so
+not a row in the table above — that extends `evaluate` with `steps`: the
+`StepResult` list for the steps that ran, in order, each carrying the screen
+captured after that step:
+
+```python
+def evaluate(
+    self, recipe, assertion, screen, raw_output, exit_code, *, steps=None
+) -> AssertionResult: ...
+```
+
+Everything satisfying the variant also satisfies `AssertionType`, which is
+why it is presented here the way `render_attributed` is presented under
+`ScreenRenderer`: as an optional widening of an existing protocol rather
+than as a new capability. The class stays, because an alternative method
+signature cannot be expressed as an optional method the way a new method
+name can; it is exported from `termproof.protocols` alongside
+`AssertionType`, and a step-aware assertion carries a `name: str` like any
+other assertion.
 
 `StepResult.screen` is plain text: the screen flattened the way `screen_text`
 flattens it. Match glyphs and layout against it and nothing else — a screen text
@@ -118,7 +134,7 @@ assertion may read it to match on styling. Treat it as genuinely optional: it is
 should report that it had no grid rather than fail the run as though the styling
 were absent.
 
-The two protocols are one opt-in apart. TermProof passes `steps` only to an
+The variant is one opt-in apart from the base protocol. TermProof passes `steps` only to an
 `evaluate` that declares a parameter of that name, so an assertion written
 against `AssertionType` is called with the original five arguments and needs no
 source change. A bare `**kwargs` does not count as declaring it — an assertion
@@ -185,7 +201,10 @@ classmethod to receive the bucket, endpoint, public base URL and dry-run flag
 supplied at publish time — the same opt-in pattern `from_config` uses for
 renderers. Deployment credentials are passed this way rather than read from
 `.termproof/config.yaml`, which is checked in. Publishers without it are
-constructed with no arguments.
+constructed with no arguments. `PublishTarget` is exported from
+`termproof.protocols` alongside the protocols themselves, so a publisher
+can type the hook without importing the `termproof.evidence_publish` CLI
+module.
 
 Because a publisher is an ordinary object returning ordinary results, publishers
 compose: a wrapper that tries one publisher, falls back to a second, and records

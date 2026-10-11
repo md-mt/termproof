@@ -21,6 +21,7 @@ from .config import (
 from .models import (
     AssertionResult,
     PublishedArtifact,
+    PublishTarget,
     Recipe,
     RecipeMeta,
     RunResult,
@@ -56,6 +57,7 @@ __all__ = [
     "ExecutionMode",
     "PngRenderConfig",
     "PublishedArtifact",
+    "PublishTarget",
     "Recipe",
     "RecipeMeta",
     "Registry",

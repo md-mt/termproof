@@ -6,7 +6,8 @@ from pathlib import Path
 
 from termproof_my_plugin.publishers import MyStore
 
-from termproof.evidence_publish import PublishTarget, url_map_from_published
+from termproof.evidence_publish import url_map_from_published
+from termproof.protocols import PublishTarget
 
 
 class MyStorePublisherTest(unittest.TestCase):
