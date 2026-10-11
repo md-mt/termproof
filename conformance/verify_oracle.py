@@ -18,9 +18,9 @@ The case payload and the ``environment`` block are compared separately:
 a payload difference always fails (exit 1), an environment difference is
 reported field by field and only fails under ``--strict-environment``,
 because the recorded blocks already disagree with each other (Python
-3.12.13, 3.13.2 and 3.13.5; two record Darwin as the platform, the
+3.12.13, 3.13.2 and 3.13.5; three record Darwin as the platform, the
 cast-replay block records none) and no single interpreter
-reproduces all three. Neither the interpreter patch version nor the
+reproduces all four. Neither the interpreter patch version nor the
 operating system is pinned anywhere in this repository. The full policy,
 including why CI does not run this yet, is in ``conformance/README.md``
 under "Checking oracle freshness".
@@ -48,6 +48,7 @@ PROBES = (
     ("probe_cast_replay.py", "cast_replay.expected.json"),
     ("probe_run_result.py", "run_result.expected.json"),
     ("probe_build_info.py", "build_info.expected.json"),
+    ("probe_report.py", "report.expected.json"),
 )
 
 #: Marks "key absent on this side", so an explicit JSON null never equals a missing key.
