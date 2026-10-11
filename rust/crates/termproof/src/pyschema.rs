@@ -224,6 +224,15 @@ fn describe(error: &ValidationError<'_>) -> String {
             "{instance} is not less than the exclusive maximum {}",
             repr_json(limit)
         ),
+        // `multiple_of` is an `f64` here only on an assumption this line
+        // should state: the workspace builds `jsonschema` without its
+        // `arbitrary-precision` feature, under which 0.56 types this field
+        // as `serde_json::Value` instead. If a downstream build's feature
+        // unification switched that feature on, `repr_f64(*multiple_of)`
+        // would stop compiling rather than silently widen — rendering the
+        // `Value` (as the neighbouring `limit` arms do via `repr_json`) is
+        // the change that case needs. See the `jsonschema` note in the
+        // workspace `Cargo.toml`.
         ValidationErrorKind::MultipleOf { multiple_of } => format!(
             "{instance} is not a multiple of {}",
             crate::pyrepr::repr_f64(*multiple_of)

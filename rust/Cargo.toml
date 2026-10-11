@@ -167,6 +167,15 @@ schemars = { version = "0.8", features = ["preserve_order"] }
 # `ValidationErrorKind::OneOfMultipleValid`'s `context` field, which
 # `pyschema` reads to rank sub-errors the way Python's `best_match` does
 # (FR-017); that API is old history at 0.56.
+#
+# Deliberately without the `arbitrary-precision` feature, and `pyschema`
+# assumes so: at 0.56 that feature changes
+# `ValidationErrorKind::MultipleOf`'s `multiple_of` field from `f64` to
+# `serde_json::Value`, which the `repr_f64` rendering of that variant in
+# `pyschema.rs` would not compile against. Because features unify across a
+# build graph, a downstream consumer enabling it would break this crate's
+# compilation rather than merely widening a number type; enabling it here
+# means changing that rendering first.
 jsonschema = { version = ">=0.56, <0.57" }
 # 0.9, not 0.8, because `ExitStatus::signal()` is 0.9's, and
 # `PtySession::exit_signal` is the published accessor that reads it.

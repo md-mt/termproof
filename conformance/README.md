@@ -333,19 +333,23 @@ cargo test -p termproof --test differential_assertions -- --nocapture
 The test prints every divergence and the counts below, and fails if either
 ratcheted count drops beneath its floor:
 
-| Count | Meaning | At the implementation commit |
+| Count | Meaning | Asserted |
 |---|---|---|
-| Full agreement | `name`, `passed` and `detail` all match | 124 / 147 |
-| Verdict agreement | `passed` matches, whatever `detail` says | 143 / 147 |
+| Full agreement | `name`, `passed` and `detail` all match | at least 124 / 161 comparable |
+| Verdict agreement | `passed` matches, whatever `detail` says | at least 143 / 161 comparable |
 | Contained | the oracle ends its run; the port returns a result instead | 18 / 18 |
 | Escaped containment | the port also lost results | 0 |
 | Panicked | the port took the process down | 0 |
 | Never returned | the port wedged | 0 |
 | Skipped | no validator compiled in this build | 0 / 0 |
 
-The denominator is the total minus eighteen, not the total: the eighteen
-contained cases have no oracle verdict to agree with, so counting them either
-way would be inventing a result.
+The denominator is the total minus eighteen — 161 of the 179 cases — not the
+total: the eighteen contained cases have no oracle verdict to agree with, so
+counting them either way would be inventing a result. The 124 and 143 are
+absolute floors carried over from the 147-comparable corpus and deliberately
+not raised when the fourteen `multipleOf` cases landed; the harness's first
+CI run on the enlarged corpus measures its agreement counts, and no measured
+count for the 161-comparable corpus is claimed here in advance of it.
 
 ### Without the `json-schema` feature
 
@@ -367,9 +371,13 @@ Skipped is asserted exactly, not ratcheted: a build that skips a case it could
 have answered is measuring less than it claims, and so is one that skips none
 when it should skip 72.
 
-That the remainder is 89 / 89 is worth reading twice — every one of the 23
-detail divergences and all 4 verdict divergences in the default run is a
-`json_schema` case, which is what the `jsonschema`-message note below predicts.
+That the remainder's floor is 89 / 89 comparable is worth reading twice — it
+requires full and verdict agreement from every case that needs no validator,
+so the default run can only pass while every divergence it still has is a
+`json_schema` case, which is what the `jsonschema`-message note below
+predicts. How many divergences that is on the enlarged corpus is unmeasured
+until the harness next runs in CI, so no divergence count for it is stated
+here.
 
 The two agreement counts are separate floors on purpose. A fix that corrects a
 verdict and leaves the wording to a later commit moves the second and not the

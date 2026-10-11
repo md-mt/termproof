@@ -138,7 +138,10 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
   changed — neither crate's types appear in `termproof`'s surface — but
   building the default `json-schema` feature now also compiled
   `jsonschema`'s HTTP `$ref` stack (reqwest/rustls with aws-lc), which
-  needs CMake and a C compiler at build time. `schemars` deliberately
+  needs a C compiler at build time: `aws-lc-sys` prefers its `cc` builder
+  with pre-generated bindings on common targets and falls back to CMake
+  where those are unavailable, so CMake itself is not a hard requirement.
+  `schemars` deliberately
   did not move: 1.x redraws the generated recipe schema and turns
   `preserve_order` into a graph-global `serde_json` switch, which stayed
   a schema-consumer decision tracked as the remainder of
