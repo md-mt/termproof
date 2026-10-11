@@ -13,6 +13,7 @@ have to match. One per layer, each the same two-half shape:
 | Run result | `probe_run_result.py` | `tests/differential_run_result.rs` | `corpus/run_result.expected.json` |
 | Build info | `probe_build_info.py` | `tests/differential_build_info.rs` | `corpus/build_info.expected.json` |
 | Report | `probe_report.py` | `tests/differential_report.rs` | `corpus/report.expected.json` |
+| Config / run cache | `probe_config.py` | `tests/differential_config.rs` | `corpus/config.expected.json` |
 
 They exist because the port claimed corpus parity several times over with green
 local gates, and a differential run against the Python implementation still
@@ -24,7 +25,7 @@ reproduce is not a measurement.
 The Rust halves compare against the checked-in `corpus/*.expected.json`
 files, so a Python-side behaviour change that nobody re-recorded leaves every
 gate green against stale testimony (#216, #172). `verify_oracle.py` closes
-that: it re-runs all eight probes the way the regeneration commands
+that: it re-runs all nine probes the way the regeneration commands
 below do (`uv run` from `python/`, so dependencies come from
 `python/uv.lock`), compares the fresh case payloads with the checked-in
 files in memory and exits non-zero with a per-file diff summary on any
@@ -34,7 +35,7 @@ mismatch. It never writes into `corpus/`.
 python3 conformance/verify_oracle.py
 ```
 
-The `environment` block four of the files carry is compared separately and
+The `environment` block five of the files carry is compared separately and
 reported field by field, not dropped: a payload difference always fails,
 while an environment difference only warns unless `--strict-environment` is
 given.
@@ -83,7 +84,7 @@ chosen environment makes it a reviewed diff instead.
 
 Re-record **only** in the canonical environment, through the manual
 `.github/workflows/oracle-regen.yml` workflow (`workflow_dispatch`). It
-pins the identical environment, regenerates all eight
+pins the identical environment, regenerates all nine
 `corpus/*.expected.json` files with the per-harness commands documented
 below, prints a `git diff --stat` summary, checks that the regenerated
 corpus reproduces (`--strict-environment`) in the same run, and uploads it
@@ -1126,3 +1127,126 @@ evidence-manifest harness: without the feature there is no generator to
 compare and the file compiles to no tests. Under default features CI's
 `cargo test --workspace` runs it as it stands. A failure names the case,
 or the allowance whose pinned divergence moved.
+
+# Config and run cache
+
+A ninth harness, same two-half shape, for the pair that configures every
+run and the key that lets a recorded result stand in for one:
+`termproof.config` / `termproof.run_cache` in Python,
+`termproof::config` / `termproof::cache` in Rust (#209 items 4 and 5).
+
+## Shape
+
+| Half | Where | What it does |
+|---|---|---|
+| Oracle | `probe_config.py` | Cascades fifteen fixed YAML overlays through the real `load_config` and records each case's serialised `VerifierConfig` (or its `ValueError`), then records the run-cache key for eight fixed (recipe, options, evidence) inputs, into `corpus/config.expected.json`. |
+| Port | `crates/termproof/tests/differential_config.rs` | Cascades the identical overlays through `VerifierConfig::load`, compares the serialised documents whole apart from the allowances below, and answers the cache cases through `cache::cache_key`. |
+
+The scenarios are code in each half, as with the run result: the
+overlay strings are the scenario and the two halves carry identical
+copies. Each load runs against fresh temporary directories — an empty
+project directory, a user path that does not exist, the overlay as the
+explicit config file — so the recording owes nothing to the machine it
+was made on beyond the `environment` block. Neither implementation is
+the reference for this layer: the two `VerifierConfig`s are different
+types sharing a name, which is the drift being pinned, not a question
+this harness settles.
+
+**Bootstrap state.** This file was first recorded on a development
+machine, so its `environment` block temporarily names Darwin /
+CPython 3.13.2 rather than the canonical environment above, and the
+canonical `oracle` job (`--strict-environment`) is **red** on this file
+until the first `oracle-regen` run after this harness lands re-records
+it the sanctioned way. The case payloads owe nothing to the recording
+machine — the probe's only environment inputs are the interpreter
+version it names and the platform string — so that re-record is
+expected to change the `environment` block alone; read its diff like
+any other. Do not hand-edit the block to look canonical.
+
+## The allowed differences
+
+Each divergence is a named allowance in the Rust test, asserted so it
+fails when the divergence stops existing; anything else differing — a
+default value, a merge outcome, a key appearing on either side — fails
+the whole-document comparison. Nothing in either implementation
+changed to add this harness.
+
+| Divergence | Python | Rust | Allowance |
+|---|---|---|---|
+| `evidence:` block | typed `EvidenceConfig`, fully defaulted, validated, load-bearing | no such field; a supplied block survives as an unvalidated extension echo of exactly the keys written | `evidence_echo` |
+| `artifact_publishers` | merged plugin map with a built-in `s3` entry | no such field; at most an extension echo of the overlay's fragment | inline in `reconcile` |
+| built-in registries | `assertions.step_screen_contains`, `screen_renderers.png_rsvg`, `video_backends.attributed_rsvg` present | all three absent | `PYTHON_ONLY_PLUGIN_ENTRIES` |
+| `session_backend` default | `…:PexpectBackend` | `…:PexpectAsciinemaBackend` | `SESSION_BACKENDS` |
+| unknown keys (outside `evidence`) | silently dropped | preserved by the flatten extensions (top level, `docker`, `defaults`) | inline in `reconcile` |
+| evidence validation | unknown keys, wrong types and below-minimum values rejected with the key named | no validation; the same overlays load and change nothing but the echo | `PYTHON_REJECTS_RUST_ACCEPTS` |
+| coercions | `idle_cap_seconds: '2.5'` and numeric docker env values coerced (`float()`, `str()`) | both refused by the typed deserialisation | `RUST_REJECTS_PYTHON_ACCEPTS` |
+| cache-key inputs | the whole `EvidenceConfig` folded into the digest (the video subsection only when rendering video) | no evidence parameter exists to fold | the identical repeated call in the cache test |
+| missing recipe file | no key (`None`), so the run is never served from cache | a key over the `<missing>` marker | inline in the cache test |
+
+The one overlay both sides reject (`idle-negative`) is compared on
+verdict only: the recorded text is Python's `ValueError`, and the Rust
+side is held to `is_err`, not to matching wording that belongs to its
+own error type.
+
+## What it does and does not measure
+
+**Does**: the loaded config document per overlay — built-in defaults,
+deep-merge outcomes, which keys each loader keeps, drops or refuses,
+and the exact `ValueError` Python raises — plus, for the cache,
+availability (`Some`/`None`) per case and, within each implementation,
+which inputs move the key: recipe and `ci_paths` contents, renderer,
+video settings inert while video is off, and (Python only) the
+evidence config.
+
+**Does not**:
+
+- **Cache digest equality.** The payloads hashed differ by
+  construction — the Python payload carries the whole evidence config,
+  the JSON spacing differs, and the Rust half hashes its own absolute
+  temporary paths where the probe pins fixed relative ones — so the
+  recorded digests are testimony about the Python payload only (they
+  reproduce anywhere because the probe's path strings are literals),
+  and the cross-language pin is the availability-and-sensitivity
+  matrix above. **Follow-up if the payloads ever converge**: compare
+  digests directly, with the path strings normalised the way
+  `probe_build_info.py` normalises `@BIN`; until then a digest
+  comparison would pin nothing but the known difference.
+- **The cache round trip.** `load_cached_result` / `store_cached_result`
+  and their Rust counterparts — artifact existence, the `cache`
+  artifact entry, atomic writes — are unexercised; only the key
+  function is called (Python's is the private `_cache_key`, which is
+  exactly the input-folding being pinned).
+- **Cascade precedence between files.** Every case supplies at most
+  one overlay over the built-ins, so user-vs-project-vs-explicit
+  ordering, the legacy `tui-verifier` locations, and a malformed or
+  non-mapping YAML file are unpinned; each loader's own unit tests
+  cover its cascade, and nothing yet compares them.
+- **That either loader is right.** As everywhere here, the corpus
+  measures agreement with the Python implementation as it behaves
+  today — including where that behaviour is the questionable half
+  (silently dropping a misspelled top-level key, coercing a quoted
+  number).
+
+## Regenerating the expectations
+
+```sh
+cd /path/to/termproof/python
+TERMPROOF_PYTHON_REPO=$PWD uv run python \
+    ../conformance/probe_config.py \
+    > ../conformance/corpus/config.expected.json
+```
+
+Only regenerate deliberately: the file is the oracle's testimony, and
+quietly re-recording it turns a failing comparison into a passing one
+without changing any behaviour.
+
+## Reading the result
+
+```sh
+cargo test -p termproof --test differential_config -- --nocapture
+```
+
+`config` and `cache` carry no feature gate, so no `--features` is
+needed and CI's `cargo test --workspace` runs both tests as they stand.
+A failure names the case, or the allowance whose pinned divergence
+moved.
