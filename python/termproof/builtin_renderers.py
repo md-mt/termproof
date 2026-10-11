@@ -4,7 +4,12 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
-from .attributed import AttributedScreen, attributed_screen_from_ansi_text, screen_svg
+from .attributed import (
+    AttributedScreen,
+    _split_lines,
+    attributed_screen_from_ansi_text,
+    screen_svg,
+)
 from .config import (
     RASTER_MIN_HEIGHT,
     RASTER_MIN_WIDTH,
@@ -100,9 +105,12 @@ class PngRenderer:
         image = Image.new("RGB", (int(width), int(height)), config.bg)
         draw = ImageDraw.Draw(image)
 
-        for index, line in enumerate(text.splitlines()[:rows] or [""]):
+        # Rows break on "\n" alone, as they do in the grid: `str.splitlines` also
+        # breaks at "\x0b", "\x0c", "\u2028" and others, which drew "a\x0bb" as
+        # the same image as "a\nb". The "\r" of a CRLF is not drawn.
+        for index, line in enumerate(_split_lines(text)[:rows] or [""]):
             y = padding + line_height * index
-            draw.text((padding, y), line[:cols], font=font, fill=config.fg)
+            draw.text((padding, y), line.rstrip("\r")[:cols], font=font, fill=config.fg)
 
         output_path.parent.mkdir(parents=True, exist_ok=True)
         image.save(output_path, format="PNG")

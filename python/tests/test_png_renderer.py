@@ -23,6 +23,37 @@ class PngRendererTest(unittest.TestCase):
                 self.assertGreaterEqual(image.width, 320)
                 self.assertGreaterEqual(image.height, 160)
 
+    def test_only_a_newline_starts_a_new_row(self) -> None:
+        # `str.splitlines` breaks at every one of these, which drew each of them
+        # as the same image as "a\nb" (#243).
+        separators = ("\r", "\x0b", "\x0c", "\x1c", "\x1d", "\x1e", "\x85", "\u2028", "\u2029")
+        with tempfile.TemporaryDirectory() as tmp:
+            reference = self._png(Path(tmp), "a\nb")
+            for separator in separators:
+                with self.subTest(separator=separator):
+                    self.assertNotEqual(reference, self._png(Path(tmp), f"a{separator}b"))
+
+    def test_a_crlf_screen_draws_the_same_image_as_an_lf_one(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            reference = self._png(Path(tmp), "a\nb\n")
+            self.assertEqual(reference, self._png(Path(tmp), "a\r\nb\r\n"))
+
+    def test_rows_past_the_screen_height_are_not_drawn(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertEqual(
+                self._png(Path(tmp), "a\nb", rows=2),
+                self._png(Path(tmp), "a\nb\nc", rows=2),
+            )
+            self.assertNotEqual(
+                self._png(Path(tmp), "a\nb", rows=3),
+                self._png(Path(tmp), "a\nb\nc", rows=3),
+            )
+
+    def _png(self, directory: Path, text: str, rows: int = 24) -> bytes:
+        path = directory / "screen.png"
+        PngRenderer().render(text, path, cols=80, rows=rows)
+        return path.read_bytes()
+
     def test_png_renderer_registered_in_builtin_config(self) -> None:
         config = VerifierConfig.builtin()
         self.assertEqual(

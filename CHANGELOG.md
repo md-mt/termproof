@@ -57,6 +57,18 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
   runtime-local, so only dedup state stored by a 3.11 run was affected
   ([#245](https://github.com/md-mt/termproof/issues/245)).
 
+- **The evidence collector and the PNG renderer broke a screen into rows at
+  nine characters that are not line breaks.** Both split text with
+  `str.splitlines`, which also breaks at `\r`, `\x0b`, `\x0c`,
+  `\x1c`–`\x1e`, `\x85`, `\u2028` and `\u2029`. `a\x0bb` therefore got the
+  same grid, fingerprint and PNG as `a\nb`, and dedup told a collector step
+  holding one to reuse the screenshot of the other
+  ([#243](https://github.com/md-mt/termproof/issues/243)). Both moved to the
+  `\n`-only split the grid constructors and Rust's `str::lines` use, so each
+  of those screens became one row. `EvidenceCollector` grids built from text
+  changed for screens containing those characters, and so did their dedup
+  verdicts; a CRLF screen kept the rows of its LF form in both places.
+
 ### CI
 
 - **`.github/dependabot.yml` is schema-checked on the pull request that edits

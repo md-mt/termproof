@@ -149,6 +149,36 @@ class CaptureTest(unittest.TestCase):
         collector.capture("coloured", _Attributed())
         self.assertEqual(grid, collector.steps[0].attributed)
 
+    def test_only_a_newline_starts_a_new_row(self) -> None:
+        # `str.splitlines` breaks at every one of these, which made each of them
+        # the same grid as "a\nb" and so a duplicate of it (#243).
+        separators = ("\r", "\x0b", "\x0c", "\x1c", "\x1d", "\x1e", "\x85", "\u2028", "\u2029")
+        for separator in separators:
+            with self.subTest(separator=separator):
+                collector = EvidenceCollector()
+                collector.capture_text("reference", "a\nb")
+                collector.capture_text("from-text", f"a{separator}b")
+                collector.capture("from-source", static_source(f"a{separator}b"))
+                reference, from_text, from_source = collector.steps
+
+                self.assertEqual(2, reference.attributed.row_count)
+                self.assertEqual(1, from_text.attributed.row_count)
+                self.assertEqual(from_text.attributed, from_source.attributed)
+                deduper = Deduper()
+                self.assertIsNone(deduper.check(reference.label, reference.attributed))
+                self.assertIsNone(deduper.check(from_text.label, from_text.attributed))
+
+    def test_a_crlf_screen_is_the_same_rows_as_an_lf_one(self) -> None:
+        collector = EvidenceCollector()
+        collector.capture_text("lf", "a\nb\n")
+        collector.capture_text("crlf", "a\r\nb\r\n")
+        lf, crlf = collector.steps
+
+        self.assertEqual(["a", "b"], crlf.attributed.text_lines())
+        deduper = Deduper()
+        self.assertIsNone(deduper.check(lf.label, lf.attributed))
+        self.assertEqual("lf", deduper.check(crlf.label, crlf.attributed))
+
 
 class PublishTest(unittest.TestCase):
     def test_text_is_written_even_with_no_renderer(self) -> None:

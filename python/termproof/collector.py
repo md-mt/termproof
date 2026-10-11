@@ -84,7 +84,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Protocol
 
-from .attributed import DEFAULT_COLUMNS, DEFAULT_ROWS, AttributedScreen, attributed_screen_from_lines
+from .attributed import DEFAULT_COLUMNS, DEFAULT_ROWS, AttributedScreen, attributed_screen_from_text
 from .dedup import Deduper
 from .models import RunResult
 
@@ -471,8 +471,8 @@ class EvidenceCollector:
         )
 
     def _grid_from_text(self, screen: str) -> AttributedScreen:
-        return attributed_screen_from_lines(
-            screen.splitlines(), columns=self._columns, rows=self._rows
+        return attributed_screen_from_text(
+            screen, columns=self._columns, rows=self._rows
         )
 
     def attach_recording(self, recording: Recording) -> None:
