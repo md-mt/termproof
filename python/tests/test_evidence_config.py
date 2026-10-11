@@ -130,7 +130,7 @@ class CorpusByteIdentityTest(unittest.TestCase):
 
 
 class PngDefaultsTest(unittest.TestCase):
-    def _expected_png(self, text: str, output_path: Path, cols: int, rows: int) -> None:
+    def _expected_png(self, lines: list[str], output_path: Path, cols: int, rows: int) -> None:
         """The raster geometry the PNG renderer is meant to have, written out longhand.
 
         Everything here except the two colours is the renderer as it was before
@@ -141,6 +141,10 @@ class PngDefaultsTest(unittest.TestCase):
         not. The colours are the shared palette's (``DEFAULT_FG``/``DEFAULT_BG``)
         rather than the ``#101418`` literal this renderer used to carry, so the
         two screenshot formats of one run agree on what colour the terminal is.
+
+        ``lines`` is the screen as its rows of cells, spelled out by the caller.
+        The renderer gets there through the attributed grid; working the rows
+        out the same way here would only compare the grid with itself.
         """
         font = ImageFont.load_default()
         bbox = font.getbbox("M")
@@ -151,18 +155,20 @@ class PngDefaultsTest(unittest.TestCase):
         height = max(160, rows * line_height + padding * 2)
         image = Image.new("RGB", (int(width), int(height)), DEFAULT_BG)
         draw = ImageDraw.Draw(image)
-        for index, line in enumerate(text.splitlines()[:rows] or [""]):
+        for index, line in enumerate(lines):
             y = padding + line_height * index
-            draw.text((padding, y), line[:cols], font=font, fill=DEFAULT_FG)
+            draw.text((padding, y), line, font=font, fill=DEFAULT_FG)
         output_path.parent.mkdir(parents=True, exist_ok=True)
         image.save(output_path, format="PNG")
 
     def test_default_png_renderer_keeps_its_raster_geometry_and_canvas_floor(self) -> None:
         text = "hello png\nsecond line with a much longer body of text\n\ttab"
+        # The tab is the eight blank cells up to its stop, not a glyph.
+        lines = ["hello png", "second line with a much longer body of text", " " * 8 + "tab"]
         with tempfile.TemporaryDirectory() as tmp:
             expected = Path(tmp) / "expected.png"
             current = Path(tmp) / "current.png"
-            self._expected_png(text, expected, 80, 24)
+            self._expected_png(lines, expected, 80, 24)
             PngRenderer.from_config(_builtin_evidence()).render(text, current, 80, 24)
             self.assertEqual(expected.read_bytes(), current.read_bytes())
 

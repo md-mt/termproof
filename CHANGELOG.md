@@ -68,6 +68,13 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
   of those screens became one row. `EvidenceCollector` grids built from text
   changed for screens containing those characters, and so did their dedup
   verdicts; a CRLF screen kept the rows of its LF form in both places.
+  `PngRenderer` also stopped laying text out on its own: it drew the rows of
+  the grid `attributed_screen_from_text` builds, so the image and the grid
+  could not disagree about a screen. A C0 control or DEL was no longer drawn
+  or given a column, a tab was drawn as the blanks up to its stop, a combining
+  mark was composed onto its base, and a row ended at the column count in
+  cells, so a double-width glyph counted as two. PNGs of screens with none of
+  those were byte-identical to before.
 
 ### CI
 
