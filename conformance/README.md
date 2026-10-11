@@ -12,6 +12,7 @@ have to match. One per layer, each the same two-half shape:
 | Cast replay | `probe_cast_replay.py` | `tests/differential_cast_replay.rs` | `corpus/cast_replay_cases.json` |
 | Run result | `probe_run_result.py` | `tests/differential_run_result.rs` | `corpus/run_result.expected.json` |
 | Build info | `probe_build_info.py` | `tests/differential_build_info.rs` | `corpus/build_info.expected.json` |
+| Report | `probe_report.py` | `tests/differential_report.rs` | `corpus/report.expected.json` |
 
 They exist because the port claimed corpus parity several times over with green
 local gates, and a differential run against the Python implementation still
@@ -23,7 +24,7 @@ reproduce is not a measurement.
 The Rust halves compare against the checked-in `corpus/*.expected.json`
 files, so a Python-side behaviour change that nobody re-recorded leaves every
 gate green against stale testimony (#216, #172). `verify_oracle.py` closes
-that: it re-runs all seven probes the way the regeneration commands
+that: it re-runs all eight probes the way the regeneration commands
 below do (`uv run` from `python/`, so dependencies come from
 `python/uv.lock`), compares the fresh case payloads with the checked-in
 files in memory and exits non-zero with a per-file diff summary on any
@@ -33,7 +34,7 @@ mismatch. It never writes into `corpus/`.
 python3 conformance/verify_oracle.py
 ```
 
-The `environment` block three of the files carry is compared separately and
+The `environment` block four of the files carry is compared separately and
 reported field by field, not dropped: a payload difference always fails,
 while an environment difference only warns unless `--strict-environment` is
 given.
@@ -70,8 +71,8 @@ every pull request either way — so the rollup is a check a ruleset can
 require, which a job inside the path-filtered Python workflow never
 could be. Payload *and* environment must reproduce there. The pre-canonical recordings show why the pin has to
 be this explicit: they were made under Python 3.12.13, 3.13.2 and 3.13.5 —
-two of the three blocks naming Darwin, the cast-replay block naming no
-platform — so no single interpreter reproduced all three, and one
+three of the four blocks naming Darwin, the cast-replay block naming no
+platform — so no single interpreter reproduced all four, and one
 assertions case (`json_schema/invalid-json-trailing-comma`) carried
 CPython 3.12's wording for a JSON parse failure where 3.13 words it
 differently. Regenerating on whatever machine was at hand until the check
@@ -82,7 +83,7 @@ chosen environment makes it a reviewed diff instead.
 
 Re-record **only** in the canonical environment, through the manual
 `.github/workflows/oracle-regen.yml` workflow (`workflow_dispatch`). It
-pins the identical environment, regenerates all seven
+pins the identical environment, regenerates all eight
 `corpus/*.expected.json` files with the per-harness commands documented
 below, prints a `git diff --stat` summary, checks that the regenerated
 corpus reproduces (`--strict-environment`) in the same run, and uploads it
@@ -1019,3 +1020,109 @@ cargo test -p termproof --test differential_build_info -- --nocapture
 No `--features` is needed, and CI's `cargo test --workspace` runs it as it
 stands. A failure names the allowance whose pinned divergence moved, or
 prints the full pretty-printed documents side by side.
+
+# Report
+
+An eighth harness, same two-half shape, for the aggregate markdown report
+both CLIs write to disk: `ReportGenerator.generate_markdown` in Python,
+`evidence::report::generate_markdown` in Rust. The Rust function reads
+`result::RunResult` — the canonical result, not `models::RunResult`.
+
+## Shape
+
+| Half | Where | What it does |
+|---|---|---|
+| Oracle | `probe_report.py` | Drives the real Python generator over six fixed scenarios and records each case's `name` and `markdown` into `corpus/report.expected.json`. |
+| Port | `crates/termproof/tests/differential_report.rs` | Transcribes the same scenarios through the Rust generator and compares the markdown per case. |
+
+As with the run result, the scenarios are code in each half rather than a
+corpus of cases: a bare pass/fail pair, the same pair with a `BuildInfo`
+and with a `BeforeAfterResult`, artifact maps that are empty against ones
+whose values are empty strings, step and assertion details carrying
+newlines, and an empty results list — legal on both sides, rendering the
+header and table alone.
+
+Python has a second markdown path: `MarkdownReporter.generate` in
+`builtin_reporters.py` duplicates `ReportGenerator.generate_markdown`'s
+body over the shared `report_helpers`. The probe drives both on every
+case and fails if they part, so the recording covers the pair. Rust has
+one path; `generate_markdown_single` delegates to it.
+
+## The allowed differences
+
+Nobody has decided which side is the reference for this layer, and the
+pair has drifted on signature before wording (#209): the Python generator
+takes `build_info` and `before_after`, the Rust one takes neither. Each
+divergence below is a named allowance in the Rust test, asserted so it
+fails when the divergence stops existing; anything else differing fails
+the whole comparison. Nothing in either implementation changed to add
+this harness. The bare, multiline and empty cases agree byte for byte —
+multiline details are embedded verbatim, blank lines and all, on both
+sides.
+
+| Divergence | Python | Rust | Allowance |
+|---|---|---|---|
+| build provenance | `## Build Provenance` section under the header when `build_info` is given | no parameter, no section | `PYTHON_ONLY_BUILD_INFO_SECTION` |
+| before/after deltas | deltas markdown embedded under the header (with an extra blank line) when `before_after` is given | no parameter, no section | `PYTHON_ONLY_BEFORE_AFTER_SECTION` |
+| empty-string artifacts | suppressed (`if value:`); a result with only blank values shows `-` | rendered as empty links, `[screenshot]()` | `DIVERGENT_EVIDENCE_ROWS` |
+
+The two section allowances name their sections byte for byte, not as
+ignored suffixes: the test asserts the Rust document still lacks the
+section, inserts the pinned block where the Python generator puts it,
+and requires the result to equal the recorded document whole. The
+before/after text is additionally tied to this crate's real
+`build_before_after` rendering, which the harness above already pins —
+only the embedding is Python-only.
+
+## What it does and does not measure
+
+**Does**: the whole aggregate document per case — header counts, table
+columns and rows, evidence links including their key order and the
+ignoring of unknown artifact keys, the per-result detail sections,
+multiline details, and the empty list.
+
+**Does not**:
+
+- **A Rust build-info or before/after report rendering.** None exists to
+  exercise: the pinned sections are literals in the test (the
+  before/after one tied to `before_after`'s own markdown, as above). A
+  future Rust parameter or sibling function that renders them is not
+  called here until this harness is taught to call it.
+- **A verified provenance line.** The build-info scenario names a binary
+  that does not exist, so `Verified` records `no` on every host; the
+  `yes` spelling travels the same line but is unpinned. The fields the
+  report never renders — `timestamp`, `build_target`, `source_ref` —
+  are the build-info harness's, not this one's.
+- **Both optional sections at once.** Each is pinned alone; their
+  relative order in one document is not.
+- **Score spelling beyond `0.00`, `0.50` and `1.00`.** Other fractions'
+  rounding and any non-finite score are uncompared.
+- **The JUnit reporters, `generate_markdown_single`, `cli_summary`,
+  and the CLI writing the document to a file.** The comparison is over
+  the generated string, not over paths or file IO.
+
+## Regenerating the expectations
+
+```sh
+cd /path/to/termproof/python
+TERMPROOF_PYTHON_REPO=$PWD uv run python \
+    ../conformance/probe_report.py \
+    > ../conformance/corpus/report.expected.json
+```
+
+Only regenerate deliberately: the file is the oracle's testimony, and
+quietly re-recording it turns a failing comparison into a passing one
+without changing any behaviour.
+
+## Reading the result
+
+```sh
+cargo test -p termproof --test differential_report -- --nocapture
+```
+
+The report lives in the `evidence` module (default-on), so the test file
+carries the same `#![cfg(feature = "evidence")]` gate as the
+evidence-manifest harness: without the feature there is no generator to
+compare and the file compiles to no tests. Under default features CI's
+`cargo test --workspace` runs it as it stands. A failure names the case,
+or the allowance whose pinned divergence moved.
