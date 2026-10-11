@@ -23,7 +23,7 @@ reproduce is not a measurement.
 The Rust halves compare against the checked-in `corpus/*.expected.json`
 files, so a Python-side behaviour change that nobody re-recorded leaves every
 gate green against stale testimony (#216, #172). `verify_oracle.py` closes
-that locally: it re-runs all seven probes the way the regeneration commands
+that: it re-runs all seven probes the way the regeneration commands
 below do (`uv run` from `python/`, so dependencies come from
 `python/uv.lock`), compares the fresh case payloads with the checked-in
 files in memory and exits non-zero with a per-file diff summary on any
@@ -36,30 +36,64 @@ python3 conformance/verify_oracle.py
 The `environment` block three of the files carry is compared separately and
 reported field by field, not dropped: a payload difference always fails,
 while an environment difference only warns unless `--strict-environment` is
-given. That asymmetry is forced by the recordings themselves — they were
-made under Python 3.12.13, 3.13.2 and 3.13.5 (two of the three blocks record
-Darwin as the platform; the cast-replay block records no platform at all), so
-no single interpreter reproduces all three blocks. At the commit that added the check,
-a fresh run under 3.13.2 on Darwin matched four files and differed in one
-assertions case (`json_schema/invalid-json-trailing-comma`), whose recorded
-detail is CPython 3.12's wording for a JSON parse failure where 3.13 words
-it differently. The expectation was left as recorded: whether to re-record
-it, and under which interpreter, is the recording-environment decision
-below, not something to settle by regenerating until the check goes quiet.
+given.
 
-CI deliberately does not run this yet. `python-ci.yml` runs on Ubuntu while
-every recording that names a platform names Darwin, and neither the interpreter patch
-version nor the operating system is pinned anywhere in the repository —
-`uv.lock` pins dependencies only. A blocking Ubuntu job added today would
-fail on environment-owned wording (or pass by accident on one interpreter
-in the matrix) and could not distinguish that from the drift it exists to
-catch. Wiring it in first needs the recorded files re-recorded in one chosen
-environment and a job whose runner and interpreter are pinned to that
-environment; that is follow-up work on #216/#172, recorded here rather than
-approximated with a digest or a runner nobody has verified against the
-corpus. Until then, run the check locally before and after touching Python
-behaviour a harness compares, and read any diff it prints before deciding
-which side moved.
+### The canonical environment
+
+Expectations encode behaviour that belongs partly to the machine that
+observed it — CPython, libc and `ptyprocess` wording (#172) — so the
+environment they were observed in is pinned, and recorded in each file's
+`environment` block where its probe emits one. The canonical recording
+environment is:
+
+- the GitHub Actions **`ubuntu-24.04`** runner (pinned, not
+  `ubuntu-latest`),
+- **CPython 3.13**, via `actions/setup-python` with `python-version: "3.13"`,
+- dependencies from **`python/uv.lock`** (`uv run` from `python/`).
+
+CI holds the corpus to exactly that environment: the `oracle` job in
+`.github/workflows/python-ci.yml` pins the runner and interpreter above and
+runs `python3 conformance/verify_oracle.py --strict-environment` from the
+repository root, with no `continue-on-error`. Payload *and* environment
+must reproduce there. The pre-canonical recordings show why the pin has to
+be this explicit: they were made under Python 3.12.13, 3.13.2 and 3.13.5 —
+two of the three blocks naming Darwin, the cast-replay block naming no
+platform — so no single interpreter reproduced all three, and one
+assertions case (`json_schema/invalid-json-trailing-comma`) carried
+CPython 3.12's wording for a JSON parse failure where 3.13 words it
+differently. Regenerating on whatever machine was at hand until the check
+went quiet would have laundered that difference away; recording in one
+chosen environment makes it a reviewed diff instead.
+
+### Re-recording
+
+Re-record **only** in the canonical environment, through the manual
+`.github/workflows/oracle-regen.yml` workflow (`workflow_dispatch`). It
+pins the identical environment, regenerates all seven
+`corpus/*.expected.json` files with the per-harness commands documented
+below, prints a `git diff --stat` summary, checks that the regenerated
+corpus reproduces (`--strict-environment`) in the same run, and uploads it
+as the single `oracle-corpus` artifact. It holds only `contents: read` —
+no push and no pull request from CI. Download the artifact, replace
+`conformance/corpus/*.expected.json` with its contents, read the diff
+file by file, and land it through a reviewed pull request; producing the
+testimony and accepting it stay two separate acts. Changing the canonical
+environment itself means changing the pinned runner/interpreter in both
+workflows together and re-recording this way in the same reviewed change.
+
+### Local runs are diagnostics
+
+Run `python3 conformance/verify_oracle.py` locally before and after
+touching Python behaviour a harness compares, and read any diff it prints
+before deciding which side moved. A local machine is not the canonical
+environment: environment-block differences (interpreter patch version,
+platform) and environment-owned payload wording (CPython/libc messages)
+are expected there, which is why the local default reports rather than
+fails on them. Report those differences; do not commit expectations
+regenerated on a local machine. The "Regenerating the expectations"
+commands in each harness section below are the exact commands the
+`oracle-regen` workflow runs — locally they exist for inspecting fresh
+probe output, not for producing files to commit.
 
 # Step semantics
 
