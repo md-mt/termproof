@@ -262,6 +262,55 @@ class ReleaseDocsTest(unittest.TestCase):
         )
         self.assertIn("ENABLE_PYPI", skip_step["run"])
 
+    def test_the_release_job_checks_out_full_history_for_its_test_gate(self) -> None:
+        """The release job runs the full suite as its gate, over real history.
+
+        The release job does not merely build: its "Run unit tests" step runs
+        the whole suite before anything is published, and parts of that suite
+        shell out to `.github/scripts/rust/release-decide.py` over reachable
+        history to render release notes. A depth-1 checkout of the `py-v*`
+        tag collapses that range to the single `chore(release)` commit, which
+        the notes renderer drops by design, so the notes come back with no
+        `### ` sections and
+        `ReleaseNotesForATagThatAlreadyExistsTest.test_the_notes_are_not_empty`
+        fails — which is what failed the first `py-v0.4.3` run (run
+        38181505697, 1 of 992 tests) and published nothing. #214 gave the
+        CI (Python) test jobs `fetch-depth: 0` for the same reason; this pins
+        the release job too.
+        """
+        workflow = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
+        gating = [
+            (name, job)
+            for name, job in workflow["jobs"].items()
+            if any(step.get("name") == "Run unit tests" for step in job.get("steps", []))
+        ]
+        self.assertEqual(
+            1,
+            len(gating),
+            "expected exactly one job in python-release.yml to run the "
+            f"'Run unit tests' gate, found {[name for name, _ in gating]}",
+        )
+        job_name, job = gating[0]
+        checkouts = [
+            step
+            for step in job["steps"]
+            if str(step.get("uses", "")).startswith("actions/checkout@")
+        ]
+        self.assertTrue(
+            checkouts,
+            f"job {job_name!r} in python-release.yml has no actions/checkout step",
+        )
+        checkout = checkouts[0]
+        self.assertEqual(
+            "0",
+            str((checkout.get("with") or {}).get("fetch-depth")),
+            f"job {job_name!r} in python-release.yml runs the full unit "
+            "suite as its release gate and must check out full history "
+            "(`with: fetch-depth: 0`); a depth-1 tag checkout collapses "
+            "the release-notes range to the dropped chore(release) commit "
+            "and fails the release, as in the first py-v0.4.3 run",
+        )
+
 
 class DifferentialHarnessPackagingTest(unittest.TestCase):
     """Every differential harness on disk must be kept out of the tarball.
