@@ -41,7 +41,17 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
 
 ## [Unreleased]
 
-Nothing yet.
+### CI
+
+- **The Python release workflow checked out full history.**
+  `python-release.yml`'s release job, which runs the full unit suite as
+  its gate before publishing, took `fetch-depth: 0` like the CI (Python)
+  test jobs (#214), so the gate saw the same history CI did. Its depth-1
+  default had collapsed the `release-decide.py` notes range on the
+  `py-v0.4.3` tag to the single `chore(release)` commit the renderer
+  drops, which failed the first `py-v0.4.3` run at its test gate (run
+  38181505697, 1 of 992 tests) and published nothing. A guard test in
+  `test_release_docs.py` pinned the checkout depth.
 
 ## [0.4.3] — 2026-10-11
 
