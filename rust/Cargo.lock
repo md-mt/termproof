@@ -2041,7 +2041,7 @@ dependencies = [
 
 [[package]]
 name = "termproof"
-version = "0.4.2"
+version = "0.4.3"
 dependencies = [
  "avt",
  "chrono",
@@ -2068,7 +2068,7 @@ dependencies = [
 
 [[package]]
 name = "termproof-cli"
-version = "0.4.2"
+version = "0.4.3"
 dependencies = [
  "clap",
  "serde_json",
@@ -2077,7 +2077,7 @@ dependencies = [
 
 [[package]]
 name = "termproof-plugin-protocol"
-version = "0.4.2"
+version = "0.4.3"
 dependencies = [
  "serde",
  "serde_json",

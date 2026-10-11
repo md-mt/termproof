@@ -41,6 +41,10 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.4.3] — 2026-10-11
+
 ### Python — Added
 
 - **`PublishTarget` was exported from `termproof.protocols` (and from
