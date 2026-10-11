@@ -92,6 +92,23 @@ def _uv_pin(job: dict) -> tuple[str, str]:
     return str(step["uses"]), str(step["with"]["version"])
 
 
+def _diff_pathspecs(run: str, flag: str) -> list[str]:
+    """The pathspecs after `--` in the `git diff <flag> ...` command."""
+    logical = run.replace("\\\n", " ")
+    line = next(
+        line for line in logical.splitlines() if f"git diff {flag}" in line
+    )
+    _, _, pathspecs = line.partition(" -- ")
+    result: list[str] = []
+    for token in pathspecs.split():
+        if token in {"||", ";;"} or token.startswith("status="):
+            break
+        result.append(token.removesuffix(";;"))
+        if token.endswith(";;"):
+            break
+    return result
+
+
 class OracleGateWorkflowTest(unittest.TestCase):
     def setUp(self) -> None:
         self.workflow = _workflow("oracle-ci.yml")
@@ -123,9 +140,16 @@ class OracleGateWorkflowTest(unittest.TestCase):
             for step in changes["steps"]
             if "git diff --quiet" in str(step.get("run", ""))
         )
-        for pathspec in ORACLE_PATHSPECS:
-            with self.subTest(pathspec=pathspec):
-                self.assertIn(pathspec, step["run"])
+        # Target the --quiet diff specifically: it is the one whose exit
+        # status decides, so a pathspec surviving only in the --name-only
+        # echo must not satisfy this. The echo must agree exactly too.
+        self.assertEqual(
+            list(ORACLE_PATHSPECS), _diff_pathspecs(step["run"], "--quiet")
+        )
+        self.assertEqual(
+            list(ORACLE_PATHSPECS),
+            _diff_pathspecs(step["run"], "--name-only"),
+        )
 
     def test_the_gate_pins_the_canonical_environment(self) -> None:
         self.assertEqual(
@@ -168,6 +192,15 @@ class OracleGateWorkflowTest(unittest.TestCase):
         self.assertEqual("Oracle freshness result", result["name"])
         self.assertEqual(["changes", "oracle"], result["needs"])
         self.assertEqual("always()", result["if"])
+        # Mirror the gate job: the job's only `if:` is the `always()`
+        # above, its sole step may not add one of its own, and nothing
+        # may continue on error — a rollup that could skip or swallow
+        # its only step would report a pass it never decided.
+        self.assertNotIn("continue-on-error", result)
+        self.assertEqual(1, len(result["steps"]))
+        for step in result["steps"]:
+            self.assertNotIn("continue-on-error", step)
+            self.assertNotIn("if", step)
         step = result["steps"][0]
         self.assertEqual(
             "${{ needs.changes.result }}", step["env"]["CHANGES_RESULT"]
@@ -181,7 +214,11 @@ class OracleGateWorkflowTest(unittest.TestCase):
         )
         # Mirrors `CI (Rust) result`: a skip passes only on an explicit
         # `oracle=false`, and every other non-success is a failure.
+        self.assertIn(
+            'if [ "$CHANGES_RESULT" != "success" ]; then', step["run"]
+        )
         self.assertIn('case "$ORACLE_RESULT" in', step["run"])
+        self.assertIn("success)", step["run"])
         self.assertIn('"$ORACLE_CHANGED" != "false"', step["run"])
         self.assertIn("exit 1", step["run"])
 

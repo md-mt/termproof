@@ -48,7 +48,7 @@ jobs:
     steps:
       # Full history: the base of the comparison is a commit named by the
       # event, and a shallow clone holds only the head.
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       # A pull request is compared against its base and a push against the

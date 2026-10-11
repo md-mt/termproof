@@ -102,8 +102,11 @@ checked-in corpus still carries its pre-canonical `environment` blocks
 (Darwin, mixed CPython patches), and `Oracle freshness result` fails
 until the first re-record produced this way is reviewed and landed. Do
 **not** make `Oracle freshness result` a required check before that
-bootstrap re-record is green — a required red gate would deadlock the
-very pull request carrying the regenerated corpus. It is recorded as
+bootstrap re-record is green — a required red gate would block the
+gate-carrying pull request itself and every oracle-touching pull request
+until the re-record lands (the re-record pull request itself is not the
+blocked one: its head carries the regenerated corpus, so the gate runs
+green against its own corpus). It is recorded as
 planned-required after bootstrap in `rust/docs/governance.md` §5.
 
 ### Local runs are diagnostics

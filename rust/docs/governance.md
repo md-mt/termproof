@@ -158,7 +158,10 @@ still not required because the gate lands red: the checked-in corpus carries
 pre-canonical `environment` blocks (Darwin, mixed CPython patches), and the
 first canonical re-record can only be dispatched once `oracle-regen.yml` is
 on the default branch. Requiring it before that re-record is green would
-deadlock the very PR carrying the regenerated corpus. **After** the bootstrap
+block the gate-carrying PR itself and every oracle-touching PR until the
+re-record lands (the re-record PR itself is not the blocked one: its head
+carries the regenerated corpus, so the gate runs green against its own
+corpus). **After** the bootstrap
 re-record lands and `Oracle freshness result` is green on `main`, the
 coordinator adds the exact context `Oracle freshness result` to ruleset
 `24859051` (`main: require CI (Rust) result`), and this paragraph and
