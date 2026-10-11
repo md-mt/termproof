@@ -37,14 +37,8 @@ jobs:
       id-token: write
 
     steps:
-      # Full history, matching CI (Python) (#214): this job runs the full
-      # unit suite as its gate, and parts of that suite (and release-decide.py,
-      # which it shells out to) read whole history. A shallow tag checkout
-      # fails the release here rather than merely testing less.
       - name: Check out repository
         uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v7

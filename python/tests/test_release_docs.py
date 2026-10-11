@@ -291,14 +291,19 @@ class ReleaseDocsTest(unittest.TestCase):
             f"'Run unit tests' gate, found {[name for name, _ in gating]}",
         )
         job_name, job = gating[0]
-        checkout = next(
+        checkouts = [
             step
             for step in job["steps"]
             if str(step.get("uses", "")).startswith("actions/checkout@")
+        ]
+        self.assertTrue(
+            checkouts,
+            f"job {job_name!r} in python-release.yml has no actions/checkout step",
         )
+        checkout = checkouts[0]
         self.assertEqual(
-            0,
-            (checkout.get("with") or {}).get("fetch-depth"),
+            "0",
+            str((checkout.get("with") or {}).get("fetch-depth")),
             f"job {job_name!r} in python-release.yml runs the full unit "
             "suite as its release gate and must check out full history "
             "(`with: fetch-depth: 0`); a depth-1 tag checkout collapses "
