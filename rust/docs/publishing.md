@@ -327,8 +327,9 @@ The published tarballs are deliberately smaller than the repository:
   crate directory, so it is never packaged. It is a measurement artefact for
   contributors, not something a consumer of the library needs.
 - **`crates/termproof/tests/differential_steps.rs`,
-  `differential_assertions.rs`, `differential_before_after.rs` and
-  `differential_cast_replay.rs`** — excluded explicitly. They replay `conformance/corpus/`, so without it they cannot run;
+  `differential_assertions.rs`, `differential_before_after.rs`,
+  `differential_cast_replay.rs` and `differential_run_result.rs`** — excluded
+  explicitly. They replay `conformance/corpus/`, so without it they cannot run;
   shipping tests that cannot run is worse than not shipping them. Run them from
   a repository checkout.
 - **`specs/`, `docs/`, `.github/`** — repository root, never packaged.
