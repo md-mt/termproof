@@ -176,7 +176,7 @@ schemars = { version = "0.8", features = ["preserve_order"] }
 # build graph, a downstream consumer enabling it would break this crate's
 # compilation rather than merely widening a number type; enabling it here
 # means changing that rendering first.
-jsonschema = { version = ">=0.56, <0.57" }
+jsonschema = { version = ">=0.56, <0.59" }
 # 0.9, not 0.8, because `ExitStatus::signal()` is 0.9's, and
 # `PtySession::exit_signal` is the published accessor that reads it.
 #
