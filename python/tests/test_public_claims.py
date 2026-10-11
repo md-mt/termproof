@@ -295,6 +295,66 @@ class PublicClaimsTest(unittest.TestCase):
                     )
         self.assertEqual([], sorted(offenders), "\n" + "\n".join(sorted(offenders)))
 
+    def test_referenced_workflow_files_exist(self) -> None:
+        """A named workflow file must be a tracked file (#188).
+
+        Consolidation renamed the workflow files, and the pre-consolidation
+        names survived in workflow comments and in user-facing ``::error::``
+        messages — a reader following one was sent to a workflow that does
+        not exist. Existence is checkable against the tracked tree, so it
+        is checked rather than swept by hand a fifth time. A token counts
+        as workflow-like when one of its hyphen/dot segments names the
+        workflow vocabulary; existence is by basename anywhere tracked, so
+        the plugin template's own workflow and ``.github/dependabot.yml``
+        pass without exemptions.
+        """
+        listing = subprocess.run(
+            ["git", "ls-files", "-z"], cwd=REPO_ROOT, check=True,
+            capture_output=True, text=True,
+        ).stdout
+        tracked = {Path(name).name for name in listing.split("\0") if name}
+        self.assertIn("rust-ci.yml", tracked, "tracked enumeration collapsed")
+        token_re = re.compile(r"[\w.-]+\.ya?ml\b")
+        vocabulary = {"ci", "release", "publish", "security", "docker",
+                      "pages", "oracle", "dependabot"}
+        offenders = []
+        for path in _tracked_surfaces():
+            text = _sweepable_text(path, path.read_text(encoding="utf-8", errors="replace"))
+            for match in token_re.finditer(text):
+                token = match.group(0)
+                if not vocabulary & set(re.split(r"[-.]", token.lower())):
+                    continue
+                if token not in tracked:
+                    line = text[: match.start()].count("\n") + 1
+                    offenders.append(f"{path.relative_to(REPO_ROOT).as_posix()}:{line}: {token!r}")
+        self.assertEqual([], sorted(offenders), "\n" + "\n".join(sorted(offenders)))
+
+    def test_referenced_spec_paths_exist(self) -> None:
+        """A concrete ``spec/NNN-…`` reference must resolve (#188).
+
+        The spec tree moved to ``spec/`` at consolidation; references under
+        the plural name pointed nowhere. Only concrete references (a
+        numbered spec or the observation log) are checked — the
+        ``NNN-short-name`` pattern in the constitution is a pattern, not a
+        path. Vendored SpecKit templates and skills are skipped: they
+        document the tool's own defaults and examples, are hash-pinned by
+        its manifest, and make no claim about this tree.
+        """
+        spec_re = re.compile(r"\bspecs?/(?:\d{3}-[\w./-]*|OBSERVATION-LOG\.md)")
+        vendored = ("rust/.specify/templates/", "rust/.claude/")
+        offenders = []
+        for path in _tracked_surfaces():
+            relative = path.relative_to(REPO_ROOT).as_posix()
+            if relative.startswith(vendored):
+                continue
+            text = _sweepable_text(path, path.read_text(encoding="utf-8", errors="replace"))
+            for match in spec_re.finditer(text):
+                ref = match.group(0).rstrip("./")
+                if not (REPO_ROOT / ref).exists():
+                    line = text[: match.start()].count("\n") + 1
+                    offenders.append(f"{relative}:{line}: {ref!r}")
+        self.assertEqual([], sorted(offenders), "\n" + "\n".join(sorted(offenders)))
+
     def test_the_changelog_exclusion_keeps_the_live_section(self) -> None:
         """Guard the guard: the exclusion must not swallow the whole file.
 

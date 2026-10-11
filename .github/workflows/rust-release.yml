@@ -26,7 +26,7 @@
 #
 # One action — the Auto-release workflow finishing — fires two things from two
 # different events. Pushing the tag starts this build; publishing the release,
-# a few seconds later, starts publish-crates.yml. They run concurrently.
+# a few seconds later, starts rust-publish-crates.yml. They run concurrently.
 #
 # That means a crates.io publish can succeed while this build fails. Those two
 # outcomes are not equally bad, and the asymmetry is worth stating: a crates.io
@@ -38,7 +38,7 @@
 #
 # The reverse — attaching binaries before committing to crates.io — would need
 # the release to be created as a draft and published only after this build
-# succeeded. That is a change to publish-crates.yml's trigger contract, not to
+# succeeded. That is a change to rust-publish-crates.yml's trigger contract, not to
 # this file, and it is not made here.
 #
 # ## A tag pushed by hand is a whole release on its own
@@ -57,11 +57,11 @@
 #
 # That step must use RELEASE_TOKEN, for the reason rust-auto-release.yml's
 # header gives at length: a release created with the default `GITHUB_TOKEN`
-# does not start publish-crates.yml, and nothing can be re-run to fix it after
+# does not start rust-publish-crates.yml, and nothing can be re-run to fix it after
 # the fact. A missing token therefore fails this job rather than creating a
 # release that can never publish.
 #
-# One consequence is worth stating plainly, because publish-crates.yml's header
+# One consequence is worth stating plainly, because rust-publish-crates.yml's header
 # says that workflow cannot be hand-triggered into publishing and a reader will
 # generalise it. Dispatching *this* workflow against an `rs-v*` tag takes the
 # same path a tag push does, so it can create a release, and a release is what
@@ -255,7 +255,7 @@ jobs:
       # Only reached for a hand-pushed tag. This is the step that makes that
       # path a complete release rather than a build with nowhere to put its
       # output: creating and publishing the release is also what triggers
-      # publish-crates.yml, which is the only thing that uploads to crates.io.
+      # rust-publish-crates.yml, which is the only thing that uploads to crates.io.
       - name: Create the release the tag push did not
         if: steps.wait.outputs.exists != 'true'
         env:
@@ -265,7 +265,7 @@ jobs:
           TAG: ${{ github.ref_name }}
         run: |
           # Not an optimisation. A release created with the default
-          # `GITHUB_TOKEN` does not start publish-crates.yml — GitHub
+          # `GITHUB_TOKEN` does not start rust-publish-crates.yml — GitHub
           # suppresses those events — and that workflow uploads on
           # `release: published` and nothing else, so no re-run could recover
           # it. Failing here leaves a tag with no release, which is fixable.
@@ -274,13 +274,13 @@ jobs:
             exit 1
           fi
 
-          # The same check publish-crates.yml makes on `release: published`,
+          # The same check rust-publish-crates.yml makes on `release: published`,
           # made before the release exists rather than after — a release this
           # job creates and that workflow then refuses would publish nothing,
           # which is the failure this whole path is here to remove.
           VERSION="$(.github/scripts/rust/publish-plan.py | jq -r .version)"
           if [ "$TAG" != "rs-v$VERSION" ]; then
-            echo "::error::tag '$TAG' does not match the workspace version '$VERSION' at this commit — expected 'rs-v$VERSION'. publish-crates.yml would refuse a release on this tag, so none is created. Delete the tag and re-cut it, or bump the version."
+            echo "::error::tag '$TAG' does not match the workspace version '$VERSION' at this commit — expected 'rs-v$VERSION'. rust-publish-crates.yml would refuse a release on this tag, so none is created. Delete the tag and re-cut it, or bump the version."
             exit 1
           fi
 
@@ -393,7 +393,7 @@ jobs:
           echo "release $TAG exists"
 
       # The set comes from the plan, never from a list written here — the same
-      # property publish-crates.yml has, and for the same reason: a name
+      # property rust-publish-crates.yml has, and for the same reason: a name
       # written down is a name that goes stale the first time the publish set
       # changes, and the failure mode is a check that passes over a crate
       # nobody uploaded.
