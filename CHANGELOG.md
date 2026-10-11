@@ -41,6 +41,35 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
 
 ## [Unreleased]
 
+### Python — Added
+
+- **`PublishTarget` was exported from `termproof.protocols` (and from
+  `termproof` itself).** It is the payload of a publisher's optional
+  `from_target` hook, but until now a third-party publisher had to import
+  it from `termproof.evidence_publish` — the CLI module holding
+  `_upload_file` and the argument parser — which contradicted the
+  documented rule that new plugins import protocol types from
+  `termproof.protocols`, the way `EvidenceConfig` already worked. The
+  dataclass moved to `termproof.models` beside `PublishedArtifact`, so
+  `termproof.protocols`, `termproof`, `termproof.models`, and the old
+  `termproof.evidence_publish` location all name the one class and
+  existing imports kept working. The shipped plugin template's example
+  publisher switched to the `termproof.protocols` import
+  ([#165](https://github.com/md-mt/termproof/issues/165)).
+
+### Python — Changed
+
+- **`StepAwareAssertionType` was demoted in the docs from a peer protocol
+  to a signature variant of `AssertionType`.** Everything satisfying it
+  also satisfies `AssertionType` — it is an alternative `evaluate`
+  signature, not a new capability — so `docs/plugin-protocols.md` and the
+  docs-site API page now present it under `AssertionType`, the way
+  `render_attributed` is presented under `ScreenRenderer`, instead of as
+  a tenth stable-protocol row. The class, its signature, and its exports
+  did not change; only the presentation and the protocol count a reader
+  would take from the tables did
+  ([#165](https://github.com/md-mt/termproof/issues/165)).
+
 ### Python — Fixed
 
 - **Published screenshot evidence no longer dropped `steps-manifest.json`.**

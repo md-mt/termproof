@@ -6,13 +6,12 @@ import os
 import shutil
 import subprocess
 from collections.abc import Iterable
-from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 from urllib.parse import quote
 
 from .config import VerifierConfig, load_config
-from .models import PublishedArtifact
+from .models import PublishedArtifact, PublishTarget
 from .registry import import_class
 
 if TYPE_CHECKING:
@@ -129,21 +128,12 @@ def rewrite_video_links(text: str, root: Path, url_prefix: str) -> str:
 # ---------------------------------------------------------------------------
 # Artifact publishing
 # ---------------------------------------------------------------------------
-
-
-@dataclass(frozen=True)
-class PublishTarget:
-    """Where a publisher should put artifacts, as supplied by CLI or environment.
-
-    These are deployment credentials and addresses rather than project
-    settings, so they are passed at publish time instead of being read from
-    ``.termproof/config.yaml``, which is checked in.
-    """
-
-    bucket: str = ""
-    endpoint_url: str | None = None
-    base_url: str = ""
-    dry_run: bool = False
+#
+# ``PublishTarget`` is defined in ``termproof.models`` beside
+# ``PublishedArtifact`` and re-exported from ``termproof.protocols``, so a
+# third-party publisher can type its ``from_target`` hook without importing
+# this CLI module. It is imported here for this module's own use, which
+# keeps ``termproof.evidence_publish.PublishTarget`` working as before.
 
 
 class S3ArtifactPublisher:

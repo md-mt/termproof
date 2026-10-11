@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import importlib.util
 import inspect
 import unittest
+from pathlib import Path
 
 import termproof
 from termproof import protocols
@@ -18,6 +20,7 @@ class ProtocolApiTests(unittest.TestCase):
                 "ExecutionMode",
                 "PngRenderConfig",
                 "PublishedArtifact",
+                "PublishTarget",
                 "Reporter",
                 "ScreenRenderer",
                 "SessionBackend",
@@ -104,6 +107,53 @@ class ProtocolApiTests(unittest.TestCase):
         self.assertNotIn(
             "steps", inspect.signature(protocols.AssertionType.evaluate).parameters
         )
+
+    def test_publish_target_is_one_object_across_its_import_locations(self) -> None:
+        """``PublishTarget`` is the ``from_target`` payload, so it lives where
+        the docs say protocol types live (#165).
+
+        A third-party publisher types its hook against
+        ``termproof.protocols``; the CLI builds the target through
+        ``termproof.evidence_publish``. The two locations must name the
+        same class or ``isinstance`` reasoning about a target the CLI
+        handed over would silently disagree with the plugin's annotation.
+        """
+        from termproof.evidence_publish import PublishTarget as CliPublishTarget
+        from termproof.models import PublishTarget as ModelPublishTarget
+        from termproof.protocols import PublishTarget as ProtocolPublishTarget
+
+        self.assertIs(ProtocolPublishTarget, CliPublishTarget)
+        self.assertIs(ProtocolPublishTarget, ModelPublishTarget)
+        self.assertIs(termproof.PublishTarget, ProtocolPublishTarget)
+
+    def test_plugin_template_publisher_imports_resolve(self) -> None:
+        """The shipped template is the worked example of the import policy.
+
+        Its publisher used to reach into ``termproof.evidence_publish``
+        for ``PublishTarget`` because no public surface exported it (#165).
+        Loading the module proves the ``termproof.protocols`` import it
+        now carries resolves against this tree.
+        """
+        template = (
+            Path(__file__).resolve().parents[1]
+            / "plugin-template"
+            / "src"
+            / "termproof_my_plugin"
+            / "publishers.py"
+        )
+        if not template.is_file():
+            self.skipTest("plugin template is not part of this checkout")
+        self.assertIn(
+            "from termproof.protocols import PublishTarget",
+            template.read_text(encoding="utf-8"),
+        )
+        spec = importlib.util.spec_from_file_location(
+            "termproof_my_plugin_publishers_under_test", template
+        )
+        assert spec is not None and spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        self.assertIs(module.PublishTarget, protocols.PublishTarget)
 
     def test_legacy_protocol_import_locations_reexport_public_protocols(self) -> None:
         from termproof.agent_driven import AgentRunner
