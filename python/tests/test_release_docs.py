@@ -263,5 +263,64 @@ class ReleaseDocsTest(unittest.TestCase):
         self.assertIn("ENABLE_PYPI", skip_step["run"])
 
 
+class DifferentialHarnessPackagingTest(unittest.TestCase):
+    """Every differential harness on disk must be kept out of the tarball.
+
+    The differential tests replay `conformance/corpus/`, which lives at the
+    repository root and is deliberately not shipped. A harness that is not
+    registered in the package exclusion lists rides into the published
+    termproof tarball, where it cannot run: a registry checkout has no
+    corpus for it to replay. Registration lives in three places that must
+    agree — the `exclude` list in the crate manifest (what cargo honours),
+    the forbidden list in `verify-package-contents.sh` (what CI checks the
+    tarball against), and the "What is not shipped" enumeration in
+    `rust/docs/publishing.md` (what the publishing contract promises).
+    Nothing connected the files on disk to any of the three, so a new
+    harness could land unregistered in all of them at once, which is what
+    happened to `differential_evidence_manifest.rs`.
+    """
+
+    TESTS_DIR = REPO_ROOT / "rust" / "crates" / "termproof" / "tests"
+    CARGO_TOML = REPO_ROOT / "rust" / "crates" / "termproof" / "Cargo.toml"
+    VERIFY_SCRIPT = REPO_ROOT / ".github" / "scripts" / "rust" / "verify-package-contents.sh"
+    PUBLISHING_DOCS = REPO_ROOT / "rust" / "docs" / "publishing.md"
+
+    def _harnesses_on_disk(self) -> list[str]:
+        return sorted(path.name for path in self.TESTS_DIR.glob("differential_*.rs"))
+
+    def test_every_harness_on_disk_is_registered_in_all_three_lists(self) -> None:
+        harnesses = self._harnesses_on_disk()
+        self.assertTrue(harnesses, f"no differential_*.rs under {self.TESTS_DIR}; did it move?")
+        missing = []
+        for path in (self.CARGO_TOML, self.VERIFY_SCRIPT, self.PUBLISHING_DOCS):
+            text = path.read_text(encoding="utf-8")
+            relative = path.relative_to(REPO_ROOT).as_posix()
+            for harness in harnesses:
+                if harness not in text:
+                    missing.append(f"{relative} does not name {harness}")
+        self.assertEqual(
+            [],
+            missing,
+            "an unregistered differential harness ships in the termproof "
+            "tarball but cannot run without the unshipped conformance "
+            "corpus; register it in the Cargo.toml exclude list, the "
+            "verify-package-contents.sh forbidden list and the "
+            "publishing.md enumeration:\n" + "\n".join(missing),
+        )
+
+    def test_every_excluded_harness_in_the_manifest_exists_on_disk(self) -> None:
+        text = self.CARGO_TOML.read_text(encoding="utf-8")
+        exclude = text.split("exclude = [", 1)[1].split("]", 1)[0]
+        named = re.findall(r"tests/(differential_[\w]+\.rs)", exclude)
+        self.assertTrue(named, "no differential harness in the exclude list")
+        stale = [name for name in named if not (self.TESTS_DIR / name).exists()]
+        self.assertEqual(
+            [],
+            stale,
+            "the Cargo.toml exclude list names differential harnesses that "
+            "are not on disk; drop the stale entries:\n" + "\n".join(stale),
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
