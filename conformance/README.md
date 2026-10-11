@@ -10,6 +10,7 @@ have to match. One per layer, each the same two-half shape:
 | Evidence manifest | `probe_evidence_manifest.py` | `tests/differential_evidence_manifest.rs` | `corpus/evidence_manifest.expected.json` |
 | Before/after | `probe_before_after.py` | `tests/differential_before_after.rs` | `corpus/before_after_cases.json` |
 | Cast replay | `probe_cast_replay.py` | `tests/differential_cast_replay.rs` | `corpus/cast_replay_cases.json` |
+| Run result | `probe_run_result.py` | `tests/differential_run_result.rs` | `corpus/run_result.expected.json` |
 
 They exist because the port claimed corpus parity several times over with green
 local gates, and a differential run against the Python implementation still
@@ -758,3 +759,57 @@ the cursor, and a residual recorded by name would have passed it unchanged.
 This is a difference between the two emulators and not the plain-text
 constructor's width rule in #224, which involves no emulator at all. It is
 recorded here rather than fixed — tracked in #209.
+
+# Run result
+
+A sixth harness, same two-half shape, for the document a finished run leaves
+behind: `RunResult` serialised as `result.json`.
+
+## Shape
+
+| Half | Where | What it does |
+|---|---|---|
+| Oracle | `probe_run_result.py` | Records `RunResult.to_dict` for a fixed two-result scenario into `corpus/run_result.expected.json`. |
+| Port | `crates/termproof/tests/differential_run_result.rs` | Builds the same scenario, serialises it, and compares the whole documents apart from the allowed keys below. |
+
+As with the evidence manifest, the scenario is code in each half rather than
+a corpus of cases: one populated result, so the nested step and assertion
+documents are compared too, and one empty result, where `exit_code` is
+`null` and every list is empty. This is a shape comparison over fixed
+values; it does not measure how either runner computes a result.
+
+## The one allowed difference
+
+The Rust document carries `result_version` (`RESULT_SCHEMA_VERSION`, stamped
+by `runner` on every result it produces); the
+Python document has no such key — #209 item 1, recorded rather than fixed in
+either implementation. The allowance is the named
+`ALLOWED_RUST_ONLY_KEYS` constant in the Rust test, never a regenerated or
+hand-edited expectation, and it is asserted in both directions: Rust must
+still write the key with the current version and the recorded Python
+document must still lack it, so the test fails when the divergence stops
+existing and the allowance is removed deliberately. Any other difference —
+a top-level or nested key added, removed or renamed on either side, or a
+value changing JSON type — fails the test.
+
+## Regenerating the expectations
+
+```sh
+cd /path/to/termproof/python
+TERMPROOF_PYTHON_REPO=$PWD uv run python \
+    ../conformance/probe_run_result.py \
+    > ../conformance/corpus/run_result.expected.json
+```
+
+Only regenerate deliberately: the file is the oracle's testimony, and
+quietly re-recording it turns a failing comparison into a passing one
+without changing any behaviour.
+
+## Reading the result
+
+```sh
+cargo test -p termproof --test differential_run_result -- --nocapture
+```
+
+No `--features` is needed, and CI's `cargo test --workspace` runs it as it
+stands. A failure prints the full pretty-printed documents side by side.
