@@ -161,10 +161,10 @@ jobs:
       # fancy-regex pins to 0.19.0, the bottom of `^0.19`, and not to the 0.19.2
       # the lockfile resolves: pinning the version the lock already picks would
       # re-run what the steps above ran and test nothing new (#177).
-      # jsonschema pins to 0.56.0, which is both the bottom of `>=0.56, <0.57`
-      # and the only 0.56.x release, so today it coincides with the lockfile;
-      # the pin is what keeps the floor claim tested if that ever stops
-      # being true (#221).
+      # jsonschema pins to the bottom of `>=0.56, <0.57`, which is also
+      # the only 0.56.x release, so the pin coincides with the lockfile
+      # resolution; the pin is what keeps the floor claim tested if that
+      # stops holding (#221).
       - name: test at the declared dependency floors
         run: |
           set -eux
