@@ -26,8 +26,11 @@ This half records the Python behaviour as it is. The known divergences
 no such fields; a supplied ``evidence:`` block is preserved there as an
 unvalidated extension echo and changes nothing), three built-in plugin
 entries and the ``session_backend`` spelling, unknown keys dropped here
-and preserved there, evidence validation existing only here, two
-coercions refused there, the cache key folding the whole
+and preserved there, evidence validation existing only here, the two
+coercions the exercised overlays hit refused there (Python applies
+further ``str()`` coercions no overlay exercises — ``session_backend``
+and ``docker.image``/``workdir`` in ``_from_mapping`` — so nothing here
+pins those), the cache key folding the whole
 ``EvidenceConfig`` in here while the Rust key has no evidence input at
 all, and a missing recipe file yielding no key here but a key there —
 are **not** recorded here: they are named allowances in the Rust test,
@@ -121,6 +124,7 @@ OVERLAYS: list[tuple[str, str | None]] = [
 ]
 
 RECIPE_BYTES = b"name: login\ncommand: [cat]\n"
+RECIPE_BYTES_B = b"name: login\ncommand: [cat]\ndescription: changed\n"
 CI_BYTES_A = b"ci content A\n"
 CI_BYTES_B = b"ci content B\n"
 
@@ -223,6 +227,9 @@ def cache_cases() -> list[dict[str, object]]:
             ]
             Path("ci.txt").write_bytes(CI_BYTES_B)
             cases.append({"name": "ci-content-changed", "key": key(recipe)})
+            Path("ci.txt").write_bytes(CI_BYTES_A)
+            Path("recipe.yaml").write_bytes(RECIPE_BYTES_B)
+            cases.append({"name": "recipe-content-changed", "key": key(recipe)})
             return cases
         finally:
             os.chdir(previous)

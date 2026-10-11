@@ -32,6 +32,10 @@
     {
       "key": "c9770a0a80adf5260d2718f572a9a85dbd2cb3a9dcd7ba0d52b4eef3c6f7ebb1",
       "name": "ci-content-changed"
+    },
+    {
+      "key": "e7949486aeffe99a14846fd9a1948d255e5ea4899a709b74b01085128a417025",
+      "name": "recipe-content-changed"
     }
   ],
   "cases": [

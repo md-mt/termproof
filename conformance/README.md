@@ -1139,7 +1139,7 @@ run and the key that lets a recorded result stand in for one:
 
 | Half | Where | What it does |
 |---|---|---|
-| Oracle | `probe_config.py` | Cascades fifteen fixed YAML overlays through the real `load_config` and records each case's serialised `VerifierConfig` (or its `ValueError`), then records the run-cache key for eight fixed (recipe, options, evidence) inputs, into `corpus/config.expected.json`. |
+| Oracle | `probe_config.py` | Cascades fifteen fixed YAML overlays through the real `load_config` and records each case's serialised `VerifierConfig` (or its `ValueError`), then records the run-cache key for nine fixed (recipe, options, evidence) inputs, into `corpus/config.expected.json`. |
 | Port | `crates/termproof/tests/differential_config.rs` | Cascades the identical overlays through `VerifierConfig::load`, compares the serialised documents whole apart from the allowances below, and answers the cache cases through `cache::cache_key`. |
 
 The scenarios are code in each half, as with the run result: the

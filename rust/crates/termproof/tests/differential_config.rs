@@ -35,9 +35,13 @@
 //!   and preserved here by the flatten extensions.
 //! - [`PYTHON_REJECTS_RUST_ACCEPTS`]: evidence validation exists only in
 //!   Python, so those overlays load here and change nothing but the echo.
-//! - [`RUST_REJECTS_PYTHON_ACCEPTS`]: two coercions Python applies (a
-//!   numeric string for `idle_cap_seconds`, non-string docker env
-//!   values) that the typed deserialisation here refuses.
+//! - [`RUST_REJECTS_PYTHON_ACCEPTS`]: the two coercions the exercised
+//!   overlays hit that Python applies (a numeric string for
+//!   `idle_cap_seconds`, non-string docker env values) and the typed
+//!   deserialisation here refuses. Python applies further `str()`
+//!   coercions no overlay exercises (`session_backend`,
+//!   `docker.image`/`workdir` in `_from_mapping`); nothing here pins
+//!   those.
 //! - Error *wording* on the one case both sides reject: the recorded
 //!   `ValueError` text is the oracle's, and this side is held to the
 //!   verdict (`is_err`), not to a rewording of its own message.
@@ -149,8 +153,10 @@ const SESSION_BACKENDS: (&str, &str) = (
 
 /// Cases the Rust loader rejects where Python coerces and accepts
 /// (#209): `idle-string` (Python `float('2.5')`) and
-/// `docker-env-numeric` (Python `str(1)`). The pinned Python outcomes
-/// are asserted per case below.
+/// `docker-env-numeric` (Python `str(1)`). These are the exercised
+/// coercions only; the unexercised `str()` coercions are named in the
+/// module allowance above. The pinned Python outcomes are asserted
+/// per case below.
 const RUST_REJECTS_PYTHON_ACCEPTS: [&str; 2] = ["idle-string", "docker-env-numeric"];
 
 /// Cases Python rejects for evidence validation that this loader
@@ -165,7 +171,7 @@ const PYTHON_REJECTS_RUST_ACCEPTS: [&str; 4] = [
 
 /// The cache case names the oracle must record. A case added to one
 /// half only fails the name assert rather than passing uncompared.
-const CACHE_CASE_NAMES: [&str; 8] = [
+const CACHE_CASE_NAMES: [&str; 9] = [
     "base",
     "evidence-tweaked",
     "renderer-changed",
@@ -174,9 +180,11 @@ const CACHE_CASE_NAMES: [&str; 8] = [
     "no-source-path",
     "missing-recipe-file",
     "ci-content-changed",
+    "recipe-content-changed",
 ];
 
 const RECIPE_BYTES: &[u8] = b"name: login\ncommand: [cat]\n";
+const RECIPE_BYTES_B: &[u8] = b"name: login\ncommand: [cat]\ndescription: changed\n";
 const CI_BYTES_A: &[u8] = b"ci content A\n";
 const CI_BYTES_B: &[u8] = b"ci content B\n";
 
@@ -561,6 +569,10 @@ fn the_cache_key_answers_match_the_python_ones() {
         python_key("ci-content-changed").as_deref(),
         Some(python_base.as_str())
     );
+    assert_ne!(
+        python_key("recipe-content-changed").as_deref(),
+        Some(python_base.as_str())
+    );
 
     let tmp = tempfile::tempdir().expect("tempdir");
     let recipe_path = tmp.path().join("recipe.yaml");
@@ -668,5 +680,21 @@ fn the_cache_key_answers_match_the_python_ones() {
         .as_deref(),
         Some(base.as_str()),
         "ci content stopped moving the Rust key"
+    );
+
+    std::fs::write(tmp.path().join("ci.txt"), CI_BYTES_A).expect("ci file restored");
+    std::fs::write(&recipe_path, RECIPE_BYTES_B).expect("recipe rewritten");
+    assert_ne!(
+        rust_key(
+            Some(&recipe_path),
+            "default",
+            "agg_ffmpeg",
+            false,
+            60,
+            tmp.path()
+        )
+        .as_deref(),
+        Some(base.as_str()),
+        "recipe content stopped moving the Rust key"
     );
 }
