@@ -17,7 +17,12 @@ parity gate**, and nothing here should be read as a claim that the port
 behaves the same way as the Python implementation.
 
 Until a parity gate passes, treat the Python implementation as the only
-authority on TermProof's behaviour.
+authority on TermProof's behaviour. Building such a gate is tracked in
+#216, and the milestone re-cut in
+[`rust-reimplementation-spec.md`](rust-reimplementation-spec.md#milestone-re-cut-215)
+defines v1.0 and Rust M5 by that gate passing as a required CI check. That
+gate does not exist yet: #216 is future work, not a description of anything
+that runs today.
 
 Pre-1.0 `0.x` releases may change public APIs without notice. A breaking
 change is a minor bump (`0.2.x` → `0.3.0`) under the workspace's
@@ -27,18 +32,23 @@ moving as it approaches parity.
 
 ## The differential harness
 
-Three layers are measured against corpora recorded from the Python
-implementation. Each layer has its own harness, each the same two-half shape: a
-Python probe drives its side over a checked-in corpus, and a Rust test replays
-the same cases and compares. (A fourth harness, for the evidence manifest,
-builds its scenario in code rather than from a corpus — see
-[`conformance/README.md`](../../conformance/README.md).)
+Five layers are measured, as listed in
+[`conformance/README.md`](../../conformance/README.md), which is the
+authority for this table. Each layer has its own harness, each the same
+two-half shape: a Python probe drives its side, and a Rust test replays the
+same cases or scenario and compares. Four layers replay a checked-in corpus
+of cases; the evidence-manifest harness builds its scenario in code in each
+half rather than from a corpus of cases, and compares the recorded document
+and the files it wrote — see
+[`conformance/README.md`](../../conformance/README.md).
 
 | Layer | Oracle | Port | Corpus |
 |---|---|---|---|
 | Steps | `conformance/probe_steps.py` | `crates/termproof/tests/differential_steps.rs` | `conformance/corpus/cases.json` |
 | Assertions | `conformance/probe_assertions.py` | `crates/termproof/tests/differential_assertions.rs` | `conformance/corpus/assertion_cases.json` |
+| Evidence manifest | `conformance/probe_evidence_manifest.py` | `crates/termproof/tests/differential_evidence_manifest.rs` | `conformance/corpus/evidence_manifest.expected.json` |
 | Before/after | `conformance/probe_before_after.py` | `crates/termproof/tests/differential_before_after.rs` | `conformance/corpus/before_after_cases.json` |
+| Cast replay | `conformance/probe_cast_replay.py` | `crates/termproof/tests/differential_cast_replay.rs` | `conformance/corpus/cast_replay_cases.json` |
 
 The step and assertion harnesses assert a **floor rather than equality**:
 agreement can rise but must never fall, and panics and cases that never return
@@ -47,12 +57,19 @@ are asserted at zero rather than ratcheted. Full agreement is deliberately
 to make (see [Known defects and divergences](#known-defects-and-divergences)
 below).
 
-The before/after harness has no ratchet and demands equality: it compares a
-report format rather than scoring a corpus, and a partial score for a report
-format is not a useful number. Its direction is also the other way round —
-Rust is the reference and Python was changed to match it (#204), because the
-Rust module is the newer of the two and carries the documented ordering
-rationale.
+The evidence-manifest and before/after harnesses have no ratchet and demand
+equality: they compare a document or a report format rather than scoring a
+corpus, and a partial score for a format is not a useful number. The
+before/after direction is also the other way round — Rust is the reference
+and Python was changed to match it (#204), because the Rust module is the
+newer of the two and carries the documented ordering rationale.
+
+Cast replay asserts its known residual exactly — by case name and pinned
+frame — rather than as a floor, so a listed case that starts agreeing fails
+the test, as does one that replays to a different screen. The step and
+assertion counts are summarised below; the other three harnesses'
+results are recorded in `conformance/README.md` (including the cast-replay
+counts and the residual tracked in #209) rather than duplicated here.
 
 ## Step layer
 

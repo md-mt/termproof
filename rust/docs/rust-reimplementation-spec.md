@@ -11,9 +11,11 @@ Rust tracking: milestones 5–10 and issues 94–123
 > **Provenance.** This document was written in `md-mt/termproof` and moved here
 > unmodified when the Rust port was split into its own repository. It is
 > recovered verbatim from `md-mt/termproof@9f3b772`, the last commit before that
-> repository deleted it; the text below is exactly as it was written on
+> repository deleted it; the text from §1 onward is exactly as it was written on
 > 2026-08-01 and has deliberately not been retrofitted, so it still reads as a
-> plan for a port living inside the Python repository.
+> plan for a port living inside the Python repository. The milestone re-cut
+> note between this provenance and §1 was added later for #215 and is not part
+> of that recovered text.
 >
 > Read it as the design rationale and acceptance criteria for this port — those
 > parts stand. Read the following as superseded:
@@ -34,9 +36,95 @@ Rust tracking: milestones 5–10 and issues 94–123
 >   corpus, version/changelog drift checks and the sdist gate stay in
 >   `md-mt/termproof` and are not this repository's to satisfy.
 > - **Issue and milestone numbers** throughout refer to `md-mt/termproof`.
+> - **Milestone status and the v1.0 / Rust M5 definition (§7, §10, and the
+>   §11 gates).** Superseded for current tracking by the milestone re-cut
+>   (#215) immediately below. The tables in §7 and §10 remain the
+>   2026-08-01 plan — their target dates, outcomes and open/closed counts
+>   are as recorded then, not the current state of the GitHub milestones.
 >
 > Most importantly, §11's parity gates are the whole point of this document and
 > **none of them pass.** See the README for where the port actually stands.
+
+## Milestone re-cut (#215)
+
+This note is the current milestone-tracking definition. It supersedes the
+milestone status in §7 and §10, whose tables are left as the original plan.
+It is an in-repository record only: **no GitHub milestone is closed,
+re-described or re-assigned by this document.** That administration is done
+separately by the coordinator and a maintainer, and everything listed under
+"Pending GitHub admin" below is still pending until it is done there.
+
+At the re-cut, ten GitHub milestones stood open. Seven had no open issues
+left; two more also showed none, although the parity work they exist to
+track is unfinished; and Rust M4 still had #118. A milestone showing
+0 open issues is therefore not, on its own, evidence that its work is done —
+for v1.0 and Rust M5 it is only evidence that the remaining work had not yet
+been filed against them.
+
+| GitHub milestone | Milestone | Re-cut status |
+| --- | --- | --- |
+| 1 | v0.2 — Public Launch | Complete (0 open issues) — closure pending GitHub admin |
+| 2 | v0.3 — Ecosystem Foundation | Complete (0 open issues) — closure pending GitHub admin |
+| 3 | v0.4 — CI Everywhere | Complete (0 open issues) — closure pending GitHub admin |
+| 4 | v1.0 — Stable API | Open, re-cut: defined by the #216 parity gate passing (below); not complete |
+| 5 | Rust M0 — Contract and skeleton | Complete (0 open issues) — closure pending GitHub admin |
+| 6 | Rust M1 — Core execution alpha | Complete (0 open issues) — closure pending GitHub admin |
+| 7 | Rust M2 — CLI and evidence parity | Complete (0 open issues) — closure pending GitHub admin |
+| 8 | Rust M3 — Extensibility parity | Complete (0 open issues) — closure pending GitHub admin |
+| 9 | Rust M4 — Distribution candidate | Open: stays open, gated on #118 (target 2026-10-16, as in §7) |
+| 10 | Rust M5 — v1 default cutover | Open, re-cut: defined by the #216 parity gate passing (below); not complete (target 2026-11-13, as in §7) |
+
+### What v1.0 and Rust M5 now mean
+
+**v1.0 (milestone 4) and Rust M5 (milestone 10) are done when, and only
+when, the parity gate tracked in
+[#216](https://github.com/md-mt/termproof/issues/216) passes.** There is no
+parity gate today — [`status-and-parity.md`](status-and-parity.md) and
+[`CONTRIBUTING.md`](../../CONTRIBUTING.md) both say so — so #216 tracks
+building one, and neither milestone is done. "Passes" in #216 means all of
+the following at once:
+
+1. the parity gate exists and runs as a **required CI check**, so a
+   regression it measures cannot merge unnoticed;
+2. every drift or divergence it reports is **fixed, or explicitly recorded
+   as allowed** — the known-residual and known-divergence lists in
+   [`conformance/README.md`](../../conformance/README.md) and
+   [`status-and-parity.md`](status-and-parity.md) are the existing form of
+   such a record, and a divergence recorded nowhere counts as unfixed; and
+3. the recorded oracle expectations the gate compares against are
+   **reproducible**, as tracked in
+   [#172](https://github.com/md-mt/termproof/issues/172).
+
+#172 and [#209](https://github.com/md-mt/termproof/issues/209) are the
+sub-issues tracked with #216 for this re-cut. (#209 is also named in
+`conformance/README.md` as the tracker for the cast-replay divergence that
+is recorded there as a known residual rather than fixed — the kind of
+record point 2 requires for a divergence the gate allows.)
+Until all three points hold, v1.0 and Rust M5 remain open and unfinished
+even if either milestone shows 0 open issues. This definition does not by
+itself claim that any other §11 cutover item is done.
+
+### Rust M4
+
+Rust M4 (milestone 9) stays open and is gated on
+[#118](https://github.com/md-mt/termproof/issues/118). It is not one of the
+finished milestones above and is not to be closed in the pending admin pass
+while #118 remains open against it.
+
+### Pending GitHub admin (not done by this document)
+
+The re-cut assumes the following actions are still to be taken on GitHub by
+the coordinator and a maintainer. None of them is done yet, and no text in
+this repository should be read as saying otherwise:
+
+- close milestones 1, 2, 3, 5, 6, 7 and 8 (v0.2, v0.3, v0.4, Rust M0, Rust
+  M1, Rust M2 and Rust M3), after confirming each still has 0 open issues;
+- leave milestone 9 (Rust M4) open with #118 against it;
+- leave milestones 4 (v1.0) and 10 (Rust M5) open, and set both milestone
+  descriptions to the #216 definition above, so neither reads as finished
+  while it shows 0 open issues; and
+- confirm #172 and #209 are linked under #216 as its sub-work, linking
+  them if that has not been done.
 
 ## 1. Decision
 
