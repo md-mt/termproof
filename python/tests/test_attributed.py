@@ -60,6 +60,116 @@ class PlainTextTest(unittest.TestCase):
         screen = attributed_screen_from_text("abcdef\nghijkl\nmnopqr", columns=3, rows=2)
         self.assertEqual(["abc", "ghi"], screen.text_lines())
 
+    def test_wide_characters_match_the_ansi_grid(self) -> None:
+        for text in ("日本語", "a日b", "😀"):
+            with self.subTest(text=text):
+                self.assertEqual(
+                    attributed_screen_from_ansi_text(text).rows,
+                    attributed_screen_from_text(text).rows,
+                )
+
+    def test_a_double_width_glyph_is_followed_by_a_zero_width_filler(self) -> None:
+        expected = {
+            "日本語": [2, 0, 2, 0, 2, 0],
+            "a日b": [1, 2, 0, 1],
+            "😀": [2, 0],
+        }
+        for text, widths in expected.items():
+            with self.subTest(text=text):
+                screen = attributed_screen_from_text(text)
+                self.assertEqual(widths, [cell.width for cell in screen.rows[0]])
+                self.assertEqual(text, screen.to_text())
+
+    def test_fillers_count_towards_the_column_clamp(self) -> None:
+        for columns, widths in ((3, [2, 0, 2]), (4, [2, 0, 2, 0])):
+            with self.subTest(columns=columns):
+                screen = attributed_screen_from_text("日本語", columns=columns)
+                self.assertEqual(widths, [cell.width for cell in screen.rows[0]])
+                self.assertEqual(
+                    attributed_screen_from_ansi_text("日本語", columns=columns).rows,
+                    screen.rows,
+                )
+
+    def test_a_combining_mark_merges_into_the_previous_cell(self) -> None:
+        screen = attributed_screen_from_text("e\u0301x")
+        self.assertEqual(["\u00e9", "x"], [cell.text for cell in screen.rows[0]])
+        self.assertEqual(attributed_screen_from_ansi_text("e\u0301x").rows, screen.rows)
+
+    def test_a_combining_mark_after_a_wide_glyph_does_not_take_a_column(self) -> None:
+        # The mark used to get a cell of its own, which pushed whatever followed
+        # past a three-column clamp: the two screens below came out identical.
+        with_x = attributed_screen_from_text("日\u0301x", columns=3)
+        with_y = attributed_screen_from_text("日\u0301y", columns=3)
+        self.assertNotEqual(with_x.rows, with_y.rows)
+        self.assertNotEqual(with_x.render_fingerprint(), with_y.render_fingerprint())
+        self.assertEqual([2, 0, 1], [cell.width for cell in with_x.rows[0]])
+        self.assertEqual("x", with_x.rows[0][2].text)
+
+    def test_a_combining_mark_after_a_wide_glyph_lands_in_the_filler(self) -> None:
+        # What Rust's `push_char` does: the previous cell is the width-0 filler,
+        # so that is what the mark joins. It reaches the fingerprint and not the
+        # text, on both constructors.
+        for build in (attributed_screen_from_text, attributed_screen_from_ansi_text):
+            with self.subTest(build=build.__name__):
+                screen = build("日\u0301x")
+                self.assertEqual(
+                    [("日", 2), ("\u0301", 0), ("x", 1)],
+                    [(cell.text, cell.width) for cell in screen.rows[0]],
+                )
+                self.assertEqual("日x", screen.to_text())
+                self.assertNotEqual(
+                    build("日x").render_fingerprint(), screen.render_fingerprint()
+                )
+
+    def test_hangul_filler_is_one_cell(self) -> None:
+        # East Asian Wide, but zero columns to Rust's `unicode-width`, which
+        # Rust's `cell_width` turns into one cell.
+        for text in ("\u3164", "\u302a", "\U00016fe4"):
+            with self.subTest(text=text):
+                screen = attributed_screen_from_text(text + "x")
+                self.assertEqual([1, 1], [cell.width for cell in screen.rows[0]])
+        self.assertEqual(
+            [2, 0], [c.width for c in attributed_screen_from_text("\u115f").rows[0]]
+        )
+
+    def test_a_tab_advances_to_the_next_eight_column_stop(self) -> None:
+        screen = attributed_screen_from_text("ab\tc")
+        self.assertEqual("ab      c", screen.to_text())
+
+    def test_control_characters_take_no_cell(self) -> None:
+        self.assertEqual("ab", attributed_screen_from_text("a\x07\x00\x7fb").to_text())
+        # Not interpreted as an escape either: only the ESC itself goes.
+        self.assertEqual("[31ma", attributed_screen_from_text("\x1b[31ma").to_text())
+
+    def test_rows_split_on_newline_only(self) -> None:
+        self.assertEqual(["a", "b"], attributed_screen_from_text("a\r\nb\n").text_lines())
+        self.assertEqual(["a", "", "b"], attributed_screen_from_text("a\n\nb").text_lines())
+        self.assertEqual((), attributed_screen_from_text("").rows)
+        # `str.splitlines` breaks at every one of these; a terminal does not.
+        for separator in ("\r", "\x0b", "\x0c", "\x1c", "\x1d", "\x1e", "\x85", "\u2028"):
+            with self.subTest(separator=separator):
+                self.assertEqual(
+                    1, attributed_screen_from_text(f"a{separator}b").row_count
+                )
+
+    def test_escape_free_text_matches_the_ansi_grid(self) -> None:
+        samples = (
+            "a\tb\t日\tc",
+            "a\x07b",
+            "a\r\nb\r",
+            "a\x0bb\x0cc\x1cd\x85e\u2028f\u2029g",
+            "\u0301x",
+            "日\u0301\u0302x\n\n\u3164y\n",
+        )
+        for text in samples:
+            for columns in (3, 9, 120):
+                with self.subTest(text=text, columns=columns):
+                    self.assertEqual(
+                        attributed_screen_from_ansi_text(text, columns=columns).rows,
+                        attributed_screen_from_text(text, columns=columns).rows,
+                    )
+
+
 
 class AnsiParsingTest(unittest.TestCase):
     def test_plain_text_matches_the_unstyled_grid(self) -> None:

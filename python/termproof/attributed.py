@@ -25,7 +25,7 @@ import hashlib
 import json
 import re
 import unicodedata
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 from xml.sax.saxutils import escape
 
@@ -358,14 +358,24 @@ def attributed_screen_from_lines(
     columns: int = DEFAULT_COLUMNS,
     rows: int = DEFAULT_ROWS,
 ) -> AttributedScreen:
-    """Build an unstyled grid from already-split plain text."""
+    """Build an unstyled grid from already-split plain text.
+
+    Characters are laid out by :func:`_push_char`, the same rules
+    :func:`attributed_screen_from_ansi_text` uses, so the two constructors put
+    the same glyph in the same column. Escape sequences are not interpreted:
+    the ESC is dropped like any other control character and the rest of the
+    sequence occupies cells.
+    """
     pool = _CellPool()
+    attrs = _AnsiAttrs()
     screen_rows = []
     for line in lines[:rows]:
-        printable = [ch for ch in line if not _is_control(ch)]
-        screen_rows.append(
-            tuple(pool.intern(AttributedCell(text=ch)) for ch in printable[:columns])
-        )
+        cells: list[AttributedCell] = []
+        for ch in line:
+            if len(cells) >= columns:
+                break
+            _push_char(cells, ch, attrs, columns, pool)
+        screen_rows.append(tuple(cells))
     return AttributedScreen(rows=tuple(screen_rows))
 
 
@@ -375,9 +385,15 @@ def attributed_screen_from_text(
     columns: int = DEFAULT_COLUMNS,
     rows: int = DEFAULT_ROWS,
 ) -> AttributedScreen:
-    """Build an unstyled grid from plain text."""
+    """Build an unstyled grid from plain text.
+
+    Rows are split on ``\\n`` alone, as :func:`attributed_screen_from_ansi_text`
+    and Rust's ``str::lines`` do. ``str.splitlines`` would also break a row at
+    ``\\x0b``, ``\\x0c``, ``\\x1c``-``\\x1e``, ``\\x85``, ``\\u2028`` and
+    ``\\u2029``, none of which starts a new line on a terminal.
+    """
     return attributed_screen_from_lines(
-        screen_text.splitlines(),
+        _split_lines(screen_text),
         columns=columns,
         rows=rows,
     )
@@ -421,10 +437,7 @@ def attributed_screen_from_ansi_text(
     pool = _CellPool()
     screen_rows = []
     attrs = _AnsiAttrs()
-    lines = ansi_text.split("\n")
-    if lines and lines[-1] == "":
-        lines.pop()
-    for line in lines[:rows]:
+    for line in _split_lines(ansi_text)[:rows]:
         screen_rows.append(
             tuple(_cells_from_ansi_line(line.rstrip("\r"), attrs, columns, pool))
         )
@@ -513,37 +526,47 @@ def _cells_from_ansi_line(
             if next_index != index:
                 index = next_index
                 continue
-        ch = line[index]
-        if ch == "\t":
-            _append_tab(cells, attrs, columns, pool)
-        elif _is_control(ch):
-            # A terminal acts on these rather than displaying them, and a raw
-            # control byte in the output makes the SVG invalid XML — which a
-            # rasterizer reports by writing a 0-byte image, not by failing.
-            pass
-        elif unicodedata.combining(ch) and cells:
-            previous = cells[-1]
-            cells[-1] = pool.intern(
-                AttributedCell(
-                    text=unicodedata.normalize("NFC", previous.text + ch),
-                    fg=previous.fg,
-                    bg=previous.bg,
-                    bold=previous.bold,
-                    dim=previous.dim,
-                    italic=previous.italic,
-                    underline=previous.underline,
-                    strikethrough=previous.strikethrough,
-                    reverse=previous.reverse,
-                    width=previous.width,
-                )
-            )
-        else:
-            width = _cell_width(ch)
-            cells.append(pool.intern(attrs.cell(ch, width=width)))
-            if width == 2 and len(cells) < columns:
-                cells.append(pool.intern(attrs.cell("", width=0)))
+        _push_char(cells, line[index], attrs, columns, pool)
         index += 1
     return cells
+
+
+def _push_char(
+    cells: list[AttributedCell],
+    ch: str,
+    attrs: _AnsiAttrs,
+    columns: int,
+    pool: _CellPool,
+) -> None:
+    """Place one character on the grid.
+
+    The layout rules live here, in one place, because both text constructors
+    have to agree on them. Mirrors Rust's ``push_char``, with one deliberate
+    difference: Rust has no control-character branch and gives a control a
+    width-1 cell of its own, filtering it out only when the SVG is written.
+
+    A combining mark joins the cell before it, whatever that cell is. After a
+    double-width glyph that is the ``""`` width-0 filler, not the glyph, which
+    is what Rust does too: the mark stays in the grid and in the render
+    fingerprint, but ``text_lines`` and :func:`screen_svg` skip width-0 cells
+    and so do not show it.
+    """
+    if ch == "\t":
+        _append_tab(cells, attrs, columns, pool)
+    elif _is_control(ch):
+        # A terminal acts on these rather than displaying them, and a raw
+        # control byte in the output makes the SVG invalid XML — which a
+        # rasterizer reports by writing a 0-byte image, not by failing.
+        pass
+    elif unicodedata.combining(ch) and cells:
+        previous = cells[-1]
+        merged = unicodedata.normalize("NFC", previous.text + ch)
+        cells[-1] = pool.intern(replace(previous, text=merged))
+    else:
+        width = _cell_width(ch)
+        cells.append(pool.intern(attrs.cell(ch, width=width)))
+        if width == 2 and len(cells) < columns:
+            cells.append(pool.intern(attrs.cell("", width=0)))
 
 
 def _consume_ansi_sequence(line: str, index: int, attrs: _AnsiAttrs) -> int:
@@ -747,15 +770,46 @@ def _xterm_256_color(index: int) -> str:
     return "default"
 
 
+def _split_lines(text: str) -> list[str]:
+    """Split on ``\\n``, without a phantom row for a trailing newline.
+
+    A ``\\r`` left on a line is a control character and never reaches a cell.
+    """
+    lines = text.split("\n")
+    if lines and lines[-1] == "":
+        lines.pop()
+    return lines
+
+
 def _is_control(ch: str) -> bool:
     """True for C0 controls and DEL, which no terminal cell can hold."""
     return ch < " " or ch == "\x7f"
 
 
+#: East Asian Wide code points that Rust's ``unicode-width`` nevertheless
+#: measures as zero columns, because they are nonspacing marks or
+#: Default_Ignorable (U+3164 HANGUL FILLER is the one that turns up in real
+#: text). Rust's ``cell_width`` maps every width but 2 to one cell, so these
+#: are one cell there and have to be one cell here. Found by comparing the two
+#: tables over every code point: ``unicode-width`` 0.2.2 against ``unicodedata``
+#: 15.1.
+_WIDE_BUT_ZERO_WIDTH = frozenset(
+    "\u302a\u302b\u302c\u302d\u302e\u302f\u3099\u309a\u3164"
+    "\U00016fe4\U00016ff0\U00016ff1"
+)
+
+
 def _cell_width(text: str) -> int:
+    # Not the whole of Rust's table: ``unicode-width`` follows a newer Unicode
+    # than this interpreter's ``unicodedata`` may, so a code point that became
+    # wide since (U+4DC0 HEXAGRAM FOR THE CREATIVE HEAVEN, U+1FA89 HARP) is two
+    # cells in Rust and one here until Python catches up.
     if text == "":
         return 0
-    if unicodedata.east_asian_width(text[0]) in ("F", "W"):
+    first = text[0]
+    if first in _WIDE_BUT_ZERO_WIDTH:
+        return 1
+    if unicodedata.east_asian_width(first) in ("F", "W"):
         return 2
     return 1
 
