@@ -46,6 +46,7 @@ PROBES = (
     ("probe_evidence_manifest.py", "evidence_manifest.expected.json"),
     ("probe_before_after.py", "before_after.expected.json"),
     ("probe_cast_replay.py", "cast_replay.expected.json"),
+    ("probe_run_result.py", "run_result.expected.json"),
 )
 
 #: Marks "key absent on this side", so an explicit JSON null never equals a missing key.
