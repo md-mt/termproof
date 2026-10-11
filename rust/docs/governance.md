@@ -26,28 +26,31 @@ This document governs the GitHub repository surface. Code policy — formatting,
 lints, errors, tracing, dependencies, features, unsafe code — is
 [`docs/engineering-baseline.md`](engineering-baseline.md).
 
-## 1. Baseline — current live state (verified 2026-08-16)
+## 1. Baseline — current live state (verified 2026-10-10)
 
-Verified against the live repository with the GitHub API/GraphQL, not assumed:
+Verified against the live repository with the GitHub API/GraphQL, not assumed.
+Every row was re-verified on 2026-10-10; the original baseline was taken on
+2026-08-16:
 
 | Setting | Live value |
 |---|---|
 | Visibility / default branch | public, `main` |
-| Description | "Rust implementation of TermProof — evidence-first verification for terminal and TUI apps. Ported from the Python reference implementation in md-mt/termproof." |
-| Homepage | unset |
-| Topics | none |
+| Description | "Evidence-first verification for TUI and terminal applications" |
+| Homepage | `https://md-mt.github.io/termproof/` |
+| Topics | `asciinema`, `bubbletea`, `ci`, `cypress`, `evidence`, `ink`, `playwright`, `ratatui`, `terminal`, `testing`, `textual`, `tui`, `verification` |
 | Issues / Wiki / Projects / Discussions | enabled / enabled / enabled / disabled |
-| Merge methods | all three allowed (squash, merge commit, rebase); delete branch on merge **off** |
+| Merge methods | squash and rebase allowed, merge commits **disabled**; delete branch on merge **on**; auto-merge off; "always suggest updating pull request branches" off; squash commit title `COMMIT_OR_PR_TITLE`, message `COMMIT_MESSAGES` |
 | Rulesets | one — `main: require CI (Rust) result` (id `24859051`), enforcement active, targeting the default branch, requiring the single status check `CI (Rust) result`; admin-role bypass. Re-verified against `md-mt/termproof` on 2026-10-10 — section 6.1 |
-| Branch protection | none (legacy endpoint absent) |
-| Security policy file | `SECURITY.md` present and detected by GitHub |
-| Private vulnerability reporting | enabled — the *Security → Report a vulnerability* button is live, and reporters are directed there by `SECURITY.md` |
-| Vulnerability alerts | not enabled (alerts endpoints are admin-gated; the Dependabot alerts API reports "Dependabot alerts are disabled for this repository") |
-| Automated security fixes | not enabled |
+| Branch protection | none (legacy endpoint returns 404) |
+| Security policy file | `SECURITY.md` present in the repository root (the community profile API does not report a security file) |
+| Private vulnerability reporting | **disabled** (`/private-vulnerability-reporting` returns `{"enabled":false}`) — the *Security → Report a vulnerability* button is not live, yet `SECURITY.md` directs reporters there |
+| Vulnerability alerts | not enabled (`/vulnerability-alerts` returns 404; the Dependabot alerts API reports "Dependabot alerts are disabled for this repository") |
+| Automated security fixes | not enabled (`{"enabled":false}`) |
+| Secret scanning | enabled, with push protection enabled |
 | Dependabot version updates | enabled — `.github/dependabot.yml`, weekly, grouped |
-| Code owners | `* @md-mt` (`CODEOWNERS`) |
+| Code owners | `* @md-mt` (`.github/CODEOWNERS`) |
 | Community health files | present — `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md`, `SUPPORT.md`, `CHANGELOG.md`, issue forms, PR template |
-| CI on `main` | green at baseline: 10/10 check runs on `e6efcb5` |
+| CI on `main` | green on the current head: 5/5 check runs succeeded on `73375d7` |
 
 That ruleset is the only one in the repository, and it enforces one thing: a
 commit reaches `main` only with a passing `CI (Rust) result`, unless the actor
