@@ -32,5 +32,6 @@ unaffected.
 ## Still here
 
 - [Plugins](/plugins) — the supported plugin interface, which is the Python one.
-- [Durable evidence hosting](/ci/evidence-hosting) — it documents
-  `scripts/publish_evidence.py`, a Python script that is staying put.
+- [Durable evidence hosting](/ci/evidence-hosting) — the retention model and
+  provisioning runbook for the Python engine's evidence publishing, which is
+  staying put.

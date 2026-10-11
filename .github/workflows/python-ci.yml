@@ -371,6 +371,7 @@ jobs:
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           RUN_ID: ${{ github.run_id }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
           TERM_PROOF_VIDEO_BUCKET: ${{ secrets.TERM_PROOF_VIDEO_BUCKET }}
           TERM_PROOF_VIDEO_PREFIX: ${{ vars.TERM_PROOF_VIDEO_PREFIX }}
           TERM_PROOF_VIDEO_BASE_URL: ${{ vars.TERM_PROOF_VIDEO_BASE_URL }}
@@ -378,6 +379,15 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         run: |
+          # Fork PRs never publish: credentials belong to maintainer-controlled
+          # events only (#118). GitHub already withholds secrets from fork
+          # `pull_request` runs; this explicit check keeps the guarantee if
+          # the trigger ever changes, and names the real reason in the log
+          # instead of blaming unset variables.
+          if [ "$HEAD_REPO" != "$GITHUB_REPOSITORY" ]; then
+            echo "Fork pull request (head repo: ${HEAD_REPO}) — skipping video upload. Evidence ships in the workflow artifact only."
+            exit 0
+          fi
           if [ -z "$TERM_PROOF_VIDEO_BUCKET" ] || [ -z "$TERM_PROOF_VIDEO_BASE_URL" ]; then
             echo "Video hosting not configured (TERM_PROOF_VIDEO_BUCKET / TERM_PROOF_VIDEO_BASE_URL unset) — skipping upload. Artifact remains the canonical fallback."
             exit 0
@@ -445,7 +455,10 @@ jobs:
             )
           fi
           video_args=()
-          if [ -n "$TERM_PROOF_VIDEO_BASE_URL" ]; then
+          # Variables are visible to fork runs even though secrets are not,
+          # so gate on the head repo as well: a fork comment must not link to
+          # objects the publish step was forbidden to upload (#118).
+          if [ -n "$TERM_PROOF_VIDEO_BASE_URL" ] && [ "$HEAD_REPO" = "$GITHUB_REPOSITORY" ]; then
             video_args=(
               --video-base-url
               "${TERM_PROOF_VIDEO_BASE_URL}/pr/${PR_NUMBER}/${GITHUB_RUN_ID}"

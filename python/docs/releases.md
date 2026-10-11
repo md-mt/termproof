@@ -175,7 +175,11 @@ extra steps — video links become browsable alongside screenshots.
 Retention: the bucket should be configured with a lifecycle rule (e.g. 90 days
 for `termproof/videos/pr/*`), matching `docs/ci/evidence-receipt.json` →
 `hosting.retention_days`. The workflow artifact remains the canonical fallback —
-hosted URLs are additive, not a replacement. See [#69](https://github.com/md-mt/termproof/issues/69).
+hosted URLs are additive, not a replacement. See [#69](https://github.com/md-mt/termproof/issues/69)
+(closed not-planned) and the full retention model, least-privilege policy and
+provisioning runbook in [`evidence-hosting.md`](evidence-hosting.md) — no
+bucket is provisioned yet, so until that runbook is completed this section
+describes wiring that no-ops.
 
 The release workflow intentionally uses portable recipes for public CI —
 `examples/generic` and the other self-contained examples, which need no

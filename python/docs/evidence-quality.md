@@ -40,6 +40,10 @@ Nothing on this page is enabled by default. Every rendering parameter it
 recommends is expressible in `.termproof/config.yaml`, and every default still
 reproduces the previous hardcoded behaviour byte for byte.
 
+This page is about how faithful the evidence is. Where published evidence
+lives, how long it is kept, and how it is deleted is a separate question with
+its own page: [`evidence-hosting.md`](evidence-hosting.md).
+
 ---
 
 ## The defect

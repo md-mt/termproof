@@ -1,40 +1,39 @@
 # Durable Evidence Hosting
 
-GitHub Actions artifacts expire. TermProof now supports durable hosting via S3-compatible storage (Cloudflare R2 or AWS S3) with least-privilege publishing and stable PR links.
+GitHub Actions artifacts expire, so TermProof's evidence has a documented
+retention model with an optional S3-compatible store (Cloudflare R2 or AWS S3)
+for PR videos. The full model — evidence classes, deletion mechanics, privacy
+posture, and the least-privilege provisioning runbook — lives in
+[`python/docs/evidence-hosting.md`](https://github.com/md-mt/termproof/blob/main/python/docs/evidence-hosting.md).
+
+> **Status: not provisioned.** The upload code ships
+> (`termproof.evidence_publish publish-videos`, through the
+> `ArtifactPublisher` protocol), but this repository has no bucket and no
+> publishing credentials yet, so the CI step no-ops on every run. Until the
+> owner completes the runbook, hosted video links do not exist; the tables
+> below describe the model once provisioned.
 
 ## Retention model
 
 | Store | Retention | Use |
 | --- | --- | --- |
-| `termproof-ci-evidence` artifact | 90 days (GitHub) | Debug download |
-| R2/S3 `termproof/pr/{pr}/{run}/` | 1 year (configurable) | Stable PR comment links |
+| `termproof-ci-evidence` artifact | Repository default (90 days) | Canonical fallback bundle |
+| `termproof-evidence` branch (`pr/{pr}/{run}/`) | 90 days, then prunable | Screenshot links in PR comments |
+| Bucket `termproof/videos/pr/{pr}/{run}/` | 90 days (lifecycle rule) | Video links in PR comments, once provisioned |
 | Release `termproof-release-evidence.tgz` | Permanent (GitHub Release) | Release provenance |
 
-## Publish from CI
+## Publish from CI (once provisioned)
 
-Set repository secrets/variables:
+Repository settings, names only — values come from the owner's bucket; see the
+runbook for the exact least-privilege policy:
 
-- `EVIDENCE_BUCKET` — R2/S3 bucket name
-- `EVIDENCE_ENDPOINT` — endpoint URL (e.g., `https://<account>.r2.cloudflarestorage.com`)
-- `EVIDENCE_BASE_URL` — public URL prefix (e.g., `https://evidence.termproof.dev`)
-- `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` — least-privilege writer (PutObject only on `termproof/pr/*`)
+- Secrets: `TERM_PROOF_VIDEO_BUCKET`, `AWS_ENDPOINT_URL_S3` (R2 only),
+  `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` — Put/Get on the `termproof/`
+  prefix only, no delete.
+- Variables: `TERM_PROOF_VIDEO_BASE_URL` (public URL prefix, including the key
+  prefix), `TERM_PROOF_VIDEO_PREFIX` (optional, default `termproof/videos`).
 
-CI step:
-
-```yaml
-- run: python scripts/publish_evidence.py --head-dir .termproof/ci --base-dir .termproof/pr-base --pr-number ${{ github.event.pull_request.number }} --run-id ${{ github.run_id }}
-  env:
-    EVIDENCE_BUCKET: ${{ secrets.EVIDENCE_BUCKET }}
-    EVIDENCE_ENDPOINT: ${{ vars.EVIDENCE_ENDPOINT }}
-    EVIDENCE_BASE_URL: ${{ vars.EVIDENCE_BASE_URL }}
-    AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-    AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-```
-
-Stable links are injected into the PR comment via `rewrite_screenshot_links` (existing `evidence_publish.py`).
-
-## PR comment
-
-The existing `termproof-ci-report` comment now includes stable screenshot URLs when `publish_evidence.py` succeeds; otherwise it falls back to `raw.githubusercontent.com` links from the `termproof-evidence` branch.
-
-See `scripts/publish_evidence.py --help` for dry-run mode.
+The `verify` job in `.github/workflows/python-ci.yml` already runs the publish
+step and rewrites report links through `termproof.ci_evidence`. Fork pull
+requests never receive credentials and never get hosted links; their evidence
+is the artifact bundle, as is everyone's until provisioning happens.
