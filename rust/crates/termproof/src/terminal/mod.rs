@@ -3,7 +3,7 @@
 //! Two layers face outwards, and they face opposite directions. Implement
 //! [`Session`] to teach TermProof a new kind of terminal; use
 //! [`SessionDriver`] to write a scenario against one. See
-//! [`driver`][self::driver] for the distinction in full.
+//! [`driver`] for the distinction in full.
 
 // RUST-005/006 PTY and process implementations
 pub mod attributed;
