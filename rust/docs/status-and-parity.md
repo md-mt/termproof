@@ -199,7 +199,7 @@ These are layer-level numbers, not a product number:
   differential harness yet (work in flight, not landed), so no number or
   gate here says anything about whether they agree.
 
-Reading 82/115 or 124/147 as a parity figure for the port would be wrong.
+Reading 82/115 or 124/161 as a parity figure for the port would be wrong.
 
 ## Known defects and divergences
 
