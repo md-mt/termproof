@@ -21,9 +21,11 @@ rather than by running a release.
 from __future__ import annotations
 
 import importlib.util
+import os
 import re
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -67,6 +69,36 @@ dependencies = [
 
 [tool.hatch.build.targets.wheel]
 packages = ["termproof"]
+"""
+
+#: Shaped like the real lock: the format's own top-level `version`, a dependency
+#: that happens to sit at the project's number, and the project's entry with a
+#: sub-table under it.
+UV_LOCK = """\
+version = 1
+revision = 5
+requires-python = ">=3.11"
+
+[[package]]
+name = "attrs"
+version = "0.3.3"
+source = { registry = "https://pypi.org/simple" }
+
+[[package]]
+name = "termproof"
+version = "0.3.3"
+source = { editable = "." }
+dependencies = [
+    { name = "attrs" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "attrs", specifier = ">=0.3.3" }]
+
+[[package]]
+name = "zipp"
+version = "3.20.0"
+source = { registry = "https://pypi.org/simple" }
 """
 
 CHANGELOG = """\
@@ -119,6 +151,61 @@ class PyprojectRewriteTest(unittest.TestCase):
             version_bump.read_pyproject_version(ROOT / "pyproject.toml"),
             r"^\d+\.\d+\.\d+$",
         )
+
+
+class UvLockRewriteTest(unittest.TestCase):
+    """The lock records the project's own version, and it moves with the manifest.
+
+    It did not, once: the `rs-v0.4.2` release commit bumped `pyproject.toml`
+    and left `uv.lock` at 0.4.1, so every plain `uv run` rewrote the lock on
+    checkout until someone refreshed it by hand (#229).
+    """
+
+    def test_the_project_entry_moves(self) -> None:
+        out, edits = version_bump.rewrite_uv_lock(UV_LOCK, "0.3.3", "0.3.4")
+        self.assertEqual(1, len(edits), edits)
+        self.assertIn('name = "termproof"\nversion = "0.3.4"\n', out)
+
+    def test_nothing_but_that_one_line_changes(self) -> None:
+        """Not the `revision`, and not a dependency at the same number."""
+        out, _ = version_bump.rewrite_uv_lock(UV_LOCK, "0.3.3", "0.3.4")
+        before, after = UV_LOCK.splitlines(), out.splitlines()
+        changed = [(a, b) for a, b in zip(before, after, strict=True) if a != b]
+        self.assertEqual([('version = "0.3.3"', 'version = "0.3.4"')], changed)
+        self.assertIn('name = "attrs"\nversion = "0.3.3"\n', out)
+        self.assertIn('specifier = ">=0.3.3"', out)
+
+    def test_a_lock_at_another_version_is_not_edited(self) -> None:
+        out, edits = version_bump.rewrite_uv_lock(UV_LOCK, "0.3.2", "0.3.4")
+        self.assertEqual([], edits)
+        self.assertEqual(UV_LOCK, out)
+
+    def test_name_need_not_come_before_version(self) -> None:
+        text = UV_LOCK.replace(
+            'name = "termproof"\nversion = "0.3.3"\n',
+            'version = "0.3.3"\nname = "termproof"\n',
+        )
+        out, edits = version_bump.rewrite_uv_lock(text, "0.3.3", "0.3.4")
+        self.assertEqual(1, len(edits), edits)
+        self.assertIn('version = "0.3.4"\nname = "termproof"\n', out)
+
+    def test_reading_the_version_back_from_the_real_lock(self) -> None:
+        self.assertEqual(
+            version_bump.read_pyproject_version(ROOT / "pyproject.toml"),
+            version_bump.read_uv_lock_version(ROOT / "uv.lock"),
+        )
+
+    def test_the_real_lock_moves_by_exactly_one_line(self) -> None:
+        text = (ROOT / "uv.lock").read_text(encoding="utf-8")
+        old = version_bump.read_uv_lock_version(ROOT / "uv.lock")
+        out, edits = version_bump.rewrite_uv_lock(text, old, "9.9.9")
+        self.assertEqual(1, len(edits), edits)
+        changed = [
+            (a, b)
+            for a, b in zip(text.splitlines(), out.splitlines(), strict=True)
+            if a != b
+        ]
+        self.assertEqual([(f'version = "{old}"', 'version = "9.9.9"')], changed)
 
 
 class ChangelogPromotionTest(unittest.TestCase):
@@ -179,7 +266,7 @@ class ChangelogPromotionTest(unittest.TestCase):
 
 
 class DryRunAgainstTheRealTreeTest(unittest.TestCase):
-    """`--check` over the working tree must name all four sites and write nothing."""
+    """`--check` over the working tree must name all five sites and write nothing."""
 
     def test_check_reports_every_site_and_changes_nothing(self) -> None:
         before = {
@@ -187,6 +274,7 @@ class DryRunAgainstTheRealTreeTest(unittest.TestCase):
             for path in (
                 REPO_ROOT / "rust" / "Cargo.toml",
                 ROOT / "pyproject.toml",
+                ROOT / "uv.lock",
                 REPO_ROOT / "CHANGELOG.md",
             )
         }
@@ -200,10 +288,121 @@ class DryRunAgainstTheRealTreeTest(unittest.TestCase):
         self.assertEqual(0, proc.returncode, proc.stdout + proc.stderr)
         self.assertIn("[workspace.package] version -> 9.9.9", proc.stdout)
         self.assertIn("[project] version -> 9.9.9", proc.stdout)
+        self.assertIn("uv.lock [[package]] termproof version -> 9.9.9", proc.stdout)
         self.assertIn("CHANGELOG.md: [Unreleased] -> [9.9.9]", proc.stdout)
         self.assertIn("no files written", proc.stdout)
         for path, content in before.items():
             self.assertEqual(content, path.read_bytes(), f"{path} was modified by --check")
+
+
+class BumpInAScratchTreeTest(unittest.TestCase):
+    """The whole script, run for real, against a tree it is allowed to write to.
+
+    The helpers above are pure, and `--check` stops before the writes, so
+    neither reaches the refusal at the top of `main` or the read-back at the
+    bottom. `cargo metadata` reports the scratch workspace's own root, which is
+    where the script takes the repository from — nothing here can touch the
+    real tree.
+    """
+
+    def setUp(self) -> None:
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.repo = Path(tmp.name).resolve()
+        crate = self.repo / "rust" / "crates" / "termproof"
+        (crate / "src").mkdir(parents=True)
+        (crate / "src" / "lib.rs").write_text("", encoding="utf-8")
+        (crate / "Cargo.toml").write_text(
+            '[package]\nname = "termproof"\nversion.workspace = true\n'
+            "edition.workspace = true\n",
+            encoding="utf-8",
+        )
+        (self.repo / "rust" / "Cargo.toml").write_text(
+            # The third-party pin would send cargo to the registry.
+            CARGO.replace('regex = { version = "1.13.1", default-features = false }\n', "")
+            .replace("[workspace]\n", '[workspace]\nresolver = "2"\n'),
+            encoding="utf-8",
+        )
+        (self.repo / "python").mkdir()
+        (self.repo / "python" / "pyproject.toml").write_text(PYPROJECT, encoding="utf-8")
+        (self.repo / "python" / "uv.lock").write_text(UV_LOCK, encoding="utf-8")
+        (self.repo / "CHANGELOG.md").write_text(CHANGELOG, encoding="utf-8")
+
+    def _bump(self, *args: str) -> subprocess.CompletedProcess[str]:
+        env = {
+            key: value
+            for key, value in os.environ.items()
+            if key not in ("TERMPROOF_RUST_ROOT", "TERMPROOF_PYTHON_ROOT")
+        }
+        return subprocess.run(
+            [sys.executable, str(SCRIPT), "0.3.4", "--date", "2026-09-01", *args],
+            cwd=self.repo,
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=300,
+        )
+
+    def _tracked(self) -> dict[Path, bytes]:
+        return {
+            path: path.read_bytes()
+            for path in (
+                self.repo / "rust" / "Cargo.toml",
+                self.repo / "python" / "pyproject.toml",
+                self.repo / "python" / "uv.lock",
+                self.repo / "CHANGELOG.md",
+            )
+        }
+
+    def test_the_lock_moves_with_the_rest_of_the_train(self) -> None:
+        proc = self._bump()
+        self.assertEqual(0, proc.returncode, proc.stdout + proc.stderr)
+        self.assertIn("version train is at 0.3.4", proc.stdout)
+        self.assertIn("uv.lock", proc.stdout.splitlines()[-1])
+        self.assertEqual(
+            UV_LOCK.replace(
+                'name = "termproof"\nversion = "0.3.3"',
+                'name = "termproof"\nversion = "0.3.4"',
+            ),
+            (self.repo / "python" / "uv.lock").read_text(encoding="utf-8"),
+        )
+
+    def test_a_second_run_changes_nothing(self) -> None:
+        self.assertEqual(0, self._bump().returncode)
+        after_first = self._tracked()
+        proc = self._bump()
+        self.assertEqual(0, proc.returncode, proc.stdout + proc.stderr)
+        self.assertIn("python lockfile already at 0.3.4", proc.stdout)
+        self.assertEqual(after_first, self._tracked())
+
+    def test_a_lock_that_disagrees_with_its_manifest_is_refused(self) -> None:
+        """The #229 state: manifest at one number, lock still at the last.
+
+        Moving both onto the new number would hide that they had diverged, so
+        the script stops before writing anything — with or without `--check`.
+        """
+        lock = self.repo / "python" / "uv.lock"
+        lock.write_text(
+            UV_LOCK.replace(
+                'name = "termproof"\nversion = "0.3.3"',
+                'name = "termproof"\nversion = "0.3.2"',
+            ),
+            encoding="utf-8",
+        )
+        before = self._tracked()
+        for args in ((), ("--check",)):
+            proc = self._bump(*args)
+            self.assertNotEqual(0, proc.returncode, proc.stdout + proc.stderr)
+            self.assertIn("already split", proc.stderr)
+            self.assertIn("uv.lock records termproof at 0.3.2", proc.stderr)
+            self.assertEqual(before, self._tracked(), "a refused bump wrote something")
+
+    def test_a_lock_with_no_project_entry_is_refused(self) -> None:
+        lock = self.repo / "python" / "uv.lock"
+        lock.write_text(UV_LOCK.replace('name = "termproof"', 'name = "other"'), encoding="utf-8")
+        proc = self._bump()
+        self.assertNotEqual(0, proc.returncode, proc.stdout + proc.stderr)
+        self.assertIn("no [[package]] entry for termproof", proc.stderr)
 
 
 class ReleaseWorkflowVerifiesTheTrainTest(unittest.TestCase):

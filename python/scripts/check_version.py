@@ -10,9 +10,13 @@ so `rust/Cargo.toml` is checked against the same number: one version means one
 point in the project's history for both implementations, and a drift between
 the two manifests is what would quietly break that.
 
+`uv.lock` is checked too. uv records the project's own version there, so a
+manifest bumped without it is a lock every plain `uv run` rewrites on checkout
+(#229) — and precisely because uv repairs it silently, nothing else notices.
+
 There is no `--fix` flag. A bump is a release decision, and the Rust
-auto-release workflow already owns rewriting `rust/Cargo.toml`
-(`.github/scripts/rust/version-bump.py`).
+auto-release workflow already owns rewriting `rust/Cargo.toml` and the rest of
+the train (`.github/scripts/rust/version-bump.py`).
 
 Usage:
   python scripts/check_version.py              # check all sources
@@ -24,11 +28,13 @@ from __future__ import annotations
 
 import re
 import sys
+import tomllib
 from pathlib import Path
 
 ROOT = Path(__file__).parent.parent
 REPO_ROOT = ROOT.parent
 PYPROJECT = ROOT / "pyproject.toml"
+UV_LOCK = ROOT / "uv.lock"
 # One changelog at the repository root: both implementations share a version
 # train, so a release number has one history entry, not two.
 CHANGELOG = REPO_ROOT / "CHANGELOG.md"
@@ -78,6 +84,32 @@ def check_cargo(version: str) -> bool:
     return False
 
 
+def parse_uv_lock_version() -> str:
+    """The version uv.lock records for the project's own `[[package]]` entry.
+
+    Parsed with `tomllib` rather than by line: `version-bump.py` edits this
+    file by line, and a check that read it the same way would share whatever
+    that edit got wrong.
+    """
+    data = tomllib.loads(UV_LOCK.read_text(encoding="utf-8"))
+    for package in data.get("package", []):
+        if package.get("name") == "termproof" and "version" in package:
+            return str(package["version"])
+    raise SystemExit(f"no versioned [[package]] entry for termproof in {UV_LOCK}")
+
+
+def check_uv_lock(version: str) -> bool:
+    lock_version = parse_uv_lock_version()
+    if lock_version == version:
+        return True
+    print(
+        f"version drift: pyproject.toml is {version}, "
+        f"uv.lock is {lock_version}",
+        file=sys.stderr,
+    )
+    return False
+
+
 def check_action(version: str) -> bool:
     # Non-strict: action.yml version pin is not enforced; drift is covered by
     # the pyproject <-> Cargo check.
@@ -100,11 +132,18 @@ def main() -> int:
         )
         ok = False
 
+    if not check_uv_lock(py_ver):
+        print(
+            "Hint: run `uv lock` in python/ and commit the result.",
+            file=sys.stderr,
+        )
+        ok = False
+
     check_action(py_ver)
 
     if ok:
         print(
-            f"version {py_ver} consistent across pyproject.toml, "
+            f"version {py_ver} consistent across pyproject.toml, uv.lock, "
             "rust/Cargo.toml and CHANGELOG.md"
         )
         return 0

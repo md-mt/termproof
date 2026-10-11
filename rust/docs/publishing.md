@@ -248,10 +248,10 @@ fail with a message naming both values.
   `[workspace.package]` and are released together at the same number; the plan
   script refuses to run if they ever disagree. That number is also
   `python/pyproject.toml`'s: the two implementations share a version train, and
-  `python/scripts/check_version.py` fails CI when the two manifests or the root
-  `CHANGELOG.md` drift apart. `.github/scripts/rust/version-bump.py` moves all
-  three together, and the auto-release workflow re-runs the check before it
-  tags.
+  `python/scripts/check_version.py` fails CI when the two manifests, the
+  project's own entry in `python/uv.lock` or the root `CHANGELOG.md` drift
+  apart. `.github/scripts/rust/version-bump.py` moves all four together, and
+  the auto-release workflow re-runs the check before it tags.
 - Bump `version` in the root `Cargo.toml` **and** the `version` on each
   internal dependency in `[workspace.dependencies]` in the same commit. These
   must never drift: the `path` is what a local build uses and the `version` is
@@ -283,8 +283,9 @@ fail with a message naming both values.
 The workflow enforces the mechanical items; these are the ones it cannot.
 
 - [ ] The version bump and `Cargo.lock` are committed and on `main`, together
-      with the matching `python/pyproject.toml` bump and root `CHANGELOG.md`
-      heading — `python/scripts/check_version.py` is the check.
+      with the matching `python/pyproject.toml` and `python/uv.lock` bump and
+      root `CHANGELOG.md` heading — `python/scripts/check_version.py` is the
+      check.
 - [ ] The tag is `rs-v<version>` and points at that commit.
 - [ ] `cargo package --list -p <crate>` for each publishable crate — read it,
       do not skim it. Anything large, generated, or repository-only does not
