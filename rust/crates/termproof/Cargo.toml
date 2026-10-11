@@ -32,6 +32,7 @@ exclude = [
     "tests/differential_cast_replay.rs",
     "tests/differential_run_result.rs",
     "tests/differential_build_info.rs",
+    "tests/differential_report.rs",
 ]
 
 # Features gate public modules, so `docs.rs` must build with all of them on or
