@@ -25,6 +25,16 @@
 #
 # The built-in `GITHUB_TOKEN` with `packages: write`. There is no new secret
 # and nothing to rotate. `contents: read` is the default and stays explicit.
+#
+# ## A push has to land, not just leave
+#
+# The step after the push reads every tag back from GHCR and compares its
+# digest with the image the smoke step exercised. That readback exists
+# because of #178: the `rs-v0.3.4` push was denied (`write_package`), this
+# job went red, and nothing on the release path waited on this job — the
+# release shipped with no image behind it and nobody was notified. A red
+# job nobody needs is easy to miss; a job that ends by asking the registry
+# leaves the answer, tag by tag with digests, in its own summary.
 name: Docker Image (Rust)
 
 on:
@@ -144,10 +154,55 @@ jobs:
         env:
           TAGS: ${{ steps.meta.outputs.tags }}
         run: |
-          echo "$TAGS" | while IFS= read -r tag; do
+          # A here-string, not a pipe, so the loop runs in this shell rather
+          # than a pipeline subshell. The piped form already failed the step
+          # on a denied push — `|| exit 1` under Actions' default
+          # `bash -eo pipefail` saw to that — so this is clarity, not a fix.
+          while IFS= read -r tag; do
             [ -n "$tag" ] || continue
             echo "pushing $tag"
-            # The loop body runs in a subshell, so a bare failure here would be
-            # swallowed by the next iteration; exit out of it instead.
             docker push "$tag" || exit 1
-          done
+          done <<< "$TAGS"
+
+      # The receipt. `docker push` exiting zero is a claim about the upload;
+      # this asks GHCR what the tags point at now and requires the answer to
+      # be the image that was just pushed, digest for digest. `imagetools`
+      # rather than the packages API: buildx is already set up, the GHCR login
+      # above is still live, and a manifest read is the question a consumer's
+      # pull asks — no extra token scope for the same answer. The short retry
+      # covers a manifest that is not readable in the same second it landed.
+      - name: Verify the image is in GHCR
+        if: github.event_name != 'pull_request'
+        env:
+          TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          if [ -z "$(printf '%s' "$TAGS" | tr -d '[:space:]')" ]; then
+            echo "::error::no image tags were computed for this push, so nothing was published"
+            exit 1
+          fi
+          while IFS= read -r tag; do
+            [ -n "$tag" ] || continue
+            expected="$(docker image inspect "$tag" --format '{{if .RepoDigests}}{{index .RepoDigests 0}}{{end}}' | cut -d@ -f2)"
+            if [ -z "$expected" ]; then
+              echo "::error::the pushed image records no registry digest for $tag"
+              exit 1
+            fi
+            published=""
+            for attempt in 1 2 3 4 5; do
+              if published="$(docker buildx imagetools inspect --format '{{json .Manifest}}' "$tag" 2>/dev/null | jq -er .digest)" && [ -n "$published" ]; then
+                break
+              fi
+              published=""
+              if [ "$attempt" -lt 5 ]; then sleep 5; fi
+            done
+            if [ -z "$published" ]; then
+              echo "::error::$tag is not in GHCR after the push — the publish did not land"
+              exit 1
+            fi
+            if [ "$published" != "$expected" ]; then
+              echo "::error::$tag in GHCR is $published, not the pushed image $expected"
+              exit 1
+            fi
+            echo "verified $tag at $published"
+            echo "- Verified in GHCR: \`$tag\` at \`$published\`" >> "$GITHUB_STEP_SUMMARY"
+          done <<< "$TAGS"

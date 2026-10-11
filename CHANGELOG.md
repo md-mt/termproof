@@ -87,6 +87,15 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
   Dependabot validates further than the schema does. Not a required check —
   it is path-filtered (`rust/docs/governance.md` §5).
 
+- **The Rust image publish proved it landed.** `rust-docker-image.yml` read
+  every pushed tag back from GHCR and compared its digest with the image the
+  smoke step had exercised, failing the job when a tag was missing or pointed
+  elsewhere. The push loop also moved out of its pipeline subshell into the
+  step's own shell — a clarity change, since the piped `|| exit 1` already
+  failed the step under Actions' default `bash -eo pipefail`. A denied
+  `write_package` push had earlier cost one release its image with nothing on
+  the release path noticing ([#178](https://github.com/md-mt/termproof/issues/178)).
+
 ## [0.4.2] — 2026-08-24
 
 ### Python — Changed (breaking)
