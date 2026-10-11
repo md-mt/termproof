@@ -44,7 +44,7 @@
 //! # Both paths must measure width with one table
 //!
 //! `from_vt100` inherits whatever column layout `vt100` chose, and the
-//! ANSI-text path re-derives it with [`cell_width`]. If those two consult
+//! ANSI-text path re-derives it with `cell_width`. If those two consult
 //! different `unicode-width` majors they disagree about real code points —
 //! U+1FA89 is one column under 0.1 and two under 0.2, and 458 code points
 //! differ in total. The same byte then lands in a different column depending

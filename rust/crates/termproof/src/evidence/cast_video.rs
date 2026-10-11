@@ -7,7 +7,7 @@
 //!
 //! This backend replays the cast through the terminal emulator, samples the
 //! grid at a fixed frame rate, and renders each frame with
-//! [`screen_svg`](crate::terminal::attributed::screen_svg) — the same
+//! [`screen_svg`] — the same
 //! function behind [`crate::evidence::screenshot`]. The video is literally the
 //! screenshots in sequence. That holds for this backend only: `agg_ffmpeg` is
 //! still the configured default, so choosing it is what buys the shared visual
