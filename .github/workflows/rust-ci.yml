@@ -150,20 +150,26 @@ jobs:
       # to whatever cargo picked, which is not the floor. So each floor declared
       # in the workspace manifest is pinned here and the suite is run against
       # it. Rewriting the requirement to `=` beats `cargo update --precise`,
-      # which cannot name a crate the graph contains twice — and this graph does
-      # contain fancy-regex twice at the jsonschema floor, because jsonschema
-      # 0.32.0 asks for `^0.15` while we ask for `^0.16` (sharing one engine
-      # with it starts at 0.32.1). Last step in the job: it dirties Cargo.toml
+      # which cannot name a crate the graph contains twice — and this graph
+      # does contain reviewed duplicates (see rust/deny.toml). Until #221 it
+      # also contained fancy-regex twice at the jsonschema floor, because
+      # jsonschema 0.32.0 asked for `^0.15` while we asked for `^0.16`; at
+      # the 0.56 floor both sides ask for `^0.19` and share one copy at the
+      # floor too. Last step in the job: it dirties Cargo.toml
       # and Cargo.lock, and the checkout is thrown away straight after.
       #
-      # fancy-regex pins to 0.16.0, the bottom of `^0.16`, and not to the 0.16.2
+      # fancy-regex pins to 0.19.0, the bottom of `^0.19`, and not to the 0.19.2
       # the lockfile resolves: pinning the version the lock already picks would
       # re-run what the steps above ran and test nothing new (#177).
+      # jsonschema pins to 0.56.0, which is both the bottom of `>=0.56, <0.57`
+      # and the only 0.56.x release, so today it coincides with the lockfile;
+      # the pin is what keeps the floor claim tested if that ever stops
+      # being true (#221).
       - name: test at the declared dependency floors
         run: |
           set -eux
-          perl -pi -e 's{^fancy-regex = .*}{fancy-regex = "=0.16.0"}' rust/Cargo.toml
-          perl -pi -e 's{^jsonschema = .*}{jsonschema = "=0.32.0"}' rust/Cargo.toml
+          perl -pi -e 's{^fancy-regex = .*}{fancy-regex = "=0.19.0"}' rust/Cargo.toml
+          perl -pi -e 's{^jsonschema = .*}{jsonschema = "=0.56.0"}' rust/Cargo.toml
           cargo test --manifest-path rust/Cargo.toml --workspace
 
 
