@@ -386,7 +386,7 @@ In rough severity order:
   and `press/ctrl-unmapped` (`ctrl-1`) are the only step rows where the two
   runtimes disagree on `passed`. The oracle derives the control byte
   arithmetically; the port's key table refuses anything not named in it.
-  This is the `terminal` module's mapping to settle (`specs/002-builtin-steps/spec.md`
+  This is the `terminal` module's mapping to settle (`spec/002-builtin-steps/spec.md`
   FR-016, OQ-005).
 - **`wait_for_idle` does not distinguish** "no output observed from the
   session" from an ordinary idle timeout (OQ-004).

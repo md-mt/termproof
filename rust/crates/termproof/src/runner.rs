@@ -29,7 +29,7 @@ use crate::result::{AssertionResult, RunResult, StepResult};
 pub struct LoadedRecipe {
     /// The recipe as the execution path consumes it.
     ///
-    /// Steps and assertions stay as raw JSON: `specs/001-recipe-format/spec.md`
+    /// Steps and assertions stay as raw JSON: `spec/001-recipe-format/spec.md`
     /// FR-013 says neither is inspected at load, and the step layer's own
     /// coercion rules are what decide whether a step is well-formed.
     pub recipe: Recipe,

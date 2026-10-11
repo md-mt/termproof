@@ -107,8 +107,9 @@ class PngRenderer:
 
         # Drawn from the grid's own cells rather than from `text`, so the image
         # cannot show what the grid does not hold: rows break on "\n" alone, a
-        # control character is dropped instead of taking a column, a tab runs to
-        # its stop, and a row ends at `cols` cells, not `cols` characters.
+        # "\r" progress line is drawn overwritten as the grid holds it, a tab
+        # runs to its stop, and a row ends at `cols` cells, not `cols`
+        # characters.
         grid = attributed_screen_from_text(text, columns=cols, rows=rows)
         for index, line in enumerate(grid.text_lines()):
             y = padding + line_height * index
