@@ -165,7 +165,7 @@ enumerated in `conformance/README.md`.
 | Never returned | the port wedged | 0 |
 
 The denominator is 147, not 165: the eighteen contained cases have no oracle
-verdict to agree with. With `termproof`'s `json-schema` feature off, the 58
+verdict to agree with. With `termproof`'s `json-schema` feature off, the 72
 `json_schema` cases are skipped by assertion type and the rest is 89 / 89 full
 and verdict agreement — every one of the 23 default-run detail divergences and
 all 4 verdict divergences is a `json_schema` case.
