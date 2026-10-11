@@ -30,11 +30,16 @@ ladder shows the path.
 
 The Python implementation is the **shipped product and the behavioural
 oracle**. The Rust implementation is an **in-progress port**: it is not at
-parity. A required drift gate now gates the measured layers
-(`Oracle freshness result` is required and the differential harnesses run
-via the required `CI (Rust) result`), but it is not yet the #216 Done-when
-parity gate, full parity is not claimed, and #216 remains open for
-cache/config+selection coverage. Three rules follow, and they bind every
+parity. A required gate now gates the measured layers
+(`Oracle freshness result` is required and the ten differential harnesses
+— including the cache/config (#263) and selection (#264) harnesses — run
+via the required `CI (Rust) result`);
+[`rust/docs/status-and-parity.md`](rust/docs/status-and-parity.md)'s gate
+self-assessment finds #216's three Done-when bullets met by that gate,
+the recorded differences and that page. Full parity is still not
+claimed: the gate holds the measured layers to their recorded floors,
+equalities and named allowed differences, and recorded is not the same
+as agreeing. Three rules follow, and they bind every
 contribution:
 
 1. **A divergence is a parity gap, not a preference.** If your change makes

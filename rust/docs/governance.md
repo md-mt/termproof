@@ -204,10 +204,15 @@ Not required, and why:
   for a failed push is the red `Docker Image (Rust)` run plus GitHub's
   default failure notification, not a blocked release. Three reasons.
   (a) Since #256 the job ends by reading every pushed tag back from GHCR
-  and failing unless it resolves to the pushed digest, so a failure is
-  immediate and specific — the run summary names the tag and digest —
-  rather than the silent green of #178, where `rs-v0.3.4` shipped with no
-  image behind it. (b) The crates.io and release-binary channels do not
+  and failing unless it resolves to the pushed digest, so a green run is
+  provable — the run summary names each verified tag and digest. That is
+  the half of #178 a readback can fix: there the `rs-v0.3.4` push was
+  denied (`write_package`) and this job went red, but beside a green
+  release — nothing on the release path waited on this job — so the
+  release shipped with no image behind it. The readback does not make
+  that red louder; it makes
+  green mean the image is actually in GHCR. (b) The crates.io and
+  release-binary channels do not
   depend on the image; it is an additional distribution of the same build,
   not an input to either. (c) A registry outage must not block crate
   releases. The remedy for a failed push is to re-run the

@@ -98,7 +98,10 @@ holds — with the qualifications stated, which are part of the finding:
 1. **The check runs on every pull request and is required on `main` —
    met.** Ruleset `24859051` (enforcement active) requires exactly
    `CI (Rust) result` and `Oracle freshness result` on the default branch
-   ([`governance.md`](governance.md) section 6.1). Both are rollups of
+   for every actor except the live admin-role bypass
+   (`RepositoryRole:5:always` — [`governance.md`](governance.md) section
+   6.1), which release-automation pushes to `main` go through. Both are
+   rollups of
    always-on workflows, so both report on every pull request; the heavy
    jobs behind them run when a relevant path moved (`rust`/`spec`/
    `conformance` for the Rust tests, `python`/`spec`/`conformance` for the
@@ -115,9 +118,12 @@ holds — with the qualifications stated, which are part of the finding:
    residuals are named in
    [`conformance/README.md`](../../conformance/README.md) and asserted in
    the Rust test, so an allowance fails when its divergence stops existing
-   instead of silently outliving it. The step and assertion residuals and
-   the cast-replay residual are recorded the same way, and the
-   runtime-local recordings with no harness by design — `render_fingerprint`
+   instead of silently outliving it. The cast-replay residual is recorded
+   the same way. The step and assertion residuals are recorded as floors
+   + README-named residuals, not self-expiring allowances — their tests
+   assert `agreed >= FLOOR` only, so a healed case raises agreement
+   without forcing the record out — and the no-harness recordings by
+   design — `render_fingerprint`
    (#222, decided in #234) and the attributed screen's Unicode behaviour
    (#244) — are written out under
    [Recorded allowed differences](#recorded-allowed-differences) below.
@@ -163,7 +169,7 @@ for the evidence manifest, the files it wrote) — see
 | Run result | `conformance/probe_run_result.py` | `crates/termproof/tests/differential_run_result.rs` | `conformance/corpus/run_result.expected.json` | equality apart from named allowed differences |
 | Build info | `conformance/probe_build_info.py` | `crates/termproof/tests/differential_build_info.rs` | `conformance/corpus/build_info.expected.json` | equality apart from named allowed differences |
 | Report | `conformance/probe_report.py` | `crates/termproof/tests/differential_report.rs` | `conformance/corpus/report.expected.json` | equality apart from named allowed differences |
-| Config / run cache | `conformance/probe_config.py` | `crates/termproof/tests/differential_config.rs` | `conformance/corpus/config.expected.json` | equality apart from named allowed differences |
+| Config / run cache | `conformance/probe_config.py` | `crates/termproof/tests/differential_config.rs` | `conformance/corpus/config.expected.json` | config: equality apart from named allowed differences; cache: availability/sensitivity (digests never cross-compared) |
 | Selection | `conformance/probe_selection.py` | `crates/termproof/tests/differential_selection.rs` | `conformance/corpus/selection_cases.json` | exact residual |
 
 The step and assertion harnesses assert a **floor rather than equality**:
@@ -280,16 +286,19 @@ here: the run-result, build-info, report and config/cache allowances, the
 cast-replay and selection exact residuals, and the step and assertion
 known residuals summarised under
 [Known defects and divergences](#known-defects-and-divergences) below.
-Each is also a named constant asserted in its Rust test, so the test fails
-when the divergence stops existing and the record has to be removed
-deliberately. The remaining entries have no harness by design and are
+Each allowance and exact residual is also a named constant asserted in
+its Rust test, so the test fails when the divergence stops existing and
+the record has to be removed deliberately. The step and assertion
+residuals are recorded as floors + README-named residuals, not
+self-expiring allowances: their tests assert `agreed >= FLOOR` only.
+The remaining entries have no harness by design and are
 written out in full here.
 
 ### `render_fingerprint` on non-ASCII screens (#222, decided in #234)
 
 Recorded, no fix planned. Python hashes `json.dumps` output with its
 default `ensure_ascii=True`, so a non-ASCII cell is hashed as an escape
-(`é`); Rust hashes `serde_json` output, which writes the raw UTF-8
+(`\u00e9`); Rust hashes `serde_json` output, which writes the raw UTF-8
 (`é`). ASCII-only screens therefore fingerprint identically in both
 runtimes and screens with non-ASCII cell text do not. By the decision
 recorded in #234 the digest is **runtime-local**: it only has to match
@@ -326,12 +335,16 @@ hundred code points in the canonical CPython 3.13.5 environment — 356
 that are wide only in Rust and 46 combining marks that merge only in
 Rust — and the gap moves with the Python version, because each
 interpreter carries a different Unicode version. On Python 3.11, still
-the `requires-python` floor and still in the CI matrix, the gap is far
-larger: `east_asian_width` returns `F` for every *unassigned* code
-point, so roughly 764k unassigned code points take two cells in Python
-and one in Rust. Real terminal output rarely contains unassigned code
-points, but the size of the gap is recorded so nobody has to re-measure
-it to believe it.
+the `requires-python` floor and still in the CI matrix, the gap was far
+larger until #248: `east_asian_width` returns `F` for every
+*unassigned* code point, so roughly 764k unassigned code points took
+two cells in Python and one in Rust. #248 closed that bulk by
+special-casing unassigned (Cn) code points in `_cell_width`
+(`python/termproof/attributed.py`) — two cells in the five
+default-wide ranges, one elsewhere — bringing 3.11 width disagreements
+from 764,532 to 383, in line with later interpreters. Real terminal
+output rarely contains unassigned code points, but the size of the
+former gap is recorded so nobody has to re-measure it to believe it.
 
 Where this is observable is the point to be careful about. The width and
 merging decisions change the cell grid itself, and with it `text_lines`
@@ -342,9 +355,8 @@ runtime-local**: the same screen lays out differently depending on which
 runtime, and on the Python side which interpreter version, built it, and
 that difference is visible in artifacts a consumer reads. It must not be
 folded into the fingerprint framing as if recording the digest had
-recorded the layout. Vendoring a pinned table into Python, or
-special-casing 3.11's unassigned-code-point behaviour, remain the open
-options listed in #244; neither is planned.
+recorded the layout. Vendoring a pinned table into Python remains the
+open option listed in #244 and is not planned.
 
 ### A combining mark in a wide glyph's filler cell (#244)
 
