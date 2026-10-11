@@ -154,10 +154,10 @@ jobs:
         env:
           TAGS: ${{ steps.meta.outputs.tags }}
         run: |
-          # A here-string, not a pipe. Piped, the loop would sit in a subshell
-          # and only its final iteration could fail the step, so a denied push
-          # followed by a good one could still end green; in this shell the
-          # first failed push ends the step.
+          # A here-string, not a pipe, so the loop runs in this shell rather
+          # than a pipeline subshell. The piped form already failed the step
+          # on a denied push — `|| exit 1` under Actions' default
+          # `bash -eo pipefail` saw to that — so this is clarity, not a fix.
           while IFS= read -r tag; do
             [ -n "$tag" ] || continue
             echo "pushing $tag"
@@ -182,7 +182,7 @@ jobs:
           fi
           while IFS= read -r tag; do
             [ -n "$tag" ] || continue
-            expected="$(docker image inspect "$tag" --format '{{index .RepoDigests 0}}' | cut -d@ -f2)"
+            expected="$(docker image inspect "$tag" --format '{{if .RepoDigests}}{{index .RepoDigests 0}}{{end}}' | cut -d@ -f2)"
             if [ -z "$expected" ]; then
               echo "::error::the pushed image records no registry digest for $tag"
               exit 1
