@@ -28,10 +28,15 @@ Repository settings, names only — values come from the owner's bucket; see the
 runbook for the exact least-privilege policy:
 
 - Secrets: `TERM_PROOF_VIDEO_BUCKET`, `AWS_ENDPOINT_URL_S3` (R2 only),
-  `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` — Put/Get on the `termproof/`
-  prefix only, no delete.
-- Variables: `TERM_PROOF_VIDEO_BASE_URL` (public URL prefix, including the key
-  prefix), `TERM_PROOF_VIDEO_PREFIX` (optional, default `termproof/videos`).
+  `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`. On S3 the policy is
+  `s3:PutObject` only on `termproof/videos/*` (the publisher never reads),
+  with delete explicitly denied in that scope. On R2 that policy cannot be
+  expressed: an R2 token is bucket-wide, cannot be scoped to the
+  `termproof/videos/` prefix, and cannot deny delete — so the R2 guarantee
+  is weaker and a dedicated bucket is the containment.
+- Variables: `TERM_PROOF_VIDEO_BASE_URL` (public **bucket-root** URL, without
+  the key prefix), `TERM_PROOF_VIDEO_PREFIX` (optional, default
+  `termproof/videos`).
 
 The `verify` job in `.github/workflows/python-ci.yml` already runs the publish
 step and rewrites report links through `termproof.ci_evidence`. Fork pull

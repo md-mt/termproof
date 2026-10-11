@@ -62,7 +62,13 @@ def compose_pr_comment(
     if video_base_url:
         base_report = rewrite_video_links(base_report, base_dir, f"{video_base_url.rstrip('/')}/base")
         head_report = rewrite_video_links(head_report, head_dir, f"{video_base_url.rstrip('/')}/head")
-    # Also handle video_base_url provided via receipt hosting config
+    # Receipt ``hosting.video_base_url`` is a distinct, older convention from
+    # ``TERM_PROOF_VIDEO_BASE_URL``: here it is treated as an already-resolved
+    # prefix (this function appends only ``/base`` or ``/head``), not as the
+    # bucket root. The repository receipt leaves it empty; CI passes the
+    # bucket-root variable through the workflow, which appends the key prefix
+    # and ``pr/<pr>/<run>`` before calling this function. Do not copy the
+    # bucket-root variable into the receipt expecting the same URLs.
     hosting = receipt.get("hosting", {})
     if not video_base_url and hosting.get("video_base_url"):
         vb = hosting["video_base_url"].rstrip("/")
@@ -182,8 +188,12 @@ def _normalize_artifact_paths(out_dir: Path) -> None:
 def _rewrite_video_links_in_reports(out_dir: Path, receipt: dict[str, Any]) -> None:
     """If receipt hosting has a video_base_url, rewrite session.mp4 paths in reports.
 
-    This provides durable links without requiring a separate publish step when
-    the CI bucket URL is known at run time.
+    Receipt ``hosting.video_base_url`` is not ``TERM_PROOF_VIDEO_BASE_URL``:
+    here it is treated as an already-resolved prefix and only the path
+    relative to ``out_dir`` is appended (no key prefix, ``pr/<pr>/<run>`` or
+    scope is added), so it cannot reproduce the PR publish layout from a
+    bucket root. The repository receipt leaves it empty; the PR publish and
+    compose steps own the bucket-root convention.
     """
     hosting = receipt.get("hosting", {})
     video_base_url = hosting.get("video_base_url", "")

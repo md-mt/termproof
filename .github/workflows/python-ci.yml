@@ -392,10 +392,19 @@ jobs:
             echo "Video hosting not configured (TERM_PROOF_VIDEO_BUCKET / TERM_PROOF_VIDEO_BASE_URL unset) — skipping upload. Artifact remains the canonical fallback."
             exit 0
           fi
+          # TERM_PROOF_VIDEO_BASE_URL is the bucket root everywhere (#118).
+          # The publisher appends the full key (<prefix>/pr/<pr>/<run>/...),
+          # so a prefix must be passed explicitly: an unset variable reaches
+          # this step as an empty string, not as the documented default.
+          video_prefix="${TERM_PROOF_VIDEO_PREFIX:-termproof/videos}"
+          video_prefix="${video_prefix#/}"
+          video_prefix="${video_prefix%/}"
+          video_prefix="${video_prefix:-termproof/videos}"
           uv run python -m termproof.evidence_publish publish-videos \
             --base-dir .termproof/pr-base \
             --head-dir .termproof/ci \
             --bucket "$TERM_PROOF_VIDEO_BUCKET" \
+            --prefix "$video_prefix" \
             --pr-number "$PR_NUMBER" \
             --run-id "$RUN_ID" \
             --video-base-url "$TERM_PROOF_VIDEO_BASE_URL" \
@@ -445,6 +454,7 @@ jobs:
           HEAD_LABEL: ${{ github.sha }}
           HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          TERM_PROOF_VIDEO_PREFIX: ${{ vars.TERM_PROOF_VIDEO_PREFIX }}
           TERM_PROOF_VIDEO_BASE_URL: ${{ vars.TERM_PROOF_VIDEO_BASE_URL }}
         run: |
           screenshot_args=()
@@ -455,13 +465,24 @@ jobs:
             )
           fi
           video_args=()
-          # Variables are visible to fork runs even though secrets are not,
-          # so gate on the head repo as well: a fork comment must not link to
-          # objects the publish step was forbidden to upload (#118).
+          # Even if variables were visible to a fork run, a set base URL alone
+          # must not add links: gate on the head repo as well, so a fork comment
+          # cannot link to objects the publish step was forbidden to upload
+          # (#118). The real boundary is GitHub withholding secrets from fork
+          # runs; this explicit check also covers a future trigger change.
           if [ -n "$TERM_PROOF_VIDEO_BASE_URL" ] && [ "$HEAD_REPO" = "$GITHUB_REPOSITORY" ]; then
+            # TERM_PROOF_VIDEO_BASE_URL is the bucket root everywhere (#118):
+            # append the key prefix here so the composed URL matches the key
+            # the publish step uploads (<prefix>/pr/<pr>/<run>/{base,head}/...).
+            # ci_evidence then appends /base or /head and the relative path.
+            video_prefix="${TERM_PROOF_VIDEO_PREFIX:-termproof/videos}"
+            video_prefix="${video_prefix#/}"
+            video_prefix="${video_prefix%/}"
+            video_prefix="${video_prefix:-termproof/videos}"
+            video_base="${TERM_PROOF_VIDEO_BASE_URL%/}"
             video_args=(
               --video-base-url
-              "${TERM_PROOF_VIDEO_BASE_URL}/pr/${PR_NUMBER}/${GITHUB_RUN_ID}"
+              "${video_base}/${video_prefix}/pr/${PR_NUMBER}/${GITHUB_RUN_ID}"
             )
           fi
           uv run python -m termproof.ci_evidence comment \
