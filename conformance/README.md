@@ -11,6 +11,7 @@ have to match. One per layer, each the same two-half shape:
 | Before/after | `probe_before_after.py` | `tests/differential_before_after.rs` | `corpus/before_after_cases.json` |
 | Cast replay | `probe_cast_replay.py` | `tests/differential_cast_replay.rs` | `corpus/cast_replay_cases.json` |
 | Run result | `probe_run_result.py` | `tests/differential_run_result.rs` | `corpus/run_result.expected.json` |
+| Build info | `probe_build_info.py` | `tests/differential_build_info.rs` | `corpus/build_info.expected.json` |
 
 They exist because the port claimed corpus parity several times over with green
 local gates, and a differential run against the Python implementation still
@@ -22,7 +23,7 @@ reproduce is not a measurement.
 The Rust halves compare against the checked-in `corpus/*.expected.json`
 files, so a Python-side behaviour change that nobody re-recorded leaves every
 gate green against stale testimony (#216, #172). `verify_oracle.py` closes
-that locally: it re-runs all six probes the way the regeneration commands
+that locally: it re-runs all seven probes the way the regeneration commands
 below do (`uv run` from `python/`, so dependencies come from
 `python/uv.lock`), compares the fresh case payloads with the checked-in
 files in memory and exits non-zero with a per-file diff summary on any
@@ -52,7 +53,7 @@ version nor the operating system is pinned anywhere in the repository —
 `uv.lock` pins dependencies only. A blocking Ubuntu job added today would
 fail on environment-owned wording (or pass by accident on one interpreter
 in the matrix) and could not distinguish that from the drift it exists to
-catch. Wiring it in first needs the six files re-recorded in one chosen
+catch. Wiring it in first needs the recorded files re-recorded in one chosen
 environment and a job whose runner and interpreter are pinned to that
 environment; that is follow-up work on #216/#172, recorded here rather than
 approximated with a digest or a runner nobody has verified against the
@@ -859,3 +860,100 @@ cargo test -p termproof --test differential_run_result -- --nocapture
 
 No `--features` is needed, and CI's `cargo test --workspace` runs it as it
 stands. A failure prints the full pretty-printed documents side by side.
+
+# Build info
+
+A seventh harness, same two-half shape, for the serialised provenance record
+of the binary under test: Python's `BuildInfo.to_dict`.
+
+## Shape
+
+| Half | Where | What it does |
+|---|---|---|
+| Oracle | `probe_build_info.py` | Records `BuildInfo.to_dict` for a fixed six-record scenario into `corpus/build_info.expected.json`. |
+| Port | `crates/termproof/tests/differential_build_info.rs` | Builds the same scenario, serialises it, and compares the whole documents apart from the allowed differences below. |
+
+As with the run result, the scenario is code in each half: records are
+constructed directly with fixed values, over a real temporary binary —
+`to_dict` stats the path through `verify_provenance`, so both halves create
+one and record it as `@BIN`. The six records cover each mode either side
+names (`installed`, `source`, and the Rust-only `package`), empty-string
+revision and target fields, and no binary at all.
+
+## The allowed differences
+
+Unlike `before_after` in #204, nobody has yet decided which side is the
+reference here, and the pair has drifted on the same axes plus a mode
+(#209). Each divergence below is a named allowance in the Rust test,
+asserted so it fails when the divergence stops existing; anything else
+differing fails the whole comparison. Nothing in either implementation
+changed to add this harness.
+
+| Divergence | Python | Rust | Allowance |
+|---|---|---|---|
+| field names | `source_ref`, `git_commit`, `timestamp` | `change_id`, `commit_hash`, `build_timestamp` | `RENAMED_KEYS` |
+| command | `command` (list) | no such field | `PYTHON_COMMANDS` |
+| provenance in the document | `provenance_verified` key | `verify_provenance()` only, serialised nowhere | per-entry assertion |
+| no binary | `binary_path: null` | `binary_path: ""` | `EMPTY_BINARY_PATH` |
+| empty-string fields | `""` counts as absent (`bool("")`) | `Some("")` counts as present (`is_some()`) | `PROVENANCE_DIVERGENCES` entries 2–3 |
+| modes | `installed`, `source`; anything else never verifies | also `package`, which verifies like `installed` | `PROVENANCE_DIVERGENCES` entry 4 |
+
+## What it does and does not measure
+
+**Does**: the serialised document's keys and value types whole, and the
+provenance verdict per record, over fixed values in every mode.
+
+**Does not**:
+
+- **A Rust serialiser.** There is none — no `Serialize` derive, no
+  `to_dict` equivalent anywhere in the crate — so the Rust document is a
+  test-side transcription (one key per field, under the field's name).
+  Exhaustive struct literals mean a Rust field addition breaks compilation
+  of the test, and a Python key addition fails the comparison, but no
+  production Rust JSON writer is exercised, because none exists to exercise.
+- **The constructors.** `from_command` / `from_binary` /
+  `from_source_build` and `from_installed` / `from_source_build` probe
+  `<binary> --version`, ask git for a commit and read the clock. Known
+  differences on those paths are discovered but deliberately unpinned here:
+  the timestamp spelling (ISO `2026-01-02T03:04:05` in Python,
+  `2026-01-02 03:04:05` in Rust), `build_timestamp` being an `Option` that
+  can be `null` where Python's `timestamp` is always a string, stderr
+  merged into the probed version in Python where Rust falls back to it,
+  the probe timeout (5 s against 10 s), and Python recording the working
+  tree's commit for installed binaries where Rust records none. Pinning any
+  of them needs a harness that can freeze a clock, a git checkout and a
+  child process, which this one is not.
+- **Shapes no scenario entry takes.** Every entry sets
+  `build_timestamp: Some(...)`, so Rust `None` (`null`) against Python's
+  always-string `timestamp` is unpinned. Three `verify_provenance`
+  branches the two sides agree on by inspection are likewise unexercised:
+  a `source` record with `build_target` or both revision fields `None`,
+  a non-empty `binary_path` naming a missing file, and a mode unknown to
+  both sides. Entry 2 sets both revision fields to `""` together, so it
+  pins only their combined verdict — a change to how just one empty field
+  counts is masked by the other under the
+  `change_id.is_some() || commit_hash.is_some()` /
+  `source_ref or git_commit` disjunction.
+
+## Regenerating the expectations
+
+```sh
+cd /path/to/termproof/python
+TERMPROOF_PYTHON_REPO=$PWD uv run python \
+    ../conformance/probe_build_info.py \
+    > ../conformance/corpus/build_info.expected.json
+```
+
+Only regenerate deliberately: the file is the oracle's testimony, and
+quietly re-recording it turns a failing comparison into a passing one
+without changing any behaviour.
+
+## Reading the result
+
+```sh
+cargo test -p termproof --test differential_build_info -- --nocapture
+```
+
+No `--features` is needed, and CI's `cargo test --workspace` runs it as it
+stands. A failure names the allowance whose pinned divergence moved, or
+prints the full pretty-printed documents side by side.
