@@ -1193,10 +1193,15 @@ The **root marker**: Python *keeps* it in the normalised path
 (`src/**`) matches an absolute changed path only in Rust, and a
 marker-prefixed pattern (`repo/src/**`) only in Python. The **harness
 rule**: Python's `harness_paths` is a list of globs, Rust's
-`harness_root` a single literal prefix, so a harness glob anchored
-anywhere but the repository root (`**/verify/**`) and a second harness
-glob have no Rust spelling — changes they suppress to the always set
-in Python select normally in Rust. The Rust test derives the prefix
+`harness_root` a single literal prefix, so a second harness glob has
+no Rust spelling, and `**/verify/**` has no single-prefix spelling
+*as a glob* — it means a `verify` directory at any depth, and the
+derived literal prefix is the useless `**/verify/` — so changes they
+suppress to the always set in Python select normally in Rust. The
+nested case does not show that no prefix could cover its one sampled
+path: a caller could spell `x/verify/` by hand for
+`x/verify/runner.py`, but that answers that path, not the glob (it
+misses `y/verify/...`). The Rust test derives the prefix
 from the first glob (dropping a trailing `/**` or `/*`) and the
 slashed marker from the bare name; both transcriptions are stated in
 its module doc, including the two spellings of absence — Rust `""` as

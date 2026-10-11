@@ -42,8 +42,8 @@
 //!   a harness directory. An empty list becomes a NUL-led prefix no
 //!   normalised path can start with, because `""` here would mean
 //!   *every* path is under the harness. Globs no single prefix can
-//!   express diverge, and are allowances below: that is a property
-//!   of the config's shape, not of the derivation.
+//!   express *as globs* diverge, and are allowances below: that is a
+//!   property of the config's shape, not of the derivation.
 //!
 //! # Allowed differences (#209)
 //!
@@ -106,10 +106,16 @@ const KNOWN_DIVERGENCES: &[(&str, &[&str])] = &[
     ("marker/relative-pattern-absolute-path", &["r"]),
     ("marker/marker-prefixed-pattern", &[]),
     // The harness rule: Python takes globs, any of which may fire;
-    // this crate takes one literal prefix. A glob anchored anywhere
-    // but the repository root, and a second glob in the list, have no
-    // spelling in `SelectionConfig`, so changes they would suppress
-    // in Python select normally here.
+    // this crate takes one literal prefix. A second glob in the list
+    // has no spelling in `SelectionConfig`. `**/verify/**` has no
+    // single-prefix spelling *as a glob* — it means a `verify`
+    // directory at any depth, and the derivation below yields the
+    // useless literal prefix `**/verify/`, which no normalised path
+    // starts with — so changes they would suppress in Python select
+    // normally here. That is narrower than "no prefix for this
+    // path": a caller could spell this case's sampled `x/verify/`
+    // by hand and suppress `x/verify/runner.py`, but that answers
+    // the one path, not the glob (it misses `y/verify/...`).
     ("harness/nested-glob", &["smoke", "r"]),
     ("harness/multiple-globs-second-fires", &["smoke", "r"]),
 ];
@@ -220,8 +226,7 @@ fn the_selected_recipes_match_the_python_ones() {
     assert_eq!(
         recorded_cases.len(),
         cases.len(),
-        "the recorded case count drifted from selection_cases.json; a \
-         duplicate name would otherwise collapse silently in the map"
+        "the recorded case count drifted from selection_cases.json"
     );
     let expected: BTreeMap<String, Vec<String>> = recorded_cases
         .iter()
@@ -236,16 +241,23 @@ fn the_selected_recipes_match_the_python_ones() {
         .iter()
         .map(|case| case["name"].as_str().expect("case name").to_string())
         .collect();
+    // No `dedup` on the sorted input names: `expected`'s keys are
+    // unique by construction, so a duplicate case name in the input
+    // corpus — even one duplicated in the recording too, where the
+    // length check above still passes — leaves the undeduped list
+    // longer than the key list and fails here, instead of collapsing
+    // silently in the map.
     assert_eq!(
         expected.keys().cloned().collect::<Vec<_>>(),
         {
             let mut names = case_names.clone();
             names.sort_unstable();
-            names.dedup();
             names
         },
-        "the recorded cases drifted from the input corpus; regenerate \
-         the oracle only if the Python side is the one that changed — \
+        "the recorded cases drifted from the input corpus (a duplicate \
+         case name fails here too: the map's keys are deduped, the \
+         sorted input names deliberately are not); regenerate the \
+         oracle only if the Python side is the one that changed — \
          see conformance/README.md"
     );
 
