@@ -93,8 +93,10 @@ const DIVERGENT_EVIDENCE_ROWS: [(&str, &str); 2] = [
     ),
 ];
 
-/// The case names the oracle must record, in probe order. A case added
-/// to one half only fails here rather than passing uncompared.
+/// The case names the oracle must record. `expected_cases` collects
+/// them into a sorted [`BTreeMap`], so the probe order here is only for
+/// readability. A case added to one half only fails there rather than
+/// passing uncompared.
 const CASE_NAMES: [&str; 6] = [
     "bare-mix",
     "with-build-info",
@@ -113,6 +115,12 @@ fn expected_cases() -> BTreeMap<String, String> {
     let document: serde_json::Value =
         serde_json::from_str(&recorded).expect("recorded oracle document is JSON");
     let cases = document["cases"].as_array().expect("cases is an array");
+    assert_eq!(
+        cases.len(),
+        CASE_NAMES.len(),
+        "the recorded case count drifted from CASE_NAMES; a duplicate \
+         name would otherwise collapse silently in the map"
+    );
     let map: BTreeMap<String, String> = cases
         .iter()
         .map(|case| {
