@@ -87,6 +87,26 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
   cells, so a double-width glyph counted as two. PNGs of screens with none of
   those were byte-identical to before.
 
+- **A `\r`-redrawn line no longer concatenated, and the rest of C0 no longer
+  vanished from the grid.** The plain-text and ANSI-text constructors dropped
+  every C0 control and DEL, so `50%\r60%` built the single row `50%60%`
+  where a terminal — and the cast-replay path through pyte — showed `60%`,
+  and `a\x0bb` built the same grid and fingerprint as `ab`, so dedup
+  reported one screen as a duplicate of the other
+  ([#249](https://github.com/md-mt/termproof/issues/249)). `_push_char`
+  gained a cursor: `\r` sent it to column 0 and `\x08` one cell left, never
+  past 0, and a character written at a cursor sent backwards overwrote the
+  cell already there with the attributes in force at the overwrite, leaving
+  cells past the overwritten prefix alone (`500%\r60%` read `60%%`, as pyte
+  shows it). The remaining C0 controls and DEL took a width-1 cell of their
+  own, the rule Rust's `push_char` already had, and still never reached the
+  SVG, which filters them at the document boundary; a `PngRenderer` image
+  gave each the column its grid holds, reversing that clause of the #243
+  entry above. `\x0b` and `\x0c` stayed cells rather than the line feeds
+  pyte reads them as. Grids and fingerprints changed for screens containing
+  `\r`, `\x08` or another C0 control; fingerprints are runtime-local, so
+  only dedup state stored by an earlier run was affected.
+
 ### CI
 
 - **`.github/dependabot.yml` is schema-checked on the pull request that edits
