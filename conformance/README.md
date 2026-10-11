@@ -16,6 +16,49 @@ local gates, and a differential run against the Python implementation still
 found the two runtimes agreeing on a minority of cases. A number nobody can
 reproduce is not a measurement.
 
+## Checking oracle freshness
+
+The Rust halves compare against the checked-in `corpus/*.expected.json`
+files, so a Python-side behaviour change that nobody re-recorded leaves every
+gate green against stale testimony (#216, #172). `verify_oracle.py` closes
+that locally: it re-runs all five probes the way the regeneration commands
+below do (`uv run` from `python/`, so dependencies come from
+`python/uv.lock`), compares the fresh case payloads with the checked-in
+files in memory and exits non-zero with a per-file diff summary on any
+mismatch. It never writes into `corpus/`.
+
+```sh
+python3 conformance/verify_oracle.py
+```
+
+The `environment` block three of the files carry is compared separately and
+reported field by field, not dropped: a payload difference always fails,
+while an environment difference only warns unless `--strict-environment` is
+given. That asymmetry is forced by the recordings themselves — they were
+made under Python 3.12.13, 3.13.2 and 3.13.5 (two of the three blocks record
+Darwin as the platform; the cast-replay block records no platform at all), so
+no single interpreter reproduces all three blocks. At the commit that added the check,
+a fresh run under 3.13.2 on Darwin matched four files and differed in one
+assertions case (`json_schema/invalid-json-trailing-comma`), whose recorded
+detail is CPython 3.12's wording for a JSON parse failure where 3.13 words
+it differently. The expectation was left as recorded: whether to re-record
+it, and under which interpreter, is the recording-environment decision
+below, not something to settle by regenerating until the check goes quiet.
+
+CI deliberately does not run this yet. `python-ci.yml` runs on Ubuntu while
+every recording that names a platform names Darwin, and neither the interpreter patch
+version nor the operating system is pinned anywhere in the repository —
+`uv.lock` pins dependencies only. A blocking Ubuntu job added today would
+fail on environment-owned wording (or pass by accident on one interpreter
+in the matrix) and could not distinguish that from the drift it exists to
+catch. Wiring it in first needs the five files re-recorded in one chosen
+environment and a job whose runner and interpreter are pinned to that
+environment; that is follow-up work on #216/#172, recorded here rather than
+approximated with a digest or a runner nobody has verified against the
+corpus. Until then, run the check locally before and after touching Python
+behaviour a harness compares, and read any diff it prints before deciding
+which side moved.
+
 # Step semantics
 
 ## Shape
