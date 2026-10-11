@@ -315,7 +315,11 @@ workspace README in the same change.
 - **Dependabot.** `.github/dependabot.yml` opens weekly grouped PRs for Cargo
   and GitHub Actions, capped at five open PRs per ecosystem. Updates are
   reviewed against the dependency-floor test (§6) and the feature-powerset
-  test (§7) in the same PR.
+  test (§7) in the same PR. `.github/workflows/dependabot-config.yml`
+  validates the file against the Dependabot JSON schema on any pull request
+  or push to `main` that changes it. That catches a malformed file before the
+  merge, not every invalid one: Dependabot applies validation beyond the
+  schema, so the repository's Dependabot page is still the final answer.
 - **cargo deny.** `deny.toml` is the workspace's dependency policy — licence
   allowlist (deny-by-default, and equal to the live graph: an allowance no
   dependency uses is removed, so `cargo deny check` reports no unused-license

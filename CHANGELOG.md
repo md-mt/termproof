@@ -41,7 +41,16 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
 
 ## [Unreleased]
 
-Nothing yet.
+### CI
+
+- **`.github/dependabot.yml` is schema-checked on the pull request that edits
+  it.** A config Dependabot could not read was reported only after the merge,
+  on the repository's Dependabot page, with the update streams stopped in the
+  meantime. `dependabot-config.yml` validated the file against the Dependabot
+  JSON schema on pull requests and pushes to `main` that touched it, and wrote
+  the errors to the job summary. It was a floor rather than a verdict:
+  Dependabot validates further than the schema does. Not a required check —
+  it is path-filtered (`rust/docs/governance.md` §5).
 
 ## [0.4.2] — 2026-08-24
 
