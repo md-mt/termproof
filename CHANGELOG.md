@@ -116,6 +116,26 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
   cells, so a double-width glyph counted as two. PNGs of screens with none of
   those were byte-identical to before.
 
+- **A `\r`-redrawn line no longer concatenated, and the rest of C0 no longer
+  vanished from the grid.** The plain-text and ANSI-text constructors dropped
+  every C0 control and DEL, so `50%\r60%` built the single row `50%60%`
+  where a terminal — and the cast-replay path through pyte — showed `60%`,
+  and `a\x0bb` built the same grid and fingerprint as `ab`, so dedup
+  reported one screen as a duplicate of the other
+  ([#249](https://github.com/md-mt/termproof/issues/249)). `_push_char`
+  gained a cursor: `\r` sent it to column 0 and `\x08` one cell left, never
+  past 0, and a character written at a cursor sent backwards overwrote the
+  cell already there with the attributes in force at the overwrite, leaving
+  cells past the overwritten prefix alone (`500%\r60%` read `60%%`, as pyte
+  shows it). The remaining C0 controls and DEL took a width-1 cell of their
+  own, the rule Rust's `push_char` already had, and still never reached the
+  SVG, which filters them at the document boundary; a `PngRenderer` image
+  gave each the column its grid holds, reversing that clause of the #243
+  entry above. `\x0b` and `\x0c` stayed cells rather than the line feeds
+  pyte reads them as. Grids and fingerprints changed for screens containing
+  `\r`, `\x08` or another C0 control; fingerprints are runtime-local, so
+  only dedup state stored by an earlier run was affected.
+
 ### Rust — Changed
 
 - **The `jsonschema` dependency moved from the 0.33 line to 0.56, and
@@ -147,6 +167,22 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
   a schema-consumer decision tracked as the remainder of
   ([#221](https://github.com/md-mt/termproof/issues/221)).
 
+### Rust — Fixed
+
+- **A `\r`-redrawn line no longer kept the `\r` as a cell.** The plain-text
+  and ANSI-text constructors laid `50%\r60%` out as the six-cell row
+  `50%\r60%` where a terminal showed `60%`
+  ([#249](https://github.com/md-mt/termproof/issues/249)). `push_char`
+  gained a cursor with the same rules as Python's `_push_char`: `\r` sent
+  it to column 0 and `\x08` one cell left, never past 0, and a character
+  written at a cursor sent backwards overwrote the cell already there with
+  the attributes in force at the overwrite, leaving cells past the
+  overwritten prefix alone (`500%\r60%` read `60%%`). A tab padded only
+  past the row's end, so crossing live cells after `\r` did not erase them.
+  The remaining C0 controls and DEL already took a width-1 cell of their
+  own and did not change. Grids and fingerprints changed for screens
+  containing `\r` or `\x08`; fingerprints are runtime-local, so only dedup
+  state stored by an earlier run was affected.
 ### CI
 
 - **`.github/dependabot.yml` is schema-checked on the pull request that edits
@@ -166,6 +202,18 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
   failed the step under Actions' default `bash -eo pipefail`. A denied
   `write_package` push had earlier cost one release its image with nothing on
   the release path noticing ([#178](https://github.com/md-mt/termproof/issues/178)).
+
+- **Release workflow messages named the workflows that exist.** The
+  ``::error::`` guidance in `rust-release.yml` and `rust-auto-release.yml`
+  sent readers to pre-consolidation workflow file names; the same stale
+  names were corrected in the surrounding comments and docs, together with
+  the other claims the #188 sweep verified against the tree (the Rust
+  workspace's crate count, the per-ecosystem Dependabot caps, the checks
+  `check_version.py` does and does not perform, and `spec/` path
+  references). Two claims-sweep tests now checked referenced workflow
+  files and concrete `spec/` paths against the tracked tree, so that class
+  of drift fails a test rather than a review
+  ([#188](https://github.com/md-mt/termproof/issues/188)).
 
 ## [0.4.2] — 2026-08-24
 

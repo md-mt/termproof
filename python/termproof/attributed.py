@@ -363,18 +363,17 @@ def attributed_screen_from_lines(
     Characters are laid out by :func:`_push_char`, the same rules
     :func:`attributed_screen_from_ansi_text` uses, so the two constructors put
     the same glyph in the same column. Escape sequences are not interpreted:
-    the ESC is dropped like any other control character and the rest of the
-    sequence occupies cells.
+    the ESC takes a cell like any other character and the rest of the
+    sequence occupies the cells after it.
     """
     pool = _CellPool()
     attrs = _AnsiAttrs()
     screen_rows = []
     for line in lines[:rows]:
         cells: list[AttributedCell] = []
+        cursor = 0
         for ch in line:
-            if len(cells) >= columns:
-                break
-            _push_char(cells, ch, attrs, columns, pool)
+            cursor = _push_char(cells, cursor, ch, attrs, columns, pool)
         screen_rows.append(tuple(cells))
     return AttributedScreen(rows=tuple(screen_rows))
 
@@ -519,54 +518,79 @@ def _cells_from_ansi_line(
     pool: _CellPool,
 ) -> list[AttributedCell]:
     cells: list[AttributedCell] = []
+    cursor = 0
     index = 0
-    while index < len(line) and len(cells) < columns:
+    while index < len(line):
         if line[index] == "\x1b":
             next_index = _consume_ansi_sequence(line, index, attrs)
             if next_index != index:
                 index = next_index
                 continue
-        _push_char(cells, line[index], attrs, columns, pool)
+        cursor = _push_char(cells, cursor, line[index], attrs, columns, pool)
         index += 1
     return cells
 
 
 def _push_char(
     cells: list[AttributedCell],
+    cursor: int,
     ch: str,
     attrs: _AnsiAttrs,
     columns: int,
     pool: _CellPool,
-) -> None:
-    """Place one character on the grid.
+) -> int:
+    """Place one character on the grid at *cursor*, returning the new cursor.
 
     The layout rules live here, in one place, because both text constructors
-    have to agree on them. Mirrors Rust's ``push_char``, with one deliberate
-    difference: Rust has no control-character branch and gives a control a
-    width-1 cell of its own, filtering it out only when the SVG is written.
+    have to agree on them. Mirrors Rust's ``push_char``.
 
-    A combining mark joins the cell before it, whatever that cell is. After a
-    double-width glyph that is the ``""`` width-0 filler, not the glyph, which
-    is what Rust does too: the mark stays in the grid and in the render
-    fingerprint, but ``text_lines`` and :func:`screen_svg` skip width-0 cells
-    and so do not show it.
+    ``\\r`` and ``\\x08`` are cursor movement, as on a terminal and in the
+    cast-replay (pyte) path: carriage return sends the cursor to column 0
+    and backspace one cell left, never past 0. A character written at a
+    cursor that movement sent backwards overwrites the cell already there,
+    with the attributes in force at the overwrite; cells past the
+    overwritten prefix are left alone, so ``500%\\r60%`` reads ``60%%`` —
+    the rule pyte shows for the same bytes, and what makes a
+    ``\\r``-redrawn progress line read as its final state (#249). Every
+    other C0 control, and DEL, takes a width-1 cell of its own, as Rust's
+    ``push_char`` has always given it: dropping them made ``a\\x0bb`` the
+    same grid as ``ab``, and dedup the same screenshot. They still never
+    reach the SVG — :func:`_glyph_svg` filters them at the document
+    boundary, where a raw control byte would make the markup invalid XML.
+
+    A combining mark joins the cell before the cursor, whatever that cell
+    is. After a double-width glyph that is the ``""`` width-0 filler, not
+    the glyph, which is what Rust does too: the mark stays in the grid and
+    in the render fingerprint, but ``text_lines`` and :func:`screen_svg`
+    skip width-0 cells and so do not show it.
     """
+    if ch == "\r":
+        return 0
+    if ch == "\x08":
+        return max(cursor - 1, 0)
     if ch == "\t":
-        _append_tab(cells, attrs, columns, pool)
-    elif _is_control(ch):
-        # A terminal acts on these rather than displaying them, and a raw
-        # control byte in the output makes the SVG invalid XML — which a
-        # rasterizer reports by writing a 0-byte image, not by failing.
-        pass
-    elif unicodedata.combining(ch) and cells:
-        previous = cells[-1]
+        return _append_tab(cells, cursor, attrs, columns, pool)
+    if unicodedata.combining(ch) and cursor > 0:
+        previous = cells[cursor - 1]
         merged = unicodedata.normalize("NFC", previous.text + ch)
-        cells[-1] = pool.intern(replace(previous, text=merged))
+        cells[cursor - 1] = pool.intern(replace(previous, text=merged))
+        return cursor
+    if cursor >= columns:
+        return cursor
+    width = _cell_width(ch)
+    _place(cells, cursor, pool.intern(attrs.cell(ch, width=width)))
+    cursor += 1
+    if width == 2 and cursor < columns:
+        _place(cells, cursor, pool.intern(attrs.cell("", width=0)))
+        cursor += 1
+    return cursor
+
+
+def _place(cells: list[AttributedCell], cursor: int, cell: AttributedCell) -> None:
+    if cursor == len(cells):
+        cells.append(cell)
     else:
-        width = _cell_width(ch)
-        cells.append(pool.intern(attrs.cell(ch, width=width)))
-        if width == 2 and len(cells) < columns:
-            cells.append(pool.intern(attrs.cell("", width=0)))
+        cells[cursor] = cell
 
 
 def _consume_ansi_sequence(line: str, index: int, attrs: _AnsiAttrs) -> int:
@@ -753,14 +777,19 @@ def _apply_extended_color(params: list[int], index: int, attrs: _AnsiAttrs) -> i
 
 def _append_tab(
     cells: list[AttributedCell],
+    cursor: int,
     attrs: _AnsiAttrs,
     columns: int,
     pool: _CellPool,
-) -> None:
-    target = min(((len(cells) // 8) + 1) * 8, columns)
+) -> int:
+    # A tab moves the cursor to its stop; it pads with blanks only past the
+    # end of the row, so a tab crossing cells a ``\r`` left live does not
+    # erase them — the rule pyte shows for the same bytes.
+    target = min(((cursor // 8) + 1) * 8, columns)
     blank = pool.intern(attrs.cell(" "))
     while len(cells) < target:
         cells.append(blank)
+    return target
 
 
 def _xterm_256_color(index: int) -> str:
@@ -773,7 +802,9 @@ def _xterm_256_color(index: int) -> str:
 def _split_lines(text: str) -> list[str]:
     """Split on ``\\n``, without a phantom row for a trailing newline.
 
-    A ``\\r`` left on a line is a control character and never reaches a cell.
+    A ``\\r`` left on a line reaches :func:`_push_char`, which reads it as a
+    carriage return; the ``\\r`` of a CRLF pair moves a cursor nothing
+    follows, so a CRLF screen keeps the rows of its LF form.
     """
     lines = text.split("\n")
     if lines and lines[-1] == "":
@@ -782,7 +813,7 @@ def _split_lines(text: str) -> list[str]:
 
 
 def _is_control(ch: str) -> bool:
-    """True for C0 controls and DEL, which no terminal cell can hold."""
+    """True for C0 controls and DEL, which XML cannot carry."""
     return ch < " " or ch == "\x7f"
 
 
@@ -862,8 +893,9 @@ def _glyph_svg(cell: AttributedCell, x: float, y: float, fg: str) -> str:
         attrs.append(f'text-decoration="{" ".join(decorations)}"')
     if cell.dim:
         attrs.append('opacity="0.65"')
-    # Belt and braces: the grid builders drop control characters, but a cell can
-    # also be constructed by hand, and one stray byte invalidates the document.
+    # The grid holds control characters as cells (#249), as Rust's does, and a
+    # cell can also be constructed by hand; this filter is the document
+    # boundary that keeps one stray byte from invalidating the document.
     text = "".join(ch for ch in cell.text if not _is_control(ch))
     return f"<text {' '.join(attrs)}>{escape(text)}</text>"
 

@@ -2,7 +2,8 @@
 
 Status: Active
 Owner: termproof maintainers
-Scope: this workspace (all five crates)
+Scope: this workspace (all three crates: `termproof`, `termproof-cli`,
+`termproof-plugin-protocol`)
 Applies from: RUST-002 (milestone Rust M0 — Contract and skeleton)
 
 This document is the engineering policy for the Rust reimplementation. It
@@ -143,8 +144,8 @@ and this document is updated.
 - Supply-chain hygiene for the automation itself is part of the baseline:
   every third-party GitHub Action is pinned to an immutable commit SHA with a
   version comment (see §11), and `.github/dependabot.yml` opens weekly grouped
-  update PRs for both Cargo and GitHub Actions. A pin without a comment is a
-  pin that cannot be updated safely.
+  update PRs for Cargo and GitHub Actions (among other ecosystems; §11).
+  A pin without a comment is a pin that cannot be updated safely.
 
 ## 7. Feature policy
 
@@ -312,8 +313,10 @@ workspace README in the same change.
   tag (`@v7`, `@master`) can be replaced silently by its owner; a SHA cannot.
   Dependabot moves SHA and comment together on update, which is why the
   comment is mandatory — a SHA without a version cannot be reviewed.
-- **Dependabot.** `.github/dependabot.yml` opens weekly grouped PRs for Cargo
-  and GitHub Actions, capped at five open PRs per ecosystem. Updates are
+- **Dependabot.** `.github/dependabot.yml` opens weekly PRs for pip, Cargo,
+  GitHub Actions and Docker. The open-PR cap is per ecosystem, not uniform:
+  Cargo and Docker are grouped and capped at five, GitHub Actions is grouped
+  to a single open PR, and pip is capped at ten. Updates are
   reviewed against the dependency-floor test (§6) and the feature-powerset
   test (§7) in the same PR. `.github/workflows/dependabot-config.yml`
   validates the file against the Dependabot JSON schema on any pull request
@@ -328,11 +331,13 @@ workspace README in the same change.
   vulnerability and unsound advisory fails; `yanked` crates fail). Every
   intentional exception carries an owner and, where meaningful, an expiry
   condition; the eight current duplicate skips each carry an inline reason
-  grounded in the dependency tree (§6). Enforced by the `Security` workflow on
+  grounded in the dependency tree (§6). Enforced by the `Security (Rust)`
+  workflow on
   every PR and push, and weekly on a schedule so a freshly published advisory
   is caught without waiting for a PR.
-- **cargo semver-checks.** The `Security` workflow compares this crate's
-  public API against the latest version published on crates.io on every PR
+- **cargo semver-checks.** The `Security (Rust)` workflow compares this
+  crate's public API against the latest version published on crates.io on
+  every PR
   (`cargo semver-checks check-release -p termproof`), and fails on a breaking
   change. Under the pre-1.0 convention (docs/publishing.md) that is any
   change the convention would call a minor bump; it is caught here before a
@@ -347,7 +352,7 @@ workspace README in the same change.
   for the current lists; #174 moved `tests/canonical_schema.rs` across that
   line, from forbidden to required, by making it read the embedded schema
   instead of a path outside the crate.
-- **Release archives.** `release-rust.yml` smoke-tests every archive before
+- **Release archives.** `rust-release.yml` smoke-tests every archive before
   upload: `.github/scripts/rust/verify-release-archive.sh` verifies the sha256,
   extracts the tarball, and asserts `termproof --version` reports exactly the
   workspace version. The attestation subject is verified against the archive

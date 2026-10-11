@@ -334,7 +334,7 @@ The published tarballs are deliberately smaller than the repository:
   explicitly. They replay `conformance/corpus/`, so without it they cannot run;
   shipping tests that cannot run is worse than not shipping them. Run them from
   a repository checkout.
-- **`specs/`, `docs/`, `.github/`** — repository root, never packaged.
+- **`spec/`, `docs/`, `.github/`** — repository root, never packaged.
 
 Everything else the crate needs at build time is inside its own directory, and
 the dry run proves it: the package is verified by compiling it from its own

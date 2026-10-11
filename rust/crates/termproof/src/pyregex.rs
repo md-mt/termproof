@@ -1,6 +1,6 @@
 //! Python 3 `re` dialect for `wait_for_regex`.
 //!
-//! `specs/002-builtin-steps/spec.md` FR-019 fixes the pattern dialect as
+//! `spec/002-builtin-steps/spec.md` FR-019 fixes the pattern dialect as
 //! Python's `re`, "not PCRE and not the Rust `regex` crate", and tabulates
 //! thirteen patterns executed against the oracle. The `regex` crate fails
 //! three of them outright — it has no lookaround and no backreferences — so

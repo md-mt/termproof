@@ -722,13 +722,14 @@ fn cells_from_ansi_line(line: &str, attrs: &mut AnsiAttrs, columns: usize) -> Ve
     // around it is not.
     let chars: Vec<char> = line.chars().collect();
     let mut cells: Vec<AttributedCell> = Vec::new();
+    let mut cursor = 0;
     let mut index = 0;
-    while index < chars.len() && cells.len() < columns {
+    while index < chars.len() {
         if chars[index] == '\x1b' {
             index = consume_ansi_sequence(&chars, index, attrs);
             continue;
         }
-        push_char(&mut cells, chars[index], attrs, columns);
+        cursor = push_char(&mut cells, cursor, chars[index], attrs, columns);
         index += 1;
     }
     cells
@@ -738,16 +739,14 @@ fn cells_from_ansi_line(line: &str, attrs: &mut AnsiAttrs, columns: usize) -> Ve
 fn cells_from_plain_line(line: &str, columns: usize) -> Vec<AttributedCell> {
     let attrs = AnsiAttrs::default();
     let mut cells: Vec<AttributedCell> = Vec::new();
+    let mut cursor = 0;
     for ch in line.chars() {
-        if cells.len() >= columns {
-            break;
-        }
-        push_char(&mut cells, ch, &attrs, columns);
+        cursor = push_char(&mut cells, cursor, ch, &attrs, columns);
     }
     cells
 }
 
-/// Place one character on the grid.
+/// Place one character on the grid at `cursor`, returning the new cursor.
 ///
 /// The layout rules live here, in one place, because both constructors have to
 /// agree on them: a wide glyph that occupies two columns on the ANSI path and
@@ -755,21 +754,57 @@ fn cells_from_plain_line(line: &str, columns: usize) -> Vec<AttributedCell> {
 /// depending on which transport captured it, which is the whole thing
 /// `evidence::render` and `evidence::screenshot` sharing a renderer is meant to
 /// rule out.
-fn push_char(cells: &mut Vec<AttributedCell>, ch: char, attrs: &AnsiAttrs, columns: usize) {
-    if ch == '\t' {
-        append_tab(cells, attrs, columns);
-        return;
+///
+/// `\r` and `\x08` are cursor movement, as on a terminal and in the
+/// cast-replay paths: carriage return sends the cursor to column 0 and
+/// backspace one cell left, never past 0. A character written at a cursor
+/// that movement sent backwards overwrites the cell already there, with the
+/// attributes in force at the overwrite; cells past the overwritten prefix
+/// are left alone, so `500%\r60%` reads `60%%` — what makes a
+/// `\r`-redrawn progress line read as its final state (#249). Every other
+/// C0 control, and DEL, takes a width-1 cell of its own, as it always has
+/// here; Python's `_push_char` dropped them until #249, which made
+/// `a\u{b}b` the same grid as `ab` there and dedup the same screenshot.
+fn push_char(
+    cells: &mut Vec<AttributedCell>,
+    cursor: usize,
+    ch: char,
+    attrs: &AnsiAttrs,
+    columns: usize,
+) -> usize {
+    if ch == '\r' {
+        return 0;
     }
-    if canonical_combining_class(ch) != 0 && !cells.is_empty() {
-        let previous = cells.last_mut().expect("checked non-empty");
+    if ch == '\x08' {
+        return cursor.saturating_sub(1);
+    }
+    if ch == '\t' {
+        return append_tab(cells, cursor, attrs, columns);
+    }
+    if canonical_combining_class(ch) != 0 && cursor > 0 {
+        let previous = &mut cells[cursor - 1];
         previous.text = format!("{}{}", previous.text, ch).nfc().collect();
-        return;
+        return cursor;
+    }
+    if cursor >= columns {
+        return cursor;
     }
     let width = cell_width(ch);
-    cells.push(attrs.cell(&ch.to_string(), width));
-    if width == 2 && cells.len() < columns {
+    place(cells, cursor, attrs.cell(&ch.to_string(), width));
+    let mut cursor = cursor + 1;
+    if width == 2 && cursor < columns {
         // Filler so the grid stays rectangular; skipped when reading text.
-        cells.push(attrs.cell("", 0));
+        place(cells, cursor, attrs.cell("", 0));
+        cursor += 1;
+    }
+    cursor
+}
+
+fn place(cells: &mut Vec<AttributedCell>, cursor: usize, cell: AttributedCell) {
+    if cursor == cells.len() {
+        cells.push(cell);
+    } else {
+        cells[cursor] = cell;
     }
 }
 
@@ -885,11 +920,20 @@ fn apply_extended_color(params: &[u16], index: usize, attrs: &mut AnsiAttrs) -> 
     params.len() - 1
 }
 
-fn append_tab(cells: &mut Vec<AttributedCell>, attrs: &AnsiAttrs, columns: usize) {
-    let target = (((cells.len() / 8) + 1) * 8).min(columns);
+fn append_tab(
+    cells: &mut Vec<AttributedCell>,
+    cursor: usize,
+    attrs: &AnsiAttrs,
+    columns: usize,
+) -> usize {
+    // A tab moves the cursor to its stop; it pads with blanks only past the
+    // end of the row, so a tab crossing cells a `\r` left live does not
+    // erase them — the rule the cast-replay path shows for the same bytes.
+    let target = (((cursor / 8) + 1) * 8).min(columns);
     while cells.len() < target {
         cells.push(attrs.cell(" ", 1));
     }
+    target
 }
 
 fn xterm_256_color(index: u16) -> String {
@@ -1051,6 +1095,139 @@ mod tests {
         let s = screen("ab\tc");
         assert_eq!(s.rows[0].len(), 9);
         assert_eq!(s.rows[0][8].text, "c");
+    }
+
+    // -- Cursor movement: `\r` and backspace (#249) --------------------------
+    //
+    // The cast-replay path has always read a progress line this way. The two
+    // text constructors concatenated it instead (`50%\r60%` held the `\r` as
+    // a cell here, and dropped it in Python), so neither showed the row a
+    // terminal shows.
+
+    #[test]
+    fn carriage_return_overwrites_from_column_zero() {
+        for s in [
+            attributed_screen_from_text("50%\r60%", 10, 1),
+            attributed_screen_from_ansi_text("50%\r60%", 10, 1),
+        ] {
+            assert_eq!(s.to_text(false), "60%");
+            assert_eq!(
+                s.render_fingerprint(),
+                attributed_screen_from_text("60%", 10, 1).render_fingerprint()
+            );
+        }
+    }
+
+    #[test]
+    fn cells_past_the_overwritten_prefix_survive() {
+        // Only the rewritten cells change, as on a terminal.
+        for s in [
+            attributed_screen_from_text("500%\r60%", 10, 1),
+            attributed_screen_from_ansi_text("500%\r60%", 10, 1),
+        ] {
+            assert_eq!(s.to_text(false), "60%%");
+        }
+        assert_eq!(
+            attributed_screen_from_text("abcd\rZ", 10, 1).to_text(false),
+            "Zbcd"
+        );
+    }
+
+    #[test]
+    fn a_trailing_carriage_return_changes_nothing() {
+        for s in [
+            attributed_screen_from_text("ab\r", 10, 1),
+            attributed_screen_from_ansi_text("ab\r", 10, 1),
+        ] {
+            assert_eq!(s.to_text(false), "ab");
+        }
+        assert_eq!(
+            attributed_screen_from_text("a\r\nb", 10, 2).to_text(false),
+            "a\nb"
+        );
+    }
+
+    #[test]
+    fn backspace_overwrites_the_cell_before_the_cursor() {
+        for s in [
+            attributed_screen_from_text("abc\x08X", 10, 1),
+            attributed_screen_from_ansi_text("abc\x08X", 10, 1),
+        ] {
+            assert_eq!(s.to_text(false), "abX");
+        }
+        assert_eq!(
+            attributed_screen_from_text("abc\x08\x08X", 10, 1).to_text(false),
+            "aXc"
+        );
+    }
+
+    #[test]
+    fn backspace_at_column_zero_stays_at_column_zero() {
+        assert_eq!(
+            attributed_screen_from_text("\x08a", 10, 1).to_text(false),
+            "a"
+        );
+        assert_eq!(
+            attributed_screen_from_text("a\x08\x08Z", 10, 1).to_text(false),
+            "Z"
+        );
+    }
+
+    #[test]
+    fn the_rest_of_c0_takes_a_cell_of_its_own() {
+        // The rule Python adopted in #249: a control the cursor rules do not
+        // claim is a cell, so the screen holding one is not the screen
+        // without it — grid, text and dedup fingerprint alike.
+        let plain = attributed_screen_from_text("ab", 10, 1);
+        for control in [
+            '\u{0}', '\u{7}', '\u{b}', '\u{c}', '\u{1c}', '\u{1f}', '\u{7f}',
+        ] {
+            let text = format!("a{control}b");
+            for s in [
+                attributed_screen_from_text(&text, 10, 1),
+                attributed_screen_from_ansi_text(&text, 10, 1),
+            ] {
+                assert_eq!(s.to_text(false), text, "control U+{:04X}", control as u32);
+                assert_ne!(s.rows, plain.rows);
+                assert_ne!(s.render_fingerprint(), plain.render_fingerprint());
+            }
+        }
+    }
+
+    #[test]
+    fn carriage_return_after_a_full_row_still_overwrites() {
+        assert_eq!(
+            attributed_screen_from_text("abc\rZ", 3, 1).to_text(false),
+            "Zbc"
+        );
+        assert_eq!(
+            attributed_screen_from_ansi_text("abc\rZ", 3, 1).to_text(false),
+            "Zbc"
+        );
+    }
+
+    #[test]
+    fn a_tab_after_carriage_return_moves_without_erasing() {
+        assert_eq!(
+            attributed_screen_from_text("abcdefgh\rX\tY", 40, 1).to_text(false),
+            "XbcdefghY"
+        );
+    }
+
+    #[test]
+    fn a_wide_glyph_overwrites_two_cells() {
+        let s = attributed_screen_from_text("ab\r\u{65e5}", 10, 1);
+        assert_eq!(s.to_text(false), "\u{65e5}");
+        let widths: Vec<u8> = s.rows[0].iter().map(|c| c.width).collect();
+        assert_eq!(widths, vec![2, 0]);
+    }
+
+    #[test]
+    fn overwritten_cells_take_the_current_attributes() {
+        let s = screen("\x1b[31mab\r\x1b[32mZ");
+        assert_eq!(s.to_text(false), "Zb");
+        assert_eq!(s.rows[0][0].fg, "green");
+        assert_eq!(s.rows[0][1].fg, "red");
     }
 
     #[test]

@@ -72,7 +72,7 @@ What that drift gate does **not** establish:
   particular the cache (`run_cache`/`cache`), `config` and `selection`
   module pairs from #209 have no differential harness yet; work on them is
   in flight, not landed, so drift there is not gated by the checks above.
-- **Python CI is not ruleset-required.** Plainly: no `CI (Python)` check is
+- **`CI (Python)` is not ruleset-required.** Plainly: no `CI (Python)` check is
   in the live ruleset today (see [`governance.md`](governance.md) section
   5). The Python implementation remains the shipped product and the
   behavioural oracle this port is measured against.
@@ -213,7 +213,7 @@ In rough severity order:
   and `press/ctrl-unmapped` (`ctrl-1`) are the only step rows where the two
   runtimes disagree on `passed`. The oracle derives the control byte
   arithmetically; the port's key table refuses anything not named in it.
-  This is the `terminal` module's mapping to settle (`specs/002-builtin-steps/spec.md`
+  This is the `terminal` module's mapping to settle (`spec/002-builtin-steps/spec.md`
   FR-016, OQ-005).
 - **`wait_for_idle` does not distinguish** "no output observed from the
   session" from an ordinary idle timeout (OQ-004).

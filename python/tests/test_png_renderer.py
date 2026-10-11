@@ -50,27 +50,46 @@ class PngRendererTest(unittest.TestCase):
                 self._png(Path(tmp), "a\nb\nc", rows=3),
             )
 
-    def test_a_control_character_is_dropped_as_the_grid_drops_it(self) -> None:
+    def test_a_control_character_takes_the_column_the_grid_gives_it(self) -> None:
         # Drawn straight from the text, each of these took a column the grid
-        # never gave it: at 2 columns "a\x0bb" lost its "b" while the grid held
-        # "ab", and at 80 it drew apart from "ab" over an identical grid (#243).
+        # never gave it (#243). The grid's own rule is the terminal one
+        # (#249): "\r" and "\x08" send the cursor back over the "a" and the
+        # "b" overwrites it, the rest of C0 takes a cell of its own — so the
+        # image is the image of "b" for the two cursor controls and the
+        # image of the three-cell grid for the others, not, as it was while
+        # the grid dropped them, the image of "ab".
         with tempfile.TemporaryDirectory() as tmp:
             for cols in (2, 80):
-                reference = self._png(Path(tmp), "ab", cols=cols)
-                for control in ("\r", "\x07", "\x0b", "\x0c", "\x1c", "\x1d", "\x1e", "\x1b", "\x7f"):
+                plain = self._png(Path(tmp), "ab", cols=cols)
+                overwritten = self._png(Path(tmp), "b", cols=cols)
+                for control in ("\r", "\x08"):
                     with self.subTest(control=control, cols=cols):
                         self.assertEqual(
-                            reference, self._png(Path(tmp), f"a{control}b", cols=cols)
+                            overwritten, self._png(Path(tmp), f"a{control}b", cols=cols)
                         )
+                for control in ("\x07", "\x0b", "\x0c", "\x1c", "\x1d", "\x1e", "\x1b", "\x7f"):
+                    text = f"a{control}b"
+                    grid = attributed_screen_from_text(text, columns=cols, rows=24)
+                    with self.subTest(control=control, cols=cols):
+                        self.assertEqual(
+                            self._png(Path(tmp), "\n".join(grid.text_lines()), cols=cols),
+                            self._png(Path(tmp), text, cols=cols),
+                        )
+                        if cols == 80:
+                            self.assertNotEqual(plain, self._png(Path(tmp), text, cols=cols))
 
     def test_the_image_is_the_image_of_the_grid_text(self) -> None:
-        # The first seven never reach a cell; "\x85", "\u2028" and "\u2029" are
-        # not C0 controls, so the grid keeps each as a cell and the image has to
-        # give it that column too.
+        # "\r" sends the cursor back over the "a", so two columns hold just
+        # "b". Every other separator here takes the second column itself and
+        # the "b" falls past the edge: the C0 controls since #249, and
+        # "\x85", "\u2028" and "\u2029", which are not C0 controls, all along.
         separators = (
             "\r", "\x07", "\x0b", "\x0c", "\x1c", "\x1d", "\x1e", "\x85", "\u2028", "\u2029",
         )  # fmt: skip
-        held = {2: ["ab"] * 7 + ["a\x85", "a\u2028", "a\u2029"], 80: None}
+        held = {
+            2: ["b"] + [f"a{control}" for control in separators[1:]],
+            80: None,
+        }
         with tempfile.TemporaryDirectory() as tmp:
             for cols in (2, 80):
                 for position, separator in enumerate(separators):
