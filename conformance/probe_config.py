@@ -30,7 +30,9 @@ and preserved there, evidence validation existing only here, the two
 coercions the exercised overlays hit refused there (Python applies
 further ``str()`` coercions no overlay exercises — ``session_backend``
 and ``docker.image``/``workdir`` in ``_from_mapping`` — so nothing here
-pins those), the cache key folding the whole
+pins those), an explicit ``idle_cap_seconds: null`` honoured as
+``None`` here but collapsed to the default ``3.0`` there, the cache
+key folding the whole
 ``EvidenceConfig`` in here while the Rust key has no evidence input at
 all, and a missing recipe file yielding no key here but a key there —
 are **not** recorded here: they are named allowances in the Rust test,

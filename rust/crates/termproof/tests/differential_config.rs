@@ -42,6 +42,17 @@
 //!   coercions no overlay exercises (`session_backend`,
 //!   `docker.image`/`workdir` in `_from_mapping`); nothing here pins
 //!   those.
+//! - Explicit `null` for `defaults.idle_cap_seconds` (`idle-null`):
+//!   Python honours it as `None` (no cap) — `_from_mapping` passes
+//!   the present value to `_parse_idle_cap_seconds`, whose first arm
+//!   returns it — while here it collapses to the default `3.0`.
+//!   `deserialize_idle_cap` deserialises through `Option<Value>`, so
+//!   a JSON `null` arrives as the outer `None`, whose arm returns
+//!   `Some(3.0)`; the `Some(Value::Null)` arm that would yield
+//!   `None` is not reached on the `VerifierConfig::load` path
+//!   through `serde_json::from_value`. This harness's first CI run
+//!   found it, not code reading: the deserialiser looks as if it
+//!   special-cases `null` correctly.
 //! - Error *wording* on the one case both sides reject: the recorded
 //!   `ValueError` text is the oracle's, and this side is held to the
 //!   verdict (`is_err`), not to a rewording of its own message.
@@ -399,6 +410,35 @@ fn reconcile(case: &str, rust: &mut serde_json::Value, python: &mut serde_json::
             );
         }
         _ => {}
+    }
+
+    // Explicit `idle_cap_seconds: null` (#209): `None` there, the
+    // default `3.0` here — see the module allowance for the
+    // mechanism. Only this case and only this leaf; either side
+    // moving fails one of the two asserts below.
+    if case == "idle-null" {
+        let python_defaults = python
+            .get("defaults")
+            .and_then(|d| d.as_object())
+            .expect("Python `defaults` is an object");
+        assert_eq!(
+            python_defaults.get("idle_cap_seconds"),
+            Some(&serde_json::Value::Null),
+            "case {case}: Python no longer honours an explicit \
+             `idle_cap_seconds: null`; remove the allowance in this test"
+        );
+        let rust_defaults = object(
+            rust.get_mut("defaults").expect("Rust `defaults` exists"),
+            "Rust `defaults`",
+        );
+        assert_eq!(
+            rust_defaults.get("idle_cap_seconds"),
+            Some(&serde_json::json!(3.0)),
+            "case {case}: the Rust explicit-null handling moved; if \
+             it now yields `null` like Python, remove the allowance \
+             in this test"
+        );
+        rust_defaults.insert("idle_cap_seconds".to_string(), serde_json::Value::Null);
     }
 }
 

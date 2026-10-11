@@ -1180,6 +1180,7 @@ changed to add this harness.
 | unknown keys (outside `evidence`) | silently dropped | preserved by the flatten extensions (top level, `docker`, `defaults`) | inline in `reconcile` |
 | evidence validation | unknown keys, wrong types and below-minimum values rejected with the key named | no validation; the same overlays load and change nothing but the echo | `PYTHON_REJECTS_RUST_ACCEPTS` |
 | coercions | `idle_cap_seconds: '2.5'` and numeric docker env values coerced (`float()`, `str()`) | both refused by the typed deserialisation | `RUST_REJECTS_PYTHON_ACCEPTS` |
+| explicit `idle_cap_seconds: null` | honoured as `None` (no cap) by `_parse_idle_cap_seconds` | collapses to `3.0`: deserialising through `Option<Value>` turns JSON `null` into the outer `None`, whose arm in `deserialize_idle_cap` returns `Some(3.0)`, so its `Some(Null)` arm never fires on the load path | inline in `reconcile` |
 | cache-key inputs | the whole `EvidenceConfig` folded into the digest (the video subsection only when rendering video) | no evidence parameter exists to fold | the identical repeated call in the cache test |
 | missing recipe file | no key (`None`), so the run is never served from cache | a key over the `<missing>` marker | inline in the cache test |
 
