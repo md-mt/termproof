@@ -41,6 +41,22 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
 
 ## [Unreleased]
 
+### Python — Fixed
+
+- **An unassigned code point no longer takes two cells on Python 3.11.**
+  `unicodedata` there (UCD 14.0) reports every unassigned code point as
+  East Asian Fullwidth, so the attributed grid gave 764,537 of them a width-2
+  cell and a filler that Python 3.12 and later, and the Rust implementation,
+  did not — the same screen laid out and fingerprinted differently depending
+  on the interpreter. `_cell_width` stopped asking `unicodedata` about
+  unassigned code points: they became one cell, except in the five ranges
+  where `EastAsianWidth.txt` defaults them to Wide (U+3400–4DBF, U+4E00–9FFF,
+  U+F900–FAFF, U+20000–2FFFD, U+30000–3FFFD), where they stayed two. Nothing
+  changed on 3.12 or later. A screen holding one of those code points
+  fingerprints differently on 3.11 than it did before; fingerprints are
+  runtime-local, so only dedup state stored by a 3.11 run was affected
+  ([#245](https://github.com/md-mt/termproof/issues/245)).
+
 ### CI
 
 - **`.github/dependabot.yml` is schema-checked on the pull request that edits

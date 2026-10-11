@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import unicodedata
 import unittest
 from xml.etree import ElementTree
 
@@ -131,6 +132,39 @@ class PlainTextTest(unittest.TestCase):
         self.assertEqual(
             [2, 0], [c.width for c in attributed_screen_from_text("\u115f").rows[0]]
         )
+
+    def test_an_unassigned_code_point_is_wide_only_where_unicode_defaults_it(
+        self,
+    ) -> None:
+        # `unicodedata` is no guide here: UCD 14.0 (Python 3.11) calls every
+        # unassigned code point `F`, later versions `N`. The widths are spelled
+        # out so the test means the same thing on each interpreter, and every
+        # sample is unassigned in UCD 14.0 through 18.0. U+2FFFE is the first
+        # code point past plane 2's default-wide range.
+        expected = {
+            "\u0378": 1,
+            "\u0530": 1,
+            "\u2fe0": 1,
+            "\uffff": 1,
+            "\U0002fffe": 1,
+            "\U00040000": 1,
+            "\U000e0080": 1,
+            "\U0010ffff": 1,
+            "\ufa6e": 2,
+            "\ufaff": 2,
+            "\U0002fa1e": 2,
+            "\U0002fffd": 2,
+            "\U0003a000": 2,
+            "\U0003fffd": 2,
+        }
+        for text, width in expected.items():
+            with self.subTest(code_point=f"U+{ord(text):04X}"):
+                self.assertEqual("Cn", unicodedata.category(text))
+                screen = attributed_screen_from_text(text + "x")
+                self.assertEqual(
+                    [2, 0, 1] if width == 2 else [1, 1],
+                    [cell.width for cell in screen.rows[0]],
+                )
 
     def test_a_tab_advances_to_the_next_eight_column_stop(self) -> None:
         screen = attributed_screen_from_text("ab\tc")
