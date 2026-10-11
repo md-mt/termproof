@@ -22,7 +22,7 @@ reproduce is not a measurement.
 The Rust halves compare against the checked-in `corpus/*.expected.json`
 files, so a Python-side behaviour change that nobody re-recorded leaves every
 gate green against stale testimony (#216, #172). `verify_oracle.py` closes
-that locally: it re-runs all five probes the way the regeneration commands
+that locally: it re-runs all six probes the way the regeneration commands
 below do (`uv run` from `python/`, so dependencies come from
 `python/uv.lock`), compares the fresh case payloads with the checked-in
 files in memory and exits non-zero with a per-file diff summary on any
@@ -52,7 +52,7 @@ version nor the operating system is pinned anywhere in the repository —
 `uv.lock` pins dependencies only. A blocking Ubuntu job added today would
 fail on environment-owned wording (or pass by accident on one interpreter
 in the matrix) and could not distinguish that from the drift it exists to
-catch. Wiring it in first needs the five files re-recorded in one chosen
+catch. Wiring it in first needs the six files re-recorded in one chosen
 environment and a job whose runner and interpreter are pinned to that
 environment; that is follow-up work on #216/#172, recorded here rather than
 approximated with a digest or a runner nobody has verified against the
