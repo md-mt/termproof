@@ -16,14 +16,12 @@ Each probe runs the way ``conformance/README.md`` documents regeneration
 (``uv run`` from ``python/``, so dependencies come from ``python/uv.lock``).
 The case payload and the ``environment`` block are compared separately:
 a payload difference always fails (exit 1), an environment difference is
-reported field by field and only fails under ``--strict-environment``,
-because the recorded blocks already disagree with each other (Python
-3.12.13, 3.13.2 and 3.13.5; three record Darwin as the platform, the
-cast-replay block records none) and no single interpreter
-reproduces all four. Neither the interpreter patch version nor the
-operating system is pinned anywhere in this repository. The full policy,
-including why CI does not run this yet, is in ``conformance/README.md``
-under "Checking oracle freshness".
+reported field by field and only fails under ``--strict-environment``.
+CI runs it that way in the one canonical recording environment (GitHub
+Actions ``ubuntu-24.04``, CPython 3.13.5, ``python/uv.lock``); a local run
+without the flag treats environment drift on a non-canonical machine as
+diagnostic. The full policy is in ``conformance/README.md`` under
+"Checking oracle freshness".
 """
 
 from __future__ import annotations

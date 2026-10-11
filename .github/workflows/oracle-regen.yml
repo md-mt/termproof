@@ -1,0 +1,113 @@
+name: Regenerate oracle corpus (manual)
+
+# The only sanctioned way to re-record `conformance/corpus/*.expected.json`
+# (#172, #216). Manual dispatch only: re-recording the oracle's testimony is
+# a deliberate act, never something a schedule or a push does on its own.
+#
+# The environment below is the canonical recording environment and is
+# pinned identically in the `oracle` job of `oracle-ci.yml`: the
+# `ubuntu-24.04` runner, CPython 3.13.5 via `actions/setup-python` (the
+# exact patch — bumping it requires re-recording in the same change),
+# the pinned uv version below, and dependencies from `python/uv.lock`. The per-probe commands are exactly
+# the ones each harness section of `conformance/README.md` documents
+# (`uv run` from `python/` with `TERMPROOF_PYTHON_REPO` set); run locally
+# they are diagnostics only, because a laptop is not the canonical
+# environment and its output must not be committed.
+#
+# Bootstrap: `workflow_dispatch` only exists once this file is on the
+# default branch, so the first canonical re-record cannot happen until
+# the change that adds this workflow (and the `oracle-ci.yml` gate) has
+# merged. Until that first re-record is reviewed and landed the gate
+# reports RED — the checked-in corpus still carries its pre-canonical
+# `environment` blocks (Darwin, mixed CPython patches). Do not make
+# `Oracle freshness result` a required check before the bootstrap
+# re-record is green, or the gate deadlocks the very PR that would
+# regenerate it. See "Re-recording" in `conformance/README.md`.
+#
+# This workflow cannot write to the repository (`contents: read`). It
+# uploads the regenerated corpus as the single `oracle-corpus` artifact;
+# a human downloads it, replaces `conformance/corpus/*.expected.json`,
+# reads the diff, and lands it through a reviewed pull request. Producing
+# testimony and accepting it stay two separate acts.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  regen:
+    name: Regenerate oracle expectations
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.13.5"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          version: "0.11.8"
+
+      - name: Install dependencies
+        timeout-minutes: 10
+        working-directory: python
+        run: uv sync
+
+      - name: Regenerate every corpus expectation
+        working-directory: python
+        run: |
+          TERMPROOF_PYTHON_REPO=$PWD uv run python \
+            ../conformance/probe_steps.py \
+            > ../conformance/corpus/steps.expected.json
+          TERMPROOF_PYTHON_REPO=$PWD uv run python \
+            ../conformance/probe_assertions.py \
+            > ../conformance/corpus/assertions.expected.json
+          TERMPROOF_PYTHON_REPO=$PWD uv run python \
+            ../conformance/probe_evidence_manifest.py \
+            > ../conformance/corpus/evidence_manifest.expected.json
+          TERMPROOF_PYTHON_REPO=$PWD uv run python \
+            ../conformance/probe_before_after.py \
+            > ../conformance/corpus/before_after.expected.json
+          TERMPROOF_PYTHON_REPO=$PWD uv run python \
+            ../conformance/probe_cast_replay.py \
+            > ../conformance/corpus/cast_replay.expected.json
+          TERMPROOF_PYTHON_REPO=$PWD uv run python \
+            ../conformance/probe_run_result.py \
+            > ../conformance/corpus/run_result.expected.json
+          TERMPROOF_PYTHON_REPO=$PWD uv run python \
+            ../conformance/probe_build_info.py \
+            > ../conformance/corpus/build_info.expected.json
+          TERMPROOF_PYTHON_REPO=$PWD uv run python \
+            ../conformance/probe_report.py \
+            > ../conformance/corpus/report.expected.json
+
+      - name: Summarise what re-recording changed
+        run: |
+          git status --short -- conformance/corpus
+          git diff --stat -- conformance/corpus
+          {
+            echo "## Oracle corpus regeneration"
+            echo
+            echo '```'
+            git diff --stat -- conformance/corpus
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # Uploaded before the self-check so the artifact survives for
+      # inspection even if the check below finds a probe whose output does
+      # not reproduce on a second run; the run still fails in that case.
+      - name: Upload regenerated corpus
+        uses: actions/upload-artifact@v7
+        with:
+          name: oracle-corpus
+          path: conformance/corpus/*.expected.json
+          if-no-files-found: error
+
+      - name: Verify the regenerated corpus reproduces in this environment
+        run: python3 conformance/verify_oracle.py --strict-environment
