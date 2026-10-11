@@ -79,20 +79,24 @@ been filed against them.
 
 **v1.0 (milestone 4) and Rust M5 (milestone 10) are done when, and only
 when, the [#216](https://github.com/md-mt/termproof/issues/216) Done-when
-parity gate passes.** That gate is not in place
-yet. What is in place today — as
+parity gate passes.** What is in place today — as
 [`status-and-parity.md`](status-and-parity.md) and
 [`CONTRIBUTING.md`](../../CONTRIBUTING.md) both now say — is a required
-drift gate for the measured layers: `Oracle freshness result` is required
-and the differential harnesses run via the required `CI (Rust) result`.
-It is not yet the #216 Done-when gate, full parity is not claimed, and
-#216 remains open for cache/config+selection coverage, so neither
-milestone is done. The #216 Done-when gate defines the parity component
+gate for the measured layers: `Oracle freshness result` is required and
+the ten differential harnesses — including the cache/config (#263) and
+selection (#264) harnesses completing the six #209 surfaces — run via
+the required `CI (Rust) result`.
+[`status-and-parity.md`](status-and-parity.md)'s gate self-assessment
+finds #216's three Done-when bullets met by that gate, the recorded
+differences and that page. Full parity is still not claimed — the gate
+holds the measured layers to their recorded floors, equalities and named
+allowed differences — so that finding alone does not complete either
+milestone. The #216 Done-when gate defines the parity component
 of done for these milestones: the remaining §11 cutover gates and
 RUST-027–030 in §8 (the canary release, the rollback cutover, the first
 PyPI release, and the launch and adoption work) stay required and are not
-dropped or satisfied by that gate alone — and the current drift gate does
-not satisfy it. "Passes" follows #216's own "Done when" criteria:
+dropped or satisfied by that gate alone. "Passes" follows #216's own
+"Done when" criteria:
 
 1. the check **runs on every pull request and is required on `main`**;
 2. the known drifts are **either fixed or explicitly recorded as allowed
@@ -101,8 +105,9 @@ not satisfy it. "Passes" follows #216's own "Done when" criteria:
    [`status-and-parity.md`](status-and-parity.md) are the existing form of
    such a record, and a divergence recorded nowhere counts as unfixed; and
 3. [`status-and-parity.md`](status-and-parity.md) **can point at the #216
-   Done-when gate** — not only, as it does today, at the narrower required
-   drift gate for the measured layers.
+   Done-when gate** — as its gate self-assessment now does, with the
+   qualifications stated there, at the required gate for the measured
+   layers.
 
 #216 lists reproducibility of the recorded oracle expectations as its
 sub-issue [#172](https://github.com/md-mt/termproof/issues/172): the
