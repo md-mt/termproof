@@ -100,3 +100,21 @@ updates:
       docker:
         patterns:
           - "*"
+    # The rust image is the exception to "moves the tag": its version is not
+    # Dependabot's to choose. Both Dockerfiles build with the channel pinned in
+    # rust/rust-toolchain.toml, and the drift test from #218
+    # (python/tests/test_docker_image.py) fails when they disagree, which is
+    # what #232 ran into by taking both images to 1.99.0. The image moves in
+    # the same deliberate change that bumps the toolchain, not in a weekly PR.
+    ignore:
+      # Update types rather than a `versions` range, for two reasons. A range
+      # would have to name the pinned number and be edited on every toolchain
+      # bump; this follows whatever tag the Dockerfiles currently carry. And
+      # only version updates are ignored, so a refreshed digest for the same
+      # tag still arrives and the pin does not rot. The debian and python
+      # images are not named here and keep updating as before.
+      - dependency-name: "rust"
+        update-types:
+          - "version-update:semver-major"
+          - "version-update:semver-minor"
+          - "version-update:semver-patch"
