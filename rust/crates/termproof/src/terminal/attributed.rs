@@ -346,6 +346,13 @@ impl AttributedScreen {
     /// to the previous one. Attributes are part of the payload because two
     /// screens with the same text but a different highlight are different
     /// screenshots.
+    ///
+    /// The digest is runtime-local (#234): it only has to match other
+    /// fingerprints from this runtime, and is not expected to match the Python
+    /// `AttributedScreen.render_fingerprint` for the same screen. Non-ASCII
+    /// text currently hashes differently — `serde_json` writes it raw here and
+    /// Python's `json.dumps` escapes it there. A portable fingerprint is future
+    /// work, tracked in #222.
     pub fn render_fingerprint(&self) -> String {
         let payload: Vec<Vec<CellFingerprint<'_>>> = self
             .rows

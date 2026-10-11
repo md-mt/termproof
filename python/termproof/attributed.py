@@ -297,6 +297,13 @@ class AttributedScreen:
 
         Two screens with identical text but different colour hash differently,
         which plain-text comparison cannot express.
+
+        The digest is runtime-local (#234): it only has to match other
+        fingerprints from this runtime, and is not expected to match the Rust
+        ``AttributedScreen::render_fingerprint`` for the same screen. Non-ASCII
+        text currently hashes differently — ``json.dumps`` escapes it here and
+        ``serde_json`` writes it raw there. A portable fingerprint is future
+        work, tracked in #222.
         """
         payload = [[cell.fingerprint_payload() for cell in row] for row in self.rows]
         encoded = json.dumps(payload, separators=(",", ":"))
