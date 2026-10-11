@@ -60,6 +60,36 @@ class PlainTextTest(unittest.TestCase):
         screen = attributed_screen_from_text("abcdef\nghijkl\nmnopqr", columns=3, rows=2)
         self.assertEqual(["abc", "ghi"], screen.text_lines())
 
+    def test_wide_characters_match_the_ansi_grid(self) -> None:
+        for text in ("日本語", "a日b", "😀"):
+            with self.subTest(text=text):
+                self.assertEqual(
+                    attributed_screen_from_ansi_text(text).rows,
+                    attributed_screen_from_text(text).rows,
+                )
+
+    def test_a_double_width_glyph_is_followed_by_a_zero_width_filler(self) -> None:
+        expected = {
+            "日本語": [2, 0, 2, 0, 2, 0],
+            "a日b": [1, 2, 0, 1],
+            "😀": [2, 0],
+        }
+        for text, widths in expected.items():
+            with self.subTest(text=text):
+                screen = attributed_screen_from_text(text)
+                self.assertEqual(widths, [cell.width for cell in screen.rows[0]])
+                self.assertEqual(text, screen.to_text())
+
+    def test_fillers_count_towards_the_column_clamp(self) -> None:
+        for columns, widths in ((3, [2, 0, 2]), (4, [2, 0, 2, 0])):
+            with self.subTest(columns=columns):
+                screen = attributed_screen_from_text("日本語", columns=columns)
+                self.assertEqual(widths, [cell.width for cell in screen.rows[0]])
+                self.assertEqual(
+                    attributed_screen_from_ansi_text("日本語", columns=columns).rows,
+                    screen.rows,
+                )
+
 
 class AnsiParsingTest(unittest.TestCase):
     def test_plain_text_matches_the_unstyled_grid(self) -> None:

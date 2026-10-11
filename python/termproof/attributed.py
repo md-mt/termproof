@@ -362,10 +362,17 @@ def attributed_screen_from_lines(
     pool = _CellPool()
     screen_rows = []
     for line in lines[:rows]:
-        printable = [ch for ch in line if not _is_control(ch)]
-        screen_rows.append(
-            tuple(pool.intern(AttributedCell(text=ch)) for ch in printable[:columns])
-        )
+        cells: list[AttributedCell] = []
+        for ch in line:
+            if len(cells) >= columns:
+                break
+            if _is_control(ch):
+                continue
+            width = _cell_width(ch)
+            cells.append(pool.intern(AttributedCell(text=ch, width=width)))
+            if width == 2 and len(cells) < columns:
+                cells.append(pool.intern(AttributedCell(text="", width=0)))
+        screen_rows.append(tuple(cells))
     return AttributedScreen(rows=tuple(screen_rows))
 
 
