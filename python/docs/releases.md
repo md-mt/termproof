@@ -124,7 +124,7 @@ without code changes:
 | --- | --- |
 | `TERM_PROOF_VIDEO_BUCKET` | Bucket name (required to publish) |
 | `TERM_PROOF_VIDEO_PREFIX` | Key prefix, default `termproof/videos` |
-| `TERM_PROOF_VIDEO_BASE_URL` | Public URL prefix for the bucket (required to rewrite links), e.g. `https://pub-xxx.r2.dev/termproof/videos` or `https://my-bucket.s3.amazonaws.com/termproof/videos` |
+| `TERM_PROOF_VIDEO_BASE_URL` | Public bucket-root URL (required to rewrite links), without the key prefix, e.g. `https://pub-xxx.r2.dev` or `https://my-bucket.s3.amazonaws.com` |
 | `AWS_ENDPOINT_URL_S3` | S3-compatible endpoint. Set to your R2 endpoint `https://<accountid>.r2.cloudflarestorage.com` for R2; leave unset for AWS S3. `R2_ENDPOINT_URL` is also accepted as an alias. |
 
 Publish from CI or locally:
@@ -133,7 +133,7 @@ Publish from CI or locally:
 # Stage + publish videos for the current PR (uses env vars above)
 uv run python -m termproof.evidence_publish publish-videos \
   --base-dir .termproof/pr-base --head-dir .termproof/ci \
-  --bucket "$TERM_PROOF_VIDEO_BUCKET" --prefix "$TERM_PROOF_VIDEO_PREFIX" \
+  --bucket "$TERM_PROOF_VIDEO_BUCKET" --prefix "${TERM_PROOF_VIDEO_PREFIX:-termproof/videos}" \
   --pr-number "$PR_NUMBER" --run-id "$GITHUB_RUN_ID" \
   --video-base-url "$TERM_PROOF_VIDEO_BASE_URL" --out .termproof/evidence-branch
 
@@ -148,8 +148,11 @@ What happens when publishing:
 1. Each `session.mp4` under `base_dir`/`head_dir` is uploaded to
    `s3://$BUCKET/$PREFIX/pr/$PR_NUMBER/$RUN_ID/{base,head}/<relative-path>`.
 2. A `video-manifest.json` is written to the output branch payload.
-3. When `--video-base-url` is set, `report.md` / `latest-report.md` links for
-   `session.mp4` are rewritten to `{base_url}/pr/{pr}/{run}/{scope}/...`.
+3. When `--video-base-url` is set (the bucket root), `report.md` /
+   `latest-report.md` links for `session.mp4` are rewritten to
+   `{base_url}/{prefix}/pr/{pr}/{run}/{scope}/...` — the base URL plus the
+   full uploaded key. The PR-comment compose step builds the same URL by
+   appending `{prefix}/pr/{pr}/{run}` to the same bucket root.
 
 The upload itself goes through the `ArtifactPublisher` protocol. `s3` is the
 default and is what the table above configures; `--publisher <name>` (or
@@ -175,7 +178,11 @@ extra steps — video links become browsable alongside screenshots.
 Retention: the bucket should be configured with a lifecycle rule (e.g. 90 days
 for `termproof/videos/pr/*`), matching `docs/ci/evidence-receipt.json` →
 `hosting.retention_days`. The workflow artifact remains the canonical fallback —
-hosted URLs are additive, not a replacement. See [#69](https://github.com/md-mt/termproof/issues/69).
+hosted URLs are additive, not a replacement. See [#69](https://github.com/md-mt/termproof/issues/69)
+(closed not-planned) and the full retention model, least-privilege policy and
+provisioning runbook in [`evidence-hosting.md`](evidence-hosting.md) — no
+bucket is provisioned yet, so until that runbook is completed this section
+describes wiring that no-ops.
 
 The release workflow intentionally uses portable recipes for public CI —
 `examples/generic` and the other self-contained examples, which need no

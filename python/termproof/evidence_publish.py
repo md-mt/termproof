@@ -152,8 +152,9 @@ class S3ArtifactPublisher:
     Uses ``aws s3 cp`` via subprocess when available so no Python dependency is
     required. Falls back to ``boto3`` when the CLI is absent.
 
-    ``base_url`` is the public URL prefix the bucket is served under, e.g.
-    ``https://pub-xxx.r2.dev`` or ``https://s3.amazonaws.com/my-bucket``. It is
+    ``base_url`` is the public bucket-root URL the bucket is served under, e.g.
+    ``https://pub-xxx.r2.dev`` or ``https://s3.amazonaws.com/my-bucket`` — without
+    the key prefix, which the key passed to :meth:`publish` already carries. It is
     separate from ``endpoint_url``, the S3 API endpoint used to write: a bucket
     is commonly written through one host and read through another, and only the
     read host belongs in a report link. Without it an upload still happens and
@@ -383,7 +384,9 @@ def main(argv: list[str] | None = None) -> int:
     publish.add_argument("--base-dir", type=Path, required=True)
     publish.add_argument("--head-dir", type=Path, required=True)
     publish.add_argument("--bucket", default=os.environ.get("TERM_PROOF_VIDEO_BUCKET", ""))
-    publish.add_argument("--prefix", default=os.environ.get("TERM_PROOF_VIDEO_PREFIX", DEFAULT_VIDEO_PREFIX))
+    # An unset CI variable arrives as an empty string, not as an absent env
+    # entry, so fall back to the default on empty as well as on missing.
+    publish.add_argument("--prefix", default=os.environ.get("TERM_PROOF_VIDEO_PREFIX") or DEFAULT_VIDEO_PREFIX)
     publish.add_argument("--pr-number", default=os.environ.get("PR_NUMBER", ""))
     publish.add_argument("--run-id", default=os.environ.get("RUN_ID", os.environ.get("GITHUB_RUN_ID", "")))
     publish.add_argument(
