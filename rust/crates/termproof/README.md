@@ -276,8 +276,7 @@ example against the driver, and the reversal conditions.
 
 ## Package contents
 
-The corpus-replaying differential tests (`tests/differential_steps.rs`,
-`tests/differential_assertions.rs`, `tests/differential_before_after.rs`) are
+The corpus-replaying differential tests (`tests/differential_*.rs`) are
 excluded from the published package — they replay a corpus that lives at the
 repository root and is not shipped.
 
