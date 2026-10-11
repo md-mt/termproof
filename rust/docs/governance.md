@@ -97,8 +97,7 @@ list, not two.
 
 | Check name (exact) | Workflow | Job |
 |---|---|---|
-| `Lint, type-check and test (ubuntu-latest)` | `CI (Rust)` | `rust` (matrix leg) |
-| `Lint, type-check and test (macos-latest)` | `CI (Rust)` | `rust` (matrix leg) |
+| `CI (Rust) result` | `CI (Rust)` | `result` |
 | `Dependency and licence policy (cargo deny)` | `Security (Rust)` | `deny` |
 | `Public API compatibility (cargo semver-checks)` | `Security (Rust)` | `semver` |
 | `Package contents (cargo package)` | `Security (Rust)` | `package` |
@@ -118,7 +117,21 @@ safe to require on every PR. That workflow triggers on `pull_request`,
 `workflow_dispatch` and `release`, never on a push to `main`, so those three
 are verified on PR heads rather than on `main`.
 
+**Live today: `CI (Rust) result`.** It is a required status check on `main`,
+enforced by a repository ruleset named **`main: require CI (Rust) result`** —
+enforcement **active**, targeting the default branch. The ruleset carries an
+admin bypass: the repository admin role, which is what release automation
+pushes to `main` go through. This is narrower than the ruleset section 6
+intends, and its bypass is a role rather than the explicit `@md-mt` actor that
+section asks for; the other rows of the table are the contract for that ruleset
+and are not enforced by this one.
+
 Not required, and why:
+
+- `Lint, type-check and test (...)` (`CI (Rust)`) — the two matrix legs are no
+  longer required by name. `CI (Rust) result` needs both and fails unless they
+  passed, or `changes` said there was nothing to test, so requiring it covers
+  them, and it reports on a PR that leaves Rust alone where the legs do not.
 
 - `Build and smoke-test the bundled-agg wheel (...)` (`CI (Python)`) — three
   platform legs, one of which cross-builds and can only inspect the wheel it
@@ -147,7 +160,7 @@ One ruleset, name **`main`**, enforcement **active**, targeting branch `main`:
   has no push access). A count of one would make every routine
   `@md-mt`-authored PR unmergeable without the emergency bypass, which
   section 7 reserves for incidents. The count is therefore **zero**: the
-  ruleset still requires a PR, all fourteen checks, and up-to-date branches, and
+  ruleset still requires a PR, all thirteen checks, and up-to-date branches, and
   blocks force pushes; review stays social (the PR template asks for review)
   until a second eligible reviewer is established. Raising this count is
   gated on the promotion criteria below.
@@ -156,10 +169,10 @@ One ruleset, name **`main`**, enforcement **active**, targeting branch `main`:
   PRs, requiring code-owner review would reproduce the same lockout.
 - **Dismiss stale approvals** when new commits are pushed.
 - **Require conversation resolution** — a resolved thread must stay resolved.
-- **Require status checks**: the fourteen names in section 5.
+- **Require status checks**: the thirteen names in section 5.
 - **Require branches to be up to date before merging** — the PR head must
   include the latest `main` before the merge button works. CI latency for the
-  fourteen checks is acceptable (minutes), so the strict option stays on.
+  thirteen checks is acceptable (minutes), so the strict option stays on.
 - **Block force pushes** and **block branch deletion** on `main`.
 - **Bypass: explicit, not blanket.** The sole bypass actor is the maintainer
   account `@md-mt` (the code owner). Do **not** enable the "bypass all
@@ -226,18 +239,18 @@ gh api -i repos/md-mt/termproof/vulnerability-alerts
 gh api -i repos/md-mt/termproof/automated-security-fixes
 gh api repos/md-mt/termproof/dependabot/alerts
 
-# Baseline CI health on the current head of main — the five Rust/Security
+# Baseline CI health on the current head of main — the four Rust/Security
 # gate checks (plus Dependabot config checks). The Publish jobs never run on
 # main, so this command alone cannot verify the full required-check contract.
 gh api repos/md-mt/termproof/commits/main/check-runs --jq '.check_runs[].name'
 
-# Required PR gate checks — audit from a PR head, where all fourteen run.
+# Required PR gate checks — audit from a PR head, where all thirteen run.
 # Pick any open or recent PR (44 in the baseline, or the newest merged one):
 gh pr checks 44 --repo md-mt/termproof --json name,state,workflow
 # or directly against a PR head commit:
 gh api repos/md-mt/termproof/commits/<pr-head-sha>/check-runs --jq '.check_runs[].name'
 
-# After the ruleset exists, verify the fourteen configured contexts from the
+# After the ruleset exists, verify the thirteen configured contexts from the
 # ruleset JSON itself (the settings-change task records the ruleset id):
 gh api repos/md-mt/termproof/rulesets --jq '.[] | select(.name == "main") | .rules[] | select(.type == "required_status_checks") | .parameters.required_status_checks[].context'
 
@@ -248,7 +261,7 @@ gh api repos/md-mt/termproof/community/profile --jq .health_percentage
 Expected after the settings change: homepage `https://docs.rs/termproof`;
 topics present; vulnerability/Dependabot alerts enabled; private reporting
 enabled; squash-only + delete-branch-on-merge; one active `main` ruleset with
-the fourteen required checks and a required-review count of zero (until a second
+the thirteen required checks and a required-review count of zero (until a second
 eligible reviewer exists — see promotion criteria in section 6); `main`
 refusing direct pushes, force pushes and deletion; and an explicit `@md-mt`
 bypass. Any deviation from section 1–6 is a finding to fix or a deliberate

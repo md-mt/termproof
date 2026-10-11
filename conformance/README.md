@@ -612,3 +612,18 @@ cargo test -p termproof --test differential_before_after
 Pass or fail, with the two recordings printed on failure. As with the evidence
 manifest there is no ratchet: the two implementations either produce the same
 report or they do not.
+
+# Not compared: `render_fingerprint`
+
+`AttributedScreen.render_fingerprint` is **runtime-local**, by the decision
+recorded on #222 (2026-10-10) and written down under #234. A fingerprint only
+has to match other fingerprints produced by the same runtime, which is all
+evidence dedup asks of it. Python and Rust fingerprints are not expected to
+match each other, no harness here compares them, and none should be added that
+does.
+
+The known divergence is non-ASCII text: Python's `json.dumps` escapes it
+(`ensure_ascii`) and `serde_json` writes it raw, so the two hash different bytes
+for the same screen. #222 stays open as the future work of a portable non-ASCII
+fingerprint. #223 and #224 are separate, open differences in the attributed
+cells the digest is taken over; nothing here changes for them.
