@@ -6,8 +6,12 @@ half of [TermProof](https://github.com/md-mt/termproof).
 > **Maturity: this port is in progress and is not at parity with the Python
 > implementation.** The Python implementation at
 > [`md-mt/termproof`](https://github.com/md-mt/termproof) is the shipped product
-> and the behavioural oracle for TermProof; there is no parity gate for this
-> port. Read
+> and the behavioural oracle for TermProof. A required drift gate now
+> gates the measured layers (`Oracle freshness result` is required and
+> the differential harnesses run via the required `CI (Rust) result`),
+> but it is not yet the #216 Done-when parity gate, full parity is not
+> claimed, and #216 remains open for cache/config+selection coverage.
+> Read
 > [status and parity](https://github.com/md-mt/termproof/blob/main/rust/docs/status-and-parity.md)
 > before depending on this crate.
 

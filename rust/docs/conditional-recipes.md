@@ -153,8 +153,12 @@ than a general preference for small APIs.
 A recipe is a JSON document, and that is precisely what makes the differential
 harness possible: hand the same document to both runtimes and compare the
 verdicts. Every claim this port makes about its own correctness is a count from
-that comparison. The README says so in as many words — *until a parity gate
-passes, treat the Python implementation as the only authority*.
+that comparison. A required drift gate now gates those measured layers
+(`Oracle freshness result` is required and the differential harnesses run
+via the required `CI (Rust) result`), but it is not yet the #216 Done-when
+parity gate, full parity is not claimed, and #216 remains open for
+cache/config+selection coverage — so treat the Python implementation as
+the authority.
 
 **A `when` key does not fail against the oracle. It is silently ignored by it.**
 `additionalProperties: true` is in the schema (spec 001, FR-013), unknown step

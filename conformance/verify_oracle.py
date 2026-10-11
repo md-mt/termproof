@@ -47,6 +47,7 @@ PROBES = (
     ("probe_run_result.py", "run_result.expected.json"),
     ("probe_build_info.py", "build_info.expected.json"),
     ("probe_report.py", "report.expected.json"),
+    ("probe_config.py", "config.expected.json"),
     ("probe_selection.py", "selection.expected.json"),
 )
 

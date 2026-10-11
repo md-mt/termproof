@@ -9,13 +9,19 @@ name: CI (Oracle)
 # `main`, the `changes` job below decides whether there is anything to
 # verify, and `Oracle freshness result` reports either way.
 #
-# Bootstrap state (#172): this gate lands RED. The checked-in corpus was
-# recorded before the canonical environment existed (its `environment`
-# blocks name Darwin and mixed CPython patches), so the strict check fails
-# until the first canonical re-record via `oracle-regen.yml` is reviewed
-# and landed — see "Re-recording" in `conformance/README.md`. Do not make
-# `Oracle freshness result` a required check before that re-record is
-# green: the gate would deadlock its own regeneration PR.
+# Bootstrap history (#172, completed): this gate landed RED in #260. The
+# checked-in corpus had been recorded before the canonical environment
+# existed (its `environment` blocks named Darwin and mixed CPython
+# patches), so the strict check failed until the first canonical
+# re-record via `oracle-regen.yml` was reviewed and landed in #261 — see
+# "Re-recording" in `conformance/README.md`. `Oracle freshness result`
+# was not made a required check while that bootstrap was red, because a
+# required red gate would have blocked the gate-carrying and
+# oracle-touching PRs until the re-record landed; it was added as
+# required on the strength of the PR-head oracle success on #261, and
+# the `CI (Oracle)` run on `main` for the merged re-record
+# (run 38158366345) also succeeded. It is now required
+# (`rust/docs/governance.md` §5 and §6.1).
 on:
   pull_request:
   push:
@@ -144,9 +150,10 @@ jobs:
         run: python3 conformance/verify_oracle.py --strict-environment
 
   # The one check that means "oracle freshness passed" (#172), mirroring
-  # `CI (Rust) result` (#226). This is the name a ruleset can require once
-  # the bootstrap re-record is green (governance.md §5): it reports on
-  # every PR, including one that leaves the oracle inputs alone.
+  # `CI (Rust) result` (#226). This is the name the ruleset now requires
+  # (governance.md §5 and §6.1; the bootstrap completed with the #261
+  # re-record): it reports on every PR, including one that leaves the
+  # oracle inputs alone.
   #
   # `if: always()` is what makes it report at all. Without it a failed or
   # cancelled `oracle` job would skip this job, and a skipped check

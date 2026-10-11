@@ -8,7 +8,11 @@ documentation site is about — is under `python/`.
 Read
 [status and parity](https://github.com/md-mt/termproof/blob/main/rust/docs/status-and-parity.md)
 before depending on the Rust implementation. It is **in progress** and **not at
-parity**: there is no parity gate, and the differential harness in
+parity**: a required drift gate now gates the measured layers
+(`Oracle freshness result` is required and the differential harnesses run
+via the required `CI (Rust) result`), but it is not yet the #216 Done-when
+parity gate, full parity is not claimed, and #216 remains open for
+cache/config+selection coverage. The differential harness in
 [`conformance/`](https://github.com/md-mt/termproof/tree/main/conformance)
 reports 82 of 115 step cases and 124 of 147 assertion cases in full agreement
 with the Python implementation, with 113 and 143 agreeing on the verdict alone.

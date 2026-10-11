@@ -22,7 +22,7 @@ categories = [
     "visualization",
 ]
 # The differential tests replay `conformance/corpus/`, which lives at the repository
-# root and is deliberately not shipped (~150 KB of recorded oracle output that no
+# root and is deliberately not shipped (~184 KB of recorded oracle output that no
 # consumer of the library needs). Without the corpus these tests cannot run,
 # so they stay out of the tarball too. Every other test here is self-contained.
 exclude = [
@@ -33,6 +33,7 @@ exclude = [
     "tests/differential_run_result.rs",
     "tests/differential_build_info.rs",
     "tests/differential_report.rs",
+    "tests/differential_config.rs",
     "tests/differential_selection.rs",
 ]
 

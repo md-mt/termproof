@@ -330,7 +330,7 @@ The published tarballs are deliberately smaller than the repository:
   `differential_assertions.rs`, `differential_before_after.rs`,
   `differential_cast_replay.rs`, `differential_run_result.rs`,
   `differential_build_info.rs`, `differential_report.rs` and
-  `differential_selection.rs`** — excluded
+  `differential_config.rs` and `differential_selection.rs`** — excluded
   explicitly. They replay `conformance/corpus/`, so without it they cannot run;
   shipping tests that cannot run is worse than not shipping them. Run them from
   a repository checkout.
