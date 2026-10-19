@@ -161,8 +161,8 @@ schemars = { version = "0.8", features = ["preserve_order"] }
 # deliberately not bisected below 0.56: 0.56.0 is the version the #221
 # differential measurement was taken at (assertions 125/147 full agreement
 # against 124/147 at 0.33.0, verdict 143/147 at both), v1.0 is gated on
-# that parity, and a floor at an unmeasured version would claim parity
-# nobody has run. Dependabot widened the ceiling to `<0.59` in #275,
+# that parity, and a floor at an unmeasured version would claim
+# unmeasured behavior. Dependabot widened the ceiling to `<0.59` in #275,
 # selecting 0.58.6. The #221 counts above measure 0.56.0 only; they are
 # not a claim of parity at 0.58.x. In #275, 0.58.6 measured 132/161 full
 # and 153/161 verdict agreement against the expanded assertion corpus.
