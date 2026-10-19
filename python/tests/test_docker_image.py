@@ -23,7 +23,7 @@ class DockerImageTest(unittest.TestCase):
 
         self.assertRegex(text, r"(?m)^FROM rust:\S+ AS agg-builder$")
         self.assertIn("cargo install --locked --git https://github.com/asciinema/agg", text)
-        self.assertIn("FROM python:3.12-slim", text)
+        self.assertRegex(text, r"(?m)^FROM python:3\.14-slim$")
         self.assertIn("ffmpeg", text)
         self.assertIn('ENTRYPOINT ["termproof"]', text)
 
