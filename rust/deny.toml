@@ -13,11 +13,17 @@
 # the posture this workspace wants. What remains configurable here:
 # - yanked: a lockfile pinned to a yanked version fails rather than quietly
 #   shipping a release that the registry no longer stands behind.
-# - ignore: kept empty. An advisory that cannot be fixed yet is added here
+# - ignore: an advisory that cannot be fixed yet is added here
 #   with the issue that owns the decision, and removed when the fix lands.
 db-path = "$CARGO_HOME/advisory-dbs"
 yanked = "deny"
-ignore = []
+# Owner: md-mt / Rust maintainers. serde_yaml 0.9 requires unsafe-libyaml
+# 0.2.11; this unmaintained advisory has no patched release. Retain it while
+# replacing the YAML stack in https://github.com/md-mt/termproof/issues/276.
+# A safe parser migration must check YAML Value -> JSON conversion, typed
+# recipe/config loading and diagnostics against the differential config gate.
+# Remove this exception when #276 removes unsafe-libyaml from the lockfile.
+ignore = ["RUSTSEC-2024-0449"]
 
 [licenses]
 # The allowlist is the union of what the graph legitimately uses, read from
