@@ -43,13 +43,20 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
 
 ### Rust — Changed
 
-- **`vt100` moved from 0.16 to 0.18.1.** 0.18 takes and returns terminal
-  dimensions as `NonZeroU16` (`Parser::new`, `Screen::size`), so the
-  screen and attributed-screen paths were ported to it; the requirement is
-  `0.18.1` because 0.18.0 shipped without that change. No public API
-  changed — `vt100` types do not appear in `termproof`'s surface, and
-  `TerminalScreen` still rejects a zero dimension with the same panic
-  (#277).
+- **`vt100` moved from 0.16 to 0.18.1, and the screen it models moved
+  with it.** 0.18 takes and returns terminal dimensions as `NonZeroU16`
+  (`Parser::new`, `Screen::size`), so the screen and attributed-screen
+  paths were ported to it; the requirement is `0.18.1` because 0.18.0
+  shipped without that change. No public type changed, but what the
+  screen shows did: a VS16 emoji-presentation selector (`U+FE0F`) widens
+  the glyph before it to two columns, so following glyphs and the cursor
+  move one column right; REP, HPA, HVP and DECSCUSR are now interpreted
+  (`ab\x1b[3bZ` reads `abbbbZ`, not `abZ`); and IL/DL are no-ops with the
+  cursor outside the scroll region. VS16 width, REP and HPA diverge from
+  the Python oracle (pyte 0.8.2), which keeps the 0.16 behaviour; HVP
+  agrees. Unit tests in `terminal::screen` and `terminal::attributed` pin
+  each of them, and `rust/docs/status-and-parity.md` records the
+  divergences (#277).
 - **The `jsonschema` requirement widened from `>=0.56, <0.57` to
   `>=0.56, <0.61`; the lockfile resolves 0.60.1.** The assertion
   differential harness was re-run at every minor in the new range

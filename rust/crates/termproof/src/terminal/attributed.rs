@@ -1396,6 +1396,32 @@ mod tests {
     }
 
     #[test]
+    fn vs16_layout_differs_between_vt100_and_ansi_text() {
+        // vt100 0.18 widens the preceding glyph for VS16 (upstream #32).
+        // The ANSI-text path instead gives the selector a cell of its own:
+        // x agrees at column 2, but the emoji/continuation widths diverge.
+        for base in ["\u{2764}", "\u{2714}", "\u{26a0}"] {
+            let emoji = format!("{base}\u{fe0f}");
+            let text = format!("{emoji}x");
+            let via_vt100 = vt100_screen(&text);
+            let via_ansi = screen(&text);
+            assert_eq!(via_vt100.rows[0][0].text, emoji);
+            assert_eq!(via_vt100.rows[0][0].width, 2);
+            assert_eq!(via_vt100.rows[0][1].width, 0);
+            assert_eq!(via_vt100.rows[0][1].text, "");
+            assert_eq!(via_vt100.rows[0][2].text, "x");
+            assert_eq!(via_vt100.rows[0][2].width, 1);
+            assert_eq!(via_vt100.cursor_column, 3);
+            assert_eq!(via_ansi.rows[0][0].text, base);
+            assert_eq!(via_ansi.rows[0][0].width, 1);
+            assert_eq!(via_ansi.rows[0][1].text, "\u{fe0f}");
+            assert_eq!(via_ansi.rows[0][1].width, 1);
+            assert_eq!(via_ansi.rows[0][2].text, "x");
+            assert_eq!(via_ansi.rows[0][2].width, 1);
+        }
+    }
+
+    #[test]
     fn the_text_path_lays_out_wide_glyphs_like_the_ansi_path() {
         // Both stills are drawn by `screen_svg`, so the only way they can still
         // disagree is upstream of it, in how a character is placed on the grid.

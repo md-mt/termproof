@@ -240,11 +240,11 @@ enumerated in `conformance/README.md`.
 The denominator is 161, not 179: the eighteen contained cases have no oracle
 verdict to agree with. The 124 and 143 are absolute floors, carried over
 unchanged from the 147-comparable corpus when the fourteen `multipleOf`
-cases enlarged it — minima the harness enforces, not a measurement of the
-enlarged corpus, whose agreement counts the harness's first CI run at
-`jsonschema` 0.56 will report. With `termproof`'s `json-schema` feature off,
-the 72 `json_schema` cases are skipped by assertion type and the floor for
-the rest is 89 / 89 comparable: full agreement is required of every case
+cases enlarged it — minima the harness enforces. The enlarged corpus measured
+132/161 full agreement and 153/161 verdict agreement, identical across
+`jsonschema` 0.56.0 through 0.60.1 (#277). With `termproof`'s `json-schema`
+feature off, the 72 `json_schema` cases are skipped by assertion type and the
+floor for the rest is 89 / 89 comparable: full agreement is required of every case
 that needs no validator, so the harness can only pass while every remaining
 divergence is a `json_schema` case.
 
@@ -275,6 +275,39 @@ These are layer-level numbers, not a product number:
   gate here, so nothing on this page says whether those agree.
 
 Reading 82/115 or 124/161 as a parity figure for the port would be wrong.
+
+## Known screen divergences from pyte (vt100 0.18)
+
+The vt100 0.16.2 → 0.18.1 upgrade changed screen behavior (#277). With a
+10-column, 2-row screen, the Python oracle (pyte 0.8.2, wcwidth 0.9.4) and
+Rust's vt100 path produced these measured differences:
+
+| Input | Python (pyte 0.8.2) | Rust (vt100 0.18.1) |
+|---|---|---|
+| `❤` + VS16 (`U+FE0F`), then `x` in a separate chunk | Heart width 1, `x` at column 1, cursor column 2 | Heart width 2 plus a width-0 continuation, `x` at column 2, cursor column 3 |
+| `ab\x1b[3bZ` (REP) | Ignored REP: `abZ` | Repeated `b`: `abbbbZ` |
+| ``abc\x1b[6`Z`` (HPA) | Ignored HPA: `abcZ` | Moved to column 6 (1-based): `abc  Z` |
+
+Column indices above are zero-based unless stated otherwise. VS16 also
+widened `✔` and `⚠`, shifting every following glyph one column right.
+pyte's single-chunk `❤\uFE0Fx` additionally dropped the trailing `x`.
+HVP (`\x1b[2;4fZ`) agreed: row 2 contained `   Z`. DECSCUSR
+(`CSI n SP q`) became interpreted but had no visible screen-text effect;
+IL/DL (`CSI n L` / `CSI n M`) became no-ops outside the scroll region.
+No differential corpus case currently exercises these sequences.
+
+Unit tests in `terminal::screen` pinned the results:
+`vs16_widens_the_emoji_and_shifts_the_following_glyph`,
+`rep_repeats_the_preceding_character`, `hpa_moves_to_the_absolute_column`
+and `hvp_moves_to_the_absolute_row_and_column`.
+`decscusr_preserves_screen_text_and_cursor_position` and
+`insert_and_delete_lines_outside_scroll_region_are_noops` pinned the other
+screen effects described above.
+`terminal::attributed::tests::vs16_layout_differs_between_vt100_and_ansi_text`
+also pinned the heart/check/warning cells on both Rust paths: the ANSI-text
+path gave VS16 its own width-1 cell after the width-1 base glyph. Its following
+`x` agreed at column 2, but its cell layout diverged from vt100's wide cell
+and continuation. These tests recorded behavior without changing it.
 
 ## Recorded allowed differences
 
