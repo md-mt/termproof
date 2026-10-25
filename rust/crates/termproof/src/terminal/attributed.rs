@@ -463,6 +463,7 @@ pub fn attributed_screen_from_ansi_text(
 /// (#177).
 pub(crate) fn from_vt100(screen: &vt100::Screen) -> AttributedScreen {
     let (rows, cols) = screen.size();
+    let (rows, cols) = (rows.get(), cols.get());
     let grid = (0..rows)
         .map(|row| {
             (0..cols)
@@ -1300,7 +1301,11 @@ mod tests {
     // back through the parser can see it come loose again.
 
     fn vt100_screen(bytes: &str) -> AttributedScreen {
-        let mut parser = vt100::Parser::new(3, 10, 0);
+        let mut parser = vt100::Parser::new(
+            std::num::NonZeroU16::new(3).unwrap(),
+            std::num::NonZeroU16::new(10).unwrap(),
+            0,
+        );
         parser.process(bytes.as_bytes());
         from_vt100(parser.screen())
     }

@@ -99,16 +99,16 @@ skip = [
     # (same portable-pty/filedescriptor path). Skipped with its parent.
     { name = "thiserror-impl", version = "=1.0.69", reason = "proc-macro companion of thiserror 1.0.69, pulled by the same portable-pty -> filedescriptor path." },
     # unicode-width 0.1.14 — via `avt 0.18.0` (evidence feature). Permanent
-    # exception: the workspace floor is 0.2.2, tied to vt100 0.16.2 which
-    # requires ^0.2.1 (see Cargo.toml and terminal::attributed.rs); avt
-    # carries its own 0.1.x copy and cannot be deduplicated by pinning.
-    { name = "unicode-width", version = "=0.1.14", reason = "avt 0.18.0 brings its own unicode-width 0.1.x; workspace floor is 0.2.2 tied to vt100's ^0.2.1 (correctness tests in terminal::attributed). Permanent, not a thing to fix." },
+    # exception: the workspace requires 0.2 (resolved to 0.2.2), matching
+    # vt100 0.18.1's ^0.2.2 (see Cargo.toml and terminal::attributed.rs).
+    # avt carries its own 0.1.x copy and cannot be deduplicated by pinning.
+    { name = "unicode-width", version = "=0.1.14", reason = "avt 0.18.0 brings its own unicode-width 0.1.x; workspace requirement is 0.2 (resolved to 0.2.2) tied to vt100 0.18.1's ^0.2.2 (correctness tests in terminal::attributed). Permanent, not a thing to fix." },
     # vte 0.14.1 — via `strip-ansi-escapes 0.2.1` from `quick-junit 0.8.0`
-    # (junit feature). vt100 0.16.2 uses vte 0.15.0. Incidental: both sides
+    # (junit feature). vt100 0.18.1 uses vte 0.15.0. Incidental: both sides
     # are transitive, neither pins the other; the quick-junit 0.7 -> 0.8 bump
     # did not move it, but a later one, or one of its strip-ansi-escapes, may
     # collapse it.
-    { name = "vte", version = "=0.14.1", reason = "quick-junit 0.8.0 -> strip-ansi-escapes 0.2.1 pins vte 0.14.1; vt100 0.16.2 uses 0.15.0. Incidental transitive split; a future upstream bump may collapse it." },
+    { name = "vte", version = "=0.14.1", reason = "quick-junit 0.8.0 -> strip-ansi-escapes 0.2.1 pins vte 0.14.1; vt100 0.18.1 uses 0.15.0. Incidental transitive split; a future upstream bump may collapse it." },
     # The five below entered together with jsonschema 0.56 (#221): its
     # default features resolve remote `$ref`s over reqwest 0.13, whose
     # rustls stack (aws-lc-rs, ring, the platform verifier) carries older

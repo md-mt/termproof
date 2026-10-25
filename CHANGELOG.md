@@ -41,6 +41,23 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
 
 ## [Unreleased]
 
+### Rust — Changed
+
+- **`vt100` moved from 0.16 to 0.18.1.** 0.18 takes and returns terminal
+  dimensions as `NonZeroU16` (`Parser::new`, `Screen::size`), so the
+  screen and attributed-screen paths were ported to it; the requirement is
+  `0.18.1` because 0.18.0 shipped without that change. No public API
+  changed — `vt100` types do not appear in `termproof`'s surface, and
+  `TerminalScreen` still rejects a zero dimension with the same panic
+  (#277).
+- **The `jsonschema` requirement widened from `>=0.56, <0.57` to
+  `>=0.56, <0.61`; the lockfile resolves 0.60.1.** The assertion
+  differential harness was re-run at every minor in the new range
+  (0.56.0, 0.57.0, 0.58.0, 0.58.6, 0.59.0, 0.60.0, 0.60.1) and gave the
+  same 132/161 full agreement and 153/161 verdict agreement with an
+  identical divergence list at each, so no `json_schema` verdict or
+  detail moved. The floor stays at 0.56.0 and CI still tests it (#277).
+
 ### CI
 
 - **The Python release workflow checked out full history.**

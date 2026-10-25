@@ -153,20 +153,26 @@ serde_yaml = "0.9"
 # which answers "every consumer with a modern schemars carries two" without
 # breaking anyone's types.
 schemars = { version = "0.8", features = ["preserve_order"] }
-# Floor 0.56, tested at 0.56.0 — the only 0.56.x release. The port reads a
-# `ValidationError` through its accessors (`instance_path()`, `kind()`,
-# `instance()`) because 0.56 keeps the fields private, and matches
-# `Custom { message, .. }` because that variant gained a field; at 0.33.0
-# this code does not compile (25 errors, measured in #221). The floor is
-# deliberately not bisected below 0.56: 0.56.0 is the version the #221
-# differential measurement was taken at (assertions 125/147 full agreement
-# against 124/147 at 0.33.0, verdict 143/147 at both), v1.0 is gated on
-# that parity, and a floor at an unmeasured version would claim parity
-# nobody has run. The `<0.57` ceiling is the same claim in the other
-# direction: 0.57 is unmeasured. The previous floor was 0.32, put there by
-# `ValidationErrorKind::OneOfMultipleValid`'s `context` field, which
-# `pyschema` reads to rank sub-errors the way Python's `best_match` does
-# (FR-017); that API is old history at 0.56.
+# Floor 0.56, ceiling below 0.61. The port reads a `ValidationError`
+# through its accessors (`instance_path()`, `kind()`, `instance()`) because
+# 0.56 keeps the fields private, and matches `Custom { message, .. }`
+# because that variant gained a field; at 0.33.0 this code does not compile
+# (25 errors, measured in #221). The floor is deliberately not bisected
+# below 0.56: 0.56.0 is the version the #221 differential measurement was
+# taken at (assertions 125/147 full agreement against 124/147 at 0.33.0,
+# verdict 143/147 at both), v1.0 is gated on that parity, and a floor at an
+# unmeasured version would claim parity nobody has run.
+#
+# The `<0.61` ceiling is the same claim in the other direction, re-measured
+# in #277 when Dependabot widened it from `<0.57`: `differential_assertions`
+# (179 cases, 161 comparable — the corpus has grown since #221) was run at
+# 0.56.0, 0.57.0, 0.58.0, 0.58.6, 0.59.0, 0.60.0 and 0.60.1, and every one
+# gave 132/161 full agreement and 153/161 verdict agreement with a
+# byte-identical divergence list — no case moved. The API the port uses is
+# unchanged across the range. 0.61 is unmeasured. The previous floor was
+# 0.32, put there by `ValidationErrorKind::OneOfMultipleValid`'s `context`
+# field, which `pyschema` reads to rank sub-errors the way Python's
+# `best_match` does (FR-017); that API is old history at 0.56.
 #
 # Deliberately without the `arbitrary-precision` feature, and `pyschema`
 # assumes so: at 0.56 that feature changes
@@ -211,7 +217,14 @@ jsonschema = { version = ">=0.56, <0.61" }
 # passes on 0.8 too (#37). The two are worth keeping apart — the test says the
 # accessor works, the typed call says which versions it works on.
 portable-pty = "0.9"
-vt100 = "0.18"
+# 0.18.1, not 0.16, for the `NonZeroU16` API: `Parser::new` takes
+# `NonZeroU16` rows and cols and `Screen::size()` returns them, which is how
+# `terminal::screen` and `terminal::attributed` call it. 0.16 and 0.17 take
+# and return plain `u16`, so this code does not compile there — and nor does
+# it at 0.18.0, which shipped without the change (0.18.1's changelog: "actually
+# release the intended changes that were supposed to be in 0.18.0"; measured
+# in #277, 5 errors at `=0.18.0`). Hence the patch in the floor.
+vt100 = "0.18.1"
 # 0.7, not 0.4, because 0.4 pulls quick-xml 0.31, which carries
 # RUSTSEC-2026-0194 and RUSTSEC-2026-0195 (unbounded namespace-resolver
 # allocation on untrusted XML). quick-junit 0.7 builds on quick-xml 0.41,
@@ -232,13 +245,13 @@ unicode-normalization = "0.1"
 # stream lands in a different column depending on which path read it — see the
 # note on width tables in `terminal::attributed`.
 #
-# So this is not widenable while `vt100` is 0.16, which asks for `^0.2.1`.
+# So this is not widenable while `vt100` is 0.18.1, which asks for `^0.2.2`.
 # Measured in #35 rather than argued:
 #
 # - `>=0.1, <0.3` resolves to 0.2.2 anyway, so as a *requirement* it changes
 #   nothing. As a *floor* it is a claim CI cannot honour: the floor job pins by
 #   rewriting the requirement to `=<floor>`, and `=0.1.14` splits the graph into
-#   `termproof -> 0.1.14` beside `vt100 0.16.2 -> 0.2.2`.
+#   `termproof -> 0.1.14` beside `vt100 -> 0.2.2`.
 # - That split fails the suite: 369 pass, 3 fail —
 #   `both_paths_measure_width_with_the_same_table` (`[2, 0, 1]` against
 #   `[1, 1]`), `both_paths_place_the_following_glyph_in_the_same_column` and

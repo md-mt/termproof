@@ -22,6 +22,8 @@
 //! the buffered raw output is replayed, so narrowing and then widening again
 //! restores the original contents rather than truncating cells.
 
+use std::num::NonZeroU16;
+
 use vt100::Parser;
 
 /// In-memory terminal screen backed by `vt100`.
@@ -53,7 +55,11 @@ impl TerminalScreen {
             raw: Vec::new(),
             // vt100 takes (rows, cols); no scrollback — TermProof asserts on
             // what is visible, and scrollback would resurrect erased text.
-            parser: Parser::new(rows, cols, 0),
+            parser: Parser::new(
+                NonZeroU16::new(rows).expect("rows checked above"),
+                NonZeroU16::new(cols).expect("cols checked above"),
+                0,
+            ),
         }
     }
 
@@ -105,7 +111,11 @@ impl TerminalScreen {
         self.rows = rows;
         // `Screen::set_size` truncates cells past the new width, which would
         // make a narrow-then-widen round trip lossy. Replay instead.
-        let mut parser = Parser::new(rows, cols, 0);
+        let mut parser = Parser::new(
+            NonZeroU16::new(rows).expect("rows checked above"),
+            NonZeroU16::new(cols).expect("cols checked above"),
+            0,
+        );
         parser.process(&self.raw);
         self.parser = parser;
     }
@@ -128,7 +138,11 @@ impl TerminalScreen {
     /// Clear the screen and replay buffer.
     pub fn clear(&mut self) {
         self.raw.clear();
-        self.parser = Parser::new(self.rows, self.cols, 0);
+        self.parser = Parser::new(
+            NonZeroU16::new(self.rows).expect("rows validated by new or resize"),
+            NonZeroU16::new(self.cols).expect("cols validated by new or resize"),
+            0,
+        );
     }
 
     /// Every visible row, right-trimmed, in top-to-bottom order.
