@@ -13,11 +13,22 @@
 # the posture this workspace wants. What remains configurable here:
 # - yanked: a lockfile pinned to a yanked version fails rather than quietly
 #   shipping a release that the registry no longer stands behind.
-# - ignore: kept empty. An advisory that cannot be fixed yet is added here
-#   with the issue that owns the decision, and removed when the fix lands.
+# - ignore: an advisory that cannot be fixed yet is added here with the
+#   issue that owns the decision, and removed when the fix lands.
 db-path = "$CARGO_HOME/advisory-dbs"
 yanked = "deny"
-ignore = []
+ignore = [
+    # RUSTSEC-2024-0449 — `unsafe-libyaml` is unmaintained. It is an
+    # `unmaintained` advisory, not a vulnerability, and there is no release to
+    # move to: `serde_yaml` 0.9 (itself deprecated upstream) requires
+    # `unsafe-libyaml` 0.2.11, the last one. Replacing the YAML stack is a
+    # behaviour migration rather than a bump — config loading goes through
+    # `serde_yaml::Value` before conversion to JSON, and recipe/config parser
+    # errors are user-visible — so it is owned by #276, which has to check
+    # typed loading and diagnostics against the differential config harness.
+    # Remove this entry when #276 takes `unsafe-libyaml` out of the lockfile.
+    { id = "RUSTSEC-2024-0449", reason = "unsafe-libyaml 0.2.11 is unmaintained with no successor release; required by serde_yaml 0.9. Replacing the YAML stack is a behaviour migration owned by https://github.com/md-mt/termproof/issues/276 — remove this ignore when it lands." },
+]
 
 [licenses]
 # The allowlist is the union of what the graph legitimately uses, read from

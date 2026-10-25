@@ -58,6 +58,16 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
   identical divergence list at each, so no `json_schema` verdict or
   detail moved. The floor stays at 0.56.0 and CI still tests it (#277).
 
+### Rust — Fixed
+
+- **`cargo deny` passed again.** The lockfile moved `rustls` 0.23.45 →
+  0.23.46, `rustls-webpki` 0.103.15 → 0.103.16 and `webpki-root-certs`
+  1.0.9 → 1.0.11, clearing RUSTSEC-2026-0346, -0347, -0348, -0349, -0382
+  and -0383 on `jsonschema`'s HTTPS `$ref` stack; no requirement changed.
+  RUSTSEC-2024-0449 (`unsafe-libyaml` unmaintained, no release to move to,
+  pulled by `serde_yaml` 0.9) became the one reasoned `ignore` in
+  `deny.toml`, owned by #276, which replaces the YAML stack (#277).
+
 ### CI
 
 - **The Python release workflow checked out full history.**
