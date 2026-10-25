@@ -13,11 +13,22 @@
 # the posture this workspace wants. What remains configurable here:
 # - yanked: a lockfile pinned to a yanked version fails rather than quietly
 #   shipping a release that the registry no longer stands behind.
-# - ignore: kept empty. An advisory that cannot be fixed yet is added here
-#   with the issue that owns the decision, and removed when the fix lands.
+# - ignore: an advisory that cannot be fixed yet is added here with the
+#   issue that owns the decision, and removed when the fix lands.
 db-path = "$CARGO_HOME/advisory-dbs"
 yanked = "deny"
-ignore = []
+ignore = [
+    # RUSTSEC-2024-0449 — `unsafe-libyaml` is unmaintained. It is an
+    # `unmaintained` advisory, not a vulnerability, and there is no release to
+    # move to: `serde_yaml` 0.9 (itself deprecated upstream) requires
+    # `unsafe-libyaml` 0.2.11, the last one. Replacing the YAML stack is a
+    # behaviour migration rather than a bump — config loading goes through
+    # `serde_yaml::Value` before conversion to JSON, and recipe/config parser
+    # errors are user-visible — so it is owned by #276, which has to check
+    # typed loading and diagnostics against the differential config harness.
+    # Remove this entry when #276 takes `unsafe-libyaml` out of the lockfile.
+    { id = "RUSTSEC-2024-0449", reason = "unsafe-libyaml 0.2.11 is unmaintained with no successor release; required by serde_yaml 0.9. Replacing the YAML stack is a behaviour migration owned by https://github.com/md-mt/termproof/issues/276 — remove this ignore when it lands." },
+]
 
 [licenses]
 # The allowlist is the union of what the graph legitimately uses, read from
@@ -99,43 +110,43 @@ skip = [
     # (same portable-pty/filedescriptor path). Skipped with its parent.
     { name = "thiserror-impl", version = "=1.0.69", reason = "proc-macro companion of thiserror 1.0.69, pulled by the same portable-pty -> filedescriptor path." },
     # unicode-width 0.1.14 — via `avt 0.18.0` (evidence feature). Permanent
-    # exception: the workspace floor is 0.2.2, tied to vt100 0.16.2 which
-    # requires ^0.2.1 (see Cargo.toml and terminal::attributed.rs); avt
-    # carries its own 0.1.x copy and cannot be deduplicated by pinning.
-    { name = "unicode-width", version = "=0.1.14", reason = "avt 0.18.0 brings its own unicode-width 0.1.x; workspace floor is 0.2.2 tied to vt100's ^0.2.1 (correctness tests in terminal::attributed). Permanent, not a thing to fix." },
+    # exception: the workspace requires 0.2 (resolved to 0.2.2), matching
+    # vt100 0.18.1's ^0.2.2 (see Cargo.toml and terminal::attributed.rs).
+    # avt carries its own 0.1.x copy and cannot be deduplicated by pinning.
+    { name = "unicode-width", version = "=0.1.14", reason = "avt 0.18.0 brings its own unicode-width 0.1.x; workspace requirement is 0.2 (resolved to 0.2.2) tied to vt100 0.18.1's ^0.2.2 (correctness tests in terminal::attributed). Permanent, not a thing to fix." },
     # vte 0.14.1 — via `strip-ansi-escapes 0.2.1` from `quick-junit 0.8.0`
-    # (junit feature). vt100 0.16.2 uses vte 0.15.0. Incidental: both sides
+    # (junit feature). vt100 0.18.1 uses vte 0.15.0. Incidental: both sides
     # are transitive, neither pins the other; the quick-junit 0.7 -> 0.8 bump
     # did not move it, but a later one, or one of its strip-ansi-escapes, may
     # collapse it.
-    { name = "vte", version = "=0.14.1", reason = "quick-junit 0.8.0 -> strip-ansi-escapes 0.2.1 pins vte 0.14.1; vt100 0.16.2 uses 0.15.0. Incidental transitive split; a future upstream bump may collapse it." },
-    # The five below entered together with jsonschema 0.56 (#221): its
-    # default features resolve remote `$ref`s over reqwest 0.13, whose
-    # rustls stack (aws-lc-rs, ring, the platform verifier) carries older
-    # copies the rest of the graph is already past. All five are
-    # transitive and immovable from here; collapsing any of them requires
-    # that subtree to move.
+    { name = "vte", version = "=0.14.1", reason = "quick-junit 0.8.0 -> strip-ansi-escapes 0.2.1 pins vte 0.14.1; vt100 0.18.1 uses 0.15.0. Incidental transitive split; a future upstream bump may collapse it." },
+    # The five below entered together with jsonschema 0.56 (#221).
+    # At 0.60.1, HTTPS `$ref` resolution still uses reqwest 0.13.5 and
+    # rustls. Verified with `cargo tree -i <crate>@<ver> --all-features
+    # -e normal,build`, adding `--target all` for platform/build paths.
+    # Retain the skips, including ring's optional lockfile-only copies.
     #
-    # base64 0.22.1 — via `hyper-util 0.1.20` in reqwest 0.13's chain.
-    # reqwest 0.13.5 itself is already on 0.23.1, so the pair exists
-    # inside one upstream stack.
-    { name = "base64", version = "=0.22.1", reason = "jsonschema 0.56 -> reqwest 0.13.5 -> hyper-util 0.1.20 pins base64 0.22; reqwest itself uses 0.23.1. Collapsing requires hyper-util to move." },
-    # getrandom 0.2.17 — via `ring 0.17.14` (rustls-webpki, under
-    # reqwest 0.13). The mainline copy is 0.3.4 (ahash, tempfile, the
-    # jsonschema/referencing crates).
-    { name = "getrandom", version = "=0.2.17", reason = "jsonschema 0.56 -> reqwest 0.13.5 -> rustls-webpki -> ring 0.17.14 pins getrandom 0.2; the rest of the tree is on 0.3.4. Collapsing requires a ring major bump." },
-    # getrandom 0.4.3 — via `jobserver 0.1.35`, a build dependency of the
-    # aws-lc-sys/cc chain under reqwest 0.13. Build-side only; the
-    # mainline copy is still 0.3.4.
-    { name = "getrandom", version = "=0.4.3", reason = "jsonschema 0.56 -> reqwest 0.13.5 -> aws-lc-sys/ring builds -> cc 1.4.0 -> jobserver 0.1.35 pins getrandom 0.4; the rest of the tree is on 0.3.4. Build-side only." },
-    # r-efi 6.0.0 — the getrandom 0.4 pair of the entry above. getrandom
-    # 0.3.4 (mainline) uses r-efi 5.3.0, which was already in the graph;
-    # 6.0.0 arrives only with jobserver's getrandom 0.4.
-    { name = "r-efi", version = "=6.0.0", reason = "companion of getrandom 0.4.3 (jobserver build chain, above); mainline getrandom 0.3.4 uses r-efi 5.3.0." },
-    # windows-sys 0.52.0 — via `ring 0.17.14` only. Everything else in the
-    # graph (tokio, mio, rustix, schannel, the platform verifier itself)
-    # is on 0.61.2.
-    { name = "windows-sys", version = "=0.52.0", reason = "jsonschema 0.56 -> reqwest 0.13.5 -> rustls-webpki -> ring 0.17.14 pins windows-sys 0.52; the rest of the tree is on 0.61.2. Collapsing requires a ring major bump." },
+    # base64 0.22.1 — same path at jsonschema 0.60.1: reqwest 0.13.5 ->
+    # hyper-util 0.1.20 (also via hyper-rustls). reqwest itself uses
+    # 0.23.1, so the pair exists inside one upstream stack.
+    { name = "base64", version = "=0.22.1", reason = "Entered with jsonschema 0.56 (#221); same path at 0.60.1: reqwest 0.13.5 -> hyper-util 0.1.20 pins base64 0.22; reqwest itself uses 0.23.1. Collapsing requires hyper-util to move." },
+    # getrandom 0.2.17 — retained in Cargo.lock via rustls-webpki's
+    # optional ring 0.17.14 dependency. At jsonschema 0.60.1, cargo tree
+    # reports no active path, even with --target all; rustls uses aws-lc-rs.
+    # The active mainline copy is 0.3.4 (ahash, tempfile, referencing).
+    { name = "getrandom", version = "=0.2.17", reason = "Entered with jsonschema 0.56 (#221); at 0.60.1 retained only in the lockfile via rustls-webpki -> optional ring 0.17.14 -> getrandom 0.2, with no active all-features/all-targets path. Mainline uses 0.3.4." },
+    # getrandom 0.4.3 — visible with --target all at jsonschema 0.60.1:
+    # reqwest 0.13.5 -> rustls -> aws-lc-rs -> aws-lc-sys builds ->
+    # cc 1.4.0 (also via cmake) -> jobserver 0.1.35. cc also has a
+    # chrono -> iana-time-zone -> iana-time-zone-haiku build path.
+    { name = "getrandom", version = "=0.4.3", reason = "Entered with jsonschema 0.56 (#221); same aws-lc build path at 0.60.1: reqwest 0.13.5 -> rustls -> aws-lc-rs -> aws-lc-sys builds -> cc 1.4.0 -> jobserver 0.1.35 -> getrandom 0.4 (also a chrono/Haiku build path). Mainline uses 0.3.4." },
+    # r-efi 6.0.0 — the getrandom 0.4 pair above, visible with --target all
+    # at jsonschema 0.60.1. Mainline getrandom 0.3.4 uses r-efi 5.3.0.
+    { name = "r-efi", version = "=6.0.0", reason = "Entered with jsonschema 0.56 (#221); same path at 0.60.1: companion of getrandom 0.4.3 (jobserver build chain, above); mainline getrandom 0.3.4 uses r-efi 5.3.0." },
+    # windows-sys 0.52.0 — retained only via optional ring 0.17.14
+    # in Cargo.lock at jsonschema 0.60.1. cargo tree reports no active path
+    # even with --target all. Active Windows consumers use 0.61.2.
+    { name = "windows-sys", version = "=0.52.0", reason = "Entered with jsonschema 0.56 (#221); at 0.60.1 retained only in the lockfile via rustls-webpki -> optional ring 0.17.14 -> windows-sys 0.52, with no active all-features/all-targets path. Active Windows consumers use 0.61.2." },
 ]
 
 skip-tree = []

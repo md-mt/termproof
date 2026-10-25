@@ -41,6 +41,40 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
 
 ## [Unreleased]
 
+### Rust — Changed
+
+- **`vt100` moved from 0.16 to 0.18.1, and the screen it models moved
+  with it.** 0.18 takes and returns terminal dimensions as `NonZeroU16`
+  (`Parser::new`, `Screen::size`), so the screen and attributed-screen
+  paths were ported to it; the requirement is `0.18.1` because 0.18.0
+  shipped without that change. No public type changed, but what the
+  screen shows did: a VS16 emoji-presentation selector (`U+FE0F`) widens
+  the glyph before it to two columns, so following glyphs and the cursor
+  move one column right; REP, HPA, HVP and DECSCUSR are now interpreted
+  (`ab\x1b[3bZ` reads `abbbbZ`, not `abZ`); and IL/DL are no-ops with the
+  cursor outside the scroll region. VS16 width, REP and HPA diverge from
+  the Python oracle (pyte 0.8.2), which keeps the 0.16 behaviour; HVP
+  agrees. Unit tests in `terminal::screen` and `terminal::attributed` pin
+  each of them, and `rust/docs/status-and-parity.md` records the
+  divergences (#277).
+- **The `jsonschema` requirement widened from `>=0.56, <0.57` to
+  `>=0.56, <0.61`; the lockfile resolves 0.60.1.** The assertion
+  differential harness was re-run at every minor in the new range
+  (0.56.0, 0.57.0, 0.58.0, 0.58.6, 0.59.0, 0.60.0, 0.60.1) and gave the
+  same 132/161 full agreement and 153/161 verdict agreement with an
+  identical divergence list at each, so no `json_schema` verdict or
+  detail moved. The floor stays at 0.56.0 and CI still tests it (#277).
+
+### Rust — Fixed
+
+- **`cargo deny` passed again.** The lockfile moved `rustls` 0.23.45 →
+  0.23.46, `rustls-webpki` 0.103.15 → 0.103.16 and `webpki-root-certs`
+  1.0.9 → 1.0.11, clearing RUSTSEC-2026-0346, -0347, -0348, -0349, -0382
+  and -0383 on `jsonschema`'s HTTPS `$ref` stack; no requirement changed.
+  RUSTSEC-2024-0449 (`unsafe-libyaml` unmaintained, no release to move to,
+  pulled by `serde_yaml` 0.9) became the one reasoned `ignore` in
+  `deny.toml`, owned by #276, which replaces the YAML stack (#277).
+
 ### CI
 
 - **The Python release workflow checked out full history.**

@@ -658,7 +658,11 @@ mod tests {
 
         // The same bytes through the vt100-backed path put `x` one column
         // further along. Asserted so the divergence is stated, not implied.
-        let mut parser = vt100::Parser::new(3, 10, 0);
+        let mut parser = vt100::Parser::new(
+            std::num::NonZeroU16::new(3).unwrap(),
+            std::num::NonZeroU16::new(10).unwrap(),
+            0,
+        );
         parser.process("\u{1FA89}x".as_bytes());
         let live = crate::terminal::attributed::from_vt100(parser.screen());
         assert_eq!(live.rows[0][0].width, 2);

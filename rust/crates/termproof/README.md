@@ -108,7 +108,7 @@ guessable from the import lists:
   guarantee, so that version would answer `None` after a reword with nothing
   to catch it. The floor buys one public accessor; nothing else in the crate
   reads it, and it is not on the `Session` trait.
-- **`unicode-width` 0.2, not 0.1.** `vt100` 0.16 requires `^0.2.1`, and this
+- **`unicode-width` 0.2, not 0.1.** `vt100` 0.18.1 requires `^0.2.2`, and this
   crate's own width calls have to consult the same table as the `vt100` grid
   they describe or the two disagree about which column a wide glyph occupies —
   which moves glyphs in rendered SVGs and changes

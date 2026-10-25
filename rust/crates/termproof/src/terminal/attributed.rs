@@ -463,6 +463,7 @@ pub fn attributed_screen_from_ansi_text(
 /// (#177).
 pub(crate) fn from_vt100(screen: &vt100::Screen) -> AttributedScreen {
     let (rows, cols) = screen.size();
+    let (rows, cols) = (rows.get(), cols.get());
     let grid = (0..rows)
         .map(|row| {
             (0..cols)
@@ -1300,7 +1301,11 @@ mod tests {
     // back through the parser can see it come loose again.
 
     fn vt100_screen(bytes: &str) -> AttributedScreen {
-        let mut parser = vt100::Parser::new(3, 10, 0);
+        let mut parser = vt100::Parser::new(
+            std::num::NonZeroU16::new(3).unwrap(),
+            std::num::NonZeroU16::new(10).unwrap(),
+            0,
+        );
         parser.process(bytes.as_bytes());
         from_vt100(parser.screen())
     }
@@ -1388,6 +1393,32 @@ mod tests {
             "the glyph after a wide character lands in a different column \
              depending on which path built the screen"
         );
+    }
+
+    #[test]
+    fn vs16_layout_differs_between_vt100_and_ansi_text() {
+        // vt100 0.18 widens the preceding glyph for VS16 (upstream #32).
+        // The ANSI-text path instead gives the selector a cell of its own:
+        // x agrees at column 2, but the emoji/continuation widths diverge.
+        for base in ["\u{2764}", "\u{2714}", "\u{26a0}"] {
+            let emoji = format!("{base}\u{fe0f}");
+            let text = format!("{emoji}x");
+            let via_vt100 = vt100_screen(&text);
+            let via_ansi = screen(&text);
+            assert_eq!(via_vt100.rows[0][0].text, emoji);
+            assert_eq!(via_vt100.rows[0][0].width, 2);
+            assert_eq!(via_vt100.rows[0][1].width, 0);
+            assert_eq!(via_vt100.rows[0][1].text, "");
+            assert_eq!(via_vt100.rows[0][2].text, "x");
+            assert_eq!(via_vt100.rows[0][2].width, 1);
+            assert_eq!(via_vt100.cursor_column, 3);
+            assert_eq!(via_ansi.rows[0][0].text, base);
+            assert_eq!(via_ansi.rows[0][0].width, 1);
+            assert_eq!(via_ansi.rows[0][1].text, "\u{fe0f}");
+            assert_eq!(via_ansi.rows[0][1].width, 1);
+            assert_eq!(via_ansi.rows[0][2].text, "x");
+            assert_eq!(via_ansi.rows[0][2].width, 1);
+        }
     }
 
     #[test]
