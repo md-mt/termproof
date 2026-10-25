@@ -127,23 +127,23 @@ skip = [
     # Retain the skips, including ring's optional lockfile-only copies.
     #
     # base64 0.22.1 — same path at jsonschema 0.60.1: reqwest 0.13.5 ->
-    # hyper-util 0.1.20 (also through hyper-rustls). reqwest itself uses
+    # hyper-util 0.1.20 (also via hyper-rustls). reqwest itself uses
     # 0.23.1, so the pair exists inside one upstream stack.
     { name = "base64", version = "=0.22.1", reason = "Entered with jsonschema 0.56 (#221); same path at 0.60.1: reqwest 0.13.5 -> hyper-util 0.1.20 pins base64 0.22; reqwest itself uses 0.23.1. Collapsing requires hyper-util to move." },
-    # getrandom 0.2.17 — retained in Cargo.lock through rustls-webpki's
+    # getrandom 0.2.17 — retained in Cargo.lock via rustls-webpki's
     # optional ring 0.17.14 dependency. At jsonschema 0.60.1, cargo tree
     # reports no active path, even with --target all; rustls uses aws-lc-rs.
     # The active mainline copy is 0.3.4 (ahash, tempfile, referencing).
     { name = "getrandom", version = "=0.2.17", reason = "Entered with jsonschema 0.56 (#221); at 0.60.1 retained only in the lockfile via rustls-webpki -> optional ring 0.17.14 -> getrandom 0.2, with no active all-features/all-targets path. Mainline uses 0.3.4." },
     # getrandom 0.4.3 — visible with --target all at jsonschema 0.60.1:
     # reqwest 0.13.5 -> rustls -> aws-lc-rs -> aws-lc-sys builds ->
-    # cc 1.4.0 (also through cmake) -> jobserver 0.1.35. cc also has a
+    # cc 1.4.0 (also via cmake) -> jobserver 0.1.35. cc also has a
     # chrono -> iana-time-zone -> iana-time-zone-haiku build path.
     { name = "getrandom", version = "=0.4.3", reason = "Entered with jsonschema 0.56 (#221); same aws-lc build path at 0.60.1: reqwest 0.13.5 -> rustls -> aws-lc-rs -> aws-lc-sys builds -> cc 1.4.0 -> jobserver 0.1.35 -> getrandom 0.4 (also a chrono/Haiku build path). Mainline uses 0.3.4." },
     # r-efi 6.0.0 — the getrandom 0.4 pair above, visible with --target all
     # at jsonschema 0.60.1. Mainline getrandom 0.3.4 uses r-efi 5.3.0.
     { name = "r-efi", version = "=6.0.0", reason = "Entered with jsonschema 0.56 (#221); same path at 0.60.1: companion of getrandom 0.4.3 (jobserver build chain, above); mainline getrandom 0.3.4 uses r-efi 5.3.0." },
-    # windows-sys 0.52.0 — retained only through optional ring 0.17.14
+    # windows-sys 0.52.0 — retained only via optional ring 0.17.14
     # in Cargo.lock at jsonschema 0.60.1. cargo tree reports no active path
     # even with --target all. Active Windows consumers use 0.61.2.
     { name = "windows-sys", version = "=0.52.0", reason = "Entered with jsonschema 0.56 (#221); at 0.60.1 retained only in the lockfile via rustls-webpki -> optional ring 0.17.14 -> windows-sys 0.52, with no active all-features/all-targets path. Active Windows consumers use 0.61.2." },

@@ -242,7 +242,7 @@ verdict to agree with. The 124 and 143 are absolute floors, carried over
 unchanged from the 147-comparable corpus when the fourteen `multipleOf`
 cases enlarged it — minima the harness enforces. The enlarged corpus measured
 132/161 full agreement and 153/161 verdict agreement, identical across
-`jsonschema` 0.56.0 through 0.60.1 (#277). With `termproof`'s `json-schema`
+`jsonschema` 0.56.0–0.60.1 (#277). With `termproof`'s `json-schema`
 feature off, the 72 `json_schema` cases are skipped by assertion type and the
 floor for the rest is 89 / 89 comparable: full agreement is required of every case
 that needs no validator, so the harness can only pass while every remaining
