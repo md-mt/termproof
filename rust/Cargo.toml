@@ -176,7 +176,7 @@ schemars = { version = "0.8", features = ["preserve_order"] }
 # build graph, a downstream consumer enabling it would break this crate's
 # compilation rather than merely widening a number type; enabling it here
 # means changing that rendering first.
-jsonschema = { version = ">=0.56, <0.57" }
+jsonschema = { version = ">=0.56, <0.61" }
 # 0.9, not 0.8, because `ExitStatus::signal()` is 0.9's, and
 # `PtySession::exit_signal` is the published accessor that reads it.
 #
@@ -211,7 +211,7 @@ jsonschema = { version = ">=0.56, <0.57" }
 # passes on 0.8 too (#37). The two are worth keeping apart — the test says the
 # accessor works, the typed call says which versions it works on.
 portable-pty = "0.9"
-vt100 = "0.16"
+vt100 = "0.18"
 # 0.7, not 0.4, because 0.4 pulls quick-xml 0.31, which carries
 # RUSTSEC-2026-0194 and RUSTSEC-2026-0195 (unbounded namespace-resolver
 # allocation on untrusted XML). quick-junit 0.7 builds on quick-xml 0.41,
