@@ -41,6 +41,10 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.4.4] — 2026-10-26
+
 ### Rust — Changed
 
 - **`vt100` moved from 0.16 to 0.18.1, and the screen it models moved
