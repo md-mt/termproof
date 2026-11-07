@@ -572,7 +572,7 @@ jobs:
             os: ubuntu-latest
             smoke: native
           - target: macos-arm64
-            os: macos-14
+            os: macos-15
             smoke: native
           - target: macos-x86_64
             os: ubuntu-latest
