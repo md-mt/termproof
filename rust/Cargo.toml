@@ -102,7 +102,7 @@ regex = { version = "1.13.1", default-features = false, features = ["std", "unic
 # ends. No `fancy-regex` type is in the public API now, so a consumer on any
 # version compiles either way; the most this requirement can cost anyone is a
 # second copy in the graph, which is exactly what narrowing it removes.
-fancy-regex = "0.19"
+fancy-regex = "0.20"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 serde_yaml = "0.9"
@@ -267,7 +267,7 @@ unicode-normalization = "0.1"
 unicode-width = "0.2"
 tempfile = "3.10"
 thiserror = "2.0"
-avt = "0.18"
+avt = "0.20"
 chrono = "0.4"
 globset = "0.4"
 # Builder API only, so no `derive`. Neither crate that uses clap has a
