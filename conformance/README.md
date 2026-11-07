@@ -794,6 +794,10 @@ says the glyph is, and where it leaves the cursor.
 - **The live session.** The port's pty session emulates with `vt100`, not `avt`,
   and nothing here feeds it. A screen read from a running child is still
   compared by no harness.
+- **VS16, REP and HPA after the vt100 0.18 bump.** The sequences accepted in
+  #278 are documented in `rust/docs/status-and-parity.md` and pinned in Rust
+  unit tests, but no corpus case here replays them, so this harness does not
+  compare them.
 - **Which emulator is right.** The recording is `pyte`'s because the oracle half
   is the Python one, not because a decision was made that `pyte` is the
   reference for this layer. None has been.

@@ -41,7 +41,12 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
 
 ## [Unreleased]
 
-Nothing yet.
+### Docs
+
+- **Recorded the owner decision on vt100 0.18 VS16, REP and HPA
+  divergences.** `rust/docs/status-and-parity.md` now marks those three
+  Rust↔pyte differences as allowed with no fix planned (#278); the cast-replay
+  harness README notes they sit outside its corpus until one is added.
 
 ## [0.4.4] — 2026-10-26
 
