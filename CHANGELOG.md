@@ -53,6 +53,12 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
 
 ### CI
 
+- **The macos-arm64 jobs moved from the retired `macos-14` runner image to
+  `macos-15`** (#288). GitHub now refuses `macos-14`, so the bundled-agg
+  wheel job in `python-ci.yml` was cancelled before its first step on every
+  PR, and the `aarch64-apple-darwin` entry of the `rust-release.yml` matrix
+  would have failed the same way. Both stay on Apple silicon; the targets
+  and the `termproof-macos-arm64.tar.gz` archive name are unchanged.
 - **Dependabot held `avt` at `<0.19` and `fancy-regex` at `<0.20`.** avt
   0.19 removed `avt::Vt`, which failed every Rust job on #280; the port is
   #281. fancy-regex 0.20 waits for the parity measurement #221 made for
