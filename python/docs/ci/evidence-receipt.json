@@ -52,7 +52,7 @@
     "endpoint_env": "AWS_ENDPOINT_URL_S3",
     "video_base_url": "",
     "retention_days": 90,
-    "notes": "S3-compatible bucket (AWS S3 or Cloudflare R2). Configure TERM_PROOF_VIDEO_BUCKET, TERM_PROOF_VIDEO_BASE_URL (public URL prefix), and AWS_ENDPOINT_URL_S3 (for R2). CI publishes via termproof.evidence_publish publish-videos; report.md and PR comments rewrite session.mp4 links to hosted URLs when video_base_url is set."
+    "notes": "S3-compatible bucket (AWS S3 or Cloudflare R2). Configure TERM_PROOF_VIDEO_BUCKET, TERM_PROOF_VIDEO_BASE_URL (public bucket-root URL, without the key prefix), and AWS_ENDPOINT_URL_S3 (for R2). CI publishes via termproof.evidence_publish publish-videos, which appends the full key to the bucket root; the compose step appends the prefix and pr/<pr>/<run>. Receipt hosting.video_base_url above is a distinct already-resolved-prefix convention, is left empty here, and must not be set to the bucket root expecting PR URLs."
   },
   "pr_comment": {
     "marker": "<!-- termproof-ci-report -->",

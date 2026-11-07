@@ -2,8 +2,10 @@
 """Single-source version and CHANGELOG drift check (RUST-023).
 
 The canonical version lives in `pyproject.toml`. This script verifies that
-`CHANGELOG.md` contains an entry for it. It also checks that `action.yml` and
-`Formula/termproof.rb` reference the same version.
+`CHANGELOG.md` contains an entry for it. It does not check `action.yml` or
+`Formula/termproof.rb`: the action carries no package version, and the
+formula pins its own release tarball, so neither is covered by the drift
+check below and a green run says nothing about them.
 
 The Rust workspace is back in this repository and shares the version train,
 so `rust/Cargo.toml` is checked against the same number: one version means one

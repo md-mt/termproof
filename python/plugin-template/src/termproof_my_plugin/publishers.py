@@ -14,8 +14,8 @@ from __future__ import annotations
 import shutil
 from pathlib import Path
 
-from termproof.evidence_publish import PublishTarget
 from termproof.models import PublishedArtifact
+from termproof.protocols import PublishTarget
 
 
 class MyStore:

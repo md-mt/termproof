@@ -6,7 +6,14 @@ from typing import TYPE_CHECKING, Any, Protocol
 from .before_after import BeforeAfterResult
 from .build_info import BuildInfo
 from .config import EvidenceConfig, PngRenderConfig, SvgRenderConfig, VideoConfig
-from .models import AssertionResult, PublishedArtifact, Recipe, RunResult, StepResult
+from .models import (
+    AssertionResult,
+    PublishedArtifact,
+    PublishTarget,
+    Recipe,
+    RunResult,
+    StepResult,
+)
 from .session import TerminalSession
 
 if TYPE_CHECKING:
@@ -165,6 +172,7 @@ __all__ = [
     "ExecutionMode",
     "PngRenderConfig",
     "PublishedArtifact",
+    "PublishTarget",
     "Reporter",
     "ScreenRenderer",
     "SessionBackend",

@@ -22,6 +22,8 @@
 //! the buffered raw output is replayed, so narrowing and then widening again
 //! restores the original contents rather than truncating cells.
 
+use std::num::NonZeroU16;
+
 use vt100::Parser;
 
 /// In-memory terminal screen backed by `vt100`.
@@ -53,7 +55,11 @@ impl TerminalScreen {
             raw: Vec::new(),
             // vt100 takes (rows, cols); no scrollback — TermProof asserts on
             // what is visible, and scrollback would resurrect erased text.
-            parser: Parser::new(rows, cols, 0),
+            parser: Parser::new(
+                NonZeroU16::new(rows).expect("rows checked above"),
+                NonZeroU16::new(cols).expect("cols checked above"),
+                0,
+            ),
         }
     }
 
@@ -105,7 +111,11 @@ impl TerminalScreen {
         self.rows = rows;
         // `Screen::set_size` truncates cells past the new width, which would
         // make a narrow-then-widen round trip lossy. Replay instead.
-        let mut parser = Parser::new(rows, cols, 0);
+        let mut parser = Parser::new(
+            NonZeroU16::new(rows).expect("rows checked above"),
+            NonZeroU16::new(cols).expect("cols checked above"),
+            0,
+        );
         parser.process(&self.raw);
         self.parser = parser;
     }
@@ -128,7 +138,11 @@ impl TerminalScreen {
     /// Clear the screen and replay buffer.
     pub fn clear(&mut self) {
         self.raw.clear();
-        self.parser = Parser::new(self.rows, self.cols, 0);
+        self.parser = Parser::new(
+            NonZeroU16::new(self.rows).expect("rows validated by new or resize"),
+            NonZeroU16::new(self.cols).expect("cols validated by new or resize"),
+            0,
+        );
     }
 
     /// Every visible row, right-trimmed, in top-to-bottom order.
@@ -150,6 +164,85 @@ mod tests {
         let mut s = TerminalScreen::new(80, 24);
         s.feed_str("hello");
         assert_eq!(s.contents(), "hello");
+    }
+
+    #[test]
+    fn rep_repeats_the_preceding_character() {
+        // pyte 0.8.2 ignores REP and shows "abZ"; vt100 0.18 interprets it.
+        let mut s = TerminalScreen::new(10, 2);
+        s.feed_str("ab\x1b[3bZ");
+        assert_eq!(s.contents(), "abbbbZ");
+    }
+
+    #[test]
+    fn hpa_moves_to_the_absolute_column() {
+        // pyte 0.8.2 ignores HPA and shows "abcZ"; vt100 uses column 6.
+        let mut s = TerminalScreen::new(10, 2);
+        s.feed_str("abc\x1b[6`Z");
+        assert_eq!(s.contents(), "abc  Z");
+    }
+
+    #[test]
+    fn hvp_moves_to_the_absolute_row_and_column() {
+        // pyte 0.8.2 also supports HVP: row 2 contains "   Z".
+        let mut s = TerminalScreen::new(10, 2);
+        s.feed_str("\x1b[2;4fZ");
+        assert_eq!(s.contents(), "\n   Z");
+        assert_eq!(
+            (s.attributed().cursor_row, s.attributed().cursor_column),
+            (1, 4)
+        );
+    }
+
+    #[test]
+    fn decscusr_preserves_screen_text_and_cursor_position() {
+        // vt100 0.18 interprets cursor style, which has no screen-text effect.
+        let mut s = TerminalScreen::new(10, 2);
+        s.feed_str("ab\x1b[5 qZ");
+        assert_eq!(
+            s.parser.screen().cursor_style(),
+            vt100::CursorStyle::BlinkVerticalBar
+        );
+        assert_eq!(s.contents(), "abZ");
+        assert_eq!(
+            (s.attributed().cursor_row, s.attributed().cursor_column),
+            (0, 3)
+        );
+    }
+
+    #[test]
+    fn insert_and_delete_lines_outside_scroll_region_are_noops() {
+        // vt100 0.17/0.18 stopped applying IL/DL outside the scroll region.
+        for sequence in ["\x1b[L", "\x1b[M"] {
+            for row in [1, 4] {
+                let mut s = TerminalScreen::new(10, 4);
+                s.feed_str("one\r\ntwo\r\nthree\r\nfour");
+                s.feed_str(&format!("\x1b[2;3r\x1b[{row};1H"));
+                s.feed_str(sequence);
+                assert_eq!(s.contents(), "one\ntwo\nthree\nfour");
+                assert_eq!(s.attributed().cursor_row, row - 1);
+                assert_eq!(s.attributed().cursor_column, 0);
+            }
+        }
+    }
+
+    #[test]
+    fn vs16_widens_the_emoji_and_shifts_the_following_glyph() {
+        // pyte 0.8.2 keeps the heart one column wide: feeding heart+VS16,
+        // then x puts x at column 1 and the cursor at 2 (as vt100 0.16 did).
+        // Its single-chunk quirk even drops x. vt100 0.18 uses columns 2/3
+        // for x/cursor in either chunking, a divergence from the Python oracle.
+        for chunks in [vec!["\u{2764}\u{fe0f}x"], vec!["\u{2764}\u{fe0f}", "x"]] {
+            let mut s = TerminalScreen::new(10, 2);
+            for chunk in chunks {
+                s.feed_str(chunk);
+            }
+            assert_eq!(s.contents(), "\u{2764}\u{fe0f}x");
+            assert_eq!(s.raw_contents(), "\u{2764}\u{fe0f}x\n");
+            let attributed = s.attributed();
+            assert_eq!(attributed.rows[0][2].text, "x");
+            assert_eq!((attributed.cursor_row, attributed.cursor_column), (0, 3));
+        }
     }
 
     #[test]

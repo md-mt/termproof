@@ -26,12 +26,16 @@ updates:
       cargo:
         patterns:
           - "*"
-    # Three upgrades are held, not missed. v1.0 is gated on Python parity, and
-    # each of these moves what the differential harnesses compare, so they are
-    # taken together and on purpose rather than in a weekly grouped PR. The
-    # decision and the conditions for lifting it are tracked in #221; the
-    # per-crate reasoning is on each requirement in rust/Cargo.toml. Remove an
-    # entry here in the same change that moves its requirement there.
+    # One upgrade is held, not missed. schemars 1.x redraws the generated
+    # recipe schema and the key order of everything serde_json emits (see
+    # below), which is a schema-consumer decision, not a weekly grouped PR.
+    # It is the schemars-only remainder of #221: that issue's other two
+    # holds (jsonschema, and fancy-regex coupled to it) were taken at 0.56 /
+    # 0.19 once the differential measurement said parity moved the right
+    # way, and their ignores were removed in the same change that moved
+    # their requirements in rust/Cargo.toml — which is still the rule for
+    # the entry that remains. The per-crate reasoning is on the requirement
+    # in rust/Cargo.toml (#28).
     ignore:
       # 1.x redraws the generated recipe schema (`definitions` -> `$defs`,
       # key and `required` order) and turns `preserve_order` into a
@@ -40,21 +44,6 @@ updates:
       # 1.0.0-alpha.18, so it carries the same redraw.
       - dependency-name: "schemars"
         versions: [">=0.9"]
-      # Cargo.toml declares `>=0.32, <0.34`, the range the suite and both
-      # harnesses are run against, so anything at or above 0.34 is outside
-      # what is tested. 0.56 is the version that was evaluated and declined;
-      # the versions between were never looked at, which is a reason to
-      # ignore them too, not to let them through.
-      - dependency-name: "jsonschema"
-        versions: [">=0.34"]
-      # Coupled to the jsonschema hold. Our `fancy-regex` requirement exists
-      # to share jsonschema's copy of the engine: jsonschema 0.33 asks for
-      # `^0.16`, 0.56 asks for `^0.19`. Anything from 0.17 up, taken alone,
-      # would put 0.16.2 (jsonschema's) and the newer one (ours) in the
-      # lockfile, and deny.toml has no skip for that pair, so `cargo deny
-      # check bans` would fail. It moves when jsonschema does.
-      - dependency-name: "fancy-regex"
-        versions: [">=0.17"]
 
   # GitHub Actions used by the workflows in .github/workflows. One entry covers
   # both implementations: GitHub reads only the root workflow directory, so

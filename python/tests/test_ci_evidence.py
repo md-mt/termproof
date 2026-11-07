@@ -10,7 +10,15 @@ import yaml
 
 from termproof import ci_evidence
 from termproof.ci_evidence import compose_pr_comment, load_receipt, run_target
-from termproof.evidence_publish import prepare_screenshot_evidence, rewrite_screenshot_links
+from termproof.evidence import STEPS_MANIFEST_NAME
+from termproof.evidence_publish import (
+    NON_IMAGE_PAYLOAD_NAMES,
+    S3ArtifactPublisher,
+    prepare_screenshot_evidence,
+    publish_videos_to_s3,
+    rewrite_screenshot_links,
+    rewrite_video_links,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 REPO_ROOT = ROOT.parent
@@ -255,6 +263,61 @@ class CiEvidenceReceiptTest(unittest.TestCase):
             self.assertFalse((published / "base" / "run" / "session.mp4").exists())
             self.assertEqual(3, len(manifest))
 
+    def test_non_image_payload_names_pin_steps_manifest_name(self) -> None:
+        # evidence_publish repeats the literal instead of importing evidence
+        # (which would drag the replay/render stack into the CI helper); pin
+        # the duplication here, where importing the producer constant is free.
+        self.assertEqual({STEPS_MANIFEST_NAME}, NON_IMAGE_PAYLOAD_NAMES)
+
+    def test_prepare_screenshot_evidence_copies_steps_manifest_alongside_images(self) -> None:
+        # With dedup on, step 02 has no image of its own: only the manifest
+        # records that it happened and is represented by 01's image (#160).
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            # Distinct bytes per scope: identical content would let a
+            # base/head cross-copy swap pass undetected.
+            steps_manifests: dict[str, str] = {}
+            for scope in ("base", "head"):
+                steps_manifest = (
+                    json.dumps(
+                        [
+                            {"step": f"01-{scope}-first", "screenshot": "01-first.svg", "unchanged_from_previous": False},
+                            {"step": f"02-{scope}-second", "screenshot": "01-first.svg", "unchanged_from_previous": True},
+                            {"step": f"03-{scope}-third", "screenshot": "03-third.svg", "unchanged_from_previous": False},
+                        ],
+                        indent=2,
+                    )
+                    + "\n"
+                )
+                steps_manifests[scope] = steps_manifest
+                steps = root / scope / "run" / "steps"
+                steps.mkdir(parents=True)
+                (steps / "01-first.svg").write_text("<svg />\n", encoding="utf-8")
+                (steps / "03-third.svg").write_text("<svg />\n", encoding="utf-8")
+                (steps / "steps-manifest.json").write_text(steps_manifest, encoding="utf-8")
+                # An unrelated JSON file is not screenshot payload.
+                (root / scope / "run" / "result.json").write_text("{}\n", encoding="utf-8")
+            self.assertNotEqual(steps_manifests["base"], steps_manifests["head"])
+
+            manifest = prepare_screenshot_evidence(root / "base", root / "head", root / "publish", "68", "123")
+
+            published = root / "publish" / "pr" / "68" / "123"
+            for scope in ("base", "head"):
+                copied = published / scope / "run" / "steps" / "steps-manifest.json"
+                self.assertTrue(copied.is_file(), copied)
+                self.assertEqual(steps_manifests[scope], copied.read_text(encoding="utf-8"))
+                self.assertTrue((published / scope / "run" / "steps" / "01-first.svg").is_file())
+                self.assertTrue((published / scope / "run" / "steps" / "03-third.svg").is_file())
+                self.assertFalse((published / scope / "run" / "result.json").exists())
+            # The manifest rides alongside as a sibling file; it is not folded
+            # into the screenshot manifest, which stays one entry per image.
+            self.assertEqual(4, len(manifest))
+            self.assertTrue(all(not entry["path"].endswith("steps-manifest.json") for entry in manifest))
+            self.assertEqual(
+                manifest,
+                json.loads((published / "screenshot-manifest.json").read_text(encoding="utf-8")),
+            )
+
     def test_rewrite_screenshot_links_leaves_video_links_unchanged(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -304,6 +367,261 @@ class CiEvidenceReceiptTest(unittest.TestCase):
 
             self.assertEqual(1, len(results))
             self.assertIsNone(results[0].exit_code)
+
+
+class EvidenceHostingTests(unittest.TestCase):
+    """#118: retention-model guards and missing/partial/expired link behaviour.
+
+    The bucket is not provisioned, so the behaviour that matters today is the
+    fallback: no hosted URL is ever fabricated for bytes that were not stored,
+    and expired evidence has no liveness handling by design (documented in
+    ``python/docs/evidence-hosting.md``).
+    """
+
+    def _verify_steps(self) -> dict[str, dict]:
+        workflow = yaml.safe_load(CI_WORKFLOW.read_text(encoding="utf-8"))
+        return {step["name"]: step for step in workflow["jobs"]["verify"]["steps"]}
+
+    def test_video_publish_step_noops_for_forks_and_unset_hosting(self) -> None:
+        step = self._verify_steps()["Publish video evidence to R2/S3"]
+        self.assertEqual(
+            "${{ github.event.pull_request.head.repo.full_name }}",
+            step["env"]["HEAD_REPO"],
+        )
+        run = step["run"]
+        self.assertIn("Fork pull request", run)
+        self.assertIn("skipping video upload", run)
+        self.assertIn("Video hosting not configured", run)
+        # Both guards must precede the upload they protect.
+        self.assertLess(run.index("Fork pull request"), run.index("publish-videos"))
+        self.assertLess(run.index("Video hosting not configured"), run.index("publish-videos"))
+
+    def test_compose_step_gates_video_links_on_same_repo(self) -> None:
+        step = self._verify_steps()["Compose TUI verification report"]
+        run = step["run"]
+        # Fail-safe gate: even if variables were visible to a fork run, a set
+        # base URL alone must not add links. The real boundary is secrets
+        # withholding; this check also covers a future trigger change.
+        self.assertIn(
+            '[ -n "$TERM_PROOF_VIDEO_BASE_URL" ] && [ "$HEAD_REPO" = "$GITHUB_REPOSITORY" ]',
+            run,
+        )
+        # Bucket-root convention (#118): compose appends the key prefix itself
+        # (defaulting an unset variable) before pr/<pr>/<run>, matching the key
+        # the publish step uploads. A prefix-inclusive base would double-prefix.
+        self.assertEqual(
+            "${{ vars.TERM_PROOF_VIDEO_PREFIX }}",
+            step["env"]["TERM_PROOF_VIDEO_PREFIX"],
+        )
+        self.assertIn('video_prefix="${TERM_PROOF_VIDEO_PREFIX:-termproof/videos}"', run)
+        self.assertIn('"${video_base}/${video_prefix}/pr/${PR_NUMBER}/${GITHUB_RUN_ID}"', run)
+
+    def test_publish_step_uses_bucket_root_and_explicit_prefix(self) -> None:
+        run = self._verify_steps()["Publish video evidence to R2/S3"]["run"]
+        self.assertIn('video_prefix="${TERM_PROOF_VIDEO_PREFIX:-termproof/videos}"', run)
+        self.assertIn('--prefix "$video_prefix"', run)
+        self.assertIn('--video-base-url "$TERM_PROOF_VIDEO_BASE_URL"', run)
+        # Both guards still precede the upload they protect.
+        self.assertLess(run.index("Fork pull request"), run.index("publish-videos"))
+        self.assertLess(run.index("Video hosting not configured"), run.index("publish-videos"))
+
+    def test_publish_url_equals_compose_url_for_same_file(self) -> None:
+        # #118: TERM_PROOF_VIDEO_BASE_URL is the bucket root everywhere. The
+        # URL the publisher reports for a file (bucket root + full key) must
+        # equal the URL compose builds for the same file (bucket root +
+        # <prefix>/pr/<pr>/<run>, then /{base,head}/<rel> from ci_evidence).
+        bucket_root = "https://cdn.example"
+        for prefix in ("termproof/videos", "custom/prefix"):
+            with self.subTest(prefix=prefix), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                receipt_path = root / "receipt.json"
+                receipt_path.write_text(
+                    json.dumps(
+                        {
+                            "schema_version": 1,
+                            "targets": {
+                                "ci": {"artifact_name": "termproof-ci-evidence", "archive_name": ""},
+                                "release": {
+                                    "artifact_name": "termproof-release-evidence",
+                                    "archive_name": "x.tgz",
+                                },
+                            },
+                            "screenshots": {"video_issue": "https://github.com/md-mt/termproof/issues/69"},
+                            "hosting": {"video_base_url": ""},
+                            "pr_comment": {"marker": "<!-- termproof-ci-report -->", "max_chars": 55000},
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+                base = root / "base"
+                head = root / "head"
+                for scope_dir in (base, head):
+                    _write_result(scope_dir, True)
+                    video = scope_dir / "demo" / "session.mp4"
+                    video.write_bytes(b"video")
+                    (scope_dir / "latest-report.md").write_text(f"[video]({video})\n", encoding="utf-8")
+
+                # Publish side: key layout from publish_videos_to_s3, URL from
+                # the S3 publisher (dry-run names the URL without uploading).
+                entries = publish_videos_to_s3(
+                    base, head, bucket="evidence", prefix=prefix, pr_number="7", run_id="99", dry_run=True
+                )
+                publisher = S3ArtifactPublisher(bucket="evidence", base_url=bucket_root, dry_run=True)
+                publish_urls = {
+                    entry["scope"]: publisher.publish(Path(entry["source"]), entry["key"]).url for entry in entries
+                }
+
+                # Compose side: the argument the workflow builds from the
+                # bucket-root variable, then ci_evidence appends scope + rel.
+                compose_arg = f"{bucket_root}/{prefix}/pr/7/99"
+                body = compose_pr_comment(
+                    base,
+                    head,
+                    "https://example.test/run",
+                    video_base_url=compose_arg,
+                    receipt_path=receipt_path,
+                )
+
+                self.assertEqual(
+                    {
+                        "base": f"{bucket_root}/{prefix}/pr/7/99/base/demo/session.mp4",
+                        "head": f"{bucket_root}/{prefix}/pr/7/99/head/demo/session.mp4",
+                    },
+                    publish_urls,
+                )
+                for url in publish_urls.values():
+                    self.assertIn(url, body)
+                self.assertNotIn(f"{prefix}/{prefix}", body)
+
+    def test_bucket_policy_is_put_only_on_videos_prefix(self) -> None:
+        doc = (ROOT / "docs" / "evidence-hosting.md").read_text(encoding="utf-8")
+        blocks = [part.split("```", 1)[0] for part in doc.split("```json\n")[1:]]
+        policy = json.loads(next(block for block in blocks if "TermProofEvidenceWrite" in block))
+        allow = next(stmt for stmt in policy["Statement"] if stmt["Effect"] == "Allow")
+        deny = next(stmt for stmt in policy["Statement"] if stmt["Effect"] == "Deny")
+        # Publisher never reads, so no GetObject; writes scoped to the video
+        # prefix, not the whole termproof/ namespace.
+        self.assertEqual(["s3:PutObject"], allow["Action"])
+        self.assertEqual("arn:aws:s3:::<bucket>/termproof/videos/*", allow["Resource"])
+        self.assertEqual("arn:aws:s3:::<bucket>/termproof/videos/*", deny["Resource"])
+
+    def test_dead_publish_evidence_script_is_gone(self) -> None:
+        # python/scripts/publish_evidence.py duplicated publish-videos under
+        # divergent EVIDENCE_* names and was referenced nowhere; its removal
+        # is what the runbook records (it did exist before).
+        self.assertFalse((ROOT / "scripts" / "publish_evidence.py").exists())
+        doc = (ROOT / "docs" / "evidence-hosting.md").read_text(encoding="utf-8")
+        self.assertIn("were removed", doc)
+
+    def test_artifact_fallback_bundle_always_uploads(self) -> None:
+        step = self._verify_steps()["Upload verification evidence"]
+        self.assertIn("always()", step["if"])
+        self.assertEqual("termproof-ci-evidence", step["with"]["name"])
+
+    def test_receipt_retention_matches_documented_policy(self) -> None:
+        receipt = load_receipt(RECEIPT)
+        self.assertEqual(90, receipt["hosting"]["retention_days"])
+
+    def test_hosting_doc_states_model_and_runbook(self) -> None:
+        doc = (ROOT / "docs" / "evidence-hosting.md").read_text(encoding="utf-8")
+        for required in (
+            "not provisioned",
+            "90 days",
+            "permanent",
+            "s3:PutObject",
+            "termproof/videos/*",
+            "TERM_PROOF_VIDEO_BUCKET",
+            "R2_ENDPOINT_URL",
+            "TERM_PROOF_ARTIFACT_PUBLISHER",
+            "hosting.video_base_url",
+            "bucket root everywhere",
+            "never on pushes",
+            "even if variables were visible",
+            "code construction, not credential enforcement",
+            "Fork pull requests publish nothing",
+            "pr/<pr>/<run>",
+        ):
+            self.assertIn(required, doc, f"evidence-hosting.md lost {required!r}")
+
+    def test_compose_comment_without_hosting_keeps_local_video_paths(self) -> None:
+        # The unset-bucket fallback: no base URL anywhere (argument or
+        # receipt) means reports pass through verbatim and the comment names
+        # the artifact route instead of a hosted one.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            receipt_path = root / "receipt.json"
+            receipt_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "targets": {
+                            "ci": {"artifact_name": "termproof-ci-evidence", "archive_name": ""},
+                            "release": {"artifact_name": "termproof-release-evidence", "archive_name": "x.tgz"},
+                        },
+                        "screenshots": {"video_issue": "https://github.com/md-mt/termproof/issues/69"},
+                        "hosting": {"video_base_url": ""},
+                        "pr_comment": {"marker": "<!-- termproof-ci-report -->", "max_chars": 55000},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            base = root / "base"
+            head = root / "head"
+            _write_result(base, True)
+            _write_result(head, True)
+            (base / "latest-report.md").write_text("[video](base/demo/session.mp4)\n", encoding="utf-8")
+            (head / "latest-report.md").write_text("[video](head/demo/session.mp4)\n", encoding="utf-8")
+
+            body = compose_pr_comment(base, head, "https://example.test/run", receipt_path=receipt_path)
+
+        self.assertIn("base/demo/session.mp4", body)
+        self.assertIn("head/demo/session.mp4", body)
+        self.assertIn("Hosted video links are tracked separately", body)
+        self.assertNotIn("Videos are hosted at", body)
+
+    def test_rewrite_video_links_fabricates_nothing_for_missing_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            evidence = root / "evidence"
+            evidence.mkdir()
+            text = f"[video]({evidence / 'run' / 'session.mp4'})"
+
+            # File absent under the root: nothing to credit with a URL.
+            self.assertEqual(text, rewrite_video_links(text, evidence, "https://cdn.example/videos"))
+            # Root absent entirely.
+            self.assertEqual(text, rewrite_video_links(text, root / "absent", "https://cdn.example/videos"))
+            # No base URL (bucket unset): local path survives.
+            self.assertEqual(text, rewrite_video_links(text, evidence, ""))
+
+    def test_rewrite_video_links_partial_tree_rewrites_present_files_only(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            evidence = Path(tmp) / "evidence"
+            present = evidence / "head-run" / "session.mp4"
+            present.parent.mkdir(parents=True)
+            present.write_bytes(b"video")
+            missing = evidence / "base-run" / "session.mp4"
+            text = f"[before]({missing}) [after]({present})"
+
+            rewritten = rewrite_video_links(text, evidence, "https://cdn.example/videos")
+
+        self.assertIn("https://cdn.example/videos/head-run/session.mp4", rewritten)
+        self.assertIn(str(missing), rewritten)
+
+    def test_expired_evidence_links_are_never_probed(self) -> None:
+        # Pins the documented gap: rewriting is purely textual. An unroutable
+        # base URL (the shape of a pruned/expired host) rewrites exactly like
+        # a live one — nothing in the link layer checks liveness, annotates,
+        # or strips a dead link. See evidence-hosting.md.
+        with tempfile.TemporaryDirectory() as tmp:
+            evidence = Path(tmp) / "evidence"
+            video = evidence / "run" / "session.mp4"
+            video.parent.mkdir(parents=True)
+            video.write_bytes(b"video")
+            text = f"[video]({video})"
+
+            rewritten = rewrite_video_links(text, evidence, "https://expired.invalid/videos")
+
+        self.assertEqual("[video](https://expired.invalid/videos/run/session.mp4)", rewritten)
 
 
 def _write_result(root: Path, passed: bool) -> None:

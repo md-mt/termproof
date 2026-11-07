@@ -7,7 +7,7 @@
 //!
 //! This backend replays the cast through the terminal emulator, samples the
 //! grid at a fixed frame rate, and renders each frame with
-//! [`screen_svg`](crate::terminal::attributed::screen_svg) — the same
+//! [`screen_svg`] — the same
 //! function behind [`crate::evidence::screenshot`]. The video is literally the
 //! screenshots in sequence. That holds for this backend only: `agg_ffmpeg` is
 //! still the configured default, so choosing it is what buys the shared visual
@@ -252,7 +252,7 @@ impl CastVideoConverter {
             }
         }
 
-        let frames = self.frames_from_cast(cast_path)?;
+        let frames = self.replay_frames(cast_path)?;
         let tmpdir = tempfile::Builder::new()
             .prefix("termproof_cast_frames_")
             .tempdir()
@@ -305,7 +305,22 @@ impl CastVideoConverter {
         Ok(output_path)
     }
 
-    fn frames_from_cast(&self, cast_path: &str) -> Result<Vec<AttributedScreen>, String> {
+    /// `replay_frames`, for
+    /// `tests/differential_cast_replay.rs` and nothing else: the harness has to
+    /// compare the replayed grid with the Python oracle's `frames_from_cast`,
+    /// and an integration test can only reach what is `pub`. Not part of the
+    /// published API — it exists only under the `_test-harness` feature and
+    /// carries no stability guarantee; see `conformance/README.md`.
+    #[cfg(feature = "_test-harness")]
+    #[doc(hidden)]
+    pub fn frames_from_cast(&self, cast_path: &str) -> Result<Vec<AttributedScreen>, String> {
+        self.replay_frames(cast_path)
+    }
+
+    /// Replay `cast_path` and sample the grid at [`fps`](Self::fps), clamping
+    /// idle gaps to [`idle_time_limit`](Self::idle_time_limit). The final
+    /// screen is always the last frame.
+    fn replay_frames(&self, cast_path: &str) -> Result<Vec<AttributedScreen>, String> {
         let contents = fs::read_to_string(cast_path).map_err(|e| e.to_string())?;
         let mut lines = contents.lines();
         let header_line = lines.next().ok_or("empty cast file")?;
@@ -583,7 +598,7 @@ mod tests {
 
     fn frames(events: &str) -> Vec<AttributedScreen> {
         let (_dir, path) = cast_with(events);
-        CastVideoConverter::new().frames_from_cast(&path).unwrap()
+        CastVideoConverter::new().replay_frames(&path).unwrap()
     }
 
     #[test]
@@ -643,7 +658,11 @@ mod tests {
 
         // The same bytes through the vt100-backed path put `x` one column
         // further along. Asserted so the divergence is stated, not implied.
-        let mut parser = vt100::Parser::new(3, 10, 0);
+        let mut parser = vt100::Parser::new(
+            std::num::NonZeroU16::new(3).unwrap(),
+            std::num::NonZeroU16::new(10).unwrap(),
+            0,
+        );
         parser.process("\u{1FA89}x".as_bytes());
         let live = crate::terminal::attributed::from_vt100(parser.screen());
         assert_eq!(live.rows[0][0].width, 2);
@@ -922,7 +941,7 @@ mod tests {
 
         // Replaying it is the strongest statement that it is still a cast:
         // the player parses the header, every event and every payload.
-        let frames = CastVideoConverter::new().frames_from_cast(&path).unwrap();
+        let frames = CastVideoConverter::new().replay_frames(&path).unwrap();
         let painted: Vec<String> = frames
             .iter()
             .map(|f| f.text_lines(true)[0].clone())
@@ -943,7 +962,7 @@ mod tests {
         let (_dir, path) = cast_with("[0.0, \"o\", \"live\"]\n");
         append_checkpoint_frames(&path, &[checkpoint(0, "menu", "MENU\nitem")], None).unwrap();
 
-        let frames = CastVideoConverter::new().frames_from_cast(&path).unwrap();
+        let frames = CastVideoConverter::new().replay_frames(&path).unwrap();
         let text = frames.last().unwrap().text_lines(true);
         assert_eq!(text[0], "MENU");
         assert_eq!(text[1], "item");
@@ -968,7 +987,7 @@ mod tests {
         let screen = "L1\nL2\nL3\nL4\nL5\nL6\nL7\nL8";
         append_checkpoint_frames(&path, &[checkpoint(0, "full", screen)], None).unwrap();
 
-        let frames = CastVideoConverter::new().frames_from_cast(&path).unwrap();
+        let frames = CastVideoConverter::new().replay_frames(&path).unwrap();
         assert_eq!(
             frames.last().unwrap().text_lines(true),
             vec!["L1", "L2", "L3", "L4", "L5", "L6", "L7", "L8"],
@@ -987,7 +1006,7 @@ mod tests {
         ];
         append_checkpoint_frames(&path, &steps, None).unwrap();
 
-        let frames = CastVideoConverter::new().frames_from_cast(&path).unwrap();
+        let frames = CastVideoConverter::new().replay_frames(&path).unwrap();
         assert_eq!(frames.last().unwrap().text_lines(true)[0], "xy");
     }
 
@@ -1001,7 +1020,7 @@ mod tests {
         ];
         assert_eq!(append_checkpoint_frames(&path, &steps, None).unwrap(), 2);
 
-        let frames = CastVideoConverter::new().frames_from_cast(&path).unwrap();
+        let frames = CastVideoConverter::new().replay_frames(&path).unwrap();
         assert_eq!(frames.last().unwrap().text_lines(true)[0], "ERROR");
     }
 

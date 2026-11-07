@@ -6,8 +6,12 @@ half of [TermProof](https://github.com/md-mt/termproof).
 > **Maturity: this port is in progress and is not at parity with the Python
 > implementation.** The Python implementation at
 > [`md-mt/termproof`](https://github.com/md-mt/termproof) is the shipped product
-> and the behavioural oracle for TermProof; there is no parity gate for this
-> port. Read
+> and the behavioural oracle for TermProof. A required drift gate now
+> gates the measured layers (`Oracle freshness result` is required and
+> the differential harnesses run via the required `CI (Rust) result`),
+> but it is not yet the #216 Done-when parity gate, full parity is not
+> claimed, and #216 remains open for cache/config+selection coverage.
+> Read
 > [status and parity](https://github.com/md-mt/termproof/blob/main/rust/docs/status-and-parity.md)
 > before depending on this crate.
 
@@ -104,7 +108,7 @@ guessable from the import lists:
   guarantee, so that version would answer `None` after a reword with nothing
   to catch it. The floor buys one public accessor; nothing else in the crate
   reads it, and it is not on the `Session` trait.
-- **`unicode-width` 0.2, not 0.1.** `vt100` 0.16 requires `^0.2.1`, and this
+- **`unicode-width` 0.2, not 0.1.** `vt100` 0.18.1 requires `^0.2.2`, and this
   crate's own width calls have to consult the same table as the `vt100` grid
   they describe or the two disagree about which column a wide glyph occupies —
   which moves glyphs in rendered SVGs and changes
@@ -272,8 +276,7 @@ example against the driver, and the reversal conditions.
 
 ## Package contents
 
-The corpus-replaying differential tests (`tests/differential_steps.rs`,
-`tests/differential_assertions.rs`, `tests/differential_before_after.rs`) are
+The corpus-replaying differential tests (`tests/differential_*.rs`) are
 excluded from the published package — they replay a corpus that lives at the
 repository root and is not shipped.
 

@@ -6,13 +6,12 @@ import os
 import shutil
 import subprocess
 from collections.abc import Iterable
-from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 from urllib.parse import quote
 
 from .config import VerifierConfig, load_config
-from .models import PublishedArtifact
+from .models import PublishedArtifact, PublishTarget
 from .registry import import_class
 
 if TYPE_CHECKING:
@@ -20,6 +19,14 @@ if TYPE_CHECKING:
 
 IMAGE_SUFFIXES = {".gif", ".jpeg", ".jpg", ".png", ".svg"}
 VIDEO_SUFFIXES = {".mp4", ".webm", ".mov"}
+# Non-image files that belong to the screenshot payload, copied at their
+# source-relative path like the images but never listed in
+# ``screenshot-manifest.json``. The only one today is the step manifest
+# ``evidence`` writes under ``steps/`` when step-screenshot dedup is on:
+# without it a published run cannot say which image represents a deduped
+# step (#160). The name repeats ``evidence.STEPS_MANIFEST_NAME`` so this
+# CI helper does not import the replay/render stack that module owns.
+NON_IMAGE_PAYLOAD_NAMES = {"steps-manifest.json"}
 
 DEFAULT_VIDEO_PREFIX = "termproof/videos"
 
@@ -36,6 +43,8 @@ def prepare_screenshot_evidence(
         *_copy_images(base_dir, root / "base", "base"),
         *_copy_images(head_dir, root / "head", "head"),
     ]
+    _copy_payload(base_dir, root / "base")
+    _copy_payload(head_dir, root / "head")
     root.mkdir(parents=True, exist_ok=True)
     (root / "screenshot-manifest.json").write_text(
         json.dumps(manifest, indent=2) + "\n",
@@ -119,21 +128,12 @@ def rewrite_video_links(text: str, root: Path, url_prefix: str) -> str:
 # ---------------------------------------------------------------------------
 # Artifact publishing
 # ---------------------------------------------------------------------------
-
-
-@dataclass(frozen=True)
-class PublishTarget:
-    """Where a publisher should put artifacts, as supplied by CLI or environment.
-
-    These are deployment credentials and addresses rather than project
-    settings, so they are passed at publish time instead of being read from
-    ``.termproof/config.yaml``, which is checked in.
-    """
-
-    bucket: str = ""
-    endpoint_url: str | None = None
-    base_url: str = ""
-    dry_run: bool = False
+#
+# ``PublishTarget`` is defined in ``termproof.models`` beside
+# ``PublishedArtifact`` and re-exported from ``termproof.protocols``, so a
+# third-party publisher can type its ``from_target`` hook without importing
+# this CLI module. It is imported here for this module's own use, which
+# keeps ``termproof.evidence_publish.PublishTarget`` working as before.
 
 
 class S3ArtifactPublisher:
@@ -142,8 +142,9 @@ class S3ArtifactPublisher:
     Uses ``aws s3 cp`` via subprocess when available so no Python dependency is
     required. Falls back to ``boto3`` when the CLI is absent.
 
-    ``base_url`` is the public URL prefix the bucket is served under, e.g.
-    ``https://pub-xxx.r2.dev`` or ``https://s3.amazonaws.com/my-bucket``. It is
+    ``base_url`` is the public bucket-root URL the bucket is served under, e.g.
+    ``https://pub-xxx.r2.dev`` or ``https://s3.amazonaws.com/my-bucket`` — without
+    the key prefix, which the key passed to :meth:`publish` already carries. It is
     separate from ``endpoint_url``, the S3 API endpoint used to write: a bucket
     is commonly written through one host and read through another, and only the
     read host belongs in a report link. Without it an upload still happens and
@@ -373,7 +374,9 @@ def main(argv: list[str] | None = None) -> int:
     publish.add_argument("--base-dir", type=Path, required=True)
     publish.add_argument("--head-dir", type=Path, required=True)
     publish.add_argument("--bucket", default=os.environ.get("TERM_PROOF_VIDEO_BUCKET", ""))
-    publish.add_argument("--prefix", default=os.environ.get("TERM_PROOF_VIDEO_PREFIX", DEFAULT_VIDEO_PREFIX))
+    # An unset CI variable arrives as an empty string, not as an absent env
+    # entry, so fall back to the default on empty as well as on missing.
+    publish.add_argument("--prefix", default=os.environ.get("TERM_PROOF_VIDEO_PREFIX") or DEFAULT_VIDEO_PREFIX)
     publish.add_argument("--pr-number", default=os.environ.get("PR_NUMBER", ""))
     publish.add_argument("--run-id", default=os.environ.get("RUN_ID", os.environ.get("GITHUB_RUN_ID", "")))
     publish.add_argument(
@@ -500,6 +503,15 @@ def _copy_images(source: Path, target: Path, scope: str) -> list[dict[str, str]]
     return entries
 
 
+def _copy_payload(source: Path, target: Path) -> None:
+    if not source.exists():
+        return
+    for payload in _payload_files(source):
+        dest = target / payload.relative_to(source)
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(payload, dest)
+
+
 def _copy_videos(source: Path, target: Path, scope: str) -> list[dict[str, str]]:
     if not source.exists():
         return []
@@ -515,6 +527,10 @@ def _copy_videos(source: Path, target: Path, scope: str) -> list[dict[str, str]]
 
 def _image_files(root: Path) -> list[Path]:
     return sorted(path for path in root.rglob("*") if path.is_file() and path.suffix.lower() in IMAGE_SUFFIXES)
+
+
+def _payload_files(root: Path) -> list[Path]:
+    return sorted(path for path in root.rglob("*") if path.is_file() and path.name in NON_IMAGE_PAYLOAD_NAMES)
 
 
 def _video_files(root: Path) -> list[Path]:

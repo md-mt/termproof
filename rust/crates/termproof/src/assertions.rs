@@ -63,9 +63,9 @@ const UNCONDITIONAL_TYPES: [&str; 7] = [
 ///
 /// FR-024 wants dispatch to go through a registry rather than a closed `match`,
 /// so a plugin type can be added without editing the dispatcher. This is that
-/// registry's built-in half; [`dispatch`] consults it by name.
+/// registry's built-in half; `dispatch` consults it by name.
 ///
-/// The list is what is actually dispatchable: [`UNCONDITIONAL_TYPES`], and
+/// The list is what is actually dispatchable: `UNCONDITIONAL_TYPES`, and
 /// `json_schema` when the `json-schema` feature compiles something that can
 /// answer it.
 #[cfg(feature = "json-schema")]
@@ -81,7 +81,7 @@ pub const BUILTIN_TYPES: [&str; 8] = {
 };
 
 /// The assertion types this crate answers for, without the `json-schema`
-/// feature: [`UNCONDITIONAL_TYPES`] exactly, since nothing else is compiled.
+/// feature: `UNCONDITIONAL_TYPES` exactly, since nothing else is compiled.
 #[cfg(not(feature = "json-schema"))]
 pub const BUILTIN_TYPES: [&str; 7] = UNCONDITIONAL_TYPES;
 

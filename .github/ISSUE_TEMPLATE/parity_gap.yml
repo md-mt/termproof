@@ -6,7 +6,7 @@ body:
     attributes:
       value: |
         TermProof has two implementations. The Python one under `python/` is the shipped product and the behavioural oracle; the Rust one under `rust/` is an in-progress port. A *parity gap* is a case where the two disagree. Before filing:
-        - Read [rust/docs/status-and-parity.md](https://github.com/md-mt/termproof/blob/main/rust/docs/status-and-parity.md) — the port is **not at parity** and there is no parity gate.
+        - Read [rust/docs/status-and-parity.md](https://github.com/md-mt/termproof/blob/main/rust/docs/status-and-parity.md) — the port is **not at parity**; a required drift gate gates the measured layers (`Oracle freshness result` is required and the differential harnesses run via the required `CI (Rust) result`), but it is not yet the #216 Done-when parity gate, full parity is not claimed, and #216 remains open for cache/config+selection coverage.
         - Read [conformance/README.md](https://github.com/md-mt/termproof/blob/main/conformance/README.md) — the differential harness already enumerates known divergences; check that this one is not already listed.
   - type: textarea
     id: layer

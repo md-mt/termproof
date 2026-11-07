@@ -1,0 +1,43 @@
+[
+  {
+    "artifacts": {
+      "screenshot": "/tmp/evidence/final.png"
+    },
+    "assertions": [
+      {
+        "detail": "menu missing",
+        "name": "screen_contains",
+        "passed": false
+      }
+    ],
+    "duration_seconds": 1.25,
+    "execution": "scripted",
+    "exit_code": 1,
+    "passed": false,
+    "priority": "P0",
+    "recipe_name": "login",
+    "renderer": "default",
+    "score": 0.0,
+    "steps": [
+      {
+        "detail": "screen contains 'MENU'",
+        "name": "menu-open",
+        "passed": true,
+        "screen": "MENU\nitem one"
+      }
+    ]
+  },
+  {
+    "artifacts": {},
+    "assertions": [],
+    "duration_seconds": 0.0,
+    "execution": "scripted",
+    "exit_code": null,
+    "passed": true,
+    "priority": "P2",
+    "recipe_name": "empty",
+    "renderer": "default",
+    "score": 1.0,
+    "steps": []
+  }
+]

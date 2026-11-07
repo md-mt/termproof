@@ -9,11 +9,125 @@ have to match. One per layer, each the same two-half shape:
 | Assertions | `probe_assertions.py` | `tests/differential_assertions.rs` | `corpus/assertion_cases.json` |
 | Evidence manifest | `probe_evidence_manifest.py` | `tests/differential_evidence_manifest.rs` | `corpus/evidence_manifest.expected.json` |
 | Before/after | `probe_before_after.py` | `tests/differential_before_after.rs` | `corpus/before_after_cases.json` |
+| Cast replay | `probe_cast_replay.py` | `tests/differential_cast_replay.rs` | `corpus/cast_replay_cases.json` |
+| Run result | `probe_run_result.py` | `tests/differential_run_result.rs` | `corpus/run_result.expected.json` |
+| Build info | `probe_build_info.py` | `tests/differential_build_info.rs` | `corpus/build_info.expected.json` |
+| Report | `probe_report.py` | `tests/differential_report.rs` | `corpus/report.expected.json` |
+| Config / run cache | `probe_config.py` | `tests/differential_config.rs` | `corpus/config.expected.json` |
+| Selection | `probe_selection.py` | `tests/differential_selection.rs` | `corpus/selection_cases.json` |
 
 They exist because the port claimed corpus parity several times over with green
 local gates, and a differential run against the Python implementation still
 found the two runtimes agreeing on a minority of cases. A number nobody can
 reproduce is not a measurement.
+
+## Checking oracle freshness
+
+The Rust halves compare against the checked-in `corpus/*.expected.json`
+files, so a Python-side behaviour change that nobody re-recorded leaves every
+gate green against stale testimony (#216, #172). `verify_oracle.py` closes
+that: it re-runs all ten probes the way the regeneration commands
+below do (`uv run` from `python/`, so dependencies come from
+`python/uv.lock`), compares the fresh case payloads with the checked-in
+files in memory and exits non-zero with a per-file diff summary on any
+mismatch. It never writes into `corpus/`.
+
+```sh
+python3 conformance/verify_oracle.py
+```
+
+The `environment` block five of the files carry is compared separately and
+reported field by field, not dropped: a payload difference always fails,
+while an environment difference only warns unless `--strict-environment` is
+given.
+
+### The canonical environment
+
+Expectations encode behaviour that belongs partly to the machine that
+observed it — CPython, libc and `ptyprocess` wording (#172) — so the
+environment they were observed in is pinned, and recorded in each file's
+`environment` block where its probe emits one. The canonical recording
+environment is:
+
+- the GitHub Actions **`ubuntu-24.04`** runner (pinned, not
+  `ubuntu-latest`),
+- **CPython 3.13.5**, via `actions/setup-python` with
+  `python-version: "3.13.5"` — the exact patch, not a floating `3.13`,
+  because the recorded `environment` blocks name the patch. 3.13.5 is
+  the newest patch any pre-canonical block recorded (cast replay), so
+  the pin starts from testimony that already exists. Bumping the patch
+  is a canonical-environment change: it requires re-recording (below)
+  in the same reviewed change,
+- **uv 0.11.8**, via `astral-sh/setup-uv` with `version: "0.11.8"`,
+- dependencies from **`python/uv.lock`** (`uv run` from `python/`).
+
+CI holds the corpus to exactly that environment: the `oracle` job in
+`.github/workflows/oracle-ci.yml` pins the runner, interpreter and uv
+above and runs `python3 conformance/verify_oracle.py
+--strict-environment` from the repository root, with no
+`continue-on-error`. That workflow is deliberately always-on — no
+`paths:` filter; a `changes` job decides whether an oracle-relevant
+path (`python/**`, `spec/**`, `conformance/**`, or the two oracle
+workflows) moved, and the `Oracle freshness result` rollup reports on
+every pull request either way — so the rollup is a check the ruleset now
+requires (see `rust/docs/governance.md` §6.1), which a job inside the
+path-filtered Python workflow never could be. Payload *and* environment must reproduce there. The pre-canonical recordings show why the pin has to
+be this explicit: they were made under Python 3.12.13, 3.13.2 and 3.13.5 —
+three of the four blocks naming Darwin, the cast-replay block naming no
+platform — so no single interpreter reproduced all four, and one
+assertions case (`json_schema/invalid-json-trailing-comma`) carried
+CPython 3.12's wording for a JSON parse failure where 3.13 words it
+differently. Regenerating on whatever machine was at hand until the check
+went quiet would have laundered that difference away; recording in one
+chosen environment makes it a reviewed diff instead.
+
+### Re-recording
+
+Re-record **only** in the canonical environment, through the manual
+`.github/workflows/oracle-regen.yml` workflow (`workflow_dispatch`). It
+pins the identical environment, regenerates all ten
+`corpus/*.expected.json` files with the per-harness commands documented
+below, prints a `git diff --stat` summary, checks that the regenerated
+corpus reproduces (`--strict-environment`) in the same run, and uploads it
+as the single `oracle-corpus` artifact. It holds only `contents: read` —
+no push and no pull request from CI. Download the artifact, replace
+`conformance/corpus/*.expected.json` with its contents, read the diff
+file by file, and land it through a reviewed pull request; producing the
+testimony and accepting it stay two separate acts. Changing the canonical
+environment itself means changing the pinned runner/interpreter in both
+workflows together and re-recording this way in the same reviewed change.
+
+**Bootstrap (completed).** A `workflow_dispatch` workflow could only be
+dispatched once it existed on the default branch, so the first canonical
+re-record could not happen until the change that added `oracle-ci.yml`
+and `oracle-regen.yml` had merged. The gate therefore landed **red** in
+#260: the checked-in corpus still carried its pre-canonical
+`environment` blocks (Darwin, mixed CPython patches), and
+`Oracle freshness result` failed until the first re-record produced this
+way was reviewed and landed in #261. `Oracle freshness result` was not
+made a required check while that bootstrap was red — a required red gate
+would have blocked the gate-carrying pull request itself and every
+oracle-touching pull request until the re-record landed (the re-record
+pull request itself was not the blocked one: its head carried the
+regenerated corpus, so the gate ran green against its own corpus, and
+that PR-head oracle success on #261 was the basis for adding the required
+context; the `CI (Oracle)` run on `main` for the merged re-record, run
+`38158366345`, also succeeded). It is now required, as recorded in
+`rust/docs/governance.md` §5 and §6.1.
+
+### Local runs are diagnostics
+
+Run `python3 conformance/verify_oracle.py` locally before and after
+touching Python behaviour a harness compares, and read any diff it prints
+before deciding which side moved. A local machine is not the canonical
+environment: environment-block differences (interpreter patch version,
+platform) and environment-owned payload wording (CPython/libc messages)
+are expected there, which is why the local default reports rather than
+fails on them. Report those differences; do not commit expectations
+regenerated on a local machine. The "Regenerating the expectations"
+commands in each harness section below are the exact commands the
+`oracle-regen` workflow runs — locally they exist for inspecting fresh
+probe output, not for producing files to commit.
 
 # Step semantics
 
@@ -164,9 +278,9 @@ A second corpus, same shape, for the eight built-in assertions
 
 ## The corpus
 
-165 cases. Two kinds:
+179 cases. Two kinds:
 
-- **`assertion`** (154) — one assertion evaluated on its own against a fixed
+- **`assertion`** (168) — one assertion evaluated on its own against a fixed
   `screen`, `raw_output` and `exit_code`.
 - **`run`** (11) — a whole recipe's assertion list, transcribed from
   `TermProofRunner.evaluate_assertions`, recording the evaluated list in order
@@ -219,23 +333,28 @@ cargo test -p termproof --test differential_assertions -- --nocapture
 The test prints every divergence and the counts below, and fails if either
 ratcheted count drops beneath its floor:
 
-| Count | Meaning | At the implementation commit |
+| Count | Meaning | Asserted |
 |---|---|---|
-| Full agreement | `name`, `passed` and `detail` all match | 124 / 147 |
-| Verdict agreement | `passed` matches, whatever `detail` says | 143 / 147 |
+| Full agreement | `name`, `passed` and `detail` all match | at least 124 / 161 comparable |
+| Verdict agreement | `passed` matches, whatever `detail` says | at least 143 / 161 comparable |
 | Contained | the oracle ends its run; the port returns a result instead | 18 / 18 |
 | Escaped containment | the port also lost results | 0 |
 | Panicked | the port took the process down | 0 |
 | Never returned | the port wedged | 0 |
 | Skipped | no validator compiled in this build | 0 / 0 |
 
-The denominator is 147, not 165: the eighteen contained cases have no oracle
-verdict to agree with, so counting them either way would be inventing a result.
+The denominator is the total minus eighteen — 161 of the 179 cases — not the
+total: the eighteen contained cases have no oracle verdict to agree with, so
+counting them either way would be inventing a result. The 124 and 143 are
+absolute floors carried over from the 147-comparable corpus and deliberately
+not raised when the fourteen `multipleOf` cases landed; the harness's first
+CI run on the enlarged corpus measures its agreement counts, and no measured
+count for the 161-comparable corpus is claimed here in advance of it.
 
 ### Without the `json-schema` feature
 
 The harness always compiles and always runs. `termproof`'s `json-schema`
-feature is default-on, and with it off the 58 `json_schema` cases have no
+feature is default-on, and with it off the 72 `json_schema` cases have no
 validator to answer them — so those are skipped *by assertion type*, and only
 those. The other 107 are the same evidence either way, and a feature
 combination that dropped them would still report green, which is the failure
@@ -246,15 +365,19 @@ this shape exists to prevent.
 | Full agreement | 89 / 89 |
 | Verdict agreement | 89 / 89 |
 | Contained | 18 / 18 |
-| Skipped | 58 / 58 |
+| Skipped | 72 / 72 |
 
 Skipped is asserted exactly, not ratcheted: a build that skips a case it could
 have answered is measuring less than it claims, and so is one that skips none
-when it should skip 58.
+when it should skip 72.
 
-That the remainder is 89 / 89 is worth reading twice — every one of the 23
-detail divergences and all 4 verdict divergences in the default run is a
-`json_schema` case, which is what the `jsonschema`-message note below predicts.
+That the remainder's floor is 89 / 89 comparable is worth reading twice — it
+requires full and verdict agreement from every case that needs no validator,
+so the default run can only pass while every divergence it still has is a
+`json_schema` case, which is what the `jsonschema`-message note below
+predicts. How many divergences that is on the enlarged corpus is unmeasured
+until the harness next runs in CI, so no divergence count for it is stated
+here.
 
 The two agreement counts are separate floors on purpose. A fix that corrects a
 verdict and leaves the wording to a later commit moves the second and not the
@@ -625,5 +748,685 @@ does.
 The known divergence is non-ASCII text: Python's `json.dumps` escapes it
 (`ensure_ascii`) and `serde_json` writes it raw, so the two hash different bytes
 for the same screen. #222 stays open as the future work of a portable non-ASCII
-fingerprint. #223 and #224 are separate, open differences in the attributed
-cells the digest is taken over; nothing here changes for them.
+fingerprint. #223 is a separate, open difference in the attributed cells the
+digest is taken over, and #224 (Python's plain-text constructor's width rule) is
+resolved by #237; nothing here changes for them.
+
+# Cast replay
+
+A fifth harness, for the grid a cast replays to — the one layer here where the
+two halves run different terminal emulators, `pyte` in the oracle and `avt` in
+the port.
+
+## Shape
+
+| Half | Where | What it does |
+|---|---|---|
+| Oracle | `probe_cast_replay.py` | Replays each case in `corpus/cast_replay_cases.json` through `frames_from_cast` and records the final frame — each row's cells as `text` and `width`, plus the cursor — into `corpus/cast_replay.expected.json`. |
+| Port | `crates/termproof/tests/differential_cast_replay.rs` | Replays the same cases through `CastVideoConverter::frames_from_cast` and compares the same recording. |
+
+A case is `columns`, `rows` and one `output` string. Each half writes it out as
+a one-event asciinema v2 cast and replays that, so the comparison goes through
+the function the video is built from rather than through an emulator
+constructed for the test.
+
+## Why it exists
+
+No other harness reaches an emulator's grid. The step corpus drives a real child
+but compares a verdict and a detail string, and the evidence-manifest scenario
+has the port replay a cast and then discards the frames. So when #220 took `avt`
+from 0.16 to 0.18, a review by hand was what noticed that a wide glyph
+overwritten on its second column replays as three different screens under
+`pyte`, `avt` 0.16 and `avt` 0.18. Every gate was green for all three.
+
+## What the corpus does and does not measure
+
+**Does**: where the emulator behind cast playback puts each glyph, how wide it
+says the glyph is, and where it leaves the cursor.
+
+**Does not**:
+
+- **Colour or SGR attributes.** They are not recorded. `pyte` has no dim, so
+  recording them would make every case about that.
+- **Frame timing.** Only the last frame is compared; the Python
+  `frames_from_cast` also holds it for `last_frame_duration`, which the Rust one
+  does not, and neither fact reaches the recording.
+- **The live session.** The port's pty session emulates with `vt100`, not `avt`,
+  and nothing here feeds it. A screen read from a running child is still
+  compared by no harness.
+- **Which emulator is right.** The recording is `pyte`'s because the oracle half
+  is the Python one, not because a decision was made that `pyte` is the
+  reference for this layer. None has been.
+
+Three cases. `ascii` and `wide-glyph` are controls: they agree, which is what
+makes the third's disagreement a statement about the emulators rather than
+about a transcription error in one of the halves.
+
+## Regenerating the expectations
+
+```sh
+cd /path/to/termproof/python
+TERMPROOF_PYTHON_REPO=$PWD uv run python \
+    ../conformance/probe_cast_replay.py \
+    > ../conformance/corpus/cast_replay.expected.json
+```
+
+Only regenerate deliberately: the file is the oracle's testimony, and quietly
+re-recording it turns a failing comparison into a passing one without changing
+any behaviour. The header records the CPython and `pyte` versions because the
+screen is `pyte`'s and each cell's width is CPython's `unicodedata`.
+
+## Reading the result
+
+```sh
+cargo test -p termproof --test differential_cast_replay -- --nocapture
+```
+
+No `--features` is needed, and CI's `cargo test --workspace` runs it as it
+stands. The port reaches `frames_from_cast` through the crate's `_test-harness`
+feature, which makes that one method `pub` for this test and is otherwise off:
+it is test-only, hidden from the documentation, and not part of the published
+API. The leading underscore is what `cargo semver-checks` reads as private, so
+the method is outside the surface the `semver` job compares. The crate lists itself as a dev-dependency with the feature on, so every
+test build has it and no feature combination compiles the harness out.
+
+The test prints every divergence with both frames, and the counts:
+
+| Count | Meaning | Now |
+|---|---|---|
+| Full agreement | rows and cursor all match | 2 / 3 |
+| Known residual | named and pinned in the test's `KNOWN_RESIDUAL` | 1 / 3 |
+
+The residual is asserted exactly, not as a floor, and on two things. The
+**names**: a case that starts diverging fails the test, and so does a listed
+case that starts agreeing, so the list cannot outlive the divergence it records.
+And the **frame**: each entry carries the one screen the port is accepted to
+produce for that case — every row's cells as `text` and `width`, plus the
+cursor — and a listed case that replays to anything else fails, printing the
+oracle's frame, the port's and the pinned one. A name alone says only "differs
+from the oracle", which every wrong screen does.
+
+The pinned frame is a constant in the test and not a file in `corpus/`. An
+`*.expected.json` there is the oracle's testimony; the port's accepted answer
+is the port's claim about itself, the same kind of thing as the floors the step
+and assertion tests carry, and it belongs with them. Changing it is a decision
+to accept a different divergence, so it is made by editing the test and the
+table below together.
+
+## Known residual
+
+### A wide glyph overwritten on its second column — 1 case
+
+`wide-glyph-overwritten-on-its-second-column`: a 4 x 2 terminal fed
+`Aハz\x1b[1;3H界`. Counting from zero, `ハ` occupies columns 1-2 and `z` column 3; the
+cursor then moves back to column 2 — the second half of `ハ` — and writes
+another wide glyph there.
+
+| | row 0 | row 1 | cursor (row, column) |
+|---|---|---|---|
+| `pyte` 0.8.2 (oracle) | `A` `ハ`(2) `界`(2) filler | blank | 0, 4 |
+| `avt` 0.18 (port) | `A` blank `界`(2) filler | blank | 0, 4 |
+| `avt` 0.16, as observed reviewing #220 | `A` `ハ`(2) filler blank | `界`(2) filler blank blank | 1, 2 |
+
+The two current emulators agree on the cursor and on where `界` lands, and
+differ in one cell: `avt` blanks the first half of the glyph whose second half
+was overwritten, and `pyte` leaves it, so the oracle's row carries two width-2
+cells and a width-1 cell in four columns.
+
+The `avt` 0.18 row is the frame pinned in `KNOWN_RESIDUAL`. The `avt` 0.16 row
+is why it is pinned: it disagrees with the oracle as well, in more cells and in
+the cursor, and a residual recorded by name would have passed it unchanged.
+
+This is a difference between the two emulators and not the plain-text
+constructor's width rule in #224, which involves no emulator at all. It is
+recorded here rather than fixed — tracked in #209.
+
+# Run result
+
+A sixth harness, same two-half shape, for the document a finished run leaves
+behind: `RunResult` serialised as `result.json`.
+
+## Shape
+
+| Half | Where | What it does |
+|---|---|---|
+| Oracle | `probe_run_result.py` | Records `RunResult.to_dict` for a fixed two-result scenario into `corpus/run_result.expected.json`. |
+| Port | `crates/termproof/tests/differential_run_result.rs` | Builds the same scenario, serialises it, and compares the whole documents apart from the allowed keys below. |
+
+As with the evidence manifest, the scenario is code in each half rather than
+a corpus of cases: one populated result, so the nested step and assertion
+documents are compared too, and one empty result, where `exit_code` is
+`null` and every list is empty. This is a shape comparison over fixed
+values; it does not measure how either runner computes a result. The Rust
+scenario hand-sets `Some(RESULT_SCHEMA_VERSION)`, transcribing the stamp
+`Runner::run` writes rather than calling it, so this harness does not prove
+the runner still stamps its results.
+
+## The one allowed difference
+
+The Rust document carries `result_version` (`RESULT_SCHEMA_VERSION`, stamped
+by `runner` on every result it produces); the
+Python document has no such key — #209 item 1, recorded rather than fixed in
+either implementation. The allowance is the named
+`ALLOWED_RUST_ONLY_KEYS` constant in the Rust test, never a regenerated or
+hand-edited expectation, and it is asserted in both directions: Rust must
+still write the key with the current version and the recorded Python
+document must still lack it, so the test fails when the divergence stops
+existing and the allowance is removed deliberately. Any other difference —
+a top-level or nested key added, removed or renamed on either side, or a
+value changing JSON type — fails the test.
+
+## Regenerating the expectations
+
+```sh
+cd /path/to/termproof/python
+TERMPROOF_PYTHON_REPO=$PWD uv run python \
+    ../conformance/probe_run_result.py \
+    > ../conformance/corpus/run_result.expected.json
+```
+
+Only regenerate deliberately: the file is the oracle's testimony, and
+quietly re-recording it turns a failing comparison into a passing one
+without changing any behaviour.
+
+## Reading the result
+
+```sh
+cargo test -p termproof --test differential_run_result -- --nocapture
+```
+
+No `--features` is needed, and CI's `cargo test --workspace` runs it as it
+stands. A failure prints the full pretty-printed documents side by side.
+
+# Build info
+
+A seventh harness, same two-half shape, for the serialised provenance record
+of the binary under test: Python's `BuildInfo.to_dict`.
+
+## Shape
+
+| Half | Where | What it does |
+|---|---|---|
+| Oracle | `probe_build_info.py` | Records `BuildInfo.to_dict` for a fixed six-record scenario into `corpus/build_info.expected.json`. |
+| Port | `crates/termproof/tests/differential_build_info.rs` | Builds the same scenario, serialises it, and compares the whole documents apart from the allowed differences below. |
+
+As with the run result, the scenario is code in each half: records are
+constructed directly with fixed values, over a real temporary binary —
+`to_dict` stats the path through `verify_provenance`, so both halves create
+one and record it as `@BIN`. The six records cover each mode either side
+names (`installed`, `source`, and the Rust-only `package`), empty-string
+revision and target fields, and no binary at all.
+
+## The allowed differences
+
+Unlike `before_after` in #204, nobody has yet decided which side is the
+reference here, and the pair has drifted on the same axes plus a mode
+(#209). Each divergence below is a named allowance in the Rust test,
+asserted so it fails when the divergence stops existing; anything else
+differing fails the whole comparison. Nothing in either implementation
+changed to add this harness.
+
+| Divergence | Python | Rust | Allowance |
+|---|---|---|---|
+| field names | `source_ref`, `git_commit`, `timestamp` | `change_id`, `commit_hash`, `build_timestamp` | `RENAMED_KEYS` |
+| command | `command` (list) | no such field | `PYTHON_COMMANDS` |
+| provenance in the document | `provenance_verified` key | `verify_provenance()` only, serialised nowhere | per-entry assertion |
+| no binary | `binary_path: null` | `binary_path: ""` | `EMPTY_BINARY_PATH` |
+| empty-string fields | `""` counts as absent (`bool("")`) | `Some("")` counts as present (`is_some()`) | `PROVENANCE_DIVERGENCES` entries 2–3 |
+| modes | `installed`, `source`; anything else never verifies | also `package`, which verifies like `installed` | `PROVENANCE_DIVERGENCES` entry 4 |
+
+## What it does and does not measure
+
+**Does**: the serialised document's keys and value types whole, and the
+provenance verdict per record, over fixed values in every mode.
+
+**Does not**:
+
+- **A Rust serialiser.** There is none — no `Serialize` derive, no
+  `to_dict` equivalent anywhere in the crate — so the Rust document is a
+  test-side transcription (one key per field, under the field's name).
+  Exhaustive struct literals mean a Rust field addition breaks compilation
+  of the test, and a Python key addition fails the comparison, but no
+  production Rust JSON writer is exercised, because none exists to exercise.
+- **The constructors.** `from_command` / `from_binary` /
+  `from_source_build` and `from_installed` / `from_source_build` probe
+  `<binary> --version`, ask git for a commit and read the clock. Known
+  differences on those paths are discovered but deliberately unpinned here:
+  the timestamp spelling (ISO `2026-01-02T03:04:05` in Python,
+  `2026-01-02 03:04:05` in Rust), `build_timestamp` being an `Option` that
+  can be `null` where Python's `timestamp` is always a string, stderr
+  merged into the probed version in Python where Rust falls back to it,
+  the probe timeout (5 s against 10 s), and Python recording the working
+  tree's commit for installed binaries where Rust records none. Pinning any
+  of them needs a harness that can freeze a clock, a git checkout and a
+  child process, which this one is not.
+- **Shapes no scenario entry takes.** Every entry sets
+  `build_timestamp: Some(...)`, so Rust `None` (`null`) against Python's
+  always-string `timestamp` is unpinned. Three `verify_provenance`
+  branches the two sides agree on by inspection are likewise unexercised:
+  a `source` record with `build_target` or both revision fields `None`,
+  a non-empty `binary_path` naming a missing file, and a mode unknown to
+  both sides. Entry 2 sets both revision fields to `""` together, so it
+  pins only their combined verdict — a change to how just one empty field
+  counts is masked by the other under the
+  `change_id.is_some() || commit_hash.is_some()` /
+  `source_ref or git_commit` disjunction.
+
+## Regenerating the expectations
+
+```sh
+cd /path/to/termproof/python
+TERMPROOF_PYTHON_REPO=$PWD uv run python \
+    ../conformance/probe_build_info.py \
+    > ../conformance/corpus/build_info.expected.json
+```
+
+Only regenerate deliberately: the file is the oracle's testimony, and
+quietly re-recording it turns a failing comparison into a passing one
+without changing any behaviour.
+
+## Reading the result
+
+```sh
+cargo test -p termproof --test differential_build_info -- --nocapture
+```
+
+No `--features` is needed, and CI's `cargo test --workspace` runs it as it
+stands. A failure names the allowance whose pinned divergence moved, or
+prints the full pretty-printed documents side by side.
+
+# Report
+
+An eighth harness, same two-half shape, for the aggregate markdown report
+both CLIs write to disk: `ReportGenerator.generate_markdown` in Python,
+`evidence::report::generate_markdown` in Rust. The Rust function reads
+`result::RunResult` — the canonical result, not `models::RunResult`.
+
+## Shape
+
+| Half | Where | What it does |
+|---|---|---|
+| Oracle | `probe_report.py` | Drives the real Python generator over six fixed scenarios and records each case's `name` and `markdown` into `corpus/report.expected.json`. |
+| Port | `crates/termproof/tests/differential_report.rs` | Transcribes the same scenarios through the Rust generator and compares the markdown per case. |
+
+As with the run result, the scenarios are code in each half rather than a
+corpus of cases: a bare pass/fail pair, the same pair with a `BuildInfo`
+and with a `BeforeAfterResult`, artifact maps that are empty against ones
+whose values are empty strings, step and assertion details carrying
+newlines, and an empty results list — legal on both sides, rendering the
+header and table alone.
+
+Python has a second markdown path: `MarkdownReporter.generate` in
+`builtin_reporters.py` duplicates `ReportGenerator.generate_markdown`'s
+body over the shared `report_helpers`. The probe drives both on every
+case and fails if they part, so the recording covers the pair. Rust has
+one path; `generate_markdown_single` delegates to it.
+
+## The allowed differences
+
+Nobody has decided which side is the reference for this layer, and the
+pair has drifted on signature before wording (#209): the Python generator
+takes `build_info` and `before_after`, the Rust one takes neither. Each
+divergence below is a named allowance in the Rust test, asserted so it
+fails when the divergence stops existing; anything else differing fails
+the whole comparison. Nothing in either implementation changed to add
+this harness. The bare, multiline and empty cases agree byte for byte —
+multiline details are embedded verbatim, blank lines and all, on both
+sides.
+
+| Divergence | Python | Rust | Allowance |
+|---|---|---|---|
+| build provenance | `## Build Provenance` section under the header when `build_info` is given | no parameter, no section | `PYTHON_ONLY_BUILD_INFO_SECTION` |
+| before/after deltas | deltas markdown embedded under the header (with an extra blank line) when `before_after` is given | no parameter, no section | `PYTHON_ONLY_BEFORE_AFTER_SECTION` |
+| empty-string artifacts | suppressed (`if value:`); a result with only blank values shows `-` | rendered as empty links, `[screenshot]()` | `DIVERGENT_EVIDENCE_ROWS` |
+
+The two section allowances name their sections byte for byte, not as
+ignored suffixes: the test asserts the Rust document still lacks the
+section, inserts the pinned block where the Python generator puts it,
+and requires the result to equal the recorded document whole. The
+before/after text is additionally tied to this crate's real
+`build_before_after` rendering, which the harness above already pins —
+only the embedding is Python-only.
+
+## What it does and does not measure
+
+**Does**: the whole aggregate document per case — header counts, table
+columns and rows, evidence links including their key order and the
+ignoring of unknown artifact keys, the per-result detail sections,
+multiline details, and the empty list.
+
+**Does not**:
+
+- **A Rust build-info or before/after report rendering.** None exists to
+  exercise: the pinned sections are literals in the test (the
+  before/after one tied to `before_after`'s own markdown, as above). A
+  future Rust parameter or sibling function that renders them is not
+  called here until this harness is taught to call it.
+- **A verified provenance line.** The build-info scenario names a binary
+  that does not exist, so `Verified` records `no` on every host; the
+  `yes` spelling travels the same line but is unpinned. The fields the
+  report never renders — `timestamp`, `build_target`, `source_ref` —
+  are the build-info harness's, not this one's.
+- **Both optional sections at once.** Each is pinned alone; their
+  relative order in one document is not.
+- **Score spelling beyond `0.00`, `0.50` and `1.00`.** Other fractions'
+  rounding and any non-finite score are uncompared.
+- **The JUnit reporters, `generate_markdown_single`, `cli_summary`,
+  and the CLI writing the document to a file.** The comparison is over
+  the generated string, not over paths or file IO.
+
+## Regenerating the expectations
+
+```sh
+cd /path/to/termproof/python
+TERMPROOF_PYTHON_REPO=$PWD uv run python \
+    ../conformance/probe_report.py \
+    > ../conformance/corpus/report.expected.json
+```
+
+Only regenerate deliberately: the file is the oracle's testimony, and
+quietly re-recording it turns a failing comparison into a passing one
+without changing any behaviour.
+
+## Reading the result
+
+```sh
+cargo test -p termproof --test differential_report -- --nocapture
+```
+
+The report lives in the `evidence` module (default-on), so the test file
+carries the same `#![cfg(feature = "evidence")]` gate as the
+evidence-manifest harness: without the feature there is no generator to
+compare and the file compiles to no tests. Under default features CI's
+`cargo test --workspace` runs it as it stands. A failure names the case,
+or the allowance whose pinned divergence moved.
+
+# Config and run cache
+
+A ninth harness, same two-half shape, for the pair that configures every
+run and the key that lets a recorded result stand in for one:
+`termproof.config` / `termproof.run_cache` in Python,
+`termproof::config` / `termproof::cache` in Rust (#209 items 4 and 5).
+
+## Shape
+
+| Half | Where | What it does |
+|---|---|---|
+| Oracle | `probe_config.py` | Cascades fifteen fixed YAML overlays through the real `load_config` and records each case's serialised `VerifierConfig` (or its `ValueError`), then records the run-cache key for nine fixed (recipe, options, evidence) inputs, into `corpus/config.expected.json`. |
+| Port | `crates/termproof/tests/differential_config.rs` | Cascades the identical overlays through `VerifierConfig::load`, compares the serialised documents whole apart from the allowances below, and answers the cache cases through `cache::cache_key`. |
+
+The scenarios are code in each half, as with the run result: the
+overlay strings are the scenario and the two halves carry identical
+copies. Each load runs against fresh temporary directories — an empty
+project directory, a user path that does not exist, the overlay as the
+explicit config file — so the recording owes nothing to the machine it
+was made on beyond the `environment` block. Neither implementation is
+the reference for this layer: the two `VerifierConfig`s are different
+types sharing a name, which is the drift being pinned, not a question
+this harness settles.
+
+**Bootstrap state.** This file was first recorded on a development
+machine, so its `environment` block temporarily names Darwin /
+CPython 3.13.2 rather than the canonical environment above, and the
+canonical `oracle` job (`--strict-environment`) is **red** on this file
+until the first `oracle-regen` run after this harness lands re-records
+it the sanctioned way. The case payloads owe nothing to the recording
+machine — the probe's only environment inputs are the interpreter
+version it names and the platform string — so that re-record is
+expected to change the `environment` block alone; read its diff like
+any other. Do not hand-edit the block to look canonical.
+
+## The allowed differences
+
+Each divergence is a named allowance in the Rust test, asserted so it
+fails when the divergence stops existing; anything else differing — a
+default value, a merge outcome, a key appearing on either side — fails
+the whole-document comparison. Nothing in either implementation
+changed to add this harness.
+
+| Divergence | Python | Rust | Allowance |
+|---|---|---|---|
+| `evidence:` block | typed `EvidenceConfig`, fully defaulted, validated, load-bearing | no such field; a supplied block survives as an unvalidated extension echo of exactly the keys written | `evidence_echo` |
+| `artifact_publishers` | merged plugin map with a built-in `s3` entry | no such field; at most an extension echo of the overlay's fragment | inline in `reconcile` |
+| built-in registries | `assertions.step_screen_contains`, `screen_renderers.png_rsvg`, `video_backends.attributed_rsvg` present | all three absent | `PYTHON_ONLY_PLUGIN_ENTRIES` |
+| `session_backend` default | `…:PexpectBackend` | `…:PexpectAsciinemaBackend` | `SESSION_BACKENDS` |
+| unknown keys (outside `evidence`) | silently dropped | preserved by the flatten extensions (top level, `docker`, `defaults`) | inline in `reconcile` |
+| evidence validation | unknown keys, wrong types and below-minimum values rejected with the key named | no validation; the same overlays load and change nothing but the echo | `PYTHON_REJECTS_RUST_ACCEPTS` |
+| coercions | `idle_cap_seconds: '2.5'` and numeric docker env values coerced (`float()`, `str()`) | both refused by the typed deserialisation | `RUST_REJECTS_PYTHON_ACCEPTS` |
+| explicit `idle_cap_seconds: null` | honoured as `None` (no cap) by `_parse_idle_cap_seconds` | collapses to `3.0`: deserialising through `Option<Value>` turns JSON `null` into the outer `None`, whose arm in `deserialize_idle_cap` returns `Some(3.0)`, so its `Some(Null)` arm never fires on the load path | inline in `reconcile` |
+| cache-key inputs | the whole `EvidenceConfig` folded into the digest (the video subsection only when rendering video) | no evidence parameter exists to fold | the identical repeated call in the cache test |
+| missing recipe file | no key (`None`), so the run is never served from cache | a key over the `<missing>` marker | inline in the cache test |
+
+The one overlay both sides reject (`idle-negative`) is compared on
+verdict only: the recorded text is Python's `ValueError`, and the Rust
+side is held to `is_err`, not to matching wording that belongs to its
+own error type.
+
+## What it does and does not measure
+
+**Does**: the loaded config document per overlay — built-in defaults,
+deep-merge outcomes, which keys each loader keeps, drops or refuses,
+and the exact `ValueError` Python raises — plus, for the cache,
+availability (`Some`/`None`) per case and, within each implementation,
+which inputs move the key: recipe and `ci_paths` contents, renderer,
+video settings inert while video is off, and (Python only) the
+evidence config.
+
+**Does not**:
+
+- **Cache digest equality.** The payloads hashed differ by
+  construction — the Python payload carries the whole evidence config,
+  the JSON spacing differs, and the Rust half hashes its own absolute
+  temporary paths where the probe pins fixed relative ones — so the
+  recorded digests are testimony about the Python payload only (they
+  reproduce anywhere because the probe's path strings are literals),
+  and the cross-language pin is the availability-and-sensitivity
+  matrix above. **Follow-up if the payloads ever converge**: compare
+  digests directly, with the path strings normalised the way
+  `probe_build_info.py` normalises `@BIN`; until then a digest
+  comparison would pin nothing but the known difference.
+- **The cache round trip.** `load_cached_result` / `store_cached_result`
+  and their Rust counterparts — artifact existence, the `cache`
+  artifact entry, atomic writes — are unexercised; only the key
+  function is called (Python's is the private `_cache_key`, which is
+  exactly the input-folding being pinned).
+- **Cascade precedence between files.** Every case supplies at most
+  one overlay over the built-ins, so user-vs-project-vs-explicit
+  ordering, the legacy `tui-verifier` locations, and a malformed or
+  non-mapping YAML file are unpinned; each loader's own unit tests
+  cover its cascade, and nothing yet compares them.
+- **That either loader is right.** As everywhere here, the corpus
+  measures agreement with the Python implementation as it behaves
+  today — including where that behaviour is the questionable half
+  (silently dropping a misspelled top-level key, coercing a quoted
+  number).
+
+## Regenerating the expectations
+
+```sh
+cd /path/to/termproof/python
+TERMPROOF_PYTHON_REPO=$PWD uv run python \
+    ../conformance/probe_config.py \
+    > ../conformance/corpus/config.expected.json
+```
+
+Only regenerate deliberately: the file is the oracle's testimony, and
+quietly re-recording it turns a failing comparison into a passing one
+without changing any behaviour.
+
+## Reading the result
+
+```sh
+cargo test -p termproof --test differential_config -- --nocapture
+```
+
+`config` and `cache` carry no feature gate, so no `--features` is
+needed and CI's `cargo test --workspace` runs both tests as they stand.
+A failure names the case, or the allowance whose pinned divergence
+moved.
+
+# Selection
+
+A tenth harness, same two-half shape, for which recipes a changeset
+selects: `select_names` in Python, `selection::select_names` in Rust,
+both over `(name, ci_paths)` pairs — the shape both APIs share, which
+the Rust `Selectable` impl for `(String, Vec<String>)` exists to spell.
+
+## Shape
+
+| Half | Where | What it does |
+|---|---|---|
+| Oracle | `probe_selection.py` | Drives the real Python `select_names` over `corpus/selection_cases.json` and records each case's ordered selected names into `corpus/selection.expected.json`. |
+| Port | `crates/termproof/tests/differential_selection.rs` | Replays the same cases through the Rust `select_names` and compares the ordered lists exactly. |
+
+A case is every input `select_names` takes: `candidates` (`name` and
+`ci_paths` globs), `changed_files`, and optionally `always`,
+`harness_paths` and `root_marker`. 49 cases in six groups — list-level
+semantics (candidate order, the always set, unknown always names,
+duplicate candidates, empty everything), path normalisation, the glob
+dialect the two engines *share*, the root marker, the harness fallback,
+and the dialect they do not share. Most pattern cases carry one
+candidate with one glob and one changed file, so "selected" reads
+directly as "this glob matched this path" and a divergence names its
+pattern.
+
+## Why it exists
+
+The two implementations glob with different engines: Python with
+`fnmatch`, which has no compile step, Rust with `globset`, skipping any
+pattern that fails to compile. #209 item 6 recorded the consequence —
+a `ci_paths` entry valid for one engine selects in Python and is
+dropped in Rust — as its lowest-confidence divergence, because the
+separating pattern had never been constructed. This harness constructs
+it (`dialect/unterminated-class` and its three siblings) and then
+measures the candidate separators around it, several of which turn out
+not to separate the engines at all.
+
+## The patterns that separate the engines
+
+Each divergence below is a named allowance in the Rust test
+(`KNOWN_DIVERGENCES`) carrying the exact list Rust selects, asserted
+so it fails when the divergence stops existing or changes shape; any
+other case differing fails the whole comparison. Nothing in either
+implementation changed to add this harness. Nobody has decided which
+side is the reference for this layer (#209).
+
+| Pattern | Path | Python (`fnmatch`) | Rust (`globset`) |
+|---|---|---|---|
+| `src/[`, `src/[a-z` | spelled like the pattern | literal text — selects | unclosed character class, pattern skipped — never selects |
+| `src/{a,b`, `src/a,b}` | spelled like the pattern | literal text — selects | unclosed / unopened alternate group, pattern skipped — never selects |
+| `src/{a,b}.py` | `src/a.py` | literal braces — no | alternates `a\|b` — selects |
+| `src/{a,b}.py` | `src/{a,b}.py` | literal — selects | alternates — no |
+| `src/{}` | `src/{}` | literal — selects | empty alternate, matches only `src/` (which normalisation never leaves) — no |
+| `src/[^a]*.py` | `src/ax.py` | class is {`^`, `a`} — selects | `^` negates, like `!` — no |
+| `src/[^a]*.py` | `src/bx.py` | no | negated class — selects |
+| `src/**/a.py` | `src/a.py` | `/**/` still needs both slashes — no | `**` as a component matches zero directories — selects |
+| `**/a.py` | `a.py` | no | selects |
+
+Two more separations are in the configuration, not the glob dialect.
+The **root marker**: Python *keeps* it in the normalised path
+(`/home/ci/repo/src/a.py` becomes `repo/src/a.py`), Rust *strips* it
+(`src/a.py`), so with the marker set a repo-relative pattern
+(`src/**`) matches an absolute changed path only in Rust, and a
+marker-prefixed pattern (`repo/src/**`) only in Python. The **harness
+rule**: Python's `harness_paths` is a list of globs, Rust's
+`harness_root` a single literal prefix, so a second harness glob has
+no Rust spelling, and `**/verify/**` has no single-prefix spelling
+*as a glob* — it means a `verify` directory at any depth, and the
+derived literal prefix is the useless `**/verify/` — so changes they
+suppress to the always set in Python select normally in Rust. The
+nested case does not show that no prefix could cover its one sampled
+path: a caller could spell `x/verify/` by hand for
+`x/verify/runner.py`, but that answers that path, not the glob (it
+misses `y/verify/...`). The Rust test derives the prefix
+from the first glob (dropping a trailing `/**` or `/*`) and the
+slashed marker from the bare name; both transcriptions are stated in
+its module doc, including the two spellings of absence — Rust `""` as
+a marker strips zero bytes (a no-op, pinned by `marker/absent`), while
+`""` as a harness root would put *every* path under the harness, so an
+empty Python list is transcribed as a prefix no path can start with.
+
+## Tried, and does not separate them
+
+These candidates were run against both engines before the corpus was
+written. Each is pinned by an agreeing corpus case, so "does not
+separate" stays a measurement rather than an impression:
+
+- **Invalid ranges** (`src/[z-a].py`): two mechanisms, one outcome.
+  `globset` rejects the range at compile and the pattern is skipped;
+  `fnmatch` translates it to a pattern that matches nothing.
+- **Backslash escapes** (`src/\*.py` against `src/*.py`): neither
+  engine sees a backslash — both normalisers rewrite `\` to `/`
+  before globbing, so the pattern is `src//*.py` on both sides and
+  matches nothing. There is no way to spell a literal `*` in either.
+- **`[!...]` negation, character ranges, a literal `[` spelled
+  `[[]`** — the same on both sides.
+- **`*` and `?` crossing `/`** — the same, because the Rust side sets
+  `literal_separator(false)` for exactly this. A `**` that is not a
+  whole path component (`src/**.py`) is likewise just two stars on
+  both sides.
+- **`src/**` against `src`, case sensitivity, `./` prefixes,
+  trailing slashes, the empty pattern against the empty path,
+  dotfiles** — the same. Case is recorded on POSIX: `fnmatch.fnmatch`
+  folds case only where `os.path.normcase` does (in practice
+  Windows), which this corpus does not measure.
+
+## Why allowances, not floors
+
+34 of the 49 cases agree exactly; the other 15 are enumerable dialect
+facts, each with one exact Rust answer. That is the cast-replay shape —
+a named residual pinned byte for byte — rather than the steps shape.
+A floor (agree on at least *N*) buys tolerance for diffuse wording
+gaps, which selection does not have: its output is a list of names.
+Under an allowance table a *new* divergence fails by name and a divergence
+that gets fixed fails too, until its row is removed deliberately.
+
+## What it does and does not measure
+
+**Does**: the selected list whole — glob dialect, normalisation,
+candidate order (including duplicate candidate names selected twice),
+the always set and unknown names in it, empty candidates / `ci_paths`
+/ changesets, the harness fallback, and the root marker over relative
+and absolute spellings of pattern and path.
+
+**Does not**:
+
+- **The recipe-object wrappers.** Python's `select_recipes` and the
+  Rust `select` over `Recipe` / `RecipeMeta` are compared only at the
+  `(name, ci_paths)` shape both reduce to; that the wrappers reduce
+  to it is each side's unit tests' claim, not this harness's.
+- **Reading changed files.** `read_changed_files` /
+  `changed_files_from_file` (line splitting and blank-dropping over a
+  file) is file IO around the comparison, unit-tested per side.
+- **The marker and the harness rule together.** Each axis is pinned
+  alone; combined cases conflate the two transcription choices above.
+- **A second marker occurrence in one path.** Both normalisers act on
+  the first occurrence by construction, but their outputs still
+  differ (kept against stripped) and no case pins that path shape.
+- **Non-POSIX case folding.** See above — the recorded `platform` in
+  the expectation's environment block is part of the claim.
+
+## Regenerating the expectations
+
+```sh
+cd /path/to/termproof/python
+TERMPROOF_PYTHON_REPO=$PWD uv run python \
+    ../conformance/probe_selection.py \
+    > ../conformance/corpus/selection.expected.json
+```
+
+Only regenerate deliberately: the file is the oracle's testimony, and
+quietly re-recording it turns a failing comparison into a passing one
+without changing any behaviour.
+
+## Reading the result
+
+```sh
+cargo test -p termproof --test differential_selection -- --nocapture
+```
+
+No `--features` is needed — selection is not feature-gated — and CI's
+`cargo test --workspace` runs it as it stands. The test prints every
+divergence with both lists and the counts: 34 / 49 agree exactly, 15 /
+49 pinned in `KNOWN_DIVERGENCES`, and it fails on any case outside
+those two sets or any pinned case whose Rust list moved.

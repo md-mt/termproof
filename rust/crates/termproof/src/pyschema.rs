@@ -67,7 +67,7 @@ pub fn compile(schema: &JsonValue) -> Result<PySchema, String> {
 pub fn validate(validator: &PySchema, instance: &JsonValue) -> Option<(String, String)> {
     let errors: Vec<ValidationError<'_>> = validator.inner.iter_errors(instance).collect();
     let best = best_match(&errors)?;
-    Some((dotted_path(best.instance_path.as_str()), describe(best)))
+    Some((dotted_path(best.instance_path().as_str()), describe(best)))
 }
 
 /// A JSON Pointer as FR-017 wants it rendered: components joined with `.`, and
@@ -106,7 +106,7 @@ enum PathPart {
 
 fn relevance(error: &ValidationError<'_>) -> Relevance {
     let parts: Vec<PathPart> = error
-        .instance_path
+        .instance_path()
         .as_str()
         .split('/')
         .skip(1)
@@ -119,7 +119,7 @@ fn relevance(error: &ValidationError<'_>) -> Relevance {
         // Shallower is more relevant: it means more of the instance is wrong.
         -(parts.len() as isize),
         parts,
-        !is_weak(&error.kind),
+        !is_weak(error.kind()),
     )
 }
 
@@ -157,7 +157,7 @@ fn best_match<'e>(errors: &'e [ValidationError<'e>]) -> Option<&'e ValidationErr
 /// nothing in particular and the parent is the more honest answer.
 fn descend<'e>(mut best: &'e ValidationError<'e>) -> Option<&'e ValidationError<'e>> {
     loop {
-        let context = match &best.kind {
+        let context = match best.kind() {
             ValidationErrorKind::AnyOf { context }
             | ValidationErrorKind::OneOfNotValid { context }
             | ValidationErrorKind::OneOfMultipleValid { context } => context,
@@ -181,8 +181,8 @@ fn descend<'e>(mut best: &'e ValidationError<'e>) -> Option<&'e ValidationError<
 /// Written against `ValidationErrorKind`'s structured fields rather than the
 /// library's `Display`, so a library upgrade cannot silently reword a report.
 fn describe(error: &ValidationError<'_>) -> String {
-    let instance = repr_json(&error.instance);
-    match &error.kind {
+    let instance = repr_json(error.instance());
+    match error.kind() {
         ValidationErrorKind::Type { kind } => {
             format!("{instance} is not of type {}", type_names(kind))
         }
@@ -224,6 +224,15 @@ fn describe(error: &ValidationError<'_>) -> String {
             "{instance} is not less than the exclusive maximum {}",
             repr_json(limit)
         ),
+        // `multiple_of` is an `f64` here only on an assumption this line
+        // should state: the workspace builds `jsonschema` without its
+        // `arbitrary-precision` feature, under which 0.56 types this field
+        // as `serde_json::Value` instead. If a downstream build's feature
+        // unification switched that feature on, `repr_f64(*multiple_of)`
+        // would stop compiling rather than silently widen — rendering the
+        // `Value` (as the neighbouring `limit` arms do via `repr_json`) is
+        // the change that case needs. See the `jsonschema` note in the
+        // workspace `Cargo.toml`.
         ValidationErrorKind::MultipleOf { multiple_of } => format!(
             "{instance} is not a multiple of {}",
             crate::pyrepr::repr_f64(*multiple_of)
@@ -267,7 +276,7 @@ fn describe(error: &ValidationError<'_>) -> String {
         ValidationErrorKind::PropertyNames { error } => {
             format!("invalid property name: {}", describe(error))
         }
-        ValidationErrorKind::Custom { message } => message.clone(),
+        ValidationErrorKind::Custom { message, .. } => message.clone(),
         // The remaining kinds report a malformed schema, an unresolvable `$ref`
         // or a regex the engine gave up on. They all mean the same thing to a
         // recipe author, and none of them can name the instance usefully.

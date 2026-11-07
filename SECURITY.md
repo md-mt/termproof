@@ -66,8 +66,8 @@ list is here rather than split across two policies.
 | `termproof` crate on crates.io | yes, through `0.3.4` — [version list](https://crates.io/crates/termproof/versions) | a new `rs-v*` release |
 | `termproof-cli`, `termproof-plugin-protocol` crates | no — held back with `publish = false` | source, or a release binary |
 | Rust CLI binaries | attached to each `rs-v*` GitHub release | re-download |
-| `ghcr.io/md-mt/termproof` | yes — `latest` and `main` on every push to `main`, plus a tag per release | re-pull |
-| `ghcr.io/md-mt/termproof-rust` | **stale.** The push has been failing since the consolidation, so there is no `rs-v0.3.4` image and `latest` still points at the `0.3.3` build ([#178](https://github.com/md-mt/termproof/issues/178)) | building from source, until #178 is fixed |
+| `ghcr.io/md-mt/termproof` | yes — `latest` and `main` on every push to `main` that touches `python/**`, plus a tag per release | re-pull |
+| `ghcr.io/md-mt/termproof-rust` | yes — `latest` and `main` on every push to `main` that touches `rust/**`, plus a tag per release; `rs-v0.3.4` alone has no image, because its push was denied (`write_package`) and the tag was never re-pushed ([#178](https://github.com/md-mt/termproof/issues/178)) | re-pull |
 
 CI runs on GitHub-hosted runners; the workflows live in `.github/workflows/`,
 and the release mechanics are in

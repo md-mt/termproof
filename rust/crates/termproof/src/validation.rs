@@ -114,7 +114,7 @@ fn validate_via_schema(data: &Value, issues: &mut Vec<ValidationIssue>) {
         }
     };
     for error in validator.iter_errors(data) {
-        let instance_path = error.instance_path.to_string();
+        let instance_path = error.instance_path().to_string();
         // Skip recipe_version: handled by validate_recipe_version.
         if instance_path == "/recipe_version" {
             continue;
@@ -132,7 +132,7 @@ fn validate_via_schema(data: &Value, issues: &mut Vec<ValidationIssue>) {
 }
 
 fn format_instance_path(error: &jsonschema::ValidationError<'_>) -> String {
-    let path = error.instance_path.to_string();
+    let path = error.instance_path().to_string();
     if path.is_empty() {
         // Root or missing-required: try to recover property name from message.
         let msg = error.to_string();
@@ -194,7 +194,7 @@ fn extract_required_property(message: &str) -> Option<String> {
 /// (null for optional fields, unchecked description/intent names) must not
 /// become new errors.
 fn is_legacy_tolerated(data: &Value, error: &jsonschema::ValidationError<'_>) -> bool {
-    let path_str = error.instance_path.to_string();
+    let path_str = error.instance_path().to_string();
     if path_str.is_empty() {
         return false;
     }
@@ -268,7 +268,7 @@ fn pointer_get<'a>(data: &'a Value, pointer: &str) -> Option<&'a Value> {
 /// frozen Python validator required actual `int` (`cols: 1.0` must error).
 fn is_legacy_int_owned(error: &jsonschema::ValidationError<'_>) -> bool {
     matches!(
-        error.instance_path.to_string().as_str(),
+        error.instance_path().to_string().as_str(),
         "/cols" | "/rows" | "/expect_exit_code"
     )
 }

@@ -5,7 +5,7 @@
 # Usage: verify-release-archive.sh <archive> [expected-version]
 #
 # The archive and its `.sha256` must live in the same directory. The checksum
-# file is written from inside `dist/` (see release-rust.yml) so the recorded
+# file is written from inside `dist/` (see rust-release.yml) so the recorded
 # name is the archive alone; `shasum -c` is therefore run from that directory.
 #
 # With an expected version, the extracted binary's `--version` output must

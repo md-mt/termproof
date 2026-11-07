@@ -58,7 +58,7 @@ This checklist is the single source for launch readiness. Check items in order; 
 - [ ] Release notes draft includes: rename note (TUI Verifier → TermProof), quickstart, comparison table ref, evidence artifact link, badge
 - [ ] GitHub Pages: `https://md-mt.github.io/termproof/` live with sample evidence (Issue #16) — or note in release that it's pending
 - [ ] README polished with comparison table, animated demo, CI snippet (Issue #8, lane t_1b2bfea8) — or at minimum current README's 3-command quickstart verified
-- [ ] Release workflow dry-run: `gh workflow run release.yml -f ...` if available
+- [ ] Release workflow dry-run: `gh workflow run python-release.yml -f ...` if available
 
 ## Publish (t_164fa418)
 

@@ -43,6 +43,230 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
 
 Nothing yet.
 
+## [0.4.4] — 2026-10-26
+
+### Rust — Changed
+
+- **`vt100` moved from 0.16 to 0.18.1, and the screen it models moved
+  with it.** 0.18 takes and returns terminal dimensions as `NonZeroU16`
+  (`Parser::new`, `Screen::size`), so the screen and attributed-screen
+  paths were ported to it; the requirement is `0.18.1` because 0.18.0
+  shipped without that change. No public type changed, but what the
+  screen shows did: a VS16 emoji-presentation selector (`U+FE0F`) widens
+  the glyph before it to two columns, so following glyphs and the cursor
+  move one column right; REP, HPA, HVP and DECSCUSR are now interpreted
+  (`ab\x1b[3bZ` reads `abbbbZ`, not `abZ`); and IL/DL are no-ops with the
+  cursor outside the scroll region. VS16 width, REP and HPA diverge from
+  the Python oracle (pyte 0.8.2), which keeps the 0.16 behaviour; HVP
+  agrees. Unit tests in `terminal::screen` and `terminal::attributed` pin
+  each of them, and `rust/docs/status-and-parity.md` records the
+  divergences (#277).
+- **The `jsonschema` requirement widened from `>=0.56, <0.57` to
+  `>=0.56, <0.61`; the lockfile resolves 0.60.1.** The assertion
+  differential harness was re-run at every minor in the new range
+  (0.56.0, 0.57.0, 0.58.0, 0.58.6, 0.59.0, 0.60.0, 0.60.1) and gave the
+  same 132/161 full agreement and 153/161 verdict agreement with an
+  identical divergence list at each, so no `json_schema` verdict or
+  detail moved. The floor stays at 0.56.0 and CI still tests it (#277).
+
+### Rust — Fixed
+
+- **`cargo deny` passed again.** The lockfile moved `rustls` 0.23.45 →
+  0.23.46, `rustls-webpki` 0.103.15 → 0.103.16 and `webpki-root-certs`
+  1.0.9 → 1.0.11, clearing RUSTSEC-2026-0346, -0347, -0348, -0349, -0382
+  and -0383 on `jsonschema`'s HTTPS `$ref` stack; no requirement changed.
+  RUSTSEC-2024-0449 (`unsafe-libyaml` unmaintained, no release to move to,
+  pulled by `serde_yaml` 0.9) became the one reasoned `ignore` in
+  `deny.toml`, owned by #276, which replaces the YAML stack (#277).
+
+### CI
+
+- **The Python release workflow checked out full history.**
+  `python-release.yml`'s release job, which runs the full unit suite as
+  its gate before publishing, took `fetch-depth: 0` like the CI (Python)
+  test jobs (#214), so the gate saw the same history CI did. Its depth-1
+  default had collapsed the `release-decide.py` notes range on the
+  `py-v0.4.3` tag to the single `chore(release)` commit the renderer
+  drops, which failed the first `py-v0.4.3` run at its test gate (run
+  38181505697, 1 of 992 tests) and published nothing. A guard test in
+  `test_release_docs.py` pinned the checkout depth.
+
+## [0.4.3] — 2026-10-11
+
+### Python — Added
+
+- **`PublishTarget` was exported from `termproof.protocols` (and from
+  `termproof` itself).** It is the payload of a publisher's optional
+  `from_target` hook, but until now a third-party publisher had to import
+  it from `termproof.evidence_publish` — the CLI module holding
+  `_upload_file` and the argument parser — which contradicted the
+  documented rule that new plugins import protocol types from
+  `termproof.protocols`, the way `EvidenceConfig` already worked. The
+  dataclass moved to `termproof.models` beside `PublishedArtifact`, so
+  `termproof.protocols`, `termproof`, `termproof.models`, and the old
+  `termproof.evidence_publish` location all name the one class and
+  existing imports kept working. The shipped plugin template's example
+  publisher switched to the `termproof.protocols` import
+  ([#165](https://github.com/md-mt/termproof/issues/165)).
+
+### Python — Changed
+
+- **`StepAwareAssertionType` was demoted in the docs from a peer protocol
+  to a signature variant of `AssertionType`.** Everything satisfying it
+  also satisfies `AssertionType` — it is an alternative `evaluate`
+  signature, not a new capability — so `docs/plugin-protocols.md` and the
+  docs-site API page now present it under `AssertionType`, the way
+  `render_attributed` is presented under `ScreenRenderer`, instead of as
+  a tenth stable-protocol row. The class, its signature, and its exports
+  did not change; only the presentation and the protocol count a reader
+  would take from the tables did
+  ([#165](https://github.com/md-mt/termproof/issues/165)).
+
+### Python — Fixed
+
+- **Published screenshot evidence no longer dropped `steps-manifest.json`.**
+  `prepare_screenshot_evidence` copied only image files into the PR evidence
+  payload, so with `evidence.dedup_step_screenshots` on a published run showed
+  the surviving step images with nothing recording that a deduped step had
+  happened or which image represented it. The publisher gained an explicit
+  non-image payload notion and copied the step manifest alongside the images
+  at its source-relative path (`…/steps/steps-manifest.json` under `base/` or
+  `head/`); `screenshot-manifest.json` stayed one entry per image, and the
+  dedup default did not change
+  ([#160](https://github.com/md-mt/termproof/issues/160)).
+
+- **An unassigned code point no longer takes two cells on Python 3.11.**
+  `unicodedata` there (UCD 14.0) reports every unassigned code point as
+  East Asian Fullwidth, so the attributed grid gave 764,537 of them a width-2
+  cell and a filler that Python 3.12 and later, and the Rust implementation,
+  did not — the same screen laid out and fingerprinted differently depending
+  on the interpreter. `_cell_width` stopped asking `unicodedata` about
+  unassigned code points: they became one cell, except in the five ranges
+  where `EastAsianWidth.txt` defaults them to Wide (U+3400–4DBF, U+4E00–9FFF,
+  U+F900–FAFF, U+20000–2FFFD, U+30000–3FFFD), where they stayed two. Nothing
+  changed on 3.12 or later. A screen holding one of those code points
+  fingerprints differently on 3.11 than it did before; fingerprints are
+  runtime-local, so only dedup state stored by a 3.11 run was affected
+  ([#245](https://github.com/md-mt/termproof/issues/245)).
+
+- **The evidence collector and the PNG renderer broke a screen into rows at
+  nine characters that are not line breaks.** Both split text with
+  `str.splitlines`, which also breaks at `\r`, `\x0b`, `\x0c`,
+  `\x1c`–`\x1e`, `\x85`, `\u2028` and `\u2029`. `a\x0bb` therefore got the
+  same grid, fingerprint and PNG as `a\nb`, and dedup told a collector step
+  holding one to reuse the screenshot of the other
+  ([#243](https://github.com/md-mt/termproof/issues/243)). Both moved to the
+  `\n`-only split the grid constructors and Rust's `str::lines` use, so each
+  of those screens became one row. `EvidenceCollector` grids built from text
+  changed for screens containing those characters, and so did their dedup
+  verdicts; a CRLF screen kept the rows of its LF form in both places.
+  `PngRenderer` also stopped laying text out on its own: it drew the rows of
+  the grid `attributed_screen_from_text` builds, so the image and the grid
+  could not disagree about a screen. A C0 control or DEL was no longer drawn
+  or given a column, a tab was drawn as the blanks up to its stop, a combining
+  mark was composed onto its base, and a row ended at the column count in
+  cells, so a double-width glyph counted as two. PNGs of screens with none of
+  those were byte-identical to before.
+
+- **A `\r`-redrawn line no longer concatenated, and the rest of C0 no longer
+  vanished from the grid.** The plain-text and ANSI-text constructors dropped
+  every C0 control and DEL, so `50%\r60%` built the single row `50%60%`
+  where a terminal — and the cast-replay path through pyte — showed `60%`,
+  and `a\x0bb` built the same grid and fingerprint as `ab`, so dedup
+  reported one screen as a duplicate of the other
+  ([#249](https://github.com/md-mt/termproof/issues/249)). `_push_char`
+  gained a cursor: `\r` sent it to column 0 and `\x08` one cell left, never
+  past 0, and a character written at a cursor sent backwards overwrote the
+  cell already there with the attributes in force at the overwrite, leaving
+  cells past the overwritten prefix alone (`500%\r60%` read `60%%`, as pyte
+  shows it). The remaining C0 controls and DEL took a width-1 cell of their
+  own, the rule Rust's `push_char` already had, and still never reached the
+  SVG, which filters them at the document boundary; a `PngRenderer` image
+  gave each the column its grid holds, reversing that clause of the #243
+  entry above. `\x0b` and `\x0c` stayed cells rather than the line feeds
+  pyte reads them as. Grids and fingerprints changed for screens containing
+  `\r`, `\x08` or another C0 control; fingerprints are runtime-local, so
+  only dedup state stored by an earlier run was affected.
+
+### Rust — Changed
+
+- **The `jsonschema` dependency moved from the 0.33 line to 0.56, and
+  `fancy-regex` moved with it from 0.16 to 0.19.** `jsonschema` 0.56
+  required `fancy-regex` `^0.19` non-optionally and Cargo does not unify
+  across 0.x minors, so the two had to move together to keep one
+  backtracking engine in the graph — the coupling that had pinned the
+  pair since #177. The requirement became `>=0.56, <0.57`, with 0.56.0
+  as both the floor and the only 0.56.x release; assertion parity was
+  measured at that version before it was taken (125/147 full agreement
+  against 124/147 at 0.33.0, verdict agreement unchanged at 143/147),
+  and the one known verdict flip between the versions —
+  `9007199254740993` against `multipleOf: 2` — moved Rust into agreement
+  with Python. Two `json_schema` failure details changed with the
+  engine's choice of error to report: one now matched Python's detail
+  and one named a different failing keyword; no verdict in the harness
+  changed. The differential corpus gained the fourteen `multipleOf`
+  probe inputs as cases, four of which document verdict disagreements
+  with Python that exist on both engine versions. No public API
+  changed — neither crate's types appear in `termproof`'s surface — but
+  building the default `json-schema` feature now also compiled
+  `jsonschema`'s HTTP `$ref` stack (reqwest/rustls with aws-lc), which
+  needs a C compiler at build time: `aws-lc-sys` prefers its `cc` builder
+  with pre-generated bindings on common targets and falls back to CMake
+  where those are unavailable, so CMake itself is not a hard requirement.
+  `schemars` deliberately
+  did not move: 1.x redraws the generated recipe schema and turns
+  `preserve_order` into a graph-global `serde_json` switch, which stayed
+  a schema-consumer decision tracked as the remainder of
+  ([#221](https://github.com/md-mt/termproof/issues/221)).
+
+### Rust — Fixed
+
+- **A `\r`-redrawn line no longer kept the `\r` as a cell.** The plain-text
+  and ANSI-text constructors laid `50%\r60%` out as the six-cell row
+  `50%\r60%` where a terminal showed `60%`
+  ([#249](https://github.com/md-mt/termproof/issues/249)). `push_char`
+  gained a cursor with the same rules as Python's `_push_char`: `\r` sent
+  it to column 0 and `\x08` one cell left, never past 0, and a character
+  written at a cursor sent backwards overwrote the cell already there with
+  the attributes in force at the overwrite, leaving cells past the
+  overwritten prefix alone (`500%\r60%` read `60%%`). A tab padded only
+  past the row's end, so crossing live cells after `\r` did not erase them.
+  The remaining C0 controls and DEL already took a width-1 cell of their
+  own and did not change. Grids and fingerprints changed for screens
+  containing `\r` or `\x08`; fingerprints are runtime-local, so only dedup
+  state stored by an earlier run was affected.
+### CI
+
+- **`.github/dependabot.yml` is schema-checked on the pull request that edits
+  it.** A config Dependabot could not read was reported only after the merge,
+  on the repository's Dependabot page, with the update streams stopped in the
+  meantime. `dependabot-config.yml` validated the file against the Dependabot
+  JSON schema on pull requests and pushes to `main` that touched it, and wrote
+  the errors to the job summary. It was a floor rather than a verdict:
+  Dependabot validates further than the schema does. Not a required check —
+  it is path-filtered (`rust/docs/governance.md` §5).
+
+- **The Rust image publish proved it landed.** `rust-docker-image.yml` read
+  every pushed tag back from GHCR and compared its digest with the image the
+  smoke step had exercised, failing the job when a tag was missing or pointed
+  elsewhere. The push loop also moved out of its pipeline subshell into the
+  step's own shell — a clarity change, since the piped `|| exit 1` already
+  failed the step under Actions' default `bash -eo pipefail`. A denied
+  `write_package` push had earlier cost one release its image with nothing on
+  the release path noticing ([#178](https://github.com/md-mt/termproof/issues/178)).
+
+- **Release workflow messages named the workflows that exist.** The
+  ``::error::`` guidance in `rust-release.yml` and `rust-auto-release.yml`
+  sent readers to pre-consolidation workflow file names; the same stale
+  names were corrected in the surrounding comments and docs, together with
+  the other claims the #188 sweep verified against the tree (the Rust
+  workspace's crate count, the per-ecosystem Dependabot caps, the checks
+  `check_version.py` does and does not perform, and `spec/` path
+  references). Two claims-sweep tests now checked referenced workflow
+  files and concrete `spec/` paths against the tracked tree, so that class
+  of drift fails a test rather than a review
+  ([#188](https://github.com/md-mt/termproof/issues/188)).
+
 ## [0.4.2] — 2026-08-24
 
 ### Python — Changed (breaking)

@@ -1,0 +1,68 @@
+# Schema check for .github/dependabot.yml.
+#
+# Dependabot reports a config it cannot read only after the merge, on the
+# repository's Dependabot page, and until someone looks there the update
+# streams it drives are simply stopped. This moves the cheapest part of that
+# answer to the pull request that makes the edit.
+#
+# It is a floor, not a verdict. The action validates the file against the
+# published JSON schema and nothing else, and Dependabot applies validation of
+# its own on top of the schema, so a green run here means "well-formed", not
+# "Dependabot will accept it". What the config is meant to *do* — the stream
+# shape each ecosystem produces — is pinned separately by
+# python/tests/test_dependabot_config.py.
+#
+# The job name is stable and explicit on purpose, like the others: rulesets
+# reference checks by name. This one is path-filtered, so it is listed under
+# "Not required" in rust/docs/governance.md §5 and should stay there.
+name: Dependabot config
+
+# The workflow file is in its own path filter so that a change to the check
+# runs the check: Dependabot bumping the action's pin below touches this file
+# and not dependabot.yml, and without the second path the new pin would first
+# execute on some later, unrelated config edit.
+on:
+  pull_request:
+    paths:
+      - ".github/dependabot.yml"
+      - ".github/workflows/dependabot-config.yml"
+  push:
+    branches: [main]
+    paths:
+      - ".github/dependabot.yml"
+      - ".github/workflows/dependabot-config.yml"
+
+permissions:
+  contents: read
+
+# Matches CI (Rust): supersede a pull request's earlier runs, never a run on
+# `main`.
+concurrency:
+  group: dependabot-config-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  validate:
+    name: Validate .github/dependabot.yml
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # v3.0.0 declares the node20 runtime, which GitHub has deprecated; the
+      # runner annotates the run until upstream moves. Dependabot's
+      # github-actions group carries that bump when it is released.
+      - name: Validate against the Dependabot schema
+        id: validate
+        uses: marocchino/validate-dependabot@d8ae5c0d03dd75fbd0ad5f8ab4ba8101ebbd4b37 # v3.0.0
+      # The action's `markdown` output is written to be posted as a pull
+      # request comment. It goes to the job summary instead: a comment needs
+      # `pull-requests: write` and a second third-party action, and neither is
+      # worth it for a table the run page can show. `always()` is what lets
+      # this run after the step above has failed, which is the only time there
+      # is anything to show. The output goes through the environment rather
+      # than into the script, since it quotes the file under test.
+      - name: Write the validation errors to the job summary
+        if: always() && steps.validate.outcome == 'failure'
+        env:
+          MARKDOWN: ${{ steps.validate.outputs.markdown }}
+        run: printf '%s\n' "$MARKDOWN" >> "$GITHUB_STEP_SUMMARY"

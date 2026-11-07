@@ -1,6 +1,6 @@
 //! Python 3 `re` dialect for `wait_for_regex`.
 //!
-//! `specs/002-builtin-steps/spec.md` FR-019 fixes the pattern dialect as
+//! `spec/002-builtin-steps/spec.md` FR-019 fixes the pattern dialect as
 //! Python's `re`, "not PCRE and not the Rust `regex` crate", and tabulates
 //! thirteen patterns executed against the oracle. The `regex` crate fails
 //! three of them outright — it has no lookaround and no backreferences — so
@@ -53,8 +53,10 @@ impl std::fmt::Debug for PyRegex {
         // Written out rather than derived, and deliberately does not format
         // `inner`. The engine's own `Debug` prints its parsed pattern, and that
         // rendering is not stable across its *patch* releases: `x\z` prints as
-        // `x$` on `fancy-regex` 0.16.0 and 0.16.1 and as `x\z` on 0.16.2, all
-        // three inside the range this crate declares. Deriving would put that
+        // `x$` on `fancy-regex` 0.16.0 and 0.16.1 and as `x\z` on 0.16.2 — all
+        // three inside the `0.16` range this crate declared until #221 moved
+        // the pin to `0.19`, following `jsonschema`'s own requirement (see
+        // the workspace `Cargo.toml`). Deriving would put that
         // engine-version-dependent answer back into the public API — the same
         // leak `as_str` is written out to avoid, one trait over (#177).
         f.debug_struct("PyRegex")

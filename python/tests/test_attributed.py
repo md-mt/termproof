@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import unicodedata
 import unittest
 from xml.etree import ElementTree
 
@@ -59,6 +60,155 @@ class PlainTextTest(unittest.TestCase):
     def test_rows_and_columns_are_clamped(self) -> None:
         screen = attributed_screen_from_text("abcdef\nghijkl\nmnopqr", columns=3, rows=2)
         self.assertEqual(["abc", "ghi"], screen.text_lines())
+
+    def test_wide_characters_match_the_ansi_grid(self) -> None:
+        for text in ("日本語", "a日b", "😀"):
+            with self.subTest(text=text):
+                self.assertEqual(
+                    attributed_screen_from_ansi_text(text).rows,
+                    attributed_screen_from_text(text).rows,
+                )
+
+    def test_a_double_width_glyph_is_followed_by_a_zero_width_filler(self) -> None:
+        expected = {
+            "日本語": [2, 0, 2, 0, 2, 0],
+            "a日b": [1, 2, 0, 1],
+            "😀": [2, 0],
+        }
+        for text, widths in expected.items():
+            with self.subTest(text=text):
+                screen = attributed_screen_from_text(text)
+                self.assertEqual(widths, [cell.width for cell in screen.rows[0]])
+                self.assertEqual(text, screen.to_text())
+
+    def test_fillers_count_towards_the_column_clamp(self) -> None:
+        for columns, widths in ((3, [2, 0, 2]), (4, [2, 0, 2, 0])):
+            with self.subTest(columns=columns):
+                screen = attributed_screen_from_text("日本語", columns=columns)
+                self.assertEqual(widths, [cell.width for cell in screen.rows[0]])
+                self.assertEqual(
+                    attributed_screen_from_ansi_text("日本語", columns=columns).rows,
+                    screen.rows,
+                )
+
+    def test_a_combining_mark_merges_into_the_previous_cell(self) -> None:
+        screen = attributed_screen_from_text("e\u0301x")
+        self.assertEqual(["\u00e9", "x"], [cell.text for cell in screen.rows[0]])
+        self.assertEqual(attributed_screen_from_ansi_text("e\u0301x").rows, screen.rows)
+
+    def test_a_combining_mark_after_a_wide_glyph_does_not_take_a_column(self) -> None:
+        # The mark used to get a cell of its own, which pushed whatever followed
+        # past a three-column clamp: the two screens below came out identical.
+        with_x = attributed_screen_from_text("日\u0301x", columns=3)
+        with_y = attributed_screen_from_text("日\u0301y", columns=3)
+        self.assertNotEqual(with_x.rows, with_y.rows)
+        self.assertNotEqual(with_x.render_fingerprint(), with_y.render_fingerprint())
+        self.assertEqual([2, 0, 1], [cell.width for cell in with_x.rows[0]])
+        self.assertEqual("x", with_x.rows[0][2].text)
+
+    def test_a_combining_mark_after_a_wide_glyph_lands_in_the_filler(self) -> None:
+        # What Rust's `push_char` does: the previous cell is the width-0 filler,
+        # so that is what the mark joins. It reaches the fingerprint and not the
+        # text, on both constructors.
+        for build in (attributed_screen_from_text, attributed_screen_from_ansi_text):
+            with self.subTest(build=build.__name__):
+                screen = build("日\u0301x")
+                self.assertEqual(
+                    [("日", 2), ("\u0301", 0), ("x", 1)],
+                    [(cell.text, cell.width) for cell in screen.rows[0]],
+                )
+                self.assertEqual("日x", screen.to_text())
+                self.assertNotEqual(
+                    build("日x").render_fingerprint(), screen.render_fingerprint()
+                )
+
+    def test_hangul_filler_is_one_cell(self) -> None:
+        # East Asian Wide, but zero columns to Rust's `unicode-width`, which
+        # Rust's `cell_width` turns into one cell.
+        for text in ("\u3164", "\u302a", "\U00016fe4"):
+            with self.subTest(text=text):
+                screen = attributed_screen_from_text(text + "x")
+                self.assertEqual([1, 1], [cell.width for cell in screen.rows[0]])
+        self.assertEqual(
+            [2, 0], [c.width for c in attributed_screen_from_text("\u115f").rows[0]]
+        )
+
+    def test_an_unassigned_code_point_is_wide_only_where_unicode_defaults_it(
+        self,
+    ) -> None:
+        # `unicodedata` is no guide here: UCD 14.0 (Python 3.11) calls every
+        # unassigned code point `F`, later versions `N`. The widths are spelled
+        # out so the test means the same thing on each interpreter, and every
+        # sample is unassigned in UCD 14.0 through 18.0. U+2FFFE is the first
+        # code point past plane 2's default-wide range.
+        expected = {
+            "\u0378": 1,
+            "\u0530": 1,
+            "\u2fe0": 1,
+            "\uffff": 1,
+            "\U0002fffe": 1,
+            "\U00040000": 1,
+            "\U000e0080": 1,
+            "\U0010ffff": 1,
+            "\ufa6e": 2,
+            "\ufaff": 2,
+            "\U0002fa1e": 2,
+            "\U0002fffd": 2,
+            "\U0003a000": 2,
+            "\U0003fffd": 2,
+        }
+        for text, width in expected.items():
+            with self.subTest(code_point=f"U+{ord(text):04X}"):
+                self.assertEqual("Cn", unicodedata.category(text))
+                screen = attributed_screen_from_text(text + "x")
+                self.assertEqual(
+                    [2, 0, 1] if width == 2 else [1, 1],
+                    [cell.width for cell in screen.rows[0]],
+                )
+
+    def test_a_tab_advances_to_the_next_eight_column_stop(self) -> None:
+        screen = attributed_screen_from_text("ab\tc")
+        self.assertEqual("ab      c", screen.to_text())
+
+    def test_control_characters_take_a_cell(self) -> None:
+        # The same rule as Rust's `push_char` (#249): a C0 control the cursor
+        # rules do not claim is one width-1 cell, so a screen holding one is
+        # not the screen without it.
+        screen = attributed_screen_from_text("a\x07\x00\x7fb")
+        self.assertEqual("a\x07\x00\x7fb", screen.to_text())
+        self.assertEqual([1, 1, 1, 1, 1], [cell.width for cell in screen.rows[0]])
+        # Not interpreted as an escape either: the ESC takes a cell and the
+        # rest of the sequence occupies cells after it.
+        self.assertEqual("\x1b[31ma", attributed_screen_from_text("\x1b[31ma").to_text())
+
+    def test_rows_split_on_newline_only(self) -> None:
+        self.assertEqual(["a", "b"], attributed_screen_from_text("a\r\nb\n").text_lines())
+        self.assertEqual(["a", "", "b"], attributed_screen_from_text("a\n\nb").text_lines())
+        self.assertEqual((), attributed_screen_from_text("").rows)
+        # `str.splitlines` breaks at every one of these; a terminal does not.
+        for separator in ("\r", "\x0b", "\x0c", "\x1c", "\x1d", "\x1e", "\x85", "\u2028"):
+            with self.subTest(separator=separator):
+                self.assertEqual(
+                    1, attributed_screen_from_text(f"a{separator}b").row_count
+                )
+
+    def test_escape_free_text_matches_the_ansi_grid(self) -> None:
+        samples = (
+            "a\tb\t日\tc",
+            "a\x07b",
+            "a\r\nb\r",
+            "a\x0bb\x0cc\x1cd\x85e\u2028f\u2029g",
+            "\u0301x",
+            "日\u0301\u0302x\n\n\u3164y\n",
+        )
+        for text in samples:
+            for columns in (3, 9, 120):
+                with self.subTest(text=text, columns=columns):
+                    self.assertEqual(
+                        attributed_screen_from_ansi_text(text, columns=columns).rows,
+                        attributed_screen_from_text(text, columns=columns).rows,
+                    )
+
 
 
 class AnsiParsingTest(unittest.TestCase):
@@ -244,9 +394,100 @@ class AnsiParsingTest(unittest.TestCase):
         screen = attributed_screen_from_ansi_text("\x1b[2Jclear")
         self.assertEqual("clear", screen.to_text())
 
-    def test_control_bytes_never_reach_a_cell(self) -> None:
-        self.assertEqual("ab", attributed_screen_from_ansi_text("a\x07\x00b").to_text())
-        self.assertEqual("ab", attributed_screen_from_text("a\x7fb").to_text())
+    def test_control_bytes_take_a_cell_but_never_reach_the_svg(self) -> None:
+        # The grid holds them (#249), as Rust's does; the document boundary
+        # is where they stop, because one raw control byte in the markup
+        # makes the SVG invalid XML.
+        self.assertEqual("a\x07\x00b", attributed_screen_from_ansi_text("a\x07\x00b").to_text())
+        self.assertEqual("a\x7fb", attributed_screen_from_text("a\x7fb").to_text())
+        for build in (attributed_screen_from_text, attributed_screen_from_ansi_text):
+            with self.subTest(build=build.__name__):
+                markup = screen_svg(build("a\x07\x00\x0b\x7fb"))
+                self.assertFalse(any(ch < " " or ch == "\x7f" for ch in markup))
+                ElementTree.fromstring(markup)
+
+
+class CursorMovementTest(unittest.TestCase):
+    """``\\r`` and ``\\x08`` move a cursor; the rest of C0 takes a cell (#249).
+
+    The cast-replay path (pyte) has always read a progress line this way.
+    The two text constructors concatenated it instead, and dropped the
+    remaining controls outright, so ``a\\x0bb`` fingerprinted as ``ab`` and
+    dedup treated the two screens as one.
+    """
+
+    BUILDERS = (attributed_screen_from_text, attributed_screen_from_ansi_text)
+
+    def test_carriage_return_overwrites_from_column_zero(self) -> None:
+        for build in self.BUILDERS:
+            with self.subTest(build=build.__name__):
+                screen = build("50%\r60%", columns=10, rows=1)
+                self.assertEqual(["60%"], screen.text_lines())
+                self.assertEqual(
+                    build("60%", columns=10, rows=1).render_fingerprint(),
+                    screen.render_fingerprint(),
+                )
+
+    def test_cells_past_the_overwritten_prefix_survive(self) -> None:
+        # What pyte shows for the same bytes: only the rewritten cells change.
+        for build in self.BUILDERS:
+            with self.subTest(build=build.__name__):
+                self.assertEqual(["60%%"], build("500%\r60%").text_lines())
+                self.assertEqual(["Zbcd"], build("abcd\rZ").text_lines())
+
+    def test_a_trailing_carriage_return_changes_nothing(self) -> None:
+        for build in self.BUILDERS:
+            with self.subTest(build=build.__name__):
+                self.assertEqual(["ab"], build("ab\r").text_lines())
+                self.assertEqual(["a", "b"], build("a\r\nb").text_lines())
+
+    def test_backspace_overwrites_the_cell_before_the_cursor(self) -> None:
+        for build in self.BUILDERS:
+            with self.subTest(build=build.__name__):
+                self.assertEqual(["abX"], build("abc\x08X").text_lines())
+                self.assertEqual(["aXc"], build("abc\x08\x08X").text_lines())
+
+    def test_backspace_at_column_zero_stays_at_column_zero(self) -> None:
+        for build in self.BUILDERS:
+            with self.subTest(build=build.__name__):
+                self.assertEqual(["a"], build("\x08a").text_lines())
+                self.assertEqual(["Z"], build("a\x08\x08Z").text_lines())
+
+    def test_the_rest_of_c0_takes_a_cell_of_its_own(self) -> None:
+        for build in self.BUILDERS:
+            plain = build("ab", columns=10, rows=1)
+            for control in ("\x00", "\x07", "\x0b", "\x0c", "\x1c", "\x1f", "\x7f"):
+                with self.subTest(build=build.__name__, control=control):
+                    screen = build(f"a{control}b", columns=10, rows=1)
+                    self.assertEqual([f"a{control}b"], screen.text_lines())
+                    self.assertNotEqual(plain.rows, screen.rows)
+                    # The dedup consequence: no longer the same fingerprint.
+                    self.assertNotEqual(
+                        plain.render_fingerprint(), screen.render_fingerprint()
+                    )
+
+    def test_carriage_return_after_a_full_row_still_overwrites(self) -> None:
+        for build in self.BUILDERS:
+            with self.subTest(build=build.__name__):
+                self.assertEqual(["Zbc"], build("abc\rZ", columns=3).text_lines())
+
+    def test_a_tab_after_carriage_return_moves_without_erasing(self) -> None:
+        # pyte for the same bytes: the tab crosses live cells and leaves them.
+        for build in self.BUILDERS:
+            with self.subTest(build=build.__name__):
+                self.assertEqual(["XbcdefghY"], build("abcdefgh\rX\tY").text_lines())
+
+    def test_a_wide_glyph_overwrites_two_cells(self) -> None:
+        for build in self.BUILDERS:
+            with self.subTest(build=build.__name__):
+                screen = build("ab\r\u65e5")
+                self.assertEqual("\u65e5", screen.to_text())
+                self.assertEqual([2, 0], [cell.width for cell in screen.rows[0]])
+
+    def test_overwritten_cells_take_the_current_attributes(self) -> None:
+        screen = attributed_screen_from_ansi_text("\x1b[31mab\r\x1b[32mZ")
+        self.assertEqual("Zb", screen.to_text())
+        self.assertEqual(["green", "red"], [cell.fg for cell in screen.rows[0]])
 
 
 class PyteAdapterTest(unittest.TestCase):

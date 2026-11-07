@@ -262,6 +262,123 @@ class ReleaseDocsTest(unittest.TestCase):
         )
         self.assertIn("ENABLE_PYPI", skip_step["run"])
 
+    def test_the_release_job_checks_out_full_history_for_its_test_gate(self) -> None:
+        """The release job runs the full suite as its gate, over real history.
+
+        The release job does not merely build: its "Run unit tests" step runs
+        the whole suite before anything is published, and parts of that suite
+        shell out to `.github/scripts/rust/release-decide.py` over reachable
+        history to render release notes. A depth-1 checkout of the `py-v*`
+        tag collapses that range to the single `chore(release)` commit, which
+        the notes renderer drops by design, so the notes come back with no
+        `### ` sections and
+        `ReleaseNotesForATagThatAlreadyExistsTest.test_the_notes_are_not_empty`
+        fails — which is what failed the first `py-v0.4.3` run (run
+        38181505697, 1 of 992 tests) and published nothing. #214 gave the
+        CI (Python) test jobs `fetch-depth: 0` for the same reason; this pins
+        the release job too.
+        """
+        workflow = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
+        gating = [
+            (name, job)
+            for name, job in workflow["jobs"].items()
+            if any(step.get("name") == "Run unit tests" for step in job.get("steps", []))
+        ]
+        self.assertEqual(
+            1,
+            len(gating),
+            "expected exactly one job in python-release.yml to run the "
+            f"'Run unit tests' gate, found {[name for name, _ in gating]}",
+        )
+        job_name, job = gating[0]
+        checkouts = [
+            step
+            for step in job["steps"]
+            if str(step.get("uses", "")).startswith("actions/checkout@")
+        ]
+        self.assertTrue(
+            checkouts,
+            f"job {job_name!r} in python-release.yml has no actions/checkout step",
+        )
+        checkout = checkouts[0]
+        self.assertEqual(
+            "0",
+            str((checkout.get("with") or {}).get("fetch-depth")),
+            f"job {job_name!r} in python-release.yml runs the full unit "
+            "suite as its release gate and must check out full history "
+            "(`with: fetch-depth: 0`); a depth-1 tag checkout collapses "
+            "the release-notes range to the dropped chore(release) commit "
+            "and fails the release, as in the first py-v0.4.3 run",
+        )
+
+
+class DifferentialHarnessPackagingTest(unittest.TestCase):
+    """Every differential harness on disk must be kept out of the tarball.
+
+    The differential tests replay `conformance/corpus/`, which lives at the
+    repository root and is deliberately not shipped. A harness that is not
+    registered in the package exclusion lists rides into the published
+    termproof tarball, where it cannot run: a registry checkout has no
+    corpus for it to replay. Registration lives in three places that must
+    agree — the `exclude` list in the crate manifest (what cargo honours),
+    the forbidden list in `verify-package-contents.sh` (what CI checks the
+    tarball against), and the "What is not shipped" enumeration in
+    `rust/docs/publishing.md` (what the publishing contract promises).
+    The crate README deliberately names the `tests/differential_*.rs` glob
+    instead of enumerating the harnesses, so it cannot drift.
+    Nothing connected the files on disk to any of the three, so a new
+    harness could land unregistered in all of them at once, which is what
+    happened to `differential_evidence_manifest.rs`.
+    """
+
+    TESTS_DIR = REPO_ROOT / "rust" / "crates" / "termproof" / "tests"
+    CARGO_TOML = REPO_ROOT / "rust" / "crates" / "termproof" / "Cargo.toml"
+    VERIFY_SCRIPT = REPO_ROOT / ".github" / "scripts" / "rust" / "verify-package-contents.sh"
+    PUBLISHING_DOCS = REPO_ROOT / "rust" / "docs" / "publishing.md"
+
+    def _harnesses_on_disk(self) -> list[str]:
+        return sorted(path.name for path in self.TESTS_DIR.glob("differential_*.rs"))
+
+    def _cargo_exclude_block(self) -> str:
+        text = self.CARGO_TOML.read_text(encoding="utf-8")
+        return text.split("exclude = [", 1)[1].split("]", 1)[0]
+
+    def test_every_harness_on_disk_is_registered_in_all_three_lists(self) -> None:
+        harnesses = self._harnesses_on_disk()
+        self.assertTrue(harnesses, f"no differential_*.rs under {self.TESTS_DIR}; did it move?")
+        missing = []
+        for path in (self.CARGO_TOML, self.VERIFY_SCRIPT, self.PUBLISHING_DOCS):
+            if path == self.CARGO_TOML:
+                text = self._cargo_exclude_block()
+            else:
+                text = path.read_text(encoding="utf-8")
+            relative = path.relative_to(REPO_ROOT).as_posix()
+            for harness in harnesses:
+                needle = f"tests/{harness}" if path == self.CARGO_TOML else harness
+                if needle not in text:
+                    missing.append(f"{relative} does not name {harness}")
+        self.assertEqual(
+            [],
+            missing,
+            "an unregistered differential harness ships in the termproof "
+            "tarball but cannot run without the unshipped conformance "
+            "corpus; register it in the Cargo.toml exclude list, the "
+            "verify-package-contents.sh forbidden list and the "
+            "publishing.md enumeration:\n" + "\n".join(missing),
+        )
+
+    def test_every_excluded_harness_in_the_manifest_exists_on_disk(self) -> None:
+        exclude = self._cargo_exclude_block()
+        named = re.findall(r"tests/(differential_[\w]+\.rs)", exclude)
+        self.assertTrue(named, "no differential harness in the exclude list")
+        stale = [name for name in named if not (self.TESTS_DIR / name).exists()]
+        self.assertEqual(
+            [],
+            stale,
+            "the Cargo.toml exclude list names differential harnesses that "
+            "are not on disk; drop the stale entries:\n" + "\n".join(stale),
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

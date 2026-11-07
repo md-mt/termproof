@@ -26,7 +26,7 @@ pub type ToolRunner = Box<dyn Fn(&[String]) -> Result<String, String> + Send + S
 
 /// Something that can upload a local artifact and yield a shareable URL.
 pub trait ArtifactUploader {
-    /// Upload `path`; return its URL, or `None` on failure (see [`last_error`]).
+    /// Upload `path`; return its URL, or `None` on failure (see [`last_error`](Self::last_error)).
     fn upload(&mut self, path: &str) -> Option<String>;
     /// The last failure message, if the most recent `upload` returned `None`.
     fn last_error(&self) -> Option<&str>;
