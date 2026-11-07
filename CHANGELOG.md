@@ -50,6 +50,12 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
 
 ### CI
 
+- **The macos-arm64 jobs moved from the retired `macos-14` runner image to
+  `macos-15`** (#288). GitHub now refuses `macos-14`, so the bundled-agg
+  wheel job in `python-ci.yml` was cancelled before its first step on every
+  PR, and the `aarch64-apple-darwin` entry of the `rust-release.yml` matrix
+  would have failed the same way. Both stay on Apple silicon; the targets
+  and the `termproof-macos-arm64.tar.gz` archive name are unchanged.
 - **Dependabot held the Python image's base at 3.12.** The `docker` entry in
   `.github/dependabot.yml` ignored `python` versions `>=3.13`, by owner
   decision for the v0.4.5 wrap-up, so the 3.15 proposal in #279 did not
