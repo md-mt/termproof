@@ -77,6 +77,10 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
 
 ### Docs
 
+- **The project entered maintenance mode.** The root `README.md` gained a
+  status line naming v0.4.5 as the wrap-up release, with no feature work
+  planned after it, and linking the open backlog: #118, #276, #265, #221,
+  #222, #281 and #282 (#285).
 - **Recorded the owner decision on vt100 0.18 VS16, REP and HPA
   divergences.** `rust/docs/status-and-parity.md` now marks those three
   Rust↔pyte differences as allowed with no fix planned (#278); the cast-replay
