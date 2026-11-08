@@ -41,6 +41,10 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.4.5] — 2026-11-08
+
 ### Rust — Changed
 
 - **The lockfile moved `jsonschema` 0.60.1 → 0.60.2, `unicode-width`
