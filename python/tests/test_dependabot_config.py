@@ -20,6 +20,7 @@ Run: uv run python -m unittest tests.test_dependabot_config -v
 from __future__ import annotations
 
 import fnmatch
+import re
 import unittest
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -30,6 +31,7 @@ ROOT = Path(__file__).resolve().parent.parent
 REPO_ROOT = ROOT.parent
 DEPENDABOT_YML = REPO_ROOT / ".github" / "dependabot.yml"
 WORKFLOW_DIR = REPO_ROOT / ".github" / "workflows"
+PYTHON_DOCKERFILE = ROOT / "docker" / "termproof.Dockerfile"
 
 UPDATE_TYPES = ("patch", "minor", "major")
 
@@ -216,6 +218,25 @@ class PipStreamTest(unittest.TestCase):
 
     def test_limit_is_untouched(self) -> None:
         self.assertEqual(self.entry["open-pull-requests-limit"], 10)
+
+
+class DockerStreamTest(unittest.TestCase):
+    """The python base image is held at the version the Dockerfile ships (#284)."""
+
+    def setUp(self) -> None:
+        self.ignores = {rule["dependency-name"]: rule for rule in entry_for(load_config(), "docker")["ignore"]}
+
+    def test_python_hold_starts_just_above_the_shipped_version(self) -> None:
+        text = PYTHON_DOCKERFILE.read_text(encoding="utf-8")
+        match = re.search(r"(?m)^FROM python:(\d+)\.(\d+)-slim", text)
+        self.assertIsNotNone(match, "python Dockerfile has no FROM python:<major>.<minor>-slim line")
+        major, minor = int(match[1]), int(match[2])
+
+        self.assertEqual(self.ignores["python"].get("versions"), [f">={major}.{minor + 1}"])
+        self.assertNotIn("update-types", self.ignores["python"], "a hold must not also block same-version updates")
+
+    def test_debian_image_is_not_held(self) -> None:
+        self.assertNotIn("debian", self.ignores)
 
 
 if __name__ == "__main__":

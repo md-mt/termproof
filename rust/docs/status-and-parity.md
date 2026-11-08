@@ -278,9 +278,12 @@ Reading 82/115 or 124/161 as a parity figure for the port would be wrong.
 
 ## Known screen divergences from pyte (vt100 0.18)
 
+**Allowed differences** — recorded in #278, no fix planned: Rust keeps vt100
+0.18.1 behaviour; pyte 0.8.2 keeps its prior behaviour for VS16, REP and HPA.
 The vt100 0.16.2 → 0.18.1 upgrade changed screen behavior (#277). With a
 10-column, 2-row screen, the Python oracle (pyte 0.8.2, wcwidth 0.9.4) and
-Rust's vt100 path produced these measured differences:
+Rust's vt100 path produced these measured differences for the three sequences
+the owner accepted:
 
 | Input | Python (pyte 0.8.2) | Rust (vt100 0.18.1) |
 |---|---|---|
@@ -331,6 +334,20 @@ residuals are recorded as floors + README-named residuals, not
 self-expiring allowances: their tests assert `agreed >= FLOOR` only.
 The remaining entries have no harness by design and are
 written out in full here.
+
+### vt100 0.18 screen — VS16, REP and HPA (#278)
+
+Recorded, no fix planned. Rust keeps vt100 0.18.1; the Python oracle keeps
+pyte 0.8.2's 0.16-era handling for VS16 width, REP and HPA. The measured
+differences are tabulated under
+[Known screen divergences from pyte (vt100 0.18)](#known-screen-divergences-from-pyte-vt100-018);
+those three rows are the complete set the owner accepted. No differential
+harness corpus case exercises them today — cast replay reaches the emulator
+grid but its corpus does not include these inputs; step and assertion corpora
+do not drive them either — so there is no #209 named allowance to pin, only
+the Rust unit tests in `terminal::screen` and `terminal::attributed`. If a
+harness later compares them, each divergence needs a named allowance in its
+Rust test the way the six #209 surfaces do.
 
 ### `render_fingerprint` on non-ASCII screens (#222, decided in #234)
 
