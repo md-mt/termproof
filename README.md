@@ -13,6 +13,16 @@
 > "trust me, it works in my terminal." Record the real session, replay it, and
 > ship the proof.
 
+**Status: maintenance mode.** The v0.4.5 release is the wrap-up; no feature
+work is planned after it. The open backlog is
+[#118](https://github.com/md-mt/termproof/issues/118),
+[#276](https://github.com/md-mt/termproof/issues/276),
+[#265](https://github.com/md-mt/termproof/issues/265),
+[#221](https://github.com/md-mt/termproof/issues/221),
+[#222](https://github.com/md-mt/termproof/issues/222),
+[#281](https://github.com/md-mt/termproof/issues/281) and
+[#282](https://github.com/md-mt/termproof/issues/282).
+
 TermProof drives your terminal program from a recipe on a real pseudo-terminal,
 records what actually happened, asserts against it, and leaves the evidence
 behind for a reviewer to inspect. Your reviewers read artifacts instead of
