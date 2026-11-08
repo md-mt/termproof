@@ -111,10 +111,18 @@ updates:
       # would have to name the pinned number and be edited on every toolchain
       # bump; this follows whatever tag the Dockerfiles currently carry. And
       # only version updates are ignored, so a refreshed digest for the same
-      # tag still arrives and the pin does not rot. The debian and python
-      # images are not named here and keep updating as before.
+      # tag still arrives and the pin does not rot. The debian image is not
+      # named here and keeps updating as before.
       - dependency-name: "rust"
         update-types:
           - "version-update:semver-major"
           - "version-update:semver-minor"
           - "version-update:semver-patch"
+      # The python image is held at 3.12 by owner decision for the v0.4.5
+      # wrap-up (#284). #279 proposed 3.15, which changes the runtime of the
+      # shipped image and is not a weekly bump. Unlike the rust entry this is
+      # a range, so only versions above 3.12 are ignored. Moving the image is
+      # a deliberate change that edits this range together with the
+      # `FROM python:` line and its pin in python/tests/test_docker_image.py.
+      - dependency-name: "python"
+        versions: [">=3.13"]

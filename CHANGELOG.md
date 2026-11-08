@@ -50,6 +50,10 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
   before/after harnesses printed output identical to the 0.60.1 / 0.2.2
   lockfile, including 132/161 full and 153/161 verdict assertion
   agreement (#283).
+- **The Rust image's runtime stage took a refreshed `debian:bookworm-slim`
+  digest.** `rust/docker/termproof.Dockerfile` moved its final stage from
+  `sha256:7c7b2c96…` to `sha256:99c0b25c…`, the same tag with current
+  security patches. This is the Rust half of Dependabot's #279 (#284).
 
 ### CI
 
@@ -63,6 +67,13 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
   0.19 removed `avt::Vt`, which failed every Rust job on #280; the port is
   #281. fancy-regex 0.20 waits for the parity measurement #221 made for
   0.19, which is #282. Each issue removes its own ignore (#283).
+- **Dependabot held the Python image's base at 3.12.** The `docker` entry in
+  `.github/dependabot.yml` ignored `python` versions `>=3.13`, by owner
+  decision for the v0.4.5 wrap-up, so the 3.15 proposal in #279 did not
+  recur. Moving the image became a deliberate change that edits the range,
+  the `FROM python:` line and its pin in `test_docker_image.py` together; a
+  new `DockerStreamTest` in `test_dependabot_config.py` failed if the range
+  stopped starting just above the Dockerfile's version (#284).
 
 ## [0.4.4] — 2026-10-26
 
