@@ -26,16 +26,17 @@ updates:
       cargo:
         patterns:
           - "*"
-    # One upgrade is held, not missed. schemars 1.x redraws the generated
-    # recipe schema and the key order of everything serde_json emits (see
-    # below), which is a schema-consumer decision, not a weekly grouped PR.
-    # It is the schemars-only remainder of #221: that issue's other two
-    # holds (jsonschema, and fancy-regex coupled to it) were taken at 0.56 /
-    # 0.19 once the differential measurement said parity moved the right
-    # way, and their ignores were removed in the same change that moved
-    # their requirements in rust/Cargo.toml — which is still the rule for
-    # the entry that remains. The per-crate reasoning is on the requirement
-    # in rust/Cargo.toml (#28).
+    # Three upgrades are held, not missed, each with the issue that lifts it.
+    # schemars 1.x redraws the generated recipe schema and the key order of
+    # everything serde_json emits (see below), which is a schema-consumer
+    # decision, not a weekly grouped PR. It is the schemars-only remainder of
+    # #221: that issue's other two holds (jsonschema, and fancy-regex coupled
+    # to it) were taken at 0.56 / 0.19 once the differential measurement said
+    # parity moved the right way, and their ignores were removed in the same
+    # change that moved their requirements in rust/Cargo.toml — which is still
+    # the rule for every entry here. avt 0.19 (#281) and fancy-regex 0.20
+    # (#282) were split out of grouped PR #280 so its safe bumps could land.
+    # The per-crate reasoning is on the requirement in rust/Cargo.toml (#28).
     ignore:
       # 1.x redraws the generated recipe schema (`definitions` -> `$defs`,
       # key and `required` order) and turns `preserve_order` into a
@@ -44,6 +45,16 @@ updates:
       # 1.0.0-alpha.18, so it carries the same redraw.
       - dependency-name: "schemars"
         versions: [">=0.9"]
+      # 0.19 removed `avt::Vt`, so the grouped bump in #280 failed to compile
+      # (E0432) in every Rust job. Porting to the new API, with screen parity
+      # checked through the parity gate (#216), is #281; it removes this entry.
+      - dependency-name: "avt"
+        versions: [">=0.19"]
+      # Validation messages are compared against the Python oracle, and #221
+      # measured 0.19 before taking it. 0.20 waits for the same measurement,
+      # which is #282; it removes this entry if parity holds.
+      - dependency-name: "fancy-regex"
+        versions: [">=0.20"]
 
   # GitHub Actions used by the workflows in .github/workflows. One entry covers
   # both implementations: GitHub reads only the root workflow directory, so

@@ -43,6 +43,13 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
 
 ### Rust — Changed
 
+- **The lockfile moved `jsonschema` 0.60.1 → 0.60.2, `unicode-width`
+  0.2.2 → 0.2.3 and `globset` 0.4.20 → 0.4.21; no requirement changed.**
+  These are the safe three of Dependabot's grouped #280. Every
+  differential harness passed, and the assertion, steps, cast-replay and
+  before/after harnesses printed output identical to the 0.60.1 / 0.2.2
+  lockfile, including 132/161 full and 153/161 verdict assertion
+  agreement (#283).
 - **The Rust image's runtime stage took a refreshed `debian:bookworm-slim`
   digest.** `rust/docker/termproof.Dockerfile` moved its final stage from
   `sha256:7c7b2c96…` to `sha256:99c0b25c…`, the same tag with current
@@ -56,6 +63,10 @@ with the pre-1.0 rule that under `0.x` a breaking change bumps the minor digit.
   PR, and the `aarch64-apple-darwin` entry of the `rust-release.yml` matrix
   would have failed the same way. Both stay on Apple silicon; the targets
   and the `termproof-macos-arm64.tar.gz` archive name are unchanged.
+- **Dependabot held `avt` at `<0.19` and `fancy-regex` at `<0.20`.** avt
+  0.19 removed `avt::Vt`, which failed every Rust job on #280; the port is
+  #281. fancy-regex 0.20 waits for the parity measurement #221 made for
+  0.19, which is #282. Each issue removes its own ignore (#283).
 - **Dependabot held the Python image's base at 3.12.** The `docker` entry in
   `.github/dependabot.yml` ignored `python` versions `>=3.13`, by owner
   decision for the v0.4.5 wrap-up, so the 3.15 proposal in #279 did not
